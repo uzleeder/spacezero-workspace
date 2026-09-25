@@ -1,0 +1,38 @@
+<%- include('../partials/page-header', { pageTitle: 'Analyze material', pageDescription: course.title }) %>
+<div style="margin-bottom:12px"><a href="/ai-practice/<%= course.id %>" class="text-sm link-gold">← Back</a></div>
+<% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
+
+<div class="card mt-24"><div class="card-body">
+  <p class="label">Source</p>
+  <ul style="margin:6px 0 20px;padding-left:18px">
+    <% course.modules.forEach(function (m) { %><li><%= m.title %> <span class="text-muted text-sm">(<%= TYPE_LABEL[m.contentType] || m.contentType %>)</span></li><% }); %>
+  </ul>
+
+  <p class="label">The AI will identify</p>
+  <ul style="margin:6px 0 20px;padding-left:0;list-style:none">
+    <% ['Learning objectives', 'Important knowledge', 'Skills', 'Behaviors', 'Procedures', 'Common mistakes', 'Training opportunities', 'Recommended practice'].forEach(function (x) { %><li>✓ <%= x %></li><% }); %>
+  </ul>
+  <p class="hint">Every important point is tied back to where it comes from in your material. Nothing is published, assigned or scored by this step.</p>
+
+  <form method="post" action="/ai-practice/<%= course.id %>/analyze" data-once class="mt-24">
+    <% if (again) { %><input type="hidden" name="again" value="1" /><% } %>
+    <% if (library.length) { %>
+    <details class="mb-16" style="margin-bottom:12px">
+      <summary class="text-sm link-gold" style="cursor:pointer">Optional: also use approved Library items as background reference</summary>
+      <p class="hint mt-16">Only what you tick is used (title and description), and only as background — nothing is cited from it and nothing else from your company is sent.</p>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:200px;overflow:auto"><% library.forEach(function (l) { %><label class="checkbox-row"><input type="checkbox" name="referenceIds" value="<%= l.id %>" /> <%= l.title %></label><% }); %></div>
+    </details>
+    <% } %>
+    <details>
+      <summary class="text-sm link-gold" style="cursor:pointer">Optional: purpose (default is Auto detect)</summary>
+      <div class="field mt-16" style="max-width:320px">
+        <label for="purpose">Purpose</label>
+        <select id="purpose" name="purpose">
+          <% PURPOSES.forEach(function (p) { %><option value="<%= p %>" <%= p === 'AUTO' ? 'selected' : '' %>><%= PURPOSE_LABEL[p] %></option><% }); %>
+        </select>
+      </div>
+    </details>
+    <button class="btn btn-gold mt-24"><%= again ? 'Analyze again' : 'Start Analysis' %></button>
+    <a href="/ai-practice/<%= course.id %>" class="btn btn-secondary mt-24">Not now</a>
+  </form>
+</div></div>

@@ -1,0 +1,53 @@
+<%- include('../partials/page-header', { pageTitle: 'Employees & Teams', pageDescription: 'Agents and flight experts assigned to you — setup readiness, training and leave.' }) %>
+
+<%- include('../partials/management-tabs', { tabs: tabsets.employees }) %>
+
+<div class="card mt-24">
+  <form class="filter-bar">
+    <input type="text" name="q" value="<%= q %>" placeholder="Search by name..." />
+    <select name="status">
+      <option value="">All employment statuses</option>
+      <% [['ACTIVE','Active'],['INVITED','Invited'],['DISABLED','Disabled']].forEach(function (s) { %><option value="<%= s[0] %>" <%= status === s[0] ? 'selected' : '' %>><%= s[1] %></option><% }); %>
+    </select>
+    <button type="submit" class="btn btn-secondary">Filter</button>
+    <details class="more-filters-reveal">
+      <summary class="btn btn-ghost btn-sm">More filters</summary>
+      <div class="more-filters-panel">
+        <select name="setup">
+          <option value="">Any setup state</option>
+          <% Object.keys(SETUP_FILTERS).forEach(function (k) { %><option value="<%= k %>" <%= setup === k ? 'selected' : '' %>><%= SETUP_FILTERS[k] %></option><% }); %>
+        </select>
+        <select name="missing">
+          <option value="">Any missing item</option>
+          <% requirements.forEach(function (r) { %><option value="<%= r.key %>" <%= missing === r.key ? 'selected' : '' %>>Missing: <%= r.label %></option><% }); %>
+        </select>
+        <%- include('../partials/employee-filters', { f: f, filterSkills: filterSkills }) %>
+      </div>
+    </details>
+  </form>
+  <% if (summaries.length === 0) { %>
+    <div class="card-body"><%- include('../partials/empty-state', { title: 'No employees to show', description: 'Nobody matches these filters, or an administrator has not assigned anyone to you yet.' }) %></div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Employee</th><th>Status</th><th>Role</th><th>Team</th><th>Setup</th><th>Training</th><th>Employment</th></tr></thead>
+        <tbody>
+          <% summaries.forEach(function (row) { %>
+            <tr>
+              <td><a href="/team/<%= row.agent.id %>" style="display:flex;align-items:center;gap:10px">
+                <%- include('../partials/avatar', { profile: row.agent, size: 'sm', identify: true }) %>
+                <div><p style="font-weight:500;color:var(--navy-950)"><%= row.agent.fullName %></p><p class="text-sm text-muted">@<%= row.agent.username %></p></div>
+              </a></td>
+              <td><%- include('../partials/readiness-badge', { readiness: row.readiness, showReasons: true }) %></td>
+              <td><%= roleLabel(row.agent.role) %></td>
+              <td><%= row.agent.teamMemberships[0] ? row.agent.teamMemberships[0].team.name : '—' %></td>
+              <td><%- include('../partials/setup-badge', { setup: row.setup }) %><p class="text-sm text-muted" style="margin-top:4px"><%= row.agent.currentAddressEnc ? 'Address ✓' : 'Address missing' %> · <%= row.agent.localPhone ? 'Phone ✓' : 'Phone missing' %></p></td>
+              <td><% if (row.summary.retakeRequired > 0) { %><span class="badge badge-danger"><%= row.summary.retakeRequired %> retake<%= row.summary.retakeRequired === 1 ? '' : 's' %></span><% } else { %><span class="text-sm text-muted"><%= row.summary.completed %>/<%= row.summary.assigned %> completed</span><% } %></td>
+              <td><span class="badge <%= row.agent.status === 'ACTIVE' ? 'badge-success' : '' %>"><%= row.agent.status.charAt(0) + row.agent.status.slice(1).toLowerCase() %></span></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>

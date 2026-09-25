@@ -1,0 +1,51 @@
+<%- include('../partials/page-header', { pageTitle: 'Result — ' + assessment.title }) %>
+
+<div class="card mt-24">
+  <div class="card-body">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="badge <%= passed ? 'badge-success' : 'badge-danger' %>" style="font-size:16px;padding:8px 16px"><%= graded.overallScore %>%</span>
+      <div>
+        <p style="font-weight:600;color:var(--navy-950)"><%= passed ? 'Passed' : 'Retake required' %></p>
+        <p class="text-sm text-muted">Passing score: <%= assessment.passingScore %>% · Attempt #<%= attempt.attemptNumber %></p>
+      </div>
+    </div>
+    <% if (!passed && Object.keys(graded.skillBreakdown || {}).length > 0) { %>
+      <div class="mt-24">
+        <p class="text-sm text-muted">Weakest areas:
+          <% Object.entries(graded.skillBreakdown).filter(function (e) { return e[1] < assessment.passingScore; }).forEach(function (e) { %>
+            <span class="badge badge-danger" style="margin-left:4px"><%= e[0] %> — <%= e[1] %>%</span>
+          <% }); %>
+        </p>
+        <form method="post" action="/assessments/<%= assessment.id %>/remediate" class="mt-16">
+          <button type="submit" class="btn btn-gold">Practice these skills now</button>
+        </form>
+      </div>
+    <% } %>
+  </div>
+</div>
+
+<div class="card mt-24" style="margin-bottom:40px">
+  <div class="card-header"><h2>Review</h2></div>
+  <div class="card-body">
+    <ul class="divide-list">
+      <% questions.forEach(function (q, i) { %>
+        <% const result = graded.perQuestion[i]; %>
+        <li>
+          <div style="display:flex;align-items:flex-start;gap:8px">
+            <span class="badge <%= result.isCorrect ? 'badge-success' : 'badge-danger' %>"><%= result.scorePercent %>%</span>
+            <div style="flex:1">
+              <p style="font-weight:500;color:var(--navy-950)"><%= i + 1 %>. <%= q.prompt %></p>
+              <% if (!result.isCorrect) { %>
+                <p class="text-sm text-muted mt-16">Correct answer: <%= Array.isArray(q.correctAnswer) ? q.correctAnswer.join(', ') : q.correctAnswer %></p>
+              <% } %>
+              <% if (q.explanation) { %><p class="text-sm text-muted" style="margin-top:4px"><%= q.explanation %></p><% } %>
+              <% if (result.feedback) { %><p class="text-sm text-muted" style="margin-top:4px"><%= result.feedback %></p><% } %>
+            </div>
+          </div>
+        </li>
+      <% }); %>
+    </ul>
+  </div>
+</div>
+
+<a href="/training" class="btn btn-secondary" style="margin-bottom:40px">Back to My Training</a>

@@ -1,0 +1,82 @@
+<%- include('partials/page-header', { pageTitle: course.title, pageDescription: course.description || 'Training materials' }) %>
+
+<%
+const requiredCount = requiredIds.size;
+const doneCount = gate.done || 0;
+const allDone = gate.unlocked;
+const notices = { 'open-first': 'Open the material first, then confirm.', 'too-fast': 'Take a little more time with this material before you confirm — at least ' + minReadSeconds + ' seconds.' };
+%>
+<% if (material && notices[material]) { %><div class="form-alert error mt-16" role="alert"><%= notices[material] %></div><% } %>
+
+<% if (isLearner) { %>
+  <div class="card mt-24 next-card" role="status">
+    <div class="card-body">
+      <p class="label">Step 1 · Learn first</p>
+      <h2><%= requiredCount === 0 ? 'No required material' : allDone ? 'All required material finished' : doneCount + ' of ' + requiredCount + ' required items finished' %></h2>
+      <p class="text-sm text-muted" style="margin:4px 0 10px"><%= allDone ? 'The practice and quizzes below are now open.' : 'Watch every video, listen to every recording and read every document below. The practice and quizzes open only after all of it is finished.' %></p>
+      <% if (requiredCount) { %><div style="height:8px;border-radius:99px;background:rgba(127,127,127,.2);overflow:hidden" aria-hidden="true"><div style="height:100%;width:<%= Math.round(doneCount / requiredCount * 100) %>%;background:var(--gold-500,#b78a3f)"></div></div><% } %>
+    </div>
+  </div>
+<% } %>
+
+<% course.modules.forEach(function(module, index) {
+  const isRequired = requiredIds.has(module.id);
+  const isDone = doneIds.has(module.id);
+  const isDoc = DOC_TYPES.includes(module.contentType);
+  const isMedia = ['VIDEO','AUDIO','CALL_RECORDING'].includes(module.contentType);
+%>
+<section class="card mt-24" id="m-<%= module.id %>"><div class="card-body">
+  <div class="row-between" style="gap:12px;flex-wrap:wrap">
+    <h2><%= index + 1 %>. <%= module.title %></h2>
+    <% if (isLearner) { %><span class="badge <%= isDone ? 'badge-success' : isRequired ? 'badge-warning' : '' %>"><%= isDone ? '✓ Finished' : isRequired ? 'To do' : 'Optional' %></span><% } %>
+  </div>
+  <p><%= module.contentType === 'NOTE' ? '' : (module.description || '') %></p>
+  <p class="text-sm text-muted"><%= isRequired ? 'Required — ' : 'Optional / reference — ' %><%= isMedia ? (module.contentType === 'VIDEO' ? 'watch it to the end' : 'listen to it to the end') : module.contentType === 'NOTE' ? 'read it' : 'open it and read it' %></p>
+
+  <% if (module.storagePath && isMedia) { const progress = gate.modules.find(m => m.id === module.id)?.mediaProgress[0]; %>
+    <<%= module.contentType === 'VIDEO' ? 'video' : 'audio' %> controls preload="metadata" src="/training-file/<%= module.id %>" style="width:100%;max-height:460px" data-learning-media="<%= module.id %>" data-required="<%= module.required %>" data-position="<%= progress?.lastPositionSeconds || 0 %>" data-frontier="<%= progress ? JSON.parse(progress.watchedRangesJson)[0]?.[1] || 0 : 0 %>"></<%= module.contentType === 'VIDEO' ? 'video' : 'audio' %>>
+    <p class="text-sm" data-media-status="<%= module.id %>" role="status"><%= progress?.completedAt ? 'Material completed' : 'Progress saves automatically. You can pause, rewind and continue later.' %></p>
+  <% } else if (module.contentType === 'NOTE') { %>
+    <div style="white-space:pre-wrap;margin-top:8px"><%= module.description || '' %></div>
+  <% } else if (module.storagePath) { %>
+    <a class="btn btn-secondary mt-16" href="/training-file/<%= module.id %>" target="_blank" rel="noopener">Open <%= module.contentType === 'PDF' ? 'PDF' : module.contentType === 'PPT' ? 'slides' : module.contentType === 'IMAGE' ? 'image' : 'document' %></a>
+  <% } else if (module.externalUrl && /^https?:\/\//i.test(module.externalUrl)) { %>
+    <a class="btn btn-secondary mt-16" href="/training-link/<%= module.id %>" target="_blank" rel="noopener noreferrer">Open reference link</a>
+  <% } else { %>
+    <p class="text-muted">Material has not been uploaded yet.</p>
+  <% } %>
+
+  <% if (isLearner && isDoc && isRequired && !isDone) { %>
+    <form method="post" action="/training-material/<%= module.id %>/acknowledge" class="mt-16" data-once>
+      <button type="submit" class="btn btn-gold">I have read this</button>
+      <span class="text-sm text-muted" style="margin-left:8px">Available after you have opened it and spent a little time with it.</span>
+    </form>
+  <% } %>
+</div></section>
+<% }); %>
+
+<% if (typeof assessments !== 'undefined' && assessments.length > 0) { %>
+  <div class="section-heading mt-24"><div><span class="eyebrow">STEP 2 · PRACTICE</span><h2>Practice and quizzes for this training</h2></div></div>
+  <% if (isLearner && !allDone) { %>
+    <section class="card mt-16"><div class="card-body">
+      <p style="font-weight:500;color:var(--navy-950)">🔒 Locked until you finish the material</p>
+      <p class="text-sm text-muted">Finish the <%= requiredCount - doneCount %> remaining required item<%= requiredCount - doneCount === 1 ? '' : 's' %> above first. Then <%= assessments.length %> practice<%= assessments.length === 1 ? '' : 's' %> will open here.</p>
+    </div></section>
+  <% } else { %>
+    <% assessments.forEach(function (a) { %>
+      <section class="card mt-16"><div class="card-body row-between">
+        <div>
+          <p style="font-weight:500;color:var(--navy-950)"><%= a.title %></p>
+          <p class="text-sm text-muted">Level <%= a.level %> · Passing score <%= a.passingScore %>%</p>
+        </div>
+        <a class="btn btn-gold" href="<%= a.type === 'ROLEPLAY' ? '/assessments/' + a.id + '/roleplay' : '/assessments/' + a.id + '/take' %>">Start</a>
+      </div></section>
+    <% }); %>
+  <% } %>
+<% } %>
+
+<% if (canFinish) { %>
+  <section class="card mt-24" style="margin-bottom:40px"><div class="card-body row-between"><div><p style="font-weight:500;color:var(--navy-950)">Finished this training?</p><p class="text-sm text-muted">This training has no practice, so you finish it here once you have gone through the material.</p></div><form method="post" action="/training/<%= finishId %>/complete"><button type="submit" class="btn btn-gold">Finish training</button></form></div></section>
+<% } %>
+<script src="/static/js/media-progress.js" defer></script>
+<script src="/static/js/ai-practice.js" defer></script>

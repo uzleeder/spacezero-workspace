@@ -1,0 +1,95 @@
+<%
+const badge = function (a) { return a.status === 'APPROVED' ? '<span class="badge badge-success">Approved</span>' : '<span class="badge badge-warning">Draft</span>'; };
+%>
+<% if (!analysis || !['READY_FOR_REVIEW', 'APPROVED'].includes(analysis.status)) { %>
+  <div class="card mt-24"><div class="card-body"><p class="text-muted">Practice is built from the analysis. <a class="link-gold" href="/ai-practice/<%= course.id %>?step=analysis">Go to the analysis</a> first.</p></div></div>
+
+<% } else if (st.key === 'BUILDING') { %>
+  <div class="card mt-24"><div class="card-body">
+    <p class="label">Building practice</p>
+    <h2 style="margin:6px 0">The AI is building your practice</h2>
+    <p class="text-sm text-muted"><%= components.length %> component<%= components.length === 1 ? '' : 's' %> ready so far. You can leave this page — it keeps going in the background.</p>
+    <% groups.forEach(function (g) { %><p class="text-sm">✓ <%= g.label %> — <%= g.summary %></p><% }); %>
+  </div></div>
+
+<% } else { %>
+  <% if (!editable) { %>
+    <div class="form-alert info mt-16">Version <%= course.publishedVersion %> is in Training, so this practice is read-only. Assigned and completed training stays exactly as it is. <form method="post" action="/ai-practice/<%= course.id %>/new-version" data-once style="display:inline"><button class="btn btn-secondary btn-sm">Create version <%= course.publishedVersion + 1 %> to improve it</button></form></div>
+  <% } %>
+  <% if (build && build.status === 'FAILED') { %>
+    <div class="form-alert error mt-16" role="alert">Some practice could not be built. Your analysis and everything already built are safe.
+      <form method="post" action="/ai-practice/<%= course.id %>/practice/retry" data-once style="display:inline"><button class="btn btn-gold btn-sm">Retry</button></form>
+      <details style="margin-top:6px"><summary class="text-sm" style="cursor:pointer">View details</summary><span class="text-sm"><%= build.errorMessage || '' %> (attempts: <%= build.retryCount + 1 %>)</span></details></div>
+  <% } %>
+
+  <% if (components.length === 0) { %>
+    <div class="card mt-24 next-card"><div class="card-body">
+      <p class="label">Practice</p>
+      <h2 style="margin:6px 0">Turn the analysis into practice</h2>
+      <p class="text-muted">The AI recommends:</p>
+      <ul style="list-style:none;padding:0;margin:8px 0"><% recommended.forEach(function (r) { %><li>✓ <%= r.label %> — <%= r.summary %></li><% }); %></ul>
+      <% if (editable) { %><form method="post" action="/ai-practice/<%= course.id %>/practice/build" data-once><input type="hidden" name="mode" value="recommended" /><button class="btn btn-gold">Create Recommended Practice</button></form><% } %>
+    </div></div>
+    <% if (editable) { %>
+    <div class="card mt-16" id="customize"><div class="card-header"><h2>Customize Practice</h2><p>Only if you want something different from the recommendation.</p></div><div class="card-body">
+      <form method="post" action="/ai-practice/<%= course.id %>/practice/build" data-once>
+        <input type="hidden" name="mode" value="custom" />
+        <% PLAN.COMPONENT_TYPES.forEach(function (t) { var rec = recommended.find(function (r) { return r.type === t; }); %>
+          <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+            <label class="checkbox-row" style="min-width:240px"><input type="checkbox" name="methods" value="<%= t %>" <%= rec ? 'checked' : '' %> /> <%= PLAN.LABEL[t] %></label>
+            <label class="text-sm text-muted">How many <%= PLAN.UNIT[t] %>s <input type="number" name="count_<%= t %>" min="1" max="<%= PLAN.MAX_COUNT[t] %>" value="<%= PLAN.DEFAULT_COUNT[t] %>" style="width:72px" /></label>
+          </div>
+        <% }); %>
+        <div class="field mt-16" style="max-width:200px"><label for="level">Difficulty (1–5)</label><input id="level" name="level" type="number" min="1" max="5" value="<%= parsed.intensity || 3 %>" /></div>
+        <button class="btn btn-secondary mt-16">Create this practice</button>
+      </form>
+    </div></div>
+    <% } %>
+
+  <% } else { %>
+    <div class="card mt-24"><div class="card-header"><h2>Practice Builder</h2><p><%= course.title %> — practice package<%= course.draftVersion > 1 ? ' (version ' + course.draftVersion + ')' : '' %></p></div>
+      <div class="card-body">
+        <% groups.forEach(function (g, gi) { %>
+          <div style="margin-bottom:24px">
+            <h3 style="font-size:16px;color:var(--navy-950)"><%= gi + 1 %>. <%= g.label %> <span class="text-muted" style="font-weight:400">— <%= g.summary %></span></h3>
+            <ul class="divide-list">
+              <% g.items.forEach(function (c) { var isQ = PLAN.QUESTION_TYPES.includes(c.type); %>
+                <li>
+                  <div class="row-between" style="gap:12px;flex-wrap:wrap">
+                    <div style="min-width:0"><p style="font-weight:500"><%= c.title %></p><p class="text-sm text-muted"><%- badge(c) %> Level <%= c.level %> • Pass <%= c.passingScore %>%<%= isQ ? ' • ' + c.questions.length + ' questions' : '' %></p></div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                      <a class="btn btn-secondary btn-sm" href="/admin/assessments/<%= c.id %>"><%= isQ ? 'Edit questions' : 'Edit' %></a>
+                      <a class="btn btn-secondary btn-sm" href="/admin/assessments/<%= c.id %>/preview">Preview</a>
+                      <% if (editable) { %>
+                        <% if (c.type !== 'PROCESS_SIM') { %><form method="post" action="/ai-practice/<%= course.id %>/components/<%= c.id %>/harder" data-once><button class="btn btn-secondary btn-sm">Make harder</button></form><% } %>
+                        <form method="post" action="/ai-practice/<%= course.id %>/components/<%= c.id %>/regenerate" data-once><button class="btn btn-secondary btn-sm" data-confirm-msg="Replace this practice with a newly generated one? The others are not touched.">Regenerate</button></form>
+                        <form method="post" action="/ai-practice/<%= course.id %>/components/<%= c.id %>/delete" data-once><button class="btn btn-secondary btn-sm" data-confirm-msg="Remove this practice?">Delete</button></form>
+                      <% } %>
+                    </div>
+                  </div>
+                  <% if (editable && c.type !== 'PROCESS_SIM') { %><details style="margin-top:6px"><summary class="text-sm link-gold" style="cursor:pointer">Ask the AI to adjust this…</summary>
+                    <form method="post" action="/ai-practice/<%= course.id %>/components/<%= c.id %>/adjust" data-once style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+                      <input name="instruction" maxlength="600" placeholder='e.g. "Focus more on closing" or "Make the customer less cooperative"' style="flex:1;min-width:240px" required />
+                      <button class="btn btn-secondary btn-sm">Apply</button>
+                    </form></details><% } %>
+                </li>
+              <% }); %>
+            </ul>
+          </div>
+        <% }); %>
+
+        <% if (editable) { %>
+        <details><summary class="btn btn-secondary btn-sm" style="cursor:pointer">+ Add practice</summary>
+          <form method="post" action="/ai-practice/<%= course.id %>/practice/add" data-once style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:12px">
+            <div class="field" style="margin:0"><label for="add-type">Type</label><select id="add-type" name="type"><% PLAN.COMPONENT_TYPES.forEach(function (t) { %><option value="<%= t %>"><%= PLAN.LABEL[t] %></option><% }); %><option value="SCENARIO">Difficult scenario (hardest role-play)</option><option value="CALL_COACHING">Call coaching (speak the call, get coached)</option></select></div>
+            <div class="field" style="margin:0"><label for="add-count">How many</label><input id="add-count" name="count" type="number" min="1" max="20" value="1" style="width:80px" /></div>
+            <div class="field" style="margin:0"><label for="add-level">Difficulty</label><input id="add-level" name="level" type="number" min="1" max="5" value="<%= parsed.intensity || 3 %>" style="width:80px" /></div>
+            <button class="btn btn-secondary">Add</button>
+          </form>
+        </details>
+        <% } %>
+      </div>
+    </div>
+    <p class="mt-24" style="margin-bottom:40px"><a class="btn btn-gold" href="/ai-practice/<%= course.id %>?step=review">Continue to review →</a></p>
+  <% } %>
+<% } %>

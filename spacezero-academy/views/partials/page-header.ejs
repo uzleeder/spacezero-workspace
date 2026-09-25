@@ -1,0 +1,7 @@
+<div class="page-header">
+  <div>
+    <h1><%= pageTitle %></h1>
+    <% if (typeof pageDescription !== 'undefined' && pageDescription) { %><p><%= pageDescription %></p><% } %>
+  </div>
+  <% if (typeof headerAction !== 'undefined' && headerAction) { %><div><%- headerAction %></div><% } %>
+</div>

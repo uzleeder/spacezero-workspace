@@ -1,0 +1,14 @@
+<%# "Needs your attention": only what needs doing, each with a link to where it is done. %>
+<div class="card" style="margin-bottom:24px">
+  <div class="card-header"><h2>Needs your attention</h2><p><%= attention.total ? 'What to do next.' : 'Nothing needs your attention right now.' %></p></div>
+  <% if (attention.items.length) { %>
+    <ul class="divide-list" style="padding:0 24px">
+      <% attention.items.forEach(function (i) { %>
+        <li class="row-between" style="gap:12px">
+          <a href="<%= i.href %>" style="flex:1;min-width:0"><span style="font-weight:500;color:var(--navy-950)"><%= i.label %></span><br><span class="text-sm text-muted"><%= i.hint %></span></a>
+          <span class="badge <%= i.tone === 'danger' ? 'badge-danger' : 'badge-warning' %>" aria-label="<%= i.value %> — <%= i.label %>"><%= i.value %></span>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+</div>

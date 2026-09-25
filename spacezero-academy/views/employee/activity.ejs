@@ -1,0 +1,18 @@
+<%- include('../partials/employee-frame') %>
+<div class="card mt-24" style="margin-bottom:40px">
+  <div class="card-header"><h2>Activity</h2><p>The employee's journey in plain words: activation, setup, training, results, skill evidence, vacation. Security events are kept separately in the audit log.</p></div>
+  <% if (events.length === 0) { %>
+    <div class="card-body"><%- include('../partials/empty-state', { title: 'Nothing has happened yet' }) %></div>
+  <% } else { %>
+    <ul class="divide-list" style="padding:0 24px">
+      <% var lastDay = ''; events.forEach(function (e) { var day = new Date(e.at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }); %>
+        <% if (day !== lastDay) { lastDay = day; %><li style="padding-bottom:0;border-bottom:0"><p class="label" style="margin-top:8px"><%= day %></p></li><% } %>
+        <li class="row-between" style="gap:12px">
+          <span><span class="badge" style="margin-right:8px;text-transform:capitalize"><%= e.kind %></span><%= e.text %><% if (e.detail) { %> <span class="text-sm text-muted">· <%= e.detail %></span><% } %></span>
+          <span class="text-sm text-muted"><%= new Date(e.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) %></span>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+  <% if (profile.role === 'ADMIN') { %><div class="card-body"><p class="text-sm text-muted">Looking for logins, permission changes or credential access? That is the <a class="link-gold" href="/admin/audit-logs">Security &amp; Audit log</a>.</p></div><% } %>
+</div>

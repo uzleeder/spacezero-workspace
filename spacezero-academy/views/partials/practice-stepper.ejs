@@ -1,0 +1,11 @@
+<%# Workflow position shown as text + marker (never colour alone): done steps ✓, current ●, upcoming ○ %>
+<% const order = ['UPLOADED','PROCESSING','PRACTICE_GENERATED','READY_FOR_REVIEW','APPROVED','SENT_TO_TRAINING'];
+   const labels = { UPLOADED: 'Uploaded', PROCESSING: 'Processing', PRACTICE_GENERATED: 'Practice generated', READY_FOR_REVIEW: 'Ready for review', APPROVED: 'Approved', SENT_TO_TRAINING: 'Sent to Training' };
+   const at = order.indexOf(stage); %>
+<ol class="stepper" aria-label="Workflow position" style="display:flex;flex-wrap:wrap;gap:6px 14px;list-style:none;padding:0;margin:8px 0 0">
+  <% order.forEach(function (s, i) { %>
+    <li class="text-sm" style="<%= i === at ? 'font-weight:600;color:var(--navy-950)' : i < at ? '' : 'opacity:.55' %>" <%- i === at ? 'aria-current="step"' : '' %>>
+      <span aria-hidden="true"><%= i < at ? '✓' : i === at ? (typeof failed !== 'undefined' && failed ? '▲' : '●') : '○' %></span> <%= labels[s] %>
+    </li>
+  <% }); %>
+</ol>

@@ -1,0 +1,37 @@
+<%- include('partials/page-header', { pageTitle: 'Upload material', pageDescription: 'Saving is instant and private. Nothing is analyzed until you start the analysis — today, tomorrow or next month.' }) %>
+<div style="margin-bottom:16px"><a href="/ai-practice" class="text-sm link-gold">← Back to AI Practice</a></div>
+
+<% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
+
+<form method="post" action="/ai-practice/new" enctype="multipart/form-data" data-once data-upload-form>
+  <div class="card mt-24"><div class="card-body">
+    <p class="label" style="margin-bottom:8px">What are you uploading?</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <label class="checkbox-row"><input type="radio" name="kind" value="material" <%= kind === 'material' ? 'checked' : '' %> data-kind /> Training material <span class="text-muted text-sm">(video, audio, PDF, slides, documents, images, notes)</span></label>
+      <label class="checkbox-row"><input type="radio" name="kind" value="call" <%= kind === 'call' ? 'checked' : '' %> data-kind /> Customer call recordings</label>
+    </div>
+
+    <div class="field mt-24">
+      <label for="title">Name <span class="text-muted">(optional — the first file's name is used otherwise)</span></label>
+      <input id="title" name="title" maxlength="160" value="<%= values.title || '' %>" placeholder="e.g. Objection Handling Masterclass" />
+    </div>
+
+    <div class="field mt-16">
+      <label for="files">Files <span class="text-muted" data-files-hint>— add several related files to make one source</span></label>
+      <input id="files" name="files" type="file" multiple accept="<%= ACCEPT %>" data-files />
+      <ul class="text-sm" data-file-list style="margin:8px 0 0;padding-left:18px"></ul>
+      <p class="hint" data-material-hint>MP4/WebM/MOV video, MP3/WAV/OGG audio, PDF, PPT/PPTX, DOC/DOCX, PNG/JPG/WEBP/GIF. Up to 10 files, 300 MB each.</p>
+    </div>
+
+    <div class="field mt-16" data-only="material">
+      <label for="noteText">Notes <span class="text-muted">(optional — written material the AI should read together with the files)</span></label>
+      <textarea id="noteText" name="noteText" rows="4"><%= values.noteText || '' %></textarea>
+    </div>
+
+    <p class="hint mt-16" data-only="call">Calls stay private. You will choose what they are for, and confirm you are authorized to process them, when you start the analysis.</p>
+
+    <button type="submit" class="btn btn-gold mt-24">Save</button>
+    <a href="/ai-practice" class="btn btn-secondary mt-24">Cancel</a>
+  </div></div>
+</form>
+<script src="/static/js/ai-practice.js" defer></script>

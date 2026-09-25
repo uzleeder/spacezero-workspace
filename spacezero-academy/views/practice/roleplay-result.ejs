@@ -1,0 +1,47 @@
+<%- include('../partials/page-header', { pageTitle: 'Result — ' + assessment.title }) %>
+
+<div class="card mt-24">
+  <div class="card-body">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="badge <%= passed ? 'badge-success' : 'badge-danger' %>" style="font-size:16px;padding:8px 16px"><%= scoring.overallScore %>%</span>
+      <div>
+        <p style="font-weight:600;color:var(--navy-950)"><%= passed ? 'Passed' : 'Retake required' %></p>
+        <p class="text-sm text-muted">Passing score: <%= assessment.passingScore %>% · Attempt #<%= attempt.attemptNumber %></p>
+      </div>
+    </div>
+    <p class="mt-16"><%= scoring.feedback %></p>
+    <% if (!passed) { %>
+      <form method="post" action="/assessments/<%= assessment.id %>/remediate" class="mt-16">
+        <button type="submit" class="btn btn-gold">Practice these skills now</button>
+      </form>
+    <% } %>
+  </div>
+</div>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>Skill scores</h2></div>
+  <div class="card-body">
+    <% scoring.skillScores.forEach(function (s) { %>
+      <div class="mt-16" style="margin-top:14px">
+        <div class="row-between" style="margin-bottom:4px">
+          <span style="font-weight:500;color:var(--navy-950);font-size:14px"><%= s.skill %></span>
+          <span class="text-sm text-muted"><%= s.score %>%</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill navy" style="width:<%= s.score %>%"></div></div>
+      </div>
+    <% }); %>
+  </div>
+</div>
+
+<div class="card mt-24" style="margin-bottom:40px">
+  <div class="card-header"><h2>Transcript</h2></div>
+  <div class="card-body">
+    <ul class="divide-list">
+      <% transcript.forEach(function (t) { %>
+        <li><span class="text-sm text-muted"><%= t.role === 'agent' ? 'You' : 'Customer' %>:</span> <%= t.text %></li>
+      <% }); %>
+    </ul>
+  </div>
+</div>
+
+<a href="/training" class="btn btn-secondary" style="margin-bottom:40px">Back to My Training</a>

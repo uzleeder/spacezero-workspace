@@ -1,0 +1,17 @@
+<%- include('../../partials/page-header', { pageTitle: 'Add a new employee', pageDescription: 'Only administrators can create employee accounts.' }) %>
+
+<% if (inviteLink) { %>
+  <div class="card"><div class="card-body">
+    <div class="form-alert success">Employee created. Now send them the invitation link.</div>
+    <div class="form-alert info mt-16">
+      <p><strong>Local mode:</strong> no SMTP is connected. Copy this link and share it with the employee yourself.</p>
+      <a href="<%= inviteLink %>"><%= inviteLink %></a>
+    </div>
+    <a href="/admin/employees" class="btn btn-primary mt-16">Back to employees</a>
+  </div></div>
+<% } else { %>
+  <div class="card"><div class="card-body">
+    <% if (error) { %><div class="form-alert error"><%= error %></div><% } %>
+    <%- include('../../partials/employee-form', { mode: 'new', actionUrl: '/admin/employees/new', teams: teams, supervisors: supervisors, values: values, fieldErrors: fieldErrors }) %>
+  </div></div>
+<% } %>

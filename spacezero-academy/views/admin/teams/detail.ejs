@@ -1,0 +1,41 @@
+<%- include('../../partials/page-header', { pageTitle: team.name, pageDescription: team.description || 'Team overview and members.', headerAction: '<a href="/admin/teams" class="btn btn-secondary btn-sm">&larr; Back to teams</a>' }) %>
+
+<div class="grid" style="grid-template-columns: minmax(0,1fr) 360px; align-items:start">
+  <div class="card">
+    <div class="card-header"><h2>Members</h2><p><%= team.memberships.length %> member<%= team.memberships.length === 1 ? '' : 's' %></p></div>
+    <% if (team.memberships.length === 0) { %>
+      <div class="card-body"><%- include('../../partials/empty-state', { title: 'No members yet', description: 'Assign an employee to this team from their profile.' }) %></div>
+    <% } else { %>
+      <ul class="divide-list" style="padding:0 24px">
+        <% team.memberships.forEach(function (m) { %>
+          <li class="row-between">
+            <a href="/admin/employees/<%= m.profile.id %>" style="display:flex;align-items:center;gap:10px">
+              <%- include('../../partials/avatar', { profile: m.profile, size: 'sm' }) %>
+              <div>
+                <p style="font-weight:500;color:var(--navy-950)"><%= m.profile.fullName %></p>
+                <p class="text-sm text-muted">@<%= m.profile.username %></p>
+              </div>
+            </a>
+            <span class="badge badge-navy"><%= roleLabel(m.profile.role) %></span>
+          </li>
+        <% }); %>
+      </ul>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>Recent training assignments</h2></div>
+    <% if (team.trainingAssignments.length === 0) { %>
+      <div class="card-body"><p class="text-sm text-muted">No training assigned to this team yet.</p></div>
+    <% } else { %>
+      <ul class="divide-list" style="padding:0 24px">
+        <% team.trainingAssignments.forEach(function (a) { %>
+          <li>
+            <p style="font-weight:500;color:var(--navy-950)"><%= a.course.title %></p>
+            <p class="text-sm text-muted"><%= a.createdAt.toLocaleDateString('en-US') %><% if (a.dueDate) { %> · due <%= a.dueDate.toLocaleDateString('en-US') %><% } %></p>
+          </li>
+        <% }); %>
+      </ul>
+    <% } %>
+  </div>
+</div>

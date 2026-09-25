@@ -1,0 +1,51 @@
+{
+  "name": "spacezero-academy",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node --watch server.js",
+    "start": "node server.js",
+    "db:seed": "node prisma/seed.js",
+    "lint": "eslint .",
+    "test": "node scripts/test.cjs",
+    "test:security": "node scripts/test.cjs --security",
+    "test:live": "node scripts/phase2-live-check.cjs",
+    "validate": "node scripts/validate.cjs",
+    "validate:production": "node scripts/validate.cjs --production",
+    "package": "node scripts/package-release.cjs",
+    "package:check": "node scripts/package-release.cjs --check",
+    "db:migrate": "prisma migrate deploy",
+    "db:generate:production": "prisma generate --schema prisma/postgresql/schema.prisma",
+    "db:migrate:production": "prisma migrate deploy --schema prisma/postgresql/schema.prisma",
+    "db:validate:production": "prisma validate --schema prisma/postgresql/schema.prisma",
+    "db:import:production": "node scripts/import-postgresql.cjs"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
+  "dependencies": {
+    "@google/genai": "^2.23.0",
+    "@prisma/client": "^6.19.3",
+    "adm-zip": "^0.6.1",
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "ejs": "^6.0.1",
+    "express": "^5.2.1",
+    "express-ejs-layouts": "^2.5.1",
+    "ffprobe-static": "^3.1.0",
+    "mammoth": "^1.12.3",
+    "multer": "^2.4.0",
+    "nodemailer": "^10.0.10",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.10.0",
+    "globals": "^17.12.0",
+    "prisma": "^6.19.3",
+    "supertest": "^7.2.2"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.0"
+  }
+}

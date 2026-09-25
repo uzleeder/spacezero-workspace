@@ -1,0 +1,32 @@
+<%- include('../partials/page-header', { pageTitle: 'Your academy, at a glance.', pageDescription: 'Welcome back, ' + profile.fullName.split(' ')[0] + '. Here’s what’s happening across your organization.', headerAction: '<a href="/admin/employees/new" class="btn btn-primary">+ Add employee</a>' }) %>
+<%- include('../partials/academy-hero') %>
+<%- include('../partials/attention', { attention: attention }) %>
+<a class="card card-link mt-24" href="/admin/intelligence" style="display:block"><div class="card-body row-between" style="gap:16px;flex-wrap:wrap"><div><p class="label" style="font-weight:600;color:var(--navy-950)">Organization intelligence</p><p class="text-sm text-muted" style="margin-top:4px">How capable is our workforce? Skill gaps, team comparison, and which training works.</p></div><span class="btn btn-gold btn-sm">Open</span></div></a>
+<%- include('../partials/my-dev-compact', { me: me }) %>
+
+<div class="grid grid-2">
+  <a class="card stat-card card-link" href="/admin/employees"><p class="label">Total employees</p><p class="value"><%= employeeCount %></p></a>
+  <a class="card stat-card card-link" href="/admin/teams"><p class="label">Teams</p><p class="value"><%= teamCount %></p></a>
+  <a class="card stat-card card-link" href="/admin/training"><p class="label">Published trainings</p><p class="value"><%= courseCount %></p></a>
+  <a class="card stat-card card-link" href="/admin/employees?status=INVITED"><p class="label">Pending invitations</p><p class="value"><%= pendingInvites %></p></a>
+</div>
+
+<div class="section-heading"><div><span class="eyebrow">MAKE THINGS HAPPEN</span><h2>Quick actions</h2></div><span class="text-muted text-sm">Your team’s next step starts here.</span></div>
+<div class="grid grid-3 action-grid">
+  <a class="card card-link" href="/admin/employees/new">
+    <span class="action-icon"><%- include('../partials/icon', { name: 'people' }) %></span><span class="action-arrow">↗</span>
+    <p style="font-weight:600;color:var(--navy-950)">Add employee</p>
+    <p class="text-sm text-muted mt-16" style="margin-top:4px">Create a new employee and assign a role.</p>
+  </a>
+  <a class="card card-link" href="/admin/teams">
+    <span class="action-icon"><%- include('../partials/icon', { name: 'assignments' }) %></span><span class="action-arrow">↗</span>
+    <p style="font-weight:600;color:var(--navy-950)">Create a team</p>
+    <p class="text-sm text-muted" style="margin-top:4px">Build a new team and assign members.</p>
+  </a>
+  <a class="card card-link" href="/admin/training/new">
+    <span class="action-icon"><%- include('../partials/icon', { name: 'training' }) %></span><span class="action-arrow">↗</span>
+    <p style="font-weight:600;color:var(--navy-950)">Upload training</p>
+    <p class="text-sm text-muted" style="margin-top:4px">Create a new training course.</p>
+  </a>
+</div>
+<section class="library-banner"><div class="action-icon"><%- include('../partials/icon', { name: 'library' }) %></div><div><h2>A world of knowledge. One place.</h2><p>Airlines, cabins, sales expertise and the details that make a difference.</p></div><a href="/library" class="btn btn-secondary">Explore the library <span aria-hidden="true">↗</span></a></section>

@@ -1,0 +1,45 @@
+<%- include('partials/page-header', { pageTitle: 'Call reviews', pageDescription: 'Upload calls for your agents and add written feedback.' }) %>
+
+<div class="grid" style="grid-template-columns: minmax(0,1fr) 380px">
+  <div class="card">
+    <div class="card-header"><h2>Recent reviews</h2></div>
+    <% if (reviews.length === 0) { %>
+      <div class="card-body"><%- include('partials/empty-state', { title: 'No call reviews yet' }) %></div>
+    <% } else { %>
+      <ul class="divide-list" style="padding:0 24px">
+        <% reviews.forEach(function (r) { %>
+          <li>
+            <p style="font-weight:500;color:var(--navy-950)"><%= r.agent.fullName %></p>
+            <% if (r.storagePath) { %><a class="link-gold text-sm" href="/call-reviews/<%= r.id %>/recording">Listen to recording</a><% } %>
+            <% if (r.feedback) { %><p class="text-sm" style="margin-top:6px"><%= r.feedback %></p><% } %>
+            <p class="text-sm text-muted" style="margin-top:6px"><%= r.createdAt.toLocaleString('en-US') %></p>
+          </li>
+        <% }); %>
+      </ul>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>Add a review</h2></div>
+    <div class="card-body">
+      <% if (error) { %><div class="form-alert error mt-16"><%= error %></div><% } %>
+      <form method="post" action="/call-reviews" enctype="multipart/form-data">
+        <div class="field">
+          <label for="agentId">Agent</label>
+          <select id="agentId" name="agentId" required>
+            <% agents.forEach(function (a) { %><option value="<%= a.id %>"><%= a.fullName %></option><% }); %>
+          </select>
+        </div>
+        <div class="field">
+          <label for="recording">Recording (audio/video, optional)</label>
+          <%- include('partials/dropzone', { inputId: 'recording', inputName: 'recording', accept: 'audio/*,video/*', hint: 'MP3, WAV, OGG, MP4, or WEBM' }) %>
+        </div>
+        <div class="field">
+          <label for="feedback">Feedback</label>
+          <textarea id="feedback" name="feedback" rows="4"></textarea>
+        </div>
+        <button type="submit" class="btn btn-gold mt-16">Save review</button>
+      </form>
+    </div>
+  </div>
+</div>

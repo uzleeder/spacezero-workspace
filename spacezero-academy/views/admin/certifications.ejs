@@ -1,0 +1,70 @@
+<%- include('../partials/page-header', { pageTitle: 'Certifications & achievements', pageDescription: 'Issued only when demonstrated competency requirements are met — completed training and skill levels backed by enough evidence. Watching a video alone never earns one.', headerAction: '<form method="post" action="/admin/certifications/evaluate"><button class="btn btn-gold">Evaluate now</button></form>' }) %>
+<%- include('../partials/management-tabs', { tabs: tabsets.settings }) %>
+
+<% if (ran) { %><div class="form-alert success mt-16">Evaluated: <%= ran %>.</div><% } %>
+<% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>Definitions</h2></div>
+  <% if (defs.length === 0) { %>
+    <div class="card-body"><%- include('../partials/empty-state', { title: 'No certifications yet', description: 'Create the first one below.' }) %></div>
+  <% } else { %>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Name</th><th>Requirements</th><th>Validity</th><th>Issued</th><th></th></tr></thead>
+      <tbody>
+      <% defs.forEach(function (d) { %>
+        <tr>
+          <td><strong><%= d.name %></strong> <span class="badge"><%= d.kind === 'ACHIEVEMENT' ? 'Achievement' : 'Certification' %></span><br><span class="text-sm text-muted"><%= d.roleKey ? roleLabel(d.roleKey) : 'All roles' %><%= d.isActive ? '' : ' · paused' %></span></td>
+          <td class="text-sm"><ul style="margin:0;padding-left:16px"><% d.parts.forEach(function (p) { %><li><%= p %></li><% }); %></ul></td>
+          <td class="text-sm"><%= d.validityDays ? d.validityDays + ' days' : 'No expiry' %><% if (d.renewalNote) { %><br><span class="text-muted"><%= d.renewalNote %></span><% } %></td>
+          <td><%= d._count.earned %></td>
+          <td><form method="post" action="/admin/certifications/<%= d.id %>/toggle"><button class="btn btn-secondary btn-sm"><%= d.isActive ? 'Pause' : 'Resume' %></button></form></td>
+        </tr>
+      <% }); %>
+      </tbody>
+    </table></div>
+  <% } %>
+</div>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>New certification or achievement</h2></div>
+  <div class="card-body">
+    <form method="post" action="/admin/certifications">
+      <div class="grid grid-3">
+        <div class="field"><label for="cname">Name</label><input id="cname" name="name" maxlength="80" required /></div>
+        <div class="field"><label for="ckind">Type</label><select id="ckind" name="kind"><option value="CERTIFICATION">Certification</option><option value="ACHIEVEMENT">Professional achievement</option></select></div>
+        <div class="field"><label for="crole">Applies to</label><select id="crole" name="roleKey"><option value="">All roles</option><% ROLES.forEach(function (r) { %><option value="<%= r %>"><%= roleLabel(r) %></option><% }); %></select></div>
+        <div class="field" style="grid-column:1/-1"><label for="cdesc">Description</label><input id="cdesc" name="description" maxlength="300" /></div>
+      </div>
+      <p class="label mt-16">Required training (all must be completed)</p>
+      <div style="display:flex;gap:14px;flex-wrap:wrap"><% courses.forEach(function (c) { %><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="courseIds" value="<%= c.id %>" /> <%= c.title %></label><% }); %><% if (!courses.length) { %><span class="text-muted text-sm">No published training yet.</span><% } %></div>
+      <p class="label mt-16">Required skill levels</p>
+      <% [1, 2, 3].forEach(function (i) { %>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <select name="skillId_<%= i %>" aria-label="Skill <%= i %>"><option value="">— skill —</option><% skills.forEach(function (s) { %><option value="<%= s.id %>"><%= s.name %></option><% }); %></select>
+          <input name="min_<%= i %>" type="number" min="1" max="100" placeholder="min %" style="width:90px" aria-label="Minimum score <%= i %>" />
+          <select name="conf_<%= i %>" aria-label="Minimum confidence <%= i %>"><option value="LOW">Low confidence or better</option><option value="MEDIUM" selected>Medium confidence or better</option><option value="HIGH">High confidence</option></select>
+        </div>
+      <% }); %>
+      <div class="grid grid-3 mt-16">
+        <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="noOutstandingRetakes" value="1" checked /> No outstanding retakes</label>
+        <div class="field"><label for="cvalid">Valid for (days, blank = no expiry)</label><input id="cvalid" name="validityDays" type="number" min="1" max="3650" /></div>
+        <div class="field"><label for="crenew">Renewal note</label><input id="crenew" name="renewalNote" maxlength="200" /></div>
+      </div>
+      <button class="btn btn-gold mt-16">Create</button>
+    </form>
+  </div>
+</div>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>Recently issued</h2></div>
+  <% if (recent.length === 0) { %><div class="card-body"><p class="text-muted">Nothing issued yet.</p></div><% } else { %>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Employee</th><th>Certification</th><th>Issued</th><th>Status</th><th></th></tr></thead>
+      <tbody><% recent.forEach(function (e) { %>
+        <tr><td><a href="/employees/<%= e.profile.id %>/skills"><%= e.profile.fullName %></a></td><td><%= e.definition.name %></td><td><%= e.issuedAt.toISOString().slice(0, 10) %></td><td><%= e.status.toLowerCase() %><%= e.expiresAt ? ' · expires ' + e.expiresAt.toISOString().slice(0, 10) : '' %></td>
+          <td><% if (e.status === 'ACTIVE') { %><form method="post" action="/admin/certifications/earned/<%= e.id %>/revoke" onsubmit="return confirm('Revoke this certificate?')"><button class="btn btn-secondary btn-sm">Revoke</button></form><% } %></td></tr>
+      <% }); %></tbody>
+    </table></div>
+  <% } %>
+</div>

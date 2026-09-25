@@ -1,0 +1,48 @@
+<%- include('../partials/page-header', { pageTitle: assessment.title, pageDescription: assessment.instructions || 'Answer every question, then submit.' }) %>
+
+<form method="post" action="/assessments/<%= assessment.id %>/submit">
+  <% questions.forEach(function (q, i) { %>
+    <div class="card mt-24">
+      <div class="card-body">
+        <p style="font-weight:500;color:var(--navy-950)"><%= i + 1 %>. <%= q.prompt %></p>
+
+        <% if (q.type === 'TRUE_FALSE') { %>
+          <div class="mt-16" style="display:flex;flex-direction:column;gap:8px">
+            <% ['True', 'False'].forEach(function (o) { %>
+              <label class="checkbox-row"><input type="radio" name="q_<%= q.id %>" value="<%= o %>" required /> <%= o %></label>
+            <% }); %>
+          </div>
+        <% } else if ((q.type === 'MCQ' || q.type === 'SCENARIO' || q.type === 'SHORT_ANSWER') && q.options && q.options.length > 0) { %>
+          <div class="mt-16" style="display:flex;flex-direction:column;gap:8px">
+            <% q.options.forEach(function (o) { %>
+              <label class="checkbox-row"><input type="radio" name="q_<%= q.id %>" value="<%= o %>" required /> <%= o %></label>
+            <% }); %>
+          </div>
+        <% } else if (q.type === 'MULTI_SELECT' || q.type === 'MATCHING') { %>
+          <div class="mt-16" style="display:flex;flex-direction:column;gap:8px">
+            <% q.options.forEach(function (o) { %>
+              <label class="checkbox-row"><input type="checkbox" name="q_<%= q.id %>" value="<%= o %>" /> <%= o %></label>
+            <% }); %>
+          </div>
+        <% } else if (q.type === 'ORDERING') { %>
+          <p class="text-sm text-muted mt-16">Put these in the correct order, top to bottom:</p>
+          <div class="mt-16" style="display:flex;flex-direction:column;gap:8px">
+            <% q.options.forEach(function (o, posIndex) { %>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="text-sm text-muted" style="width:20px"><%= posIndex + 1 %>.</span>
+                <select name="q_<%= q.id %>" required style="flex:1">
+                  <option value="" disabled selected>Choose...</option>
+                  <% q.options.forEach(function (opt) { %><option value="<%= opt %>"><%= opt %></option><% }); %>
+                </select>
+              </div>
+            <% }); %>
+          </div>
+        <% } else { %>
+          <textarea name="q_<%= q.id %>" rows="3" class="mt-16" placeholder="Type your answer..." required></textarea>
+        <% } %>
+      </div>
+    </div>
+  <% }); %>
+
+  <button type="submit" class="btn btn-gold mt-24" style="margin-bottom:40px">Submit</button>
+</form>

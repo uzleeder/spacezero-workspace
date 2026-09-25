@@ -1,0 +1,81 @@
+<%- include('partials/page-header', { pageTitle: 'AI Practice', pageDescription: 'Your workspace for turning material into measurable employee practice. Nothing reaches employees until you approve it and send it to Training.', headerAction: '<a href="/ai-practice/new" class="btn btn-gold">+ Upload Material</a>' }) %>
+
+<% if (notice) { %><div class="form-alert success mt-16" role="status"><%= notice %></div><% } %>
+<% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
+
+<% if (total === 0 && !archived) { %>
+  <div class="card mt-24"><div class="card-body" style="text-align:center;padding:56px 24px">
+    <h2 style="font-size:22px;color:var(--navy-950)">Turn calls, videos, documents and training material into measurable employee practice.</h2>
+    <p class="text-muted" style="margin:12px 0 24px">Video • Audio • Calls • PDF • Slides • Documents • Images • Notes</p>
+    <a href="/ai-practice/new" class="btn btn-gold">Upload Material</a>
+  </div></div>
+<% } else { %>
+<div class="tabs no-print mt-24" role="tablist">
+  <% tabs.forEach(function (t) { %>
+    <a class="tab-link<%= t.key === tab && !archived ? ' active' : '' %>" href="/ai-practice?tab=<%= t.key %><%= q ? '&q=' + encodeURIComponent(q) : '' %>"><%= t.label %> <span class="count"><%= counts[t.key] %></span></a>
+  <% }); %>
+  <a class="tab-link<%= archived ? ' active' : '' %>" href="/ai-practice?archived=1" style="margin-left:auto">Archived</a>
+</div>
+
+<form method="post" action="/ai-practice/bulk" id="bulk-form" data-once>
+<div class="card" style="border-top-left-radius:0;border-top-right-radius:0">
+  <div class="filter-bar" style="border-bottom:1px solid var(--border-subtle)">
+    <input form="search-form" type="search" name="q" value="<%= q %>" placeholder="Search your material…" aria-label="Search" style="min-width:240px" />
+    <button form="search-form" type="submit" class="btn btn-secondary">Search</button>
+    <% if (q) { %><a href="/ai-practice?tab=<%= tab %>" class="btn btn-secondary">Clear</a><% } %>
+  </div>
+
+  <% if (items.length === 0) { %>
+    <div class="card-body"><%- include('partials/empty-state', { title: archived ? 'Nothing archived' : (q ? 'Nothing matches your search' : 'Nothing here'), description: q ? 'Try a different word.' : 'Items appear here as they move through the workflow.' }) %></div>
+  <% } else { %>
+    <ul class="divide-list" style="padding:0 24px">
+      <% items.forEach(function (it) { var s = it.state; var callBase = '/ai-practice/calls/' + it.id; var base = it.kind === 'CALL' ? callBase : '/ai-practice/' + it.id; %>
+        <li class="src-row<%= savedId === it.id ? ' src-new' : '' %>">
+          <div class="src-check"><input type="checkbox" name="ids" value="<%= it.kind === 'CALL' ? 'call' : 'material' %>:<%= it.id %>" aria-label="Select <%= it.title %>" /></div>
+          <div class="src-main">
+            <p class="src-title"><a href="<%= it.href %>"><%= it.title %></a></p>
+            <p class="text-sm text-muted"><%= it.typeLabel %><%= it.meta ? ' • ' + it.meta : '' %> • Uploaded <%= it.uploadedAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) %><%= it.uploadedBy ? ' by ' + it.uploadedBy : '' %><% if (it.fileCount > 1) { %> • <%= it.fileCount %> files<% } %></p>
+            <p class="text-sm" style="margin-top:6px">
+              <span class="badge <%= s.tone %>"><%= s.label %></span>
+              <span class="text-muted"> <%= s.note || '' %></span>
+              <span class="text-muted"> · Last activity <%= it.lastActivity.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) %></span>
+            </p>
+          </div>
+          <div class="src-actions">
+            <% if (archived) { %>
+              <% if (it.kind === 'MATERIAL') { %><button type="submit" formaction="/ai-practice/<%= it.id %>/restore" formmethod="post" class="btn btn-secondary btn-sm" formnovalidate>Restore</button><% } %>
+            <% } else { %>
+              <% if (s.primary && s.primary.post) { %><button type="submit" formaction="<%= s.primary.href %>" formmethod="post" class="btn btn-gold btn-sm" formnovalidate><%= s.primary.label %></button>
+              <% } else if (s.primary) { %><a class="btn btn-gold btn-sm" href="<%= s.primary.href %>"><%= s.primary.label %></a><% } %>
+              <% if (s.remove) { %><button type="submit" formaction="<%= s.remove.href %>" formmethod="post" class="btn btn-secondary btn-sm" formnovalidate data-confirm-msg="<%= s.remove.confirm %>"><%= s.remove.label %></button><% } %>
+              <details class="more-menu">
+                <summary class="btn btn-secondary btn-sm">More ▾</summary>
+                <div class="more-list">
+                  <a href="<%= it.href %>">View</a>
+                  <% if (it.kind === 'MATERIAL') { %>
+                    <a href="/ai-practice/<%= it.id %>#rename">Rename</a>
+                    <button type="submit" formaction="/ai-practice/<%= it.id %>/duplicate" formmethod="post" formnovalidate>Duplicate</button>
+                    <button type="submit" formaction="/ai-practice/<%= it.id %>/archive" formmethod="post" formnovalidate>Archive</button>
+                    <button type="submit" formaction="/ai-practice/<%= it.id %>/delete" formmethod="post" formnovalidate data-confirm-msg="Delete this? If training or skill records depend on it, it will be archived instead.">Delete</button>
+                  <% } else { %>
+                    <button type="submit" formaction="<%= callBase %>/archive" formmethod="post" formnovalidate>Archive</button>
+                    <button type="submit" formaction="<%= callBase %>/delete" formmethod="post" formnovalidate data-confirm-msg="Permanently delete these recordings?">Delete</button>
+                  <% } %>
+                </div>
+              </details>
+            <% } %>
+          </div>
+        </li>
+      <% }); %>
+    </ul>
+    <div class="filter-bar" style="border-top:1px solid var(--border-subtle);border-bottom:none">
+      <span class="text-sm text-muted" style="align-self:center">With selected:</span>
+      <select name="action" aria-label="Bulk action"><option value="archive">Archive</option><option value="delete">Delete (only unused)</option><option value="analyze">Start analysis (material)</option></select>
+      <button type="submit" class="btn btn-secondary">Apply</button>
+    </div>
+  <% } %>
+</div>
+</form>
+<form id="search-form" method="get" action="/ai-practice"><input type="hidden" name="tab" value="<%= tab %>" /></form>
+<% } %>
+<script src="/static/js/ai-practice.js" defer></script>

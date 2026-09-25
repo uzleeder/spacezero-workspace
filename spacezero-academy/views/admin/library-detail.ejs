@@ -1,0 +1,69 @@
+<%
+const actions = '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+  (!item.archivedAt ? '<button type="button" class="btn btn-danger" data-action="/admin/library/items/' + item.id + '/archive" data-confirm="Archive this item?">Archive</button>' : '') +
+  '</div>';
+%>
+<%- include('../partials/page-header', { pageTitle: item.title, pageDescription: item.description || '', headerAction: actions }) %>
+
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:24px">
+  <span class="badge badge-gold"><%= item.itemType %></span>
+  <span class="badge badge-navy"><%= item.category ? item.category.name : 'Uncategorized' %></span>
+  <% if (item.archivedAt) { %><span class="badge badge-warning">Archived</span><% } %>
+  <span class="text-sm text-muted"><%= item.viewCount %> views</span>
+</div>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>Edit material</h2></div>
+  <div class="card-body">
+    <% if (error) { %><div class="form-alert error mt-16"><%= error %></div><% } %>
+    <form method="post" action="/admin/library/items/<%= item.id %>/edit">
+      <div class="grid grid-2">
+        <div class="field">
+          <label for="title">Title</label>
+          <input id="title" name="title" value="<%= item.title %>" required />
+        </div>
+        <div class="field">
+          <label for="categoryId">Category</label>
+          <select id="categoryId" name="categoryId">
+            <option value="">Uncategorized</option>
+            <% categories.forEach(function (c) { %><option value="<%= c.id %>" <%= item.categoryId === c.id ? 'selected' : '' %>><%= c.name %></option><% }); %>
+          </select>
+        </div>
+        <div class="field">
+          <label for="tags">Tags</label>
+          <% const tags = (function () { try { return JSON.parse(item.tagsJson || '[]').join(', '); } catch { return ''; } })(); %>
+          <input id="tags" name="tags" value="<%= tags %>" placeholder="business class, A380" />
+        </div>
+      </div>
+
+      <div class="field mt-24">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" rows="2"><%= item.description || '' %></textarea>
+      </div>
+
+      <% if (item.itemType === 'LINK') { %>
+        <div class="field mt-24">
+          <label for="externalUrl">URL</label>
+          <input id="externalUrl" name="externalUrl" type="url" value="<%= item.externalUrl || '' %>" placeholder="https://" />
+        </div>
+      <% } %>
+
+      <div class="mt-24">
+        <p class="label">Visible to</p>
+        <% const visibleRoles = (function () { try { return item.visibleRolesJson ? JSON.parse(item.visibleRolesJson) : []; } catch { return []; } })(); %>
+        <div style="display:flex;flex-wrap:wrap;gap:12px">
+          <label class="checkbox-row"><input type="checkbox" name="visibleRoles" value="ADMIN" <%= visibleRoles.includes('ADMIN') ? 'checked' : '' %> /> Administrator</label>
+          <label class="checkbox-row"><input type="checkbox" name="visibleRoles" value="SUPERVISOR" <%= visibleRoles.includes('SUPERVISOR') ? 'checked' : '' %> /> Supervisor</label>
+          <label class="checkbox-row"><input type="checkbox" name="visibleRoles" value="TRAVEL_AGENT" <%= visibleRoles.includes('TRAVEL_AGENT') ? 'checked' : '' %> /> Travel Agent</label>
+          <label class="checkbox-row"><input type="checkbox" name="visibleRoles" value="FLIGHT_EXPERT" <%= visibleRoles.includes('FLIGHT_EXPERT') ? 'checked' : '' %> /> Flight Expert</label>
+        </div>
+        <p class="hint">Leave all unchecked to make this visible to everyone.</p>
+      </div>
+
+      <div class="row-between mt-24">
+        <a href="/admin/library" class="text-sm link-gold">Cancel</a>
+        <button type="submit" class="btn btn-gold">Save changes</button>
+      </div>
+    </form>
+  </div>
+</div>

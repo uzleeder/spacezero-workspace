@@ -1,0 +1,39 @@
+<% var newer = course.draftVersion > (course.publishedVersion || 0); %>
+<% if (course.publishedVersion) { %>
+  <div class="card mt-24 next-card"><div class="card-body">
+    <p class="label">Sent to Training ✓</p>
+    <h2 style="margin:6px 0"><%= course.title %></h2>
+    <div class="grid grid-2 mt-16">
+      <div><p class="label">Source</p><p>Created through AI Practice</p></div>
+      <div><p class="label">Version</p><p>v<%= course.publishedVersion %><%= newer ? ' (v' + course.draftVersion + ' is being edited)' : '' %></p></div>
+      <div><p class="label">Status</p><p>Approved<%= course.status === 'ARCHIVED' ? ' — archived in Training' : '' %></p></div>
+      <div><p class="label">Sent</p><p><%= course.sentAt ? course.sentAt.toLocaleDateString('en-US') : '—' %></p></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
+      <a class="btn btn-gold" href="/admin/training/<%= course.id %>">View in Training</a>
+      <% if (!newer) { %><form method="post" action="/ai-practice/<%= course.id %>/new-version" data-once><button class="btn btn-secondary">Create version <%= course.publishedVersion + 1 %> to improve it</button></form>
+      <% } else { %>
+        <a class="btn btn-secondary" href="/ai-practice/<%= course.id %>?step=practice">Continue editing v<%= course.draftVersion %></a>
+        <% if (st.key === 'APPROVED') { %><a class="btn btn-gold" href="/ai-practice/<%= course.id %>/send">Publish v<%= course.draftVersion %></a><% } %>
+        <form method="post" action="/ai-practice/<%= course.id %>/version/discard" data-once><button class="btn btn-secondary" data-confirm-msg="Discard the draft version? Version <%= course.publishedVersion %> stays in Training.">Discard draft</button></form>
+      <% } %>
+    </div>
+    <p class="text-sm text-muted mt-16">Employees who were assigned version <%= course.publishedVersion %> keep it, and their results stay tied to it. New assignments use the version that is in Training.</p>
+  </div></div>
+<% } else { %>
+  <div class="card mt-24"><div class="card-body">
+    <p class="label">Training</p>
+    <h2 style="margin:6px 0">Not sent yet</h2>
+    <p class="text-muted"><%= st.key === 'APPROVED' ? 'The practice is approved. Send it to Training to make it assignable.' : 'Approve the practice first — only approved practice can be sent to Training.' %></p>
+    <% if (st.key === 'APPROVED') { %><a class="btn btn-gold mt-16" href="/ai-practice/<%= course.id %>/send">Send to Training</a><% } else { %><a class="btn btn-secondary mt-16" href="/ai-practice/<%= course.id %>?step=<%= st.step >= 4 ? 'review' : 'practice' %>">Continue</a><% } %>
+  </div></div>
+<% } %>
+
+<% if (history.length) { %>
+  <div class="card mt-16" style="margin-bottom:40px"><div class="card-header"><h2>Version history</h2></div><div class="card-body">
+    <ul class="divide-list"><% history.forEach(function (v) { %>
+      <li class="row-between"><span>Version <%= v.version %><% if (v.note) { %> <span class="text-muted text-sm">— <%= v.note %></span><% } %></span>
+        <span class="text-sm text-muted"><span class="badge <%= v.status === 'PUBLISHED' ? 'badge-success' : '' %>"><%= v.status.charAt(0) + v.status.slice(1).toLowerCase() %></span> <%= v.publishedAt ? v.publishedAt.toLocaleDateString('en-US') : 'not published' %></span></li>
+    <% }); %></ul>
+  </div></div>
+<% } %>

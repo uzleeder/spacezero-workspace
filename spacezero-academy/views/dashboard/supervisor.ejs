@@ -1,0 +1,43 @@
+<%- include('../partials/page-header', { pageTitle: 'Welcome, ' + profile.fullName.split(' ')[0], pageDescription: roleLabel(profile.role) }) %>
+
+<%- include('../partials/academy-hero') %>
+<%- include('../partials/attention', { attention: attention }) %>
+<div class="card mt-24">
+  <div class="card-header row-between"><div><h2>Attention required</h2><p>Who needs you, and why.</p></div><a class="link-gold text-sm" href="/team-skills">Team Intelligence</a></div>
+  <div class="card-body" style="padding-top:0;padding-bottom:0">
+    <% if (!intel.attention.length) { %><p class="dna-empty" style="padding:16px 0">Nobody needs attention right now.</p><% } %>
+    <% intel.attention.forEach(function (a) { %>
+      <div class="attention-row">
+        <div style="flex:1;min-width:200px"><p style="font-weight:500;color:var(--navy-950)"><%= a.person.fullName %></p><p class="text-sm text-muted"><%= a.reasons.slice(0, 2).map(function (r) { return r.text; }).join(' · ') %></p></div>
+        <div style="display:flex;gap:8px"><a class="btn btn-secondary btn-sm" href="/employees/<%= a.person.id %>/skills">View</a><a class="btn btn-gold btn-sm" href="/bulk-assign?personId=<%= a.person.id %><%= a.weakSkills.length ? '&skillId=' + a.weakSkills[0].id : '' %>">Assign practice</a></div>
+      </div>
+    <% }); %>
+  </div>
+</div>
+<%- include('../partials/my-dev-compact', { me: me }) %>
+<div class="grid grid-3">
+  <div class="card stat-card"><p class="label">Agents on my team</p><p class="value"><%= agents.length %></p></div>
+  <div class="card stat-card"><p class="label">Retakes required</p><p class="value"><%= retakeCount %></p></div>
+  <div class="card stat-card"><p class="label">Active agents</p><p class="value"><%= agents.filter(a => a.status === 'ACTIVE').length %></p></div>
+</div>
+
+<div class="card mt-24">
+  <div class="card-header">
+    <h2>My Team</h2>
+    <a href="/team" class="link-gold text-sm">View team</a>
+  </div>
+  <div class="card-body">
+    <% if (agents.length === 0) { %>
+      <%- include('../partials/empty-state', { title: 'No agents assigned to you yet', description: 'An administrator assigns agents to supervisors.' }) %>
+    <% } else { %>
+      <ul class="divide-list">
+        <% agents.slice(0, 6).forEach(function (a) { %>
+          <li class="row-between">
+            <span style="font-weight:500;color:var(--navy-950)"><%= a.fullName %></span>
+            <span class="text-muted"><%= roleLabel(a.role) %></span>
+          </li>
+        <% }); %>
+      </ul>
+    <% } %>
+  </div>
+</div>

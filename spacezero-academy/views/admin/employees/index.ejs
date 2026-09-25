@@ -1,0 +1,88 @@
+<%- include('../../partials/page-header', { pageTitle: 'Employees & Teams', pageDescription: 'The management centre for every employee: setup readiness, training, leave and credentials.', headerAction: '<div style="display:flex;gap:10px;flex-wrap:wrap"><a href="/admin/employees/export.xlsx" class="btn btn-secondary" download title="All employees: names, usernames and roles. Hashed passwords cannot be exported.">Download Excel</a><a href="/admin/employees/new" class="btn btn-gold">+ Add employee</a></div>' }) %>
+
+<%- include('../../partials/management-tabs', { tabs: tabsets.employees }) %>
+
+<div class="row-between mt-24" style="gap:8px;flex-wrap:wrap;justify-content:flex-start">
+  <% [['', 'All employees'], ['ADMIN', 'Admins'], ['SUPERVISOR', 'Supervisors'], ['FLIGHT_EXPERT', 'Flight Experts'], ['TRAVEL_AGENT', 'Travel Agents']].forEach(function (r) { %>
+    <a href="/admin/employees<%= r[0] ? '?role=' + r[0] : '' %>" class="btn btn-sm <%= role === r[0] ? 'btn-gold' : 'btn-secondary' %>"><%= r[1] %></a>
+  <% }); %>
+  <a href="/admin/teams" class="btn btn-sm btn-secondary">Teams</a>
+</div>
+
+<% if (pendingInvites > 0) { %>
+<div class="form-alert info mt-16" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+  <span><strong><%= pendingInvites %></strong> employee<%= pendingInvites === 1 ? '' : 's' %> have not activated their account yet.</span>
+  <form method="post" action="/admin/employees/invite-pending" onsubmit="return confirm('Create a fresh single-use invitation for every employee who has not activated yet?')"><button type="submit" class="btn btn-gold btn-sm">Invite all pending (<%= pendingInvites %>)</button></form>
+</div>
+<% } %>
+
+<div class="card mt-16 employee-directory">
+  <div class="employee-directory__sticky">
+  <form class="filter-bar">
+    <input type="text" name="q" value="<%= q %>" placeholder="Search by name..." />
+    <select name="role">
+      <option value="">All roles</option>
+      <option value="ADMIN" <%= role === 'ADMIN' ? 'selected' : '' %>>Administrator</option>
+      <option value="SUPERVISOR" <%= role === 'SUPERVISOR' ? 'selected' : '' %>>Supervisor</option>
+      <option value="TRAVEL_AGENT" <%= role === 'TRAVEL_AGENT' ? 'selected' : '' %>>Travel Agent</option>
+      <option value="FLIGHT_EXPERT" <%= role === 'FLIGHT_EXPERT' ? 'selected' : '' %>>Flight Expert</option>
+    </select>
+    <select name="status">
+      <option value="">All employment statuses</option>
+      <% [['ACTIVE','Active'],['INVITED','Invited'],['DISABLED','Disabled'],['ARCHIVED','Archived']].forEach(function (s) { %><option value="<%= s[0] %>" <%= status === s[0] ? 'selected' : '' %>><%= s[1] %></option><% }); %>
+    </select>
+    <button type="submit" class="btn btn-secondary">Filter</button>
+    <details class="more-filters-reveal">
+      <summary class="btn btn-ghost btn-sm">More filters</summary>
+      <div class="more-filters-panel">
+        <select name="teamId">
+          <option value="">All teams</option>
+          <% teams.forEach(function (t) { %><option value="<%= t.id %>" <%= teamId === t.id ? 'selected' : '' %>><%= t.name %></option><% }); %>
+        </select>
+        <select name="supervisorId">
+          <option value="">All supervisors</option>
+          <% supervisors.forEach(function (s) { %><option value="<%= s.id %>" <%= supervisorId === s.id ? 'selected' : '' %>><%= s.fullName %></option><% }); %>
+        </select>
+        <select name="setup">
+          <option value="">Any setup state</option>
+          <% Object.keys(SETUP_FILTERS).forEach(function (k) { %><option value="<%= k %>" <%= setup === k ? 'selected' : '' %>><%= SETUP_FILTERS[k] %></option><% }); %>
+        </select>
+        <select name="missing">
+          <option value="">Any missing item</option>
+          <% requirements.forEach(function (r) { %><option value="<%= r.key %>" <%= missing === r.key ? 'selected' : '' %>>Missing: <%= r.label %></option><% }); %>
+        </select>
+        <%- include('../../partials/employee-filters', { f: f, filterSkills: filterSkills }) %>
+      </div>
+    </details>
+  </form>
+  <div class="employee-directory__heading" aria-hidden="true"></div>
+  </div>
+
+  <% if (employees.length === 0) { %>
+    <div class="card-body"><%- include('../../partials/empty-state', { title: 'No employees found', description: 'Adjust the filters or add a new employee.' }) %></div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Employee</th><th>Status</th><th>Role</th><th>Team</th><th>Supervisor</th><th>Setup</th><th>Training</th><th>Employment</th></tr></thead>
+        <tbody>
+          <% employees.forEach(function (emp) { %>
+            <tr>
+              <td><a href="/admin/employees/<%= emp.id %>" style="display:flex;align-items:center;gap:10px">
+                <%- include('../../partials/avatar', { profile: emp, size: 'sm', identify: true }) %>
+                <div><p style="font-weight:500;color:var(--navy-950)"><%= emp.fullName %></p><p class="text-sm text-muted">@<%= emp.username %></p></div>
+              </a></td>
+              <td><%- include('../../partials/readiness-badge', { readiness: readinessMap.get(emp.id), showReasons: true }) %></td>
+              <td><%= roleLabel(emp.role) %></td>
+              <td><%= emp.teamMemberships[0] ? emp.teamMemberships[0].team.name : '—' %></td>
+              <td><%= emp.supervisedBy[0] ? emp.supervisedBy[0].supervisor.fullName : '—' %></td>
+              <td><%- include('../../partials/setup-badge', { setup: setupMap.get(emp.id) }) %><p class="text-sm text-muted" style="margin-top:4px"><%= emp.currentAddressEnc ? 'Address ✓' : 'Address missing' %> · <%= emp.localPhone ? 'Phone ✓' : 'Phone missing' %></p></td>
+              <td><% const tr = trainingMap.get(emp.id); %><% if (tr.retakeRequired > 0) { %><span class="badge badge-danger"><%= tr.retakeRequired %> retake<%= tr.retakeRequired === 1 ? '' : 's' %></span><% } else if (tr.assigned === 0) { %><span class="text-sm text-muted">Nothing assigned</span><% } else { %><span class="text-sm text-muted"><%= tr.completed %>/<%= tr.assigned %> completed</span><% } %></td>
+              <td><span class="badge <%= STATUS_TONE[emp.status] %>"><%= STATUS_LABEL[emp.status] %></span></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+<script src="/static/js/employee-directory.js" defer></script>

@@ -1,0 +1,25 @@
+<%- include('../partials/page-header', { pageTitle: 'Settings & Security', pageDescription: 'A record of important account and platform actions.' }) %>
+
+<%- include('../partials/management-tabs', { tabs: tabsets.settings }) %>
+
+<div class="card mt-24">
+  <% if (logs.length === 0) { %>
+    <div class="card-body"><%- include('../partials/empty-state', { title: 'No audit events yet' }) %></div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Target</th></tr></thead>
+        <tbody>
+          <% logs.forEach(function (log) { %>
+            <tr>
+              <td class="text-muted"><%= log.createdAt.toLocaleString('en-US') %></td>
+              <td><%= log.actor ? log.actor.fullName : 'System' %></td>
+              <td><span class="badge badge-navy"><%= log.action %></span></td>
+              <td class="text-sm text-muted"><%= log.targetTable ? log.targetTable + ':' + log.targetId : '—' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>

@@ -1,0 +1,89 @@
+<%- include('partials/page-header', { pageTitle: 'Team Intelligence', pageDescription: 'Who needs your attention, why, and what to assign.' }) %>
+<%- include('partials/management-tabs', { tabs: tabsets.employees }) %>
+
+<% if (typeof error !== 'undefined' && error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
+
+<div class="kpi-grid mt-24">
+  <div class="card kpi"><p class="value"><%= intel.summary.employees %></p><p class="label">Employees in your team</p></div>
+  <div class="card kpi"><p class="value"><%= intel.summary.withAttention %></p><p class="label">Need your attention</p></div>
+  <div class="card kpi"><p class="value"><%= intel.summary.retakes %></p><p class="label">Retakes required</p></div>
+  <div class="card kpi"><p class="value"><%= intel.summary.overdue %></p><p class="label">Overdue assignments</p></div>
+  <div class="card kpi"><p class="value"><%= intel.summary.teamAverage === null ? '—' : intel.summary.teamAverage + '%' %></p><p class="label">Team average (assessed skills)</p></div>
+</div>
+
+<% if (intel.priority) { %>
+<div class="card mt-24 next-card">
+  <div class="card-body row-between" style="gap:16px;flex-wrap:wrap">
+    <div>
+      <p class="label">Team priority</p>
+      <h2><%= intel.priority.skill.name %> — <%= intel.priority.average %>%</h2>
+      <p class="text-sm text-muted"><%= intel.priority.weakCount %> of <%= intel.priority.assessed %> assessed employee<%= intel.priority.assessed === 1 ? '' : 's' %> are below <%= WEAK %>%.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a class="btn btn-secondary" href="/team?skill=<%= intel.priority.skill.id %>&max=<%= WEAK %>">View employees</a>
+      <a class="btn btn-gold" href="/bulk-assign?skillId=<%= intel.priority.skill.id %>">Assign practice</a>
+    </div>
+  </div>
+</div>
+<% } %>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>Attention required</h2><p>Failed or overdue work, weak skills (with how sure we are), and skills that are slipping.</p></div>
+  <div class="card-body" style="padding-top:0;padding-bottom:0">
+    <% if (!intel.attention.length) { %><p class="dna-empty" style="padding:16px 0">Nobody needs attention right now.</p><% } %>
+    <% intel.attention.forEach(function (a) { %>
+      <div class="attention-row">
+        <div style="flex:1;min-width:220px">
+          <p style="font-weight:500;color:var(--navy-950)"><%= a.person.fullName %> <span class="text-sm text-muted">· <%= roleLabel(a.person.role) %></span></p>
+          <ul class="text-sm text-muted" style="margin:4px 0 0;padding-left:18px"><% a.reasons.forEach(function (r) { %><li><%= r.text %></li><% }); %></ul>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <a class="btn btn-secondary btn-sm" href="/employees/<%= a.person.id %>/skills">View</a>
+          <a class="btn btn-gold btn-sm" href="/bulk-assign?personId=<%= a.person.id %><%= a.weakSkills.length ? '&skillId=' + a.weakSkills[0].id : '' %>">Assign practice</a>
+        </div>
+      </div>
+    <% }); %>
+  </div>
+</div>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>Team skill map</h2><p>Average of assessed skills. Skills nobody has evidence for are not shown as scores.</p></div>
+  <div class="card-body" style="padding-top:4px;padding-bottom:4px">
+    <% if (!intel.skills.length) { %><p class="dna-empty" style="padding:12px 0">No skill evidence yet.</p><% } %>
+    <% intel.skills.forEach(function (s) { var tone = s.average < 50 ? 'danger' : s.average < 80 ? 'warning' : 'success'; %>
+      <div class="skill-row" style="grid-template-columns:minmax(160px,1.3fr) minmax(140px,2fr) 70px 150px">
+        <div><span class="name"><%= s.skill.name %></span><p class="basis"><%= s.assessed %> assessed</p></div>
+        <div class="bar tone-<%= tone %>" role="img" aria-label="<%= s.skill.name %> <%= s.average %>%"><span style="width:<%= s.average %>%"></span></div>
+        <div><strong><%= s.average %>%</strong></div>
+        <div class="text-sm"><% if (s.weakCount) { %><a class="link-gold" href="/bulk-assign?skillId=<%= s.skill.id %>"><%= s.weakCount %> below <%= WEAK %>% — assign</a><% } else { %><span class="text-muted">none below <%= WEAK %>%</span><% } %></div>
+      </div>
+    <% }); %>
+  </div>
+</div>
+
+<div class="card mt-24" style="margin-bottom:40px">
+  <div class="card-header"><h2>Improving</h2><p>Skills that rose by 10 points or more recently.</p></div>
+  <div class="card-body">
+    <% if (!intel.improving.length) { %><p class="dna-empty">No measured improvement yet.</p><% } %>
+    <ul class="divide-list"><% intel.improving.forEach(function (i) { %><li class="row-between"><a href="/employees/<%= i.person.id %>/skills"><strong><%= i.person.fullName %></strong></a><span class="text-sm trend-improving"><%= i.skills.map(function (s) { return s.name + ' +' + s.delta; }).join(' · ') %></span></li><% }); %></ul>
+  </div>
+</div>
+
+<% if (recommendations.length) { %>
+<div class="card mt-24" style="margin-bottom:40px">
+  <div class="card-header"><h2>Recommended for your team</h2><p>Suggestions from onboarding paths, rules and follow-up checks. Nothing is assigned until you choose to.</p></div>
+  <div class="card-body">
+    <ul class="divide-list">
+      <% recommendations.forEach(function (r) { %>
+        <li class="row-between" style="gap:12px;flex-wrap:wrap">
+          <div><a href="/employees/<%= r.profile.id %>/skills"><strong><%= r.profile.fullName %></strong></a> — <%= r.title %><br><span class="text-sm text-muted"><%= r.reason %></span></div>
+          <div style="display:flex;gap:6px">
+            <% if (r.courseId) { %><form method="post" action="/recommendations/<%= r.id %>/assign"><input type="hidden" name="returnTo" value="team" /><button class="btn btn-gold btn-sm">Assign</button></form><% } %>
+            <form method="post" action="/recommendations/<%= r.id %>/dismiss"><input type="hidden" name="returnTo" value="team" /><button class="btn btn-secondary btn-sm">Dismiss</button></form>
+          </div>
+        </li>
+      <% }); %>
+    </ul>
+  </div>
+</div>
+<% } %>

@@ -1,0 +1,53 @@
+<%- include('../partials/page-header', { pageTitle: 'Leave request', pageDescription: request.profile.fullName }) %>
+<div style="margin-bottom:16px"><a href="/leave" class="text-sm link-gold">← Back to Vacation Overview</a></div>
+
+<div class="card mt-24">
+  <div class="card-body">
+    <div class="row-between">
+      <div>
+        <p style="font-weight:600;color:var(--navy-950)"><%= leave.TYPE_LABEL[request.leaveType] %> · <%= request.days %> day<%= request.days === 1 ? '' : 's' %></p>
+        <p class="text-sm text-muted"><%= request.startDate.toISOString().slice(0, 10) %> → <%= request.endDate.toISOString().slice(0, 10) %> · requested <%= request.createdAt.toLocaleDateString('en-US') %></p>
+      </div>
+      <span class="badge <%= request.status === 'APPROVED' ? 'badge-success' : request.status === 'REJECTED' ? 'badge-danger' : request.status === 'PENDING' ? 'badge-warning' : '' %>"><%= leave.STATUS_LABEL[request.status] %></span>
+    </div>
+    <% if (request.note) { %><p class="mt-16">Employee note: <%= request.note %></p><% } %>
+    <% if (request.recommendation !== 'NONE') { %><p class="mt-16 text-sm">Supervisor <%= request.recommendation === 'RECOMMEND_APPROVE' ? 'recommends approval' : 'recommends rejection' %><%= request.supervisorNote ? ': ' + request.supervisorNote : '' %></p><% } %>
+    <% if (request.managementNote) { %><p class="mt-16 text-sm">Management note: <%= request.managementNote %></p><% } %>
+  </div>
+</div>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>Team context</h2><p>Informational only — it never approves or rejects anything automatically.</p></div>
+  <div class="card-body">
+    <% if (overlaps.length === 0) { %>
+      <p class="text-sm text-muted">No teammates have approved leave during these dates.</p>
+    <% } else { %>
+      <p class="text-sm"><strong><%= overlaps.length %></strong> employee<%= overlaps.length === 1 ? '' : 's' %> from this team already <%= overlaps.length === 1 ? 'has' : 'have' %> approved leave during these dates:</p>
+      <ul class="divide-list">
+        <% overlaps.forEach(function (o) { %><li class="text-sm"><%= o.profile.fullName %> · <%= o.startDate.toISOString().slice(0, 10) %> → <%= o.endDate.toISOString().slice(0, 10) %></li><% }); %>
+      </ul>
+    <% } %>
+  </div>
+</div>
+
+<% if (request.status === 'PENDING') { %>
+  <div class="card mt-24" style="margin-bottom:40px">
+    <div class="card-header"><h2>Review</h2></div>
+    <div class="card-body">
+      <form method="post" action="/leave/<%= request.id %>/review">
+        <div class="field"><label for="note">Note (optional)</label><textarea id="note" name="note" rows="2" maxlength="1000"></textarea></div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px" class="mt-16">
+          <% if (canDecide) { %>
+            <button type="submit" name="action" value="approve" class="btn btn-gold">Approve</button>
+            <button type="submit" name="action" value="reject" class="btn btn-danger">Reject</button>
+          <% } %>
+          <% if (profile.role === 'SUPERVISOR') { %>
+            <button type="submit" name="action" value="recommend_approve" class="btn btn-secondary">Recommend approval</button>
+            <button type="submit" name="action" value="recommend_reject" class="btn btn-secondary">Recommend rejection</button>
+          <% } %>
+        </div>
+        <% if (!canDecide) { %><p class="hint mt-16">Final approval is handled by an administrator; your recommendation is passed on.</p><% } %>
+      </form>
+    </div>
+  </div>
+<% } %>

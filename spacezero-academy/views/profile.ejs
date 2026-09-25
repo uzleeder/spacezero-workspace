@@ -1,0 +1,50 @@
+<%- include('partials/page-header', { pageTitle: 'My Profile', pageDescription: 'Everything about your role, training, and progress.' }) %>
+<%- include('partials/management-tabs', { tabs: empTabs }) %>
+
+<% if (typeof personalAccounts !== 'undefined' && personalAccounts.length) { %>
+<section class="card mt-24" aria-labelledby="personal-accounts-heading">
+  <div class="card-header"><h2 id="personal-accounts-heading">My role accounts</h2><p>Your personal accounts. Only you can switch to these profiles.</p></div>
+  <div class="card-body grid grid-3">
+    <% personalAccounts.forEach(function(account) { %>
+    <div>
+      <h3><%= roleLabel(account.role) %></h3>
+      <p class="text-sm text-muted">@<%= account.username %></p>
+      <form method="post" action="/admin/login-as/<%= account.id %>">
+        <button class="btn btn-secondary mt-16" type="submit">Switch to <%= roleLabel(account.role) %></button>
+      </form>
+    </div>
+    <% }); %>
+  </div>
+</section>
+<% } %>
+
+<% if (photoError) { %><div class="form-alert error mt-16"><%= photoError %></div><% } %>
+
+<%- include('partials/profile-overview', { data: data, canRecordEvidence: canRecordEvidence, isOwnProfile: true }) %>
+
+<div class="card mt-24">
+  <div class="card-header" id="account-security"><h2>Account / Security — change password</h2><p>Update the password you use to sign in.</p></div>
+  <div class="card-body">
+    <% if (typeof passwordSaved !== 'undefined' && passwordSaved) { %><div class="form-alert success">Password updated.</div><% } %>
+    <% if (typeof passwordError !== 'undefined' && passwordError) { %><div class="form-alert error"><%= passwordError %></div><% } %>
+    <form method="post" action="/profile/password">
+      <div class="grid grid-2">
+        <div class="field">
+          <label for="currentPassword">Current password</label>
+          <input id="currentPassword" name="currentPassword" type="password" autocomplete="current-password" required />
+        </div>
+        <div></div>
+        <div class="field">
+          <label for="password">New password</label>
+          <input id="password" name="password" type="password" autocomplete="new-password" minlength="6" required />
+          <p class="hint">At least 6 characters.</p>
+        </div>
+        <div class="field">
+          <label for="confirmPassword">Confirm new password</label>
+          <input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" minlength="6" required />
+        </div>
+      </div>
+      <button type="submit" class="btn btn-gold mt-16">Update password</button>
+    </form>
+  </div>
+</div>

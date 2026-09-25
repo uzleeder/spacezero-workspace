@@ -1,0 +1,17 @@
+<%- include('partials/page-header', { pageTitle: 'Practice', pageDescription: 'Practice recommendations driven by your Skill Graph.' }) %>
+<div class="card">
+  <div class="card-body">
+    <% if (recommended.length === 0) { %>
+      <%- include('partials/empty-state', { title: 'No recommended practice yet', description: 'Recommendations are generated from assessment evidence. The assessment engine ships in Phase 2 — once it is live, weak skills will surface here automatically.' }) %>
+    <% } else { %>
+      <ul class="divide-list">
+        <% recommended.forEach(function (s) { %>
+          <li class="row-between">
+            <span style="font-weight:500;color:var(--navy-950)"><%= s.skill.name %></span>
+            <span class="badge badge-warning"><%= Math.round(s.currentScore) %>% — needs practice</span>
+          </li>
+        <% }); %>
+      </ul>
+    <% } %>
+  </div>
+</div>

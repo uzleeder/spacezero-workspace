@@ -1,0 +1,58 @@
+<%- include('../../partials/page-header', { pageTitle: employee.fullName, pageDescription: '@' + employee.username + ' · ' + employee.email }) %>
+<%- include('../../partials/management-tabs', { tabs: empTabs }) %>
+
+<div class="grid employee-detail-layout">
+  <div class="employee-overview">
+    <%- include('../../partials/profile-overview', { data: data, canRecordEvidence: canRecordEvidence }) %>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-header"><h2>Manage account</h2></div>
+      <% if (employee.role !== 'ADMIN' && (employee.testOwnerAdminId === profile.id || (!employee.testOwnerAdminId && employee.createdById === profile.id))) { %>
+        <form method="post" action="/admin/employees/<%= employee.id %>/personal-test-profile" class="card-body">
+          <p class="text-sm text-muted"><%= employee.testOwnerAdminId ? 'Your personal test profile is hidden from other administrators in Login as.' : 'Mark only your personal test accounts. Regular employees remain available in Login as.' %></p>
+          <button type="submit" class="btn btn-secondary mt-16"><%= employee.testOwnerAdminId ? 'Remove personal test designation' : 'Mark as my personal test profile' %></button>
+        </form>
+      <% } %>
+      <div class="card-body" style="display:flex;flex-wrap:wrap;gap:8px">
+        <% if (employee.status === 'INVITED') { %>
+          <button type="button" class="btn btn-secondary" data-action="/admin/employees/<%= employee.id %>/resend-invite">Resend invitation</button>
+        <% } %>
+        <% if (employee.status === 'ACTIVE') { %>
+          <button type="button" class="btn btn-secondary" data-action="/admin/employees/<%= employee.id %>/reset-password">Trigger password reset</button>
+          <button type="button" class="btn btn-danger" data-action="/admin/employees/<%= employee.id %>/disable" data-confirm="Disable this account?">Disable account</button>
+        <% } %>
+        <% if (employee.status === 'DISABLED') { %>
+          <button type="button" class="btn btn-secondary" data-action="/admin/employees/<%= employee.id %>/reactivate">Reactivate account</button>
+        <% } %>
+        <% if (employee.status !== 'ARCHIVED') { %>
+          <button type="button" class="btn btn-danger" data-action="/admin/employees/<%= employee.id %>/archive" data-confirm="Archive this employee?">Archive</button>
+        <% } else { %>
+          <button type="button" class="btn btn-secondary" data-action="/admin/employees/<%= employee.id %>/unarchive">Unarchive</button>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="card mt-24">
+      <div class="card-header"><h2>Edit details</h2></div>
+      <div class="card-body">
+        <% if (error) { %><div class="form-alert error"><%= error %></div><% } %>
+        <%- include('../../partials/employee-form', {
+          mode: 'edit',
+          actionUrl: '/admin/employees/' + employee.id,
+          teams: teams,
+          supervisors: supervisors,
+          fieldErrors: fieldErrors,
+          values: {
+            fullName: employee.fullName,
+            role: employee.role,
+            teamId: employee.teamMemberships[0] ? employee.teamMemberships[0].teamId : '',
+            supervisorId: employee.supervisedBy[0] ? employee.supervisedBy[0].supervisorId : '',
+            employmentStartDate: employee.employmentStartDate.toISOString().slice(0,10),
+          }
+        }) %>
+      </div>
+    </div>
+  </div>
+</div>

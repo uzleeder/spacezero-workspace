@@ -1,0 +1,25 @@
+<%- include('../partials/page-header', { pageTitle: 'Settings & Security', pageDescription: 'A real-time snapshot of the organization.' }) %>
+
+<%- include('../partials/management-tabs', { tabs: tabsets.settings }) %>
+
+<div class="grid grid-2 mt-24">
+  <div class="card stat-card"><p class="label">Active employees</p><p class="value"><%= totalActive %></p></div>
+  <div class="card stat-card"><p class="label">Teams</p><p class="value"><%= teamCount %></p></div>
+  <div class="card stat-card"><p class="label">Library items</p><p class="value"><%= libraryCount %></p></div>
+  <div class="card stat-card"><p class="label">Training completion rate</p><p class="value"><%= completionRate %>%</p></div>
+</div>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>Employees by role</h2></div>
+  <div class="card-body">
+    <% byRole.forEach(function (row) { %>
+      <div class="mt-24" style="margin-top:18px">
+        <div class="row-between" style="margin-bottom:4px">
+          <span style="font-weight:500;color:var(--navy-950);font-size:14px"><%= roleLabel(row.role) %></span>
+          <span class="text-sm text-muted"><%= row.count %></span>
+        </div>
+        <div class="progress-track"><div class="progress-fill navy" style="width:<%= (row.count / maxRoleCount) * 100 %>%"></div></div>
+      </div>
+    <% }); %>
+  </div>
+</div>

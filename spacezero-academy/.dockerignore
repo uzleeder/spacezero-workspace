@@ -1,0 +1,16 @@
+node_modules
+.git
+.claude
+.codex
+.vercel
+.env
+.env.*
+storage
+public/uploads
+generated
+prisma/*.db*
+*.log
+*.zip
+coverage
+tests
+deploy/vercel/.vercel

@@ -1,0 +1,13 @@
+<%# "My development": every role is also a learner. me = result of myDevelopment(). %>
+<div class="card mt-24 next-card">
+  <div class="card-body">
+    <p class="label">My development · what should I practice next?</p>
+    <% if (!me.next) { %><p style="margin-top:8px">You are all caught up.</p>
+    <% } else { %>
+      <h2 style="font-size:18px"><%= me.next.title %></h2>
+      <p class="text-sm text-muted"><%= me.next.reason %></p>
+      <% if (me.next.action && me.next.action.href) { %><a class="btn btn-gold btn-sm mt-16" href="<%= me.next.action.href %>"><%= me.next.action.label %></a><% } %>
+    <% } %>
+    <p class="text-sm text-muted" style="margin-top:10px"><%= me.dev.summary.required %> required open · <%= me.dev.summary.retakes %> retake<%= me.dev.summary.retakes === 1 ? '' : 's' %> · <%= me.dev.summary.overdue %> overdue · <a class="link-gold" href="/skill-graph">My Skill DNA</a></p>
+  </div>
+</div>

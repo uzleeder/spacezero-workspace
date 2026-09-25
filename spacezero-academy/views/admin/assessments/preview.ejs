@@ -1,0 +1,31 @@
+<div class="form-alert info">Preview — this is what the learner sees. Nothing you do here is recorded, and answers are not shown.</div>
+<%- include('../../partials/page-header', { pageTitle: assessment.title, pageDescription: assessment.type.replace('_', ' ') + ' · Passing score ' + assessment.passingScore + '%', headerAction: '<a href="/admin/assessments/' + assessment.id + '" class="btn btn-secondary">Back to review</a>' }) %>
+<% if (assessment.instructions) { %><div class="card mt-24"><div class="card-body"><p><%= assessment.instructions %></p></div></div><% } %>
+
+<% if (['ROLEPLAY', 'VOICE'].includes(assessment.type)) { %>
+  <div class="card mt-24" style="margin-bottom:40px">
+    <div class="card-header"><h2><%= assessment.type === 'VOICE' ? 'Voice practice' : 'Role-play' %></h2></div>
+    <div class="card-body">
+      <p class="text-sm text-muted">Scenario</p>
+      <p style="margin-bottom:16px"><%= config.scenarioBrief %></p>
+      <p class="text-sm text-muted">The customer begins with</p>
+      <p style="font-style:italic;margin-bottom:16px">"<%= config.openingLine %>"</p>
+      <p class="text-sm text-muted">You will be scored on</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"><% (config.rubricSkills || []).forEach(function (s) { %><span class="badge badge-navy"><%= s %></span><% }); %></div>
+    </div>
+  </div>
+<% } else { %>
+  <div class="mt-24" style="margin-bottom:40px">
+    <% questions.forEach(function (q, i) { %>
+      <div class="card mt-16"><div class="card-body">
+        <p style="font-weight:500;color:var(--navy-950)"><%= i + 1 %>. <%= q.prompt %></p>
+        <% if (q.options.length) { %>
+          <div style="margin-top:12px">
+            <% q.options.forEach(function (o) { %><label class="checkbox-row" style="display:block;margin-bottom:6px"><input type="<%= q.type === 'MULTI_SELECT' ? 'checkbox' : 'radio' %>" disabled /> <%= o %></label><% }); %>
+          </div>
+        <% } else { %><textarea rows="2" disabled placeholder="Learner types an answer here" style="width:100%;margin-top:12px"></textarea><% } %>
+      </div></div>
+    <% }); %>
+    <% if (questions.length === 0) { %><div class="card"><div class="card-body"><p class="text-sm text-muted">No questions yet.</p></div></div><% } %>
+  </div>
+<% } %>

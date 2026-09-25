@@ -1,0 +1,12 @@
+<%# Category radar. cats = [{ category, average }] (only categories with an assessed average are drawn). %>
+<% var data = (cats || []).filter(function (c) { return c.average !== null; }); %>
+<% if (data.length >= 3) {
+  var cx = 130, cy = 130, R = 88, n = data.length;
+  function pt(i, v) { var a = -Math.PI / 2 + i * 2 * Math.PI / n; return [cx + Math.cos(a) * R * v / 100, cy + Math.sin(a) * R * v / 100]; }
+  var poly = data.map(function (c, i) { return pt(i, c.average).map(function (x) { return x.toFixed(1); }).join(','); }).join(' '); %>
+  <svg class="dna-radar" viewBox="0 0 260 260" role="img" aria-label="Skill categories: <%= data.map(function (c) { return c.category + ' ' + c.average + '%'; }).join(', ') %>">
+    <% [25, 50, 75, 100].forEach(function (v) { %><polygon class="ring" points="<%= data.map(function (c, i) { return pt(i, v).map(function (x) { return x.toFixed(1); }).join(','); }).join(' ') %>"></polygon><% }); %>
+    <% data.forEach(function (c, i) { var e = pt(i, 100), l = pt(i, 122); %><line class="axis" x1="<%= cx %>" y1="<%= cy %>" x2="<%= e[0].toFixed(1) %>" y2="<%= e[1].toFixed(1) %>"></line><text x="<%= l[0].toFixed(1) %>" y="<%= l[1].toFixed(1) %>" text-anchor="middle" dominant-baseline="middle"><%= c.category.length > 14 ? c.category.slice(0, 13) + '…' : c.category %></text><% }); %>
+    <polygon class="shape" points="<%= poly %>"></polygon>
+  </svg>
+<% } %>

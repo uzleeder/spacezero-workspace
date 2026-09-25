@@ -1,0 +1,27 @@
+<%- include('../../partials/page-header', { pageTitle: 'Invitations', pageDescription: manual ? 'Email delivery is not configured, so nothing was emailed. Each person needs their own one-time link.' : 'Invitations were sent by email. Each link works once and expires in 24 hours.', headerAction: '<a href="/admin/employees?setup=notstarted" class="btn btn-secondary">Back to employees</a>' }) %>
+
+<% if (manual) { %>
+  <div class="form-alert info mt-16" role="note">These links let a person create their own password and activate their account. <strong>Treat each link like a password:</strong> send it only to that person, and do not post it anywhere shared. They are shown on this page only once. Links use this server's address — the person must be able to open it.</div>
+<% } %>
+
+<div class="card mt-24" style="margin-bottom:40px">
+  <% if (results.length === 0) { %>
+    <div class="card-body"><%- include('../../partials/empty-state', { title: 'Nobody is waiting for an invitation', description: 'Everyone has already activated their account.' }) %></div>
+  <% } else { %>
+    <ul class="divide-list" style="padding:0 24px">
+      <% results.forEach(function (r) { %>
+        <li>
+          <div class="row-between" style="gap:12px;flex-wrap:wrap">
+            <div><p style="font-weight:500;color:var(--navy-950)"><%= r.person.fullName %></p><p class="text-sm text-muted"><%= r.person.email %></p></div>
+            <% if (r.outcome === 'sent') { %><span class="badge badge-success">Email sent</span>
+            <% } else if (r.outcome === 'failed') { %><span class="badge badge-danger">Email failed — try again</span>
+            <% } else { %><span class="badge badge-warning">One-time link</span><% } %>
+          </div>
+          <% if (r.outcome === 'link') { %>
+            <input readonly value="<%= r.link %>" aria-label="Activation link for <%= r.person.fullName %>" onclick="this.select()" style="width:100%;margin-top:8px;font-size:12px" />
+          <% } %>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+</div>

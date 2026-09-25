@@ -1,0 +1,50 @@
+<form method="post" action="<%= actionUrl %>">
+  <div class="grid grid-2">
+    <div class="field">
+      <label for="fullName">Full name</label>
+      <input id="fullName" name="fullName" value="<%= values.fullName || '' %>" required />
+      <% if (fieldErrors.fullName) { %><p class="error"><%= fieldErrors.fullName[0] %></p><% } %>
+    </div>
+    <% if (mode === 'new') { %>
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" name="username" placeholder="first.last" value="<%= values.username || '' %>" required />
+        <% if (fieldErrors.username) { %><p class="error"><%= fieldErrors.username[0] %></p><% } %>
+      </div>
+      <div class="field">
+        <label for="email">Company email</label>
+        <input id="email" name="email" type="email" value="<%= values.email || '' %>" required />
+        <% if (fieldErrors.email) { %><p class="error"><%= fieldErrors.email[0] %></p><% } %>
+      </div>
+    <% } %>
+    <div class="field">
+      <label for="employmentStartDate">Employment start date</label>
+      <input id="employmentStartDate" type="date" name="employmentStartDate" value="<%= values.employmentStartDate || '' %>" required />
+      <% if (fieldErrors.employmentStartDate) { %><p class="error"><%= fieldErrors.employmentStartDate[0] %></p><% } %>
+    </div>
+    <div class="field">
+      <label for="role">Role</label>
+      <select id="role" name="role" data-role-select>
+        <option value="ADMIN" <%= values.role === 'ADMIN' ? 'selected' : '' %>>Administrator</option>
+        <option value="SUPERVISOR" <%= values.role === 'SUPERVISOR' ? 'selected' : '' %>>Supervisor</option>
+        <option value="TRAVEL_AGENT" <%= !values.role || values.role === 'TRAVEL_AGENT' ? 'selected' : '' %>>Travel Agent</option>
+        <option value="FLIGHT_EXPERT" <%= values.role === 'FLIGHT_EXPERT' ? 'selected' : '' %>>Flight Expert</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="teamId">Team</label>
+      <select id="teamId" name="teamId">
+        <option value="">No team</option>
+        <% teams.forEach(function (t) { %><option value="<%= t.id %>" <%= values.teamId === t.id ? 'selected' : '' %>><%= t.name %></option><% }); %>
+      </select>
+    </div>
+    <div class="field" data-supervisor-field>
+      <label for="supervisorId">Supervisor</label>
+      <select id="supervisorId" name="supervisorId">
+        <option value="">Unassigned</option>
+        <% supervisors.forEach(function (s) { %><option value="<%= s.id %>" <%= values.supervisorId === s.id ? 'selected' : '' %>><%= s.fullName %></option><% }); %>
+      </select>
+    </div>
+  </div>
+  <button type="submit" class="btn btn-gold mt-24"><%= mode === 'new' ? 'Create employee' : 'Save changes' %></button>
+</form>

@@ -1,0 +1,74 @@
+<%- include('partials/page-header', { pageTitle: 'Notes', pageDescription: 'Jot down anything worth remembering — save the ones you want to keep close.' }) %>
+<%- include('partials/management-tabs', { tabs: tabsets.learner }) %>
+
+<div class="row-between mt-24" style="align-items:center">
+  <div style="display:flex;gap:8px">
+    <a href="/notes" class="btn btn-sm <%= showSaved ? 'btn-secondary' : 'btn-gold' %>">All notes</a>
+    <a href="/notes?view=saved" class="btn btn-sm <%= showSaved ? 'btn-gold' : 'btn-secondary' %>">Saved</a>
+  </div>
+</div>
+
+<% if (error) { %><div class="form-alert error mt-16"><%= error %></div><% } %>
+
+<% if (!showSaved) { %>
+  <div class="card mt-16">
+    <div class="card-header"><h2>New note</h2></div>
+    <div class="card-body">
+      <form method="post" action="/notes">
+        <div class="field">
+          <label for="title">Title (optional)</label>
+          <input id="title" name="title" placeholder="Untitled" maxlength="200" />
+        </div>
+        <div class="field mt-16">
+          <label for="content">Note</label>
+          <textarea id="content" name="content" rows="4" required></textarea>
+        </div>
+        <button type="submit" class="btn btn-gold mt-16">Add note</button>
+      </form>
+    </div>
+  </div>
+<% } %>
+
+<div class="card mt-16">
+  <% if (notes.length === 0) { %>
+    <div class="card-body"><%- include('partials/empty-state', {
+      title: showSaved ? 'No saved notes yet' : 'No notes yet',
+      description: showSaved ? 'Save a note to keep it here for quick access.' : 'Write your first note above.',
+    }) %></div>
+  <% } else { %>
+    <ul class="divide-list" style="padding:0 24px">
+      <% notes.forEach(function (note) { %>
+        <li>
+          <div class="row-between" style="align-items:flex-start">
+            <div style="flex:1;min-width:0">
+              <p style="font-weight:500;color:var(--navy-950)"><%= note.title || 'Untitled' %></p>
+              <p class="text-sm text-muted" style="margin-top:4px;white-space:pre-wrap"><%= note.content %></p>
+              <p class="text-sm text-muted" style="margin-top:8px">Updated <%= note.updatedAt.toLocaleString('en-US') %></p>
+            </div>
+            <div style="display:flex;gap:8px;flex-shrink:0">
+              <a href="#edit-note-<%= note.id %>" class="btn btn-secondary btn-sm">Edit</a>
+              <button type="button" class="btn <%= note.isSaved ? 'btn-gold' : 'btn-secondary' %> btn-sm" data-action="/notes/<%= note.id %>/save"><%= note.isSaved ? 'Saved' : 'Save' %></button>
+              <button type="button" class="btn btn-danger btn-sm" data-action="/notes/<%= note.id %>/delete" data-confirm="Delete this note? This cannot be undone.">Delete</button>
+            </div>
+          </div>
+          <div class="target-reveal mt-16" id="edit-note-<%= note.id %>">
+            <form method="post" action="/notes/<%= note.id %>">
+              <div class="field">
+                <label for="title-<%= note.id %>">Title (optional)</label>
+                <input id="title-<%= note.id %>" name="title" value="<%= note.title || '' %>" maxlength="200" />
+              </div>
+              <div class="field mt-16">
+                <label for="content-<%= note.id %>">Note</label>
+                <textarea id="content-<%= note.id %>" name="content" rows="4" required><%= note.content %></textarea>
+              </div>
+              <div class="row-between mt-16">
+                <a href="/notes<%= showSaved ? '?view=saved' : '' %>" class="text-sm link-gold">Cancel</a>
+                <button type="submit" class="btn btn-gold">Save changes</button>
+              </div>
+            </form>
+          </div>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+</div>

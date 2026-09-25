@@ -1,0 +1,139 @@
+<%
+const actions = '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+  '<a href="/admin/assessments/' + assessment.id + '/preview" class="btn btn-secondary">Preview as learner</a>' +
+  (assessment.status !== 'APPROVED' ? '<form method="post" action="/admin/assessments/' + assessment.id + '/approve" style="display:inline"><button type="submit" class="btn btn-gold">Approve practice</button></form>' : '<span class="badge badge-success" style="align-self:center">Approved</span>') +
+  '<form method="post" action="/admin/assessments/' + assessment.id + '/delete" onsubmit="return confirm(\'Delete this generated practice? This cannot be undone.\')" style="display:inline"><button type="submit" class="btn btn-danger">Delete</button></form>' +
+  '</div>';
+const parse = function (v, d) { try { return v ? JSON.parse(v) : d; } catch (e) { return d; } };
+%>
+<%- include('../../partials/page-header', { pageTitle: assessment.title, pageDescription: assessment.type.replace('_', ' ') + ' · Difficulty ' + assessment.level + ' · Passing score ' + assessment.passingScore + '%', headerAction: actions }) %>
+
+<div style="margin-bottom:16px"><a href="/ai-practice/<%= assessment.courseId %>?step=practice" class="text-sm link-gold">← Back to practice builder</a></div>
+<% if (locked) { %><div class="form-alert info" role="status"><%= locked %></div><% } %>
+<div></div>
+
+<% if (notice) { %><div class="form-alert success"><%= notice %></div><% } %>
+<% if (error) { %><div class="form-alert error" role="alert"><%= error %></div><% } %>
+<div class="form-alert info mt-16"><%= assessment.status === 'APPROVED' ? 'Approved. Any edit sends it back to review so learners never get unreviewed changes.' : 'Ready for review. Nothing here reaches employees until you approve it and send the training to the catalog.' %></div>
+
+<div class="card mt-24">
+  <div class="card-header row-between"><div><h2>AI source check</h2><p>Checked against the training knowledge this practice came from. Advice for you — nothing is changed or approved automatically.</p></div>
+    <form method="post" action="/admin/assessments/<%= assessment.id %>/validate"><button type="submit" class="btn btn-secondary btn-sm"><%= validation ? 'Re-check with AI' : 'Check with AI' %></button></form></div>
+  <div class="card-body">
+    <% if (!validation) { %>
+      <p class="text-sm text-muted">Not checked yet.</p>
+    <% } else { %>
+      <% if (validation.stale) { %><div class="form-alert info" style="margin-bottom:12px">You changed this practice after the last check — re-check it.</div><% } %>
+      <p class="text-sm"><strong><%= validation.supported %> of <%= validation.total %></strong> item<%= validation.total === 1 ? '' : 's' %> supported by the source · <strong><%= validation.application %></strong> test application in a realistic situation.</p>
+      <% var flagged = validation.items.filter(function (i) { return !i.supportedBySource || !i.testsApplication; }); %>
+      <% if (flagged.length) { %><ul class="divide-list" style="margin-top:8px"><% flagged.forEach(function (i) { %><li class="text-sm"><strong><%= i.ref %></strong> — <%= !i.supportedBySource ? 'not clearly supported by the source' : 'tests recall more than application' %>: <%= i.note %></li><% }); %></ul><% } %>
+      <% if (validation.coverageGaps.length) { %><p class="text-sm mt-16"><strong>Not covered:</strong> <%= validation.coverageGaps.join(' · ') %></p><% } %>
+      <p class="text-sm text-muted" style="margin-top:8px">Checked <%= new Date(validation.checkedAt).toLocaleString('en-US') %><%= validation.modelVersion ? ' · ' + validation.modelVersion : '' %></p>
+    <% } %>
+  </div>
+</div>
+
+<div class="grid grid-2 mt-24">
+  <div class="card">
+    <div class="card-header"><h2>Settings</h2></div>
+    <div class="card-body">
+      <form method="post" action="/admin/assessments/<%= assessment.id %>/update">
+        <div class="field"><label for="title">Title</label><input id="title" name="title" value="<%= assessment.title %>" maxlength="160" required /></div>
+        <div class="grid grid-2 mt-16">
+          <div class="field"><label for="level">Difficulty (1–5)</label><input id="level" name="level" type="number" min="1" max="5" value="<%= assessment.level %>" required /></div>
+          <div class="field"><label for="passingScore">Passing score (%)</label><input id="passingScore" name="passingScore" type="number" min="<%= MIN_PASSING %>" max="100" value="<%= assessment.passingScore %>" required /></div>
+        </div>
+        <div class="field mt-16"><label for="instructions">Instructions shown to the learner</label><textarea id="instructions" name="instructions" rows="3" maxlength="2000"><%= assessment.instructions || '' %></textarea></div>
+        <% if (isConfigSet) { %>
+          <div class="field mt-16"><label for="customerPersonality">Customer personality</label><input id="customerPersonality" name="customerPersonality" value="<%= config.customerPersonality || '' %>" maxlength="300" /></div>
+          <div class="field mt-16"><label for="scenarioBrief">Scenario brief</label><textarea id="scenarioBrief" name="scenarioBrief" rows="4" maxlength="2000" required><%= config.scenarioBrief || '' %></textarea></div>
+          <div class="field mt-16"><label for="openingLine">Customer's opening line</label><input id="openingLine" name="openingLine" value="<%= config.openingLine || '' %>" maxlength="500" required /></div>
+          <div class="field mt-16"><label for="rubricSkills">Scoring rubric — skills evaluated (one per line, 3–8)</label><textarea id="rubricSkills" name="rubricSkills" rows="4"><%= (config.rubricSkills || []).join('\n') %></textarea></div>
+        <% } %>
+        <button type="submit" class="btn btn-gold mt-16">Save changes</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>Ask the AI</h2><p>Give the AI another prompt. It changes only what your instruction affects.</p></div>
+    <div class="card-body">
+      <% if (isConfigSet || isQuestionSet) { %>
+      <form method="post" action="/admin/assessments/<%= assessment.id %>/revise">
+        <div class="field"><label for="instruction">Instruction</label><textarea id="instruction" name="instruction" rows="3" maxlength="600" required placeholder="e.g. Make this role-play harder. / Add more objection handling. / Focus more on keeping the client engaged."></textarea></div>
+        <button type="submit" class="btn btn-secondary mt-16">Apply with AI</button>
+      </form>
+      <% } else { %>
+        <p class="text-sm text-muted">This practice type is edited directly.</p>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<% if (isQuestionSet) { %>
+  <div class="card mt-24">
+    <div class="card-header"><h2>Questions (<%= assessment.questions.length %>)</h2><p>Edit, remove or replace any question on its own.</p></div>
+    <div class="card-body">
+      <% if (assessment.questions.length === 0) { %><p class="text-sm text-muted">No questions yet — add one below.</p><% } %>
+      <ul class="divide-list">
+        <% assessment.questions.forEach(function (q, i) {
+          var options = parse(q.optionsJson, []); var correct = parse(q.correctAnswerJson, q.correctAnswerJson); var skills = parse(q.skillIdsJson, []);
+          var handEditable = HAND_EDITABLE.includes(q.type); %>
+          <li>
+            <p style="font-weight:500;color:var(--navy-950)"><%= i + 1 %>. <%= q.prompt %></p>
+            <p class="text-sm text-muted" style="margin-top:4px"><%= q.type.replace('_', ' ') %><% if (skills.length) { %> · <%= skills.join(', ') %><% } %></p>
+            <% if (options.length) { %><ul style="margin-top:8px;padding-left:20px"><% options.forEach(function (o) { %><li class="text-sm"><%= o %></li><% }); %></ul><% } %>
+            <p class="text-sm mt-16" style="color:var(--green-600, #16a34a)">Correct answer: <%= Array.isArray(correct) ? correct.join(', ') : correct %></p>
+            <% if (q.explanation) { %><p class="text-sm text-muted" style="margin-top:4px"><%= q.explanation %></p><% } %>
+            <% var ref = parse(q.sourceRefJson, null); if (ref && ref.title) { %><p class="text-sm text-muted" style="margin-top:4px">Source: <%= ref.title %><%= ref.location ? ', ' + ref.location : '' %></p><% } %>
+            <details class="mt-16">
+              <summary class="text-sm link-gold" style="cursor:pointer">Edit, replace or remove</summary>
+              <form method="post" action="/admin/assessments/<%= assessment.id %>/questions/<%= q.id %>" class="mt-16">
+                <div class="field"><label>Question</label><textarea name="prompt" rows="2" maxlength="1000" required><%= q.prompt %></textarea></div>
+                <% if (handEditable && q.type !== 'SHORT_ANSWER' && q.type !== 'TRUE_FALSE') { %>
+                  <div class="field mt-16"><label>Answer options (one per line)</label><textarea name="options" rows="4"><%= options.join('\n') %></textarea></div>
+                  <div class="field mt-16"><label>Correct answer<%= q.type === 'MULTI_SELECT' ? 's (one per line)' : '' %> — copy the option exactly</label><textarea name="correctAnswer" rows="2"><%= Array.isArray(correct) ? correct.join('\n') : String(correct).split(',').join(q.type === 'MULTI_SELECT' ? '\n' : ',') %></textarea></div>
+                <% } else if (q.type === 'TRUE_FALSE') { %>
+                  <div class="field mt-16"><label>Correct answer</label><select name="correctAnswer"><option value="True" <%= String(correct) === 'True' ? 'selected' : '' %>>True</option><option value="False" <%= String(correct) === 'False' ? 'selected' : '' %>>False</option></select></div>
+                <% } else if (q.type === 'SHORT_ANSWER') { %>
+                  <div class="field mt-16"><label>Expected answer</label><textarea name="correctAnswer" rows="2"><%= Array.isArray(correct) ? correct.join(', ') : correct %></textarea></div>
+                <% } else { %>
+                  <p class="hint mt-16">This question type keeps its structure; edit the wording, or use "Replace with AI" below.</p>
+                <% } %>
+                <div class="field mt-16"><label>Explanation shown after answering</label><textarea name="explanation" rows="2" maxlength="1000"><%= q.explanation || '' %></textarea></div>
+                <div class="field mt-16"><label>Skills tested (comma separated)</label><input name="skills" value="<%= skills.join(', ') %>" /></div>
+                <button type="submit" class="btn btn-secondary btn-sm mt-16">Save question</button>
+              </form>
+              <form method="post" action="/admin/assessments/<%= assessment.id %>/questions/<%= q.id %>/regenerate" class="mt-16" style="display:flex;gap:8px;flex-wrap:wrap">
+                <input name="instruction" placeholder="Optional: how should the AI rewrite it? (e.g. make it about baggage rules)" maxlength="500" style="flex:1;min-width:220px" />
+                <button type="submit" class="btn btn-secondary btn-sm">Replace with AI</button>
+              </form>
+              <form method="post" action="/admin/assessments/<%= assessment.id %>/questions/<%= q.id %>/delete" class="mt-16" onsubmit="return confirm('Remove this question?')"><button type="submit" class="btn btn-danger btn-sm">Remove question</button></form>
+            </details>
+          </li>
+        <% }); %>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card mt-24" style="margin-bottom:40px">
+    <div class="card-header"><h2>Add a question</h2></div>
+    <div class="card-body">
+      <form method="post" action="/admin/assessments/<%= assessment.id %>/questions">
+        <div class="grid grid-2">
+          <div class="field"><label for="newType">Type</label><select id="newType" name="type"><option value="MCQ">Single choice</option><option value="MULTI_SELECT">Multiple choice</option><option value="TRUE_FALSE">True / False</option><option value="SHORT_ANSWER">Short answer</option></select></div>
+          <div class="field"><label for="newSkills">Skills tested (comma separated)</label><input id="newSkills" name="skills" /></div>
+        </div>
+        <div class="field mt-16"><label for="newPrompt">Question</label><textarea id="newPrompt" name="prompt" rows="2" maxlength="1000" required></textarea></div>
+        <div class="field mt-16"><label for="newOptions">Answer options (one per line — for single/multiple choice)</label><textarea id="newOptions" name="options" rows="4"></textarea></div>
+        <div class="field mt-16"><label for="newCorrect">Correct answer (copy an option exactly; True/False for true-false; expected text for short answer)</label><textarea id="newCorrect" name="correctAnswer" rows="2"></textarea></div>
+        <div class="field mt-16"><label for="newExplanation">Explanation (optional)</label><textarea id="newExplanation" name="explanation" rows="2" maxlength="1000"></textarea></div>
+        <button type="submit" class="btn btn-gold mt-16">Add question</button>
+      </form>
+    </div>
+  </div>
+<% } else if (!isConfigSet) { %>
+  <div class="card mt-24" style="margin-bottom:40px"><div class="card-body"><p class="text-sm text-muted">This practice type is a guided process simulation. Use the Settings above for its title, difficulty and instructions.</p></div></div>
+<% } else { %>
+  <div class="card mt-24" style="margin-bottom:40px"><div class="card-header"><h2>Rubric skills evaluated</h2></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:8px"><% (config.rubricSkills || []).forEach(function (s) { %><span class="badge badge-navy"><%= s %></span><% }); %></div></div></div>
+<% } %>

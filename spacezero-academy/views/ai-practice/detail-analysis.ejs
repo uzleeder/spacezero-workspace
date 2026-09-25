@@ -1,0 +1,139 @@
+<%
+const CLASS_LABEL = { SALES_COMMUNICATION: 'Sales / Communication', TECHNICAL: 'Technical', PROCESS_SOP: 'Process / SOP', PRODUCT_KNOWLEDGE: 'Product knowledge', CUSTOMER_SERVICE: 'Customer service', LEADERSHIP_SUPERVISOR: 'Leadership', COMPLIANCE_POLICY: 'Compliance / Policy', MIXED: 'Mixed' };
+const DIFF_LABEL = { EASY: 'Beginner', MEDIUM: 'Intermediate', HARD: 'Advanced' };
+const conf = function (c) { return c === 'NEEDS_REVIEW' ? '<span class="badge badge-warning" style="margin-left:6px">Needs review</span>' : c === 'MEDIUM' ? '<span class="badge" style="margin-left:6px">Medium confidence</span>' : ''; };
+const esc = function (v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
+const evidenceList = function (list) { return list.map(function (e) { return '<li><span class="text-muted">' + esc(e.sourceTitle || 'Source') + (e.location ? ' — ' + esc(e.location) : '') + ':</span> ' + esc(e.fact) + '</li>'; }).join(''); };
+const a = analysis;
+%>
+
+<% if (!a) { %>
+  <div class="card mt-24"><div class="card-body">
+    <p class="label">Analysis</p>
+    <h2 style="margin:6px 0">Not analyzed yet</h2>
+    <p class="text-muted">Saved material is not analyzed until you choose to. It stays here as long as you like.</p>
+    <% if (editable && course.modules.length) { %><a class="btn btn-gold mt-16" href="/ai-practice/<%= course.id %>/analyze">Start Analysis</a><% } %>
+  </div></div>
+
+<% } else if (['QUEUED', 'EXTRACTING', 'MAPPING', 'VALIDATING'].includes(a.status)) { %>
+  <% var stage = { QUEUED: 0, EXTRACTING: 1, MAPPING: 2, VALIDATING: 3 }[a.status]; %>
+  <div class="card mt-24"><div class="card-body">
+    <p class="label">Analyzing</p>
+    <h2 style="margin:6px 0"><%= st.halted ? 'This is taking longer than expected' : 'The AI is reading your material' %></h2>
+    <ul style="list-style:none;padding:0;margin:12px 0">
+      <li><%= stage > 1 ? '✓' : stage === 1 ? '●' : '○' %> Reading the material and finding what matters</li>
+      <li><%= stage > 2 ? '✓' : stage === 2 ? '●' : '○' %> Mapping skills, objectives and recommended practice</li>
+      <li><%= stage > 3 ? '✓' : stage === 3 ? '●' : '○' %> Checking the result against your material</li>
+    </ul>
+    <p class="text-sm text-muted"><%= a.status === 'QUEUED' ? 'Waiting to start.' : 'Step ' + stage + ' of 3.' %> You can leave this page — the analysis keeps going and will be here when you come back.</p>
+    <% if (st.halted) { %>
+      <div style="display:flex;gap:8px;flex-wrap:wrap" class="mt-16"><form method="post" action="/ai-practice/<%= course.id %>/analysis/resume" data-once><button class="btn btn-gold">Continue</button></form>
+      <form method="post" action="/ai-practice/<%= course.id %>/delete" data-once><button class="btn btn-secondary" data-confirm-msg="Remove this? If training or skill records depend on it, it will be archived instead.">Remove</button></form></div>
+    <% } %>
+  </div></div>
+
+<% } else if (a.status === 'FAILED') { %>
+  <div class="card mt-24"><div class="card-body">
+    <p class="label">Analysis failed</p>
+    <h2 style="margin:6px 0">We couldn't complete the analysis</h2>
+    <p>Your original source is safe. <%= a.completedStep ? 'The steps that already finished are kept, so a retry continues where it stopped.' : '' %></p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
+      <form method="post" action="/ai-practice/<%= course.id %>/analysis/retry" data-once><button class="btn btn-gold">Retry Analysis</button></form>
+      <a class="btn btn-secondary" href="/ai-practice/<%= course.id %>?step=source">View source</a>
+      <form method="post" action="/ai-practice/<%= course.id %>/delete" data-once><button class="btn btn-secondary" data-confirm-msg="Remove this? If training or skill records depend on it, it will be archived instead.">Remove</button></form>
+    </div>
+    <details class="mt-16"><summary class="text-sm link-gold" style="cursor:pointer">View details</summary>
+      <p class="text-sm" style="margin-top:8px"><%= a.errorMessage || 'No details were recorded.' %></p>
+      <p class="text-sm text-muted">Attempts: <%= a.retryCount %> • Last step finished: <%= a.completedStep ? a.completedStep.toLowerCase() : 'none' %> • Model: <%= a.modelVersion || 'n/a' %></p>
+    </details>
+  </div></div>
+
+<% } else { %>
+  <% if (stale) { %><div class="form-alert info mt-16">The source changed after this analysis. <a class="link-gold" href="/ai-practice/<%= course.id %>/analyze?again=1">Analyze again</a> to include the changes.</div><% } %>
+
+  <div class="card mt-24"><div class="card-header"><h2>AI analysis</h2><p>What the AI found in your material. Check it, then create practice.</p></div>
+    <div class="card-body">
+      <div class="grid grid-2">
+        <div><p class="label">Content type</p><p><%= (parsed.classifications.length ? parsed.classifications : []).map(function (c) { return CLASS_LABEL[c] || c; }).join(' / ') || '—' %></p></div>
+        <div><p class="label">Recommended audience</p><p><%= (parsed.insights.audienceRoles || []).length ? parsed.insights.audienceRoles.map(roleLabel).join(', ') : 'Not specified' %></p></div>
+        <div><p class="label">Difficulty</p><p><%= DIFF_LABEL[a.difficulty] || '—' %></p></div>
+        <div><p class="label">Estimated learning time</p><p><%= parsed.insights.estimatedMinutes ? parsed.insights.estimatedMinutes + ' minutes' : '—' %></p></div>
+      </div>
+    </div>
+  </div>
+
+  <% if (relevance && (relevance.lines.length || relevance.note)) { %>
+    <div class="card mt-16"><div class="card-header"><h2>Relevance</h2><p>A recommendation from your skill data — nothing is assigned automatically.</p></div>
+      <div class="card-body">
+        <% if (relevance.note) { %><p class="text-sm text-muted"><%= relevance.note %></p><% } %>
+        <ul style="margin:0;padding-left:18px"><% relevance.lines.forEach(function (l) { %><li><%= l %></li><% }); %></ul>
+      </div></div>
+  <% } %>
+
+  <div class="card mt-16"><div class="card-header"><h2>Learning objectives</h2></div><div class="card-body">
+    <% var objs = (parsed.insights.objectives && parsed.insights.objectives.length) ? parsed.insights.objectives : parsed.objectives.map(function (o) { return { text: o, confidence: null, evidence: [] }; }); %>
+    <ul class="divide-list">
+      <% objs.forEach(function (o) { %>
+        <li>
+          <span>• <%= o.text %></span><%- conf(o.confidence) %>
+          <% if (o.evidence && o.evidence.length) { %><details style="margin-top:4px"><summary class="text-sm link-gold" style="cursor:pointer">Why did the AI say this?</summary><ul class="text-sm" style="margin:6px 0 0;padding-left:18px"><%- evidenceList(o.evidence) %></ul></details>
+          <% } else if (o.confidence) { %><p class="text-sm text-muted" style="margin:4px 0 0">No specific passage supports this — review it before relying on it.</p><% } %>
+        </li>
+      <% }); %>
+    </ul>
+  </div></div>
+
+  <div class="card mt-16"><div class="card-header"><h2>Skills detected</h2></div><div class="card-body">
+    <% var sk = (parsed.insights.skills && parsed.insights.skills.length) ? parsed.insights.skills : parsed.skills.map(function (n) { return { name: n, confidence: null, evidence: [] }; }); %>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <% sk.forEach(function (s) { %><span class="badge badge-navy"><%= s.name %><%- conf(s.confidence) %></span><% }); %>
+    </div>
+    <% var withEvidence = sk.filter(function (s) { return s.evidence && s.evidence.length; }); %>
+    <% if (withEvidence.length) { %><details style="margin-top:12px"><summary class="text-sm link-gold" style="cursor:pointer">Where each skill comes from</summary>
+      <% withEvidence.forEach(function (s) { %><p class="text-sm" style="margin:8px 0 2px"><strong><%= s.name %></strong></p><ul class="text-sm" style="margin:0;padding-left:18px"><%- evidenceList(s.evidence) %></ul><% }); %></details><% } %>
+  </div></div>
+
+  <% var blocks = [['Key knowledge', parsed.knowledge], ['Behaviors', parsed.behaviors], ['Procedures', parsed.insights.procedures || []], ['Common mistakes', parsed.mistakes]].filter(function (b) { return b[1] && b[1].length; }); %>
+  <% blocks.forEach(function (b) { %>
+    <div class="card mt-16"><div class="card-header"><h2><%= b[0] %></h2></div><div class="card-body">
+      <ul style="margin:0;padding-left:18px"><% b[1].slice(0, 5).forEach(function (x) { %><li><%= x %></li><% }); %></ul>
+      <% if (b[1].length > 5) { %><details style="margin-top:8px"><summary class="text-sm link-gold" style="cursor:pointer">Show <%= b[1].length - 5 %> more</summary><ul style="margin:8px 0 0;padding-left:18px"><% b[1].slice(5).forEach(function (x) { %><li><%= x %></li><% }); %></ul></details><% } %>
+    </div></div>
+  <% }); %>
+
+  <% if (!Array.isArray(parsed.refs) && parsed.refs.facts && parsed.refs.facts.length) { %>
+    <div class="card mt-16"><div class="card-header"><h2>Where the key points come from</h2><p>Each point is tied to the place in your material it was taken from.</p></div><div class="card-body">
+      <ul class="text-sm" style="margin:0;padding-left:18px"><% parsed.refs.facts.forEach(function (f) { %><li><span class="text-muted"><%= f.sourceTitle %><%= f.location ? ' — ' + f.location : '' %>:</span> <%= f.fact %></li><% }); %></ul>
+    </div></div>
+  <% } %>
+
+  <% if (parsed.notes.length) { %>
+    <div class="card mt-16"><div class="card-header"><h2>Points to double-check</h2><p>The AI's own check against your material raised these.</p></div><div class="card-body"><ul style="margin:0;padding-left:18px"><% parsed.notes.forEach(function (n) { %><li><%= n %></li><% }); %></ul></div></div>
+  <% } %>
+
+  <% if (Array.isArray(parsed.refs)) { %>
+    <div class="card mt-16"><div class="card-header"><h2>Key moments in the call</h2></div><div class="card-body"><ul class="text-sm" style="margin:0;padding-left:18px"><% parsed.refs.slice(0, 10).forEach(function (m) { %><li><%= Math.floor(m.seconds / 60) %>:<%= String(Math.floor(m.seconds % 60)).padStart(2, '0') %> — <%= m.observation %></li><% }); %></ul></div></div>
+  <% } else if (parsed.refs.sources && parsed.refs.sources.length) { %>
+    <div class="card mt-16"><div class="card-body"><p class="label">Sources used</p><p class="text-sm"><%= parsed.refs.sources.map(function (s) { return s.title; }).join(' • ') %></p></div></div>
+  <% } %>
+
+  <div class="card mt-16 next-card"><div class="card-body">
+    <p class="label">Recommended practice</p>
+    <ul style="list-style:none;padding:0;margin:8px 0 4px"><% recommended.forEach(function (r) { %><li>✓ <%= r.label %> — <%= r.summary %></li><% }); %></ul>
+    <p class="text-sm text-muted">Then a retention check a few weeks later (set in Policies).</p>
+    <% if (editable) { %>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
+        <form method="post" action="/ai-practice/<%= course.id %>/practice/build" data-once><input type="hidden" name="mode" value="recommended" /><button class="btn btn-gold"><%= components.length ? 'Add recommended practice' : 'Create Recommended Practice' %></button></form>
+        <a class="btn btn-secondary" href="/ai-practice/<%= course.id %>?step=practice#customize">Customize Practice</a>
+        <% if (components.length) { %><a class="btn btn-secondary" href="/ai-practice/<%= course.id %>?step=practice">Go to practice</a><% } %>
+      </div>
+    <% } %>
+  </div></div>
+
+  <details class="mt-16" style="margin-bottom:40px"><summary class="text-sm link-gold" style="cursor:pointer">Advanced</summary>
+    <div class="card mt-16"><div class="card-body">
+      <p class="text-sm">Purpose: <%= PURPOSE_LABEL[a.purpose || 'AUTO'] || 'Auto detect' %> • Model: <%= a.modelVersion || 'n/a' %> • Prompts: <%= a.promptVersion || 'n/a' %> • Completed: <%= a.completedAt ? a.completedAt.toLocaleString('en-US') : '—' %></p>
+      <% if (editable) { %><a class="btn btn-secondary btn-sm mt-16" href="/ai-practice/<%= course.id %>/analyze?again=1">Analyze again</a><% } %>
+    </div></div>
+  </details>
+<% } %>

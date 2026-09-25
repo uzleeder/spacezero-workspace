@@ -1,0 +1,77 @@
+<%- include('../../partials/page-header', { pageTitle: 'New material', headerAction: '<a href="/ai-practice" class="btn btn-secondary">Back to AI Practice</a>', pageDescription: 'Add sources for AI Practice to analyze — nothing reaches Training until you review, approve and send it. Add modules — videos, PDFs, documents, links, or notes.' }) %>
+
+<div class="card"><div class="card-body">
+  <% if (error) { %><div class="form-alert error"><%= error %></div><% } %>
+  <form method="post" action="/admin/training/new" data-course-form>
+    <div class="grid grid-2">
+      <div class="field">
+        <label for="title">Course title</label>
+        <input id="title" name="title" value="<%= values.title || '' %>" required />
+      </div>
+    </div>
+    <div class="field mt-24">
+      <label for="description">Description</label>
+      <textarea id="description" name="description" rows="3"><%= values.description || '' %></textarea>
+    </div>
+
+    <%- include('../../partials/course-audience', { audience: { roles: [].concat(values.audienceRoles || []), teamIds: [].concat(values.audienceTeamIds || []), profileIds: [].concat(values.audienceProfileIds || []) }, dueDateValue: values.dueDate || '' }) %>
+
+    <div class="grid grid-2 mt-24">
+      <div class="field">
+        <label for="passingScore">Passing score (%)</label>
+        <input id="passingScore" name="passingScore" type="number" min="<%= minPassingScore %>" max="100" value="<%= values.passingScore || minPassingScore %>" />
+        <p class="hint">Organization minimum: <%= minPassingScore %>%. You may raise it for this training, never go below it.</p>
+      </div>
+      <div class="field">
+        <label class="checkbox-row" style="margin-top:28px">
+          <input type="checkbox" name="mandatory" value="1" checked /> Mandatory training
+        </label>
+        <p class="hint">Mandatory training must be completed; its required media must be consumed before the assessment unlocks.</p>
+      </div>
+    </div>
+
+    <div class="mt-24">
+      <p class="label">Modules</p>
+      <input type="hidden" name="modulesJson" value="[]" />
+      <div data-module-list>
+        <div data-module-row class="card" style="padding:16px;margin-bottom:12px;border-style:dashed">
+          <div class="row-between" style="margin-bottom:10px">
+            <span data-module-label style="font-size:14px;font-weight:500">Module 1</span>
+          </div>
+          <div class="grid grid-2">
+            <input name="moduleTitle" placeholder="Module title" />
+            <select name="moduleContentType">
+              <option>VIDEO</option><option>AUDIO</option><option>PDF</option><option>PPT</option><option>DOC</option>
+              <option>IMAGE</option><option>NOTE</option><option>LINK</option><option>QUIZ</option>
+            </select>
+            <input name="moduleUrl" placeholder="Link / file URL (optional)" />
+            <input name="moduleDuration" type="number" placeholder="Duration (minutes, optional)" />
+            <textarea name="moduleDescription" placeholder="Short description (optional)" style="grid-column:1 / -1" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+      <button type="button" class="btn btn-secondary" data-add-module>+ Add module</button>
+    </div>
+
+    <template id="module-row-template">
+      <div data-module-row class="card" style="padding:16px;margin-bottom:12px;border-style:dashed">
+        <div class="row-between" style="margin-bottom:10px">
+          <span data-module-label style="font-size:14px;font-weight:500">Module</span>
+          <button type="button" class="btn btn-ghost btn-sm" data-remove-module style="color:#b91c1c">Remove</button>
+        </div>
+        <div class="grid grid-2">
+          <input name="moduleTitle" placeholder="Module title" />
+          <select name="moduleContentType">
+            <option>VIDEO</option><option>AUDIO</option><option>PDF</option><option>PPT</option><option>DOC</option>
+            <option>IMAGE</option><option>NOTE</option><option>LINK</option><option>QUIZ</option>
+          </select>
+          <input name="moduleUrl" placeholder="Link / file URL (optional)" />
+          <input name="moduleDuration" type="number" placeholder="Duration (minutes, optional)" />
+          <textarea name="moduleDescription" placeholder="Short description (optional)" style="grid-column:1 / -1" rows="2"></textarea>
+        </div>
+      </div>
+    </template>
+
+    <button type="submit" class="btn btn-gold mt-24">Create course</button>
+  </form>
+</div></div>

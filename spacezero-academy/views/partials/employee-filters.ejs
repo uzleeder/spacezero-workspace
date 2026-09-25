@@ -1,0 +1,19 @@
+<%# Advanced filters; rendered inside the page's existing <form class="filter-bar">. %>
+<select name="skill" aria-label="Skill">
+  <option value="">Any skill</option>
+  <% filterSkills.forEach(function (s) { %><option value="<%= s.id %>" <%= f.skillId === s.id ? 'selected' : '' %>><%= s.name %></option><% }); %>
+</select>
+<input type="number" name="min" min="0" max="100" value="<%= f.min === null ? '' : f.min %>" placeholder="Skill ≥ %" aria-label="Minimum skill score" style="width:96px" />
+<input type="number" name="max" min="0" max="100" value="<%= f.max === null ? '' : f.max %>" placeholder="Skill ≤ %" aria-label="Maximum skill score" style="width:96px" />
+<select name="trainingStatus" aria-label="Training status">
+  <option value="">Any training status</option>
+  <% [['NOT_STARTED','Not started'],['IN_PROGRESS','In progress'],['COMPLETED','Completed'],['RETAKE_REQUIRED','Retake required']].forEach(function (s) { %><option value="<%= s[0] %>" <%= f.trainingStatus === s[0] ? 'selected' : '' %>><%= s[1] %></option><% }); %>
+</select>
+<select name="readiness" aria-label="Readiness">
+  <option value="">Any readiness</option>
+  <% [['NOT_ACTIVATED','Not Activated'],['SETUP_REQUIRED','Setup Required'],['TRAINING_REQUIRED','Training Required'],['NEEDS_ATTENTION','Needs Attention'],['READY','Ready']].forEach(function (s) { %><option value="<%= s[0] %>" <%= f.readiness === s[0] ? 'selected' : '' %>><%= s[1] %></option><% }); %>
+</select>
+<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="retake" value="1" <%= f.retake ? 'checked' : '' %> /> Retake outstanding</label>
+<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="overdue" value="1" <%= f.overdue ? 'checked' : '' %> /> Overdue</label>
+<input type="date" name="startFrom" value="<%= f.startFrom %>" aria-label="Started on or after" />
+<input type="date" name="startTo" value="<%= f.startTo %>" aria-label="Started on or before" />

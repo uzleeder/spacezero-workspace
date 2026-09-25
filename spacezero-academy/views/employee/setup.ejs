@@ -1,0 +1,121 @@
+<%- include('../partials/employee-frame') %>
+
+<% if (error) { %><div class="form-alert error mt-16"><%= error %></div><% } %>
+<% if (saved) { %><div class="form-alert success mt-16">Saved.</div><% } %>
+
+<div class="card mt-24">
+  <div class="card-body">
+    <div class="row-between">
+      <div>
+        <p class="text-sm text-muted">Employee Setup</p>
+        <p style="font-size:28px;font-weight:600;color:var(--navy-950)"><%= setup.notStarted ? '—' : setup.percent + '%' %></p>
+      </div>
+      <%- include('../partials/setup-badge', { setup: setup }) %>
+    </div>
+    <div class="progress-track mt-16"><div class="progress-fill navy" style="width:<%= setup.percent %>%"></div></div>
+    <p class="text-sm text-muted mt-16"><%= setup.completed %> of <%= setup.required %> required items completed.
+      <% if (setup.notStarted) { %>Setup starts once this account has been activated.<% } else if (isSelf) { %>Some items you can confirm yourself; the rest are verified by your supervisor or an administrator.<% } %></p>
+  </div>
+</div>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>Checklist</h2></div>
+  <ul class="divide-list" style="padding:0 24px">
+    <% setup.rows.forEach(function (row) { %>
+      <% const r = row.requirement; const done = row.status === 'COMPLETED'; %>
+      <li>
+        <div class="row-between" style="align-items:flex-start;gap:16px">
+          <div style="flex:1;min-width:0">
+            <p style="font-weight:500;color:var(--navy-950)">
+              <span aria-hidden="true"><%= done ? '✓' : row.status === 'NOT_REQUIRED' ? '–' : '✗' %></span>
+              <%= r.label %>
+              <% if (!r.required) { %><span class="badge" style="margin-left:6px">Optional</span><% } %>
+            </p>
+            <p class="text-sm text-muted" style="margin-top:2px"><%= r.category || 'Other' %><% if (!row.derived) { %> · <%= VERIFICATION_LABEL[row.rule] %><% } %></p>
+            <% if (r.description) { %><p class="text-sm text-muted" style="margin-top:2px"><%= r.description %></p><% } %>
+            <% if (row.ownerLabel || row.dueAt) { %><p class="text-sm" style="margin-top:2px"><%= row.ownerLabel ? 'Owner: ' + row.ownerLabel : '' %><%= row.ownerLabel && row.dueAt ? ' · ' : '' %><% if (row.dueAt) { %><span class="<%= row.overdue ? 'trend-declining' : '' %>">Due: <%= row.dueAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) %><%= row.overdue ? ' — overdue' : '' %></span><% } %></p><% } %>
+            <p class="text-sm text-muted" style="margin-top:2px">
+              <% if (row.derived) { %>Calculated from real data<% if (r.kind === 'CREDENTIAL_VAULT') { %> — contents of the vault are never shown here<% } %>.<% } %>
+              <% if (row.item && row.item.verifiedAt && done) { %> Verified by <%= row.item.verifiedBy ? row.item.verifiedBy.fullName : 'management' %> on <%= row.item.verifiedAt.toLocaleDateString('en-US') %>.<% } else if (done && row.item && row.item.employeeConfirmedAt) { %> Confirmed by the employee on <%= row.item.employeeConfirmedAt.toLocaleDateString('en-US') %>.<% } %>
+              <% if (row.awaitingVerification) { %> Confirmed by the employee — awaiting verification by a supervisor or administrator.<% } %>
+              <% if (row.item) { %> Last updated <%= row.item.updatedAt.toLocaleDateString('en-US') %>.<% } %>
+              <% if (row.awaitingCompanyControl) { %> Waiting for company ownership/recovery confirmation.<% } %>
+            </p>
+            <% if (r.companyControlled && row.item && row.item.companyNumber) { %><p class="text-sm" style="margin-top:2px">Company number/account: <%= row.item.companyNumber %></p><% } %>
+            <% if (row.item && row.item.note) { %><p class="text-sm" style="margin-top:2px">Note: <%= row.item.note %></p><% } %>
+          </div>
+          <span class="badge <%= done ? 'badge-success' : row.status === 'ISSUE' ? 'badge-danger' : row.status === 'NOT_REQUIRED' ? '' : 'badge-warning' %>"><%= STATUS_LABEL[row.status] %></span>
+        </div>
+
+        <% if (isSelf && !row.derived && !setup.notStarted && row.status !== 'NOT_REQUIRED') { %>
+          <% const mine = row.item; const pending = row.awaitingVerification; %>
+          <div class="mt-16" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <% if (row.rule === 'MANAGEMENT_ONLY') { %>
+              <span class="text-sm text-muted">Only your supervisor or an administrator can mark this as completed.</span>
+            <% } else if (pending || (done && mine && !mine.verifiedById && mine.employeeConfirmedAt)) { %>
+              <form method="post" action="/employees/<%= employee.id %>/setup/<%= r.id %>/confirm"><input type="hidden" name="undo" value="1" /><button type="submit" class="btn btn-secondary btn-sm">Withdraw my confirmation</button></form>
+            <% } else if (!done) { %>
+              <form method="post" action="/employees/<%= employee.id %>/setup/<%= r.id %>/confirm"><button type="submit" class="btn btn-gold btn-sm"><%= row.rule === 'EMPLOYEE_CONFIRMATION' ? 'I have this — mark completed' : 'I have this — request verification' %></button></form>
+            <% } %>
+          </div>
+        <% } %>
+        <% if (manage) { %>
+          <% if (!row.derived || isAdmin) { %>
+            <form method="post" action="/employees/<%= employee.id %>/setup/<%= r.id %>" class="mt-16" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+              <select name="status" aria-label="Status for <%= r.label %>">
+                <% STATUSES.forEach(function (s) {
+                     if (row.derived && !['NOT_SET_UP', 'NOT_REQUIRED'].includes(s)) return;
+                     if (s === 'NOT_REQUIRED' && !isAdmin) return; %>
+                  <option value="<%= s %>" <%= (row.item ? row.item.status : 'NOT_SET_UP') === s ? 'selected' : '' %>><%= row.derived && s === 'NOT_SET_UP' ? 'Required (calculated)' : STATUS_LABEL[s] %></option>
+                <% }); %>
+              </select>
+              <input name="note" value="<%= row.item && row.item.note ? row.item.note : '' %>" placeholder="Optional note" maxlength="500" style="flex:1;min-width:160px" />
+              <% if (r.companyControlled && !row.derived) { %>
+                <input name="companyNumber" value="<%= row.item && row.item.companyNumber ? row.item.companyNumber : '' %>" placeholder="Company number / account" maxlength="40" style="min-width:170px" aria-label="Company number for <%= r.label %>" />
+                <label class="checkbox-row"><input type="checkbox" name="companyControlConfirmed" value="1" <%= row.item && row.item.companyControlConfirmed ? 'checked' : '' %> /> Company owns &amp; can recover this</label>
+              <% } %>
+              <button type="submit" class="btn btn-secondary btn-sm">Save</button>
+            </form>
+          <% } %>
+        <% } %>
+      </li>
+    <% }); %>
+  </ul>
+</div>
+
+<% if (setup.history && setup.history.length) { %>
+<div class="card mt-24">
+  <div class="card-header"><h2>Earlier requirements</h2><p>No longer required. Kept as history and not counted in setup progress.</p></div>
+  <ul class="divide-list" style="padding:0 24px">
+    <% setup.history.forEach(function (h) { %>
+      <li class="row-between">
+        <span><%= h.requirement.label %> <span class="text-sm text-muted">· <%= h.requirement.category || 'Other' %></span></span>
+        <span class="text-sm text-muted"><%= STATUS_LABEL[h.item.status] %><% if (h.item.verifiedAt) { %> · verified <%= h.item.verifiedAt.toLocaleDateString('en-US') %><% } %></span>
+      </li>
+    <% }); %>
+  </ul>
+</div>
+<% } %>
+<div class="card mt-24" style="margin-bottom:40px">
+  <div class="card-header"><h2>Contact &amp; address</h2><p>Sensitive personal information — shown only on this authorized profile.</p></div>
+  <div class="card-body">
+    <% if (canEditContact) { %>
+      <form method="post" action="/employees/<%= employee.id %>/contact">
+        <div class="grid grid-2">
+          <div class="field">
+            <label for="localPhone">Local phone number</label>
+            <input id="localPhone" name="localPhone" value="<%= employee.localPhone || '' %>" placeholder="+998 90 123 45 67" autocomplete="tel" />
+          </div>
+          <div class="field">
+            <label for="currentAddress">Current living address</label>
+            <textarea id="currentAddress" name="currentAddress" rows="2" maxlength="500" autocomplete="street-address"><%= address %></textarea>
+            <p class="hint">Stored encrypted. Never shown in employee lists, search, dashboards or logs.</p>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-gold mt-16">Save contact details</button>
+      </form>
+    <% } else { %>
+      <p class="text-sm text-muted">Phone: <%= employee.localPhone || '—' %></p>
+    <% } %>
+  </div>
+</div>

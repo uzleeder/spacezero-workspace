@@ -1,0 +1,39 @@
+<%- include('../../partials/page-header', { pageTitle: 'Training', pageDescription: 'The approved training catalog. You can assign the trainings an administrator has allowed you to assign, to your own team.', headerAction: profile.role === 'ADMIN' ? '<a href="/ai-practice" class="btn btn-secondary">Open AI Practice</a>' : '' }) %>
+
+<%- include('../../partials/management-tabs', { tabs: tabsets.training }) %>
+
+<div class="row-between mt-24" style="align-items:center">
+  <div style="display:flex;gap:8px">
+    <a href="/admin/training" class="btn btn-sm <%= showArchived ? 'btn-secondary' : 'btn-gold' %>">Approved</a>
+    <a href="/admin/training?view=archived" class="btn btn-sm <%= showArchived ? 'btn-gold' : 'btn-secondary' %>">Archived</a>
+  </div>
+</div>
+
+<div class="card mt-16">
+  <% if (courses.length === 0) { %>
+    <div class="card-body"><%- include('../../partials/empty-state', { title: showArchived ? 'No archived training' : 'No approved training yet', description: showArchived ? 'Training you archive will show up here.' : 'Create material in AI Practice, review and approve it, then send it to Training.' }) %></div>
+  <% } else { %>
+    <ul class="divide-list" style="padding:0 24px">
+      <% courses.forEach(function (course) { %>
+        <li class="row-between" style="gap:16px">
+          <a href="/admin/training/<%= course.id %>" style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <p style="font-weight:500;color:var(--navy-950)"><%= course.title %></p>
+              <span class="badge <%= course.status === 'PUBLISHED' ? 'badge-success' : 'badge-warning' %>"><%= course.status === 'PUBLISHED' ? 'Approved' : 'Archived' %></span>
+              <span class="badge"><%= course.mandatory ? 'Mandatory' : 'Optional' %> · pass <%= course.passingScore %>%</span>
+              <% if (course.origin === 'AI_PRACTICE') { %><span class="badge badge-navy">AI Practice · v<%= course.publishedVersion || 1 %></span><% } %>
+            </div>
+            <p class="text-sm text-muted" style="margin-top:4px"><%= course.modules.length %> modules · <%= course.roleKey ? roleLabel(course.roleKey) : 'Everyone' %> · <%= course._count.assignments %> assignment<%= course._count.assignments === 1 ? '' : 's' %> · assignable by: <%= POLICY_LABEL[course.assignPolicy] %></p>
+          </a>
+          <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+            <% if (course.canAssign) { %>
+              <a class="btn btn-gold btn-sm" href="/assignments?courseId=<%= course.id %>">Assign</a>
+            <% } else if (!showArchived) { %>
+              <span class="badge" title="An administrator has not allowed you to assign this training">View only</span>
+            <% } %>
+          </div>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+</div>

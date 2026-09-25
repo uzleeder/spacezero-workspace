@@ -1,0 +1,61 @@
+<%- include('../partials/page-header', { pageTitle: 'Settings & Security', pageDescription: 'Configure tenure bands and the skill catalog used across the platform.' }) %>
+
+<%- include('../partials/management-tabs', { tabs: tabsets.settings }) %>
+
+<div class="grid grid-2 mt-24">
+  <div class="card">
+    <div class="card-header"><h2>Tenure bands</h2><p>Used to tailor training requirements by how long someone has been employed.</p></div>
+    <div class="card-body">
+      <% if (bands.length === 0) { %>
+        <%- include('../partials/empty-state', { title: 'No tenure bands configured' }) %>
+      <% } else { %>
+        <ul class="divide-list" style="margin-bottom:16px">
+          <% bands.forEach(function (b) { %>
+            <li class="row-between">
+              <span class="text-sm"><%= b.label %> (<%= b.minMonths %>–<%= b.maxMonths === null ? '∞' : b.maxMonths %> months)</span>
+              <button type="button" class="btn btn-ghost btn-sm" style="color:#b91c1c" data-action="/admin/settings/tenure-bands/<%= b.id %>/delete">Remove</button>
+            </li>
+          <% }); %>
+        </ul>
+      <% } %>
+      <form method="post" action="/admin/settings/tenure-bands">
+        <div class="grid" style="grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <input name="label" placeholder="Label" required style="grid-column:1 / -1" />
+          <input name="minMonths" type="number" min="0" placeholder="Min months" required />
+          <input name="maxMonths" type="number" min="0" placeholder="Max (blank = none)" style="grid-column:2 / span 2" />
+        </div>
+        <button type="submit" class="btn btn-secondary mt-16">Add tenure band</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>Skill catalog</h2><p>The Skill Graph measured for each role.</p></div>
+    <div class="card-body">
+      <% if (skills.length === 0) { %>
+        <%- include('../partials/empty-state', { title: 'No skills configured' }) %>
+      <% } else { %>
+        <ul class="divide-list" style="max-height:256px;overflow-y:auto;margin-bottom:16px">
+          <% skills.forEach(function (s) { %>
+            <li class="row-between">
+              <span class="text-sm"><%= s.name %> <span class="badge" style="margin-left:6px"><%= s.roleKey ? roleLabel(s.roleKey) : 'Everyone' %></span></span>
+              <button type="button" class="btn btn-ghost btn-sm" style="color:#b91c1c" data-action="/admin/settings/skills/<%= s.id %>/deactivate">Deactivate</button>
+            </li>
+          <% }); %>
+        </ul>
+      <% } %>
+      <form method="post" action="/admin/settings/skills">
+        <input name="name" placeholder="Skill name" required />
+        <div class="grid grid-2 mt-16">
+          <select name="roleKey">
+            <option value="TRAVEL_AGENT">Travel Agent</option>
+            <option value="FLIGHT_EXPERT">Flight Expert</option>
+            <option value="">Everyone</option>
+          </select>
+          <input name="category" placeholder="Category (optional)" />
+        </div>
+        <button type="submit" class="btn btn-secondary mt-16">Add skill</button>
+      </form>
+    </div>
+  </div>
+</div>

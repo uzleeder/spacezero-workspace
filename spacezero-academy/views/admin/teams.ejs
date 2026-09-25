@@ -1,0 +1,63 @@
+<%- include('../partials/page-header', { pageTitle: 'Employees & Teams', pageDescription: 'Each team with its supervisor and agents. These relationships are not just a picture: they decide who can see and manage whom.' }) %>
+
+<%- include('../partials/management-tabs', { tabs: tabsets.employees }) %>
+
+<div class="mt-24" style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">
+  <div style="flex:1 1 420px;min-width:0">
+    <% if (hierarchy.length === 0) { %>
+      <div class="card"><div class="card-body"><%- include('../partials/empty-state', { title: 'No teams yet', description: 'Create your first team using the form on the right.' }) %></div></div>
+    <% } %>
+    <% hierarchy.forEach(function (row) { var team = row.team; %>
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header row-between">
+          <div>
+            <h2 style="display:flex;align-items:center;gap:8px"><a href="/admin/teams/<%= team.id %>"><%= team.name %></a><% if (team.archivedAt) { %><span class="badge">Archived</span><% } %></h2>
+            <p class="text-sm text-muted"><%= row.agents.length %> agent<%= row.agents.length === 1 ? '' : 's' %><% if (row.others.length) { %> · <%= row.others.length %> other member<%= row.others.length === 1 ? '' : 's' %><% } %></p>
+          </div>
+          <% if (!team.archivedAt) { %><button type="button" class="btn btn-danger btn-sm" data-action="/admin/teams/<%= team.id %>/archive" data-confirm="Archive this team?">Archive</button><% } %>
+        </div>
+        <div class="card-body">
+          <% if (row.supervisors.length === 0) { %>
+            <p class="text-sm text-muted">No supervisor in this team yet.</p>
+          <% } %>
+          <% row.supervisors.forEach(function (s) { %>
+            <div class="row-between" style="padding:6px 0">
+              <a href="/admin/employees/<%= s.id %>" style="display:flex;align-items:center;gap:10px"><%- include('../partials/avatar', { profile: s, size: 'sm' }) %><span><strong style="color:var(--navy-950)"><%= s.fullName %></strong> <span class="text-sm text-muted">· Supervisor</span></span></a>
+              <%- include('../partials/setup-badge', { setup: setups.get(s.id) }) %>
+            </div>
+          <% }); %>
+          <ul style="list-style:none;margin:6px 0 0 18px;padding:0 0 0 14px;border-left:2px solid var(--border-subtle)">
+            <% row.agents.forEach(function (a) { %>
+              <li class="row-between" style="padding:6px 0;gap:8px;flex-wrap:wrap">
+                <a href="/admin/employees/<%= a.profile.id %>" style="display:flex;align-items:center;gap:10px"><%- include('../partials/avatar', { profile: a.profile, size: 'sm' }) %><span>→ <%= a.profile.fullName %><% if (a.profile.status === 'INVITED') { %> <span class="text-sm text-muted">· invited</span><% } %><% if (!a.supervisor) { %> <span class="badge badge-warning">No supervisor assigned</span><% } else if (row.supervisors.length && !row.supervisors.some(function (s) { return s.id === a.supervisor.id; })) { %> <span class="badge badge-warning">Supervisor: <%= a.supervisor.fullName %></span><% } %></span></a>
+                <%- include('../partials/setup-badge', { setup: setups.get(a.profile.id) }) %>
+              </li>
+            <% }); %>
+            <% row.others.forEach(function (o) { %>
+              <li class="row-between" style="padding:6px 0"><a href="/admin/employees/<%= o.id %>" class="text-sm text-muted"><%= o.fullName %> · <%= roleLabel(o.role) %></a></li>
+            <% }); %>
+          </ul>
+        </div>
+      </div>
+    <% }); %>
+  </div>
+
+  <div class="card" style="flex:1 1 300px;max-width:100%">
+    <div class="card-header"><h2>Create a team</h2></div>
+    <div class="card-body">
+      <% if (error) { %><div class="form-alert error"><%= error %></div><% } %>
+      <form method="post" action="/admin/teams">
+        <div class="field">
+          <label for="name">Team name</label>
+          <input id="name" name="name" required />
+          <% if (fieldErrors.name) { %><p class="error"><%= fieldErrors.name[0] %></p><% } %>
+        </div>
+        <div class="field">
+          <label for="description">Description</label>
+          <textarea id="description" name="description" rows="2"></textarea>
+        </div>
+        <button type="submit" class="btn btn-gold mt-24">Create team</button>
+      </form>
+    </div>
+  </div>
+</div>

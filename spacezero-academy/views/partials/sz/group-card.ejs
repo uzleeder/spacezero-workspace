@@ -1,0 +1,86 @@
+<%
+// Locals: g ({key,label,desc,collapsed,profiles}), statusGroups (Map), isAdmin (bool), backPath (string)
+const dotClass = { urgent: 'sz-dot', 'needs-you': 'sz-dot', 'at-risk': 'sz-dot sz-dot--ring', 'never-started': 'sz-dot sz-dot--dashed', 'on-track': 'sz-dot', done: 'sz-dot' }[g.key];
+const groupHref = (id) => isAdmin ? `/admin/employees/${id}` : `/team/${id}`;
+%>
+<section class="sz-group-card sz-g-<%= g.key %><%= g.collapsed ? ' is-collapsed' : '' %>" aria-label="<%= g.label %>" data-sz-group>
+  <div class="sz-group-card__head">
+    <button type="button" class="sz-group-card__toggle" aria-label="Toggle <%= g.label %>" data-sz-group-toggle>
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <span class="sz-group-card__title"><i class="<%= dotClass %>"></i><%= g.label %></span>
+    <span class="sz-group-card__count"><%= g.profiles.length %></span>
+    <span class="sz-group-card__desc"><%= g.desc %></span>
+    <div class="sz-group-card__actions">
+      <% if (g.key === 'at-risk' && g.profiles.length) { %>
+        <form method="post" action="/employees/remind">
+          <% g.profiles.forEach(function (p) { %><input type="hidden" name="ids" value="<%= p.id %>"><% }); %>
+          <input type="hidden" name="back" value="<%= backPath %>">
+          <button type="submit" class="sz-btn sz-btn--secondary sz-btn--sm">Remind all <%= g.profiles.length %></button>
+        </form>
+      <% } %>
+    </div>
+  </div>
+  <div class="sz-group-card__body">
+  <table class="sz-table"><colgroup><col style="width:232px"><col style="width:190px"><col><col style="width:104px"><col style="width:96px"><col style="width:160px"></colgroup><tbody>
+    <% g.profiles.forEach(function (p) { const s = statusGroups.get(p.id); const pct = s.progress.required ? Math.min(100, Math.round(s.progress.completed / s.progress.required * 100)) : 100; %>
+    <tr class="sz-row" tabindex="0" data-href="<%= groupHref(p.id) %>">
+      <td>
+        <div style="display:flex;align-items:center;gap:12px;min-width:0">
+          <span class="sz-avatar sz-avatar--<%= s.hue %>"><%= s.initials %></span>
+          <div style="min-width:0">
+            <div class="sz-truncate" style="font-weight:600"><%= p.fullName %></div>
+            <div class="sz-meta"><%= s.lastActiveAt ? 'Active ' + Math.max(0, Math.floor((Date.now() - new Date(s.lastActiveAt)) / 86400000)) + 'd ago' : 'Never signed in' %></div>
+          </div>
+        </div>
+      </td>
+      <td>
+        <% if (s.progress.required === 0) { %>
+          <span class="sz-secondary">Nothing required</span>
+        <% } else { %>
+          <div class="sz-progress">
+            <div class="sz-progress__day"><%= s.progress.completed %> <span>of <%= s.progress.required %></span></div>
+            <div class="sz-progress__pct"><%= pct %>%</div>
+            <div class="sz-progress__track"><div class="sz-progress__fill" style="width:<%= pct %>%"></div></div>
+          </div>
+        <% } %>
+      </td>
+      <td>
+        <% if (s.reasons.length) { %>
+          <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;min-width:0">
+            <span class="sz-badge sz-badge--<%= g.key %>"><i class="<%= dotClass %>"></i><%= s.reasons[0] %></span>
+            <% if (s.reasons.length > 1) { %><div class="sz-meta">+<%= s.reasons.length - 1 %> more</div><% } %>
+          </div>
+        <% } else { %><span class="sz-badge sz-badge--<%= g.key %>"><i class="<%= dotClass %>"></i><%= g.label %></span><% } %>
+      </td>
+      <td>
+        <% if (s.overdueDays !== null) { %>
+          <div style="font-weight:600" class="sz-c-<%= g.key %>"><%= s.overdueDays %> day<%= s.overdueDays === 1 ? '' : 's' %></div>
+          <% if (s.overdueDateLabel) { %><div class="sz-meta">Due <%= s.overdueDateLabel %></div><% } %>
+        <% } else { %><span class="sz-muted">—</span><% } %>
+      </td>
+      <td>
+        <% if (s.noteCount) { %><span class="sz-secondary" style="display:inline-flex;gap:6px;align-items:center"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13h3l7-7-3-3-7 7v3z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg><%= s.noteCount %> note<%= s.noteCount === 1 ? '' : 's' %></span>
+        <% } else { %><span class="sz-muted">—</span><% } %>
+      </td>
+      <td>
+        <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
+          <% if (g.key === 'never-started' && isAdmin) { %>
+            <button type="button" class="sz-btn sz-btn--primary sz-btn--block sz-btn--sm" data-action="/admin/employees/<%= p.id %>/resend-invite">Resend invite</button>
+          <% } else if (g.key === 'urgent') { %>
+            <a class="sz-btn sz-btn--primary sz-btn--block sz-btn--sm" href="/employees/<%= p.id %>/setup">Fix setup</a>
+          <% } else if (g.key === 'needs-you') { %>
+            <a class="sz-btn sz-btn--primary sz-btn--block sz-btn--sm" href="/employees/<%= p.id %>/setup">Review</a>
+          <% } else if (g.key === 'at-risk') { %>
+            <form method="post" action="/employees/remind"><input type="hidden" name="ids" value="<%= p.id %>"><input type="hidden" name="back" value="<%= backPath %>"><button type="submit" class="sz-btn sz-btn--secondary sz-btn--block sz-btn--sm">Remind</button></form>
+          <% } else { %>
+            <a class="sz-btn sz-btn--secondary sz-btn--block sz-btn--sm" href="<%= groupHref(p.id) %>">View</a>
+          <% } %>
+          <a class="sz-btn sz-btn--icon sz-btn--sm" href="<%= groupHref(p.id) %>" aria-label="More about <%= p.fullName %>"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="13" cy="8" r="1.5" fill="currentColor"/></svg></a>
+        </div>
+      </td>
+    </tr>
+    <% }); %>
+  </tbody></table>
+  </div>
+</section>

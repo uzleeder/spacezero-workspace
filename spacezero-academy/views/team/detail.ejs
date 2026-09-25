@@ -1,0 +1,22 @@
+<%- include('../partials/page-header', { pageTitle: data.profile.fullName, pageDescription: 'Agent profile' }) %>
+<%- include('../partials/management-tabs', { tabs: empTabs }) %>
+<%- include('../partials/profile-overview', { data: data, canRecordEvidence: canRecordEvidence }) %>
+
+<% if (retakeCandidates.length > 0) { %>
+<div class="card mt-24">
+  <div class="card-header"><h2>Request a retake</h2><p>Ask this employee to retake a completed course.</p></div>
+  <div class="card-body">
+    <ul class="divide-list">
+      <% retakeCandidates.forEach(function (r) { %>
+        <li class="row-between">
+          <div>
+            <p style="font-weight:500;color:var(--navy-950)"><%= r.assignment.course.title %></p>
+            <span class="badge badge-success"><%= r.status %></span>
+          </div>
+          <form method="post" action="/training/<%= r.id %>/retake"><button type="submit" class="btn btn-secondary btn-sm">Request retake</button></form>
+        </li>
+      <% }); %>
+    </ul>
+  </div>
+</div>
+<% } %>

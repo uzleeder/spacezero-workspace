@@ -1,0 +1,74 @@
+<% if (mode === 'employee') { %>
+  <%- include('partials/employee-frame') %>
+<% } else { %>
+  <%- include('partials/page-header', { pageTitle: row.skill.name, pageDescription: (row.category) + ' · why this score is what it is' }) %>
+  <%- include('partials/management-tabs', { tabs: tabsets.learner }) %>
+<% } %>
+<p class="mt-16"><a class="link-gold text-sm" href="<%= mode === 'employee' ? '/employees/' + employee.id + '/skills' : '/skill-graph' %>">← Back to Skill DNA</a></p>
+
+<div class="card mt-16">
+  <div class="card-body dna-hero" style="grid-template-columns:1fr">
+    <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-end">
+      <div><p class="text-sm text-muted"><%= row.skill.name %></p><p class="dna-index"><%= row.assessed ? row.score : '—' %><small><%= row.assessed ? '%' : '' %></small></p><p class="text-sm"><%= row.status.label %></p></div>
+      <div><p class="text-sm text-muted">Evidence confidence</p><p><span class="pill conf-<%= row.confidenceLevel %>" style="font-size:14px"><%= row.assessed ? row.confidenceLevel : 'NONE' %></span></p></div>
+      <div><p class="text-sm text-muted">Trend</p><p class="trend-<%= row.trend.direction %>" style="font-size:18px"><%= row.trend.direction === 'improving' ? '▲ +' + row.trend.delta : row.trend.direction === 'declining' ? '▼ ' + row.trend.delta : row.trend.direction === 'new' ? 'new' : row.trend.direction %></p></div>
+      <div><p class="text-sm text-muted">Last assessed</p><p><%= row.lastAssessedAt ? row.lastAssessedAt.toISOString().slice(0, 10) : 'never' %></p></div>
+    </div>
+    <% if (computed.confidence.reasons && computed.confidence.reasons.length) { %>
+      <ul class="text-sm text-muted" style="margin:0;padding-left:20px"><% computed.confidence.reasons.forEach(function (r) { %><li><%= r %></li><% }); %></ul>
+    <% } %>
+    <p class="text-sm">Based on <%= row.basis %>.</p>
+  </div>
+</div>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>Score over time</h2><p>Every recalculation is kept. Earlier scores are never overwritten.</p></div>
+  <div class="card-body">
+    <% if (history.length < 2) { %><p class="dna-empty">A timeline appears once there are at least two data points.</p><% } else {
+      var W = 640, H = 210, L = 34, Rr = 12, T = 12, B = 30;
+      var t0 = history[0].recordedAt.getTime(), t1 = history[history.length - 1].recordedAt.getTime(); if (t1 === t0) t1 = t0 + 1;
+      function X(d) { return L + (d.getTime() - t0) / (t1 - t0) * (W - L - Rr); }
+      function Y(s) { return T + (100 - s) / 100 * (H - T - B); }
+      var path = history.map(function (h) { return X(h.recordedAt).toFixed(1) + ',' + Y(h.score).toFixed(1); }).join(' '); %>
+      <svg class="timeline-chart" viewBox="0 0 <%= W %> <%= H %>" role="img" aria-label="Score history from <%= Math.round(history[0].score) %>% to <%= Math.round(history[history.length - 1].score) %>%">
+        <% [0, 50, 70, 100].forEach(function (g) { %><line class="grid" x1="<%= L %>" x2="<%= W - Rr %>" y1="<%= Y(g).toFixed(1) %>" y2="<%= Y(g).toFixed(1) %>" <%- g === 70 ? 'stroke-dasharray="4 4"' : '' %>></line><text x="4" y="<%= (Y(g) + 3).toFixed(1) %>"><%= g %></text><% }); %>
+        <polyline class="line" points="<%= path %>"></polyline>
+        <% history.forEach(function (h, i) { %><circle class="dot" cx="<%= X(h.recordedAt).toFixed(1) %>" cy="<%= Y(h.score).toFixed(1) %>" r="3.2"><title><%= h.recordedAt.toISOString().slice(0, 10) %>: <%= Math.round(h.score) %>%</title></circle><% }); %>
+        <text x="<%= L %>" y="<%= H - 8 %>"><%= history[0].recordedAt.toISOString().slice(0, 10) %></text>
+        <text x="<%= W - Rr %>" y="<%= H - 8 %>" text-anchor="end"><%= history[history.length - 1].recordedAt.toISOString().slice(0, 10) %></text>
+      </svg>
+      <p class="text-sm text-muted">Dashed line = 70%, the training pass mark (a separate rule from skill status).</p>
+    <% } %>
+  </div>
+</div>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>Why this score?</h2><p>The score is the weighted average of the evidence below: weight = kind of evidence × difficulty × recency (older evidence counts half as much every <%= halfLifeDays %> days). The AI provides evidence, never the score. Engine v<%= engineVersion %>.</p></div>
+  <% if (!computed.explain.length) { %><div class="card-body"><p class="dna-empty">No scored evidence yet.</p></div><% } else { %>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Date</th><th>Evidence</th><th>Score</th><th>Difficulty</th><th>Reliability</th><th>Recency</th><th>Influence</th></tr></thead>
+      <tbody>
+        <% computed.explain.forEach(function (x) { %>
+          <tr>
+            <td><%= new Date(x.createdAt).toISOString().slice(0, 10) %></td>
+            <td><%= TYPE_LABEL[x.kind] || x.kind %> <span class="text-sm text-muted"><%= x.practical ? '(practical)' : '(theory)' %></span><% if (x.notes) { %><p class="text-sm text-muted"><%= x.notes.length > 140 ? x.notes.slice(0, 140) + '…' : x.notes %></p><% } %></td>
+            <td><strong><%= Math.round(x.score) %>%</strong></td>
+            <td><%= x.difficulty || '—' %></td>
+            <td>×<%= x.weight.toFixed(2) %></td>
+            <td><%= Math.round(x.recency * 100) %>%</td>
+            <td><div class="bar" style="width:90px"><span style="width:<%= Math.round(x.share * 100) %>%"></span></div><span class="text-sm text-muted"><%= Math.round(x.share * 100) %>%</span></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table></div>
+  <% } %>
+</div>
+
+<div class="card mt-24" style="margin-bottom:40px">
+  <div class="card-header"><h2>History log</h2></div>
+  <% if (!history.length) { %><div class="card-body"><p class="dna-empty">Nothing recorded yet.</p></div><% } else { %>
+    <ul class="divide-list" style="padding:0 24px">
+      <% history.slice().reverse().slice(0, 30).forEach(function (h) { %><li class="row-between" style="gap:12px"><span class="text-sm"><%= h.note || '' %></span><span class="text-sm text-muted"><%= Math.round(h.score) %>% · <%= h.confidenceLevel ? h.confidenceLevel.toLowerCase() : '' %> · <%= h.recordedAt.toISOString().slice(0, 10) %></span></li><% }); %>
+    </ul>
+  <% } %>
+</div>

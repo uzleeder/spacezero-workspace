@@ -1,0 +1,8 @@
+<%# The five-step lifecycle. Text + marker, never colour alone: done ✓, current ●, upcoming ○. Each step is a link so an earlier step can be revisited. %>
+<ol class="ai-steps" aria-label="Where this is in the workflow">
+  <% steps.forEach(function (s) { var done = s.n < current; var now = s.n === current; %>
+    <li class="<%= now ? 'is-current' : done ? 'is-done' : '' %><%= viewing === s.key ? ' is-viewing' : '' %>" <%- now ? 'aria-current="step"' : '' %>>
+      <a href="/ai-practice/<%= id %>?step=<%= s.key %>"><span aria-hidden="true"><%= done ? '✓' : now ? (failed ? '▲' : '●') : '○' %></span> <%= s.n %> <%= s.label.toUpperCase() %></a>
+    </li>
+  <% }); %>
+</ol>

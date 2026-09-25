@@ -1,0 +1,132 @@
+<%- include('../partials/page-header', { pageTitle: mode === 'new' ? 'Add tool / requirement' : 'Edit requirement', pageDescription: mode === 'new' ? 'It becomes part of the setup checklist of every employee it applies to as soon as you save.' : 'Changes apply to the affected employees immediately.', headerAction: '<a href="/admin/setup-requirements" class="btn btn-secondary">Back to requirements</a>' }) %>
+<%- include('../partials/management-tabs', { tabs: tabsets.settings }) %>
+
+<% if (errors.length) { %><div class="form-alert error mt-16" role="alert"><% errors.forEach(function (e) { %><p><%= e %></p><% }); %></div><% } %>
+
+<form method="post" action="<%= mode === 'new' ? '/admin/setup-requirements' : '/admin/setup-requirements/' + requirement.id %>" class="mt-24" data-setup-form>
+  <div class="card">
+    <div class="card-header"><h2>Details</h2></div>
+    <div class="card-body">
+      <div class="grid grid-2">
+        <div class="field"><label for="label">Name</label><input id="label" name="label" value="<%= values.label %>" maxlength="80" required placeholder="e.g. Amadeus" /></div>
+        <div class="field">
+          <label for="category">Category</label>
+          <select id="category" name="category" data-category-select>
+            <% categories.forEach(function (c) { %><option value="<%= c %>" <%= values.category === c ? 'selected' : '' %>><%= c %></option><% }); %>
+            <% if (values.category && !categories.includes(values.category)) { %><option value="<%= values.category %>" selected><%= values.category %></option><% } %>
+            <option value="__new">+ New category…</option>
+          </select>
+        </div>
+        <div class="field" data-new-category hidden><label for="newCategory">New category name</label><input id="newCategory" name="newCategory" maxlength="40" /></div>
+      </div>
+      <div class="field mt-16"><label for="description">Short description / instructions</label><textarea id="description" name="description" rows="2" maxlength="300"><%= values.description %></textarea></div>
+    </div>
+  </div>
+
+  <div class="card mt-24">
+    <div class="card-header"><h2>Who it applies to</h2><p>Only the requirements that apply to an employee count toward their setup percentage.</p></div>
+    <div class="card-body">
+      <fieldset style="border:0;padding:0">
+        <legend class="text-sm text-muted">Applicable to</legend>
+        <label style="display:block;margin:6px 0"><input type="radio" name="audience" value="ALL_EMPLOYEES" <%= values.audience === 'ALL_EMPLOYEES' ? 'checked' : '' %> /> All employees</label>
+        <label style="display:block;margin:6px 0"><input type="radio" name="audience" value="ROLES" <%= values.audience === 'ROLES' ? 'checked' : '' %> /> Specific roles</label>
+        <div style="margin:0 0 6px 24px" data-audience-roles>
+          <% ROLES.forEach(function (role) { %><label style="margin-right:16px"><input type="checkbox" name="roles" value="<%= role %>" <%= values.roles.includes(role) ? 'checked' : '' %> /> <%= roleLabel(role) %></label><% }); %>
+        </div>
+        <label style="display:block;margin:6px 0"><input type="radio" name="audience" value="SPECIFIC" <%= values.audience === 'SPECIFIC' ? 'checked' : '' %> /> Only specific employees or teams (chosen below)</label>
+      </fieldset>
+
+      <div class="grid grid-2 mt-16" data-audience-targets>
+        <div class="field">
+          <p class="label">Also assign to employees</p>
+          <div style="max-height:200px;overflow-y:auto;border:1px solid rgba(20,24,31,.1);border-radius:8px;padding:12px">
+            <% employees.forEach(function (e) { %>
+              <label class="checkbox-row" style="margin-bottom:6px"><input type="checkbox" name="targetProfileIds" value="<%= e.id %>" <%= values.profileIds.includes(e.id) ? 'checked' : '' %> /> <%= e.fullName %> <span class="text-muted text-sm">· <%= roleLabel(e.role) %></span></label>
+            <% }); %>
+          </div>
+        </div>
+        <div class="field">
+          <p class="label">Also assign to teams</p>
+          <div style="max-height:200px;overflow-y:auto;border:1px solid rgba(20,24,31,.1);border-radius:8px;padding:12px">
+            <% if (teams.length === 0) { %><p class="text-sm text-muted">No teams yet.</p><% } %>
+            <% teams.forEach(function (t) { %>
+              <label class="checkbox-row" style="margin-bottom:6px"><input type="checkbox" name="targetTeamIds" value="<%= t.id %>" <%= values.teamIds.includes(t.id) ? 'checked' : '' %> /> <%= t.name %></label>
+            <% }); %>
+          </div>
+        </div>
+      </div>
+      <p class="hint mt-16">Assigned employees and teams are added on top of the roles above.</p>
+    </div>
+  </div>
+
+  <div class="card mt-24">
+    <div class="card-header"><h2>Requirement &amp; verification</h2></div>
+    <div class="card-body">
+      <div class="grid grid-2">
+        <div class="field">
+          <label for="required">Required or optional</label>
+          <select id="required" name="required">
+            <option value="required" <%= values.required ? 'selected' : '' %>>Required — counts toward setup %</option>
+            <option value="optional" <%= values.required ? '' : 'selected' %>>Optional — shown, but never lowers setup %</option>
+          </select>
+        </div>
+        <% if (!requirement || requirement.kind === 'MANUAL') { %>
+        <div class="field">
+          <label for="verification">How it gets completed</label>
+          <select id="verification" name="verification">
+            <% VERIFICATIONS.forEach(function (v) { %><option value="<%= v %>" <%= values.verification === v ? 'selected' : '' %>><%= VERIFICATION_LABEL[v] %> — <%= VERIFICATION_HELP[v] %></option><% }); %>
+          </select>
+        </div>
+        <% } %>
+        <div class="field">
+          <label for="ownerRole">Owner <span class="text-muted">(optional — who is responsible)</span></label>
+          <select id="ownerRole" name="ownerRole"><option value="">No owner</option><% [['EMPLOYEE', 'The employee'], ['SUPERVISOR', 'Their supervisor'], ['ADMIN', 'An administrator']].forEach(function (o) { %><option value="<%= o[0] %>" <%= values.ownerRole === o[0] ? 'selected' : '' %>><%= o[1] %></option><% }); %></select>
+        </div>
+        <div class="field">
+          <label for="dueDays">Due <span class="text-muted">(optional — days after the employee starts)</span></label>
+          <input id="dueDays" name="dueDays" type="number" min="0" max="999" value="<%= values.dueDays === null || values.dueDays === undefined ? '' : values.dueDays %>" />
+        </div>
+        <div class="field">
+          <label for="dueDate">…or a fixed due date <span class="text-muted">(overrides the days)</span></label>
+          <input id="dueDate" name="dueDate" type="date" value="<%= values.dueDate ? new Date(values.dueDate).toISOString().slice(0, 10) : '' %>" />
+        </div>
+        <div class="field">
+          <label for="position">Display order (position in the checklist)</label>
+          <input id="position" name="position" type="number" min="1" max="999" placeholder="<%= mode === 'new' ? 'Leave blank to add at the end' : 'Leave blank to keep the current position' %>" />
+        </div>
+      </div>
+      <% if (!requirement || requirement.kind === 'MANUAL') { %>
+      <div class="mt-16">
+        <label style="display:block;margin:6px 0"><input type="checkbox" name="companyControlled" value="1" <%= values.companyControlled ? 'checked' : '' %> /> Company-controlled account/number — management must confirm the company owns and can recover it (always needs management verification)</label>
+        <label style="display:block;margin:6px 0"><input type="checkbox" name="credentialSystem" value="1" <%= values.credentialSystem ? 'checked' : '' %> /> Needs a Credential Vault entry before "Passwords / Credential Vault" counts as complete</label>
+      </div>
+      <% } else { %>
+      <p class="hint mt-16">This item is calculated automatically from the employee's real data, so it has no verification rule.</p>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="row-between mt-24" style="margin-bottom:40px">
+    <a href="/admin/setup-requirements" class="text-sm link-gold">Cancel</a>
+    <button type="submit" class="btn btn-gold"><%= mode === 'new' ? 'Add requirement' : 'Save changes' %></button>
+  </div>
+</form>
+
+<script>
+(function () {
+  var form = document.querySelector('[data-setup-form]');
+  if (!form) return;
+  var select = form.querySelector('[data-category-select]');
+  var box = form.querySelector('[data-new-category]');
+  function syncCategory() { box.hidden = select.value !== '__new'; }
+  select.addEventListener('change', syncCategory); syncCategory();
+  var roles = form.querySelector('[data-audience-roles]');
+  function syncAudience() {
+    var mode = form.querySelector('input[name=audience]:checked').value;
+    roles.style.opacity = mode === 'ROLES' ? '1' : '.45';
+    roles.querySelectorAll('input').forEach(function (i) { i.disabled = mode !== 'ROLES'; });
+  }
+  form.querySelectorAll('input[name=audience]').forEach(function (r) { r.addEventListener('change', syncAudience); });
+  syncAudience();
+})();
+</script>

@@ -1,0 +1,31 @@
+<%# Intended audience + due date. Guidance for whoever assigns the training; it never assigns by itself. %>
+<%
+var chosen = (typeof audience !== 'undefined' && audience) ? audience : { roles: [], teamIds: [], profileIds: [] };
+var ROLE_CHOICES = [['TRAVEL_AGENT', 'Travel Agent'], ['FLIGHT_EXPERT', 'Flight Expert'], ['SUPERVISOR', 'Supervisor'], ['ADMIN', 'Administrator']];
+%>
+<fieldset style="border:0;padding:0" class="mt-24">
+  <legend class="label">Intended audience</legend>
+  <p class="hint">Pick one or several roles, teams or people. Leave everything empty for "everyone appropriate". You assign the training later; this only pre-fills the assign form.</p>
+  <div style="margin:8px 0">
+    <% ROLE_CHOICES.forEach(function (r) { %><label style="margin-right:16px"><input type="checkbox" name="audienceRoles" value="<%= r[0] %>" <%= chosen.roles.indexOf(r[0]) > -1 ? 'checked' : '' %> /> <%= r[1] %></label><% }); %>
+  </div>
+  <div class="grid grid-2">
+    <div class="field">
+      <p class="label">Specific teams</p>
+      <div style="max-height:140px;overflow-y:auto;border:1px solid rgba(20,24,31,.1);border-radius:8px;padding:12px">
+        <% if (teams.length === 0) { %><p class="text-sm text-muted">No teams yet.</p><% } %>
+        <% teams.forEach(function (t) { %><label class="checkbox-row" style="margin-bottom:6px"><input type="checkbox" name="audienceTeamIds" value="<%= t.id %>" <%= chosen.teamIds.indexOf(t.id) > -1 ? 'checked' : '' %> /> <%= t.name %></label><% }); %>
+      </div>
+    </div>
+    <div class="field">
+      <p class="label">Specific employees</p>
+      <div style="max-height:140px;overflow-y:auto;border:1px solid rgba(20,24,31,.1);border-radius:8px;padding:12px">
+        <% people.forEach(function (p) { %><label class="checkbox-row" style="margin-bottom:6px"><input type="checkbox" name="audienceProfileIds" value="<%= p.id %>" <%= chosen.profileIds.indexOf(p.id) > -1 ? 'checked' : '' %> /> <%= p.fullName %></label><% }); %>
+      </div>
+    </div>
+  </div>
+  <div class="field mt-16" style="max-width:260px">
+    <label for="dueDate">Due date (optional)</label>
+    <input id="dueDate" name="dueDate" type="date" value="<%= typeof dueDateValue !== 'undefined' ? dueDateValue : '' %>" />
+  </div>
+</fieldset>

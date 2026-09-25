@@ -1,0 +1,93 @@
+<%- include('../partials/page-header', { pageTitle: 'Organization intelligence', pageDescription: 'How capable is our workforce, where are the gaps, and where should we invest in training?', headerAction: '<a href="/admin/intelligence/training" class="btn btn-secondary">Training effectiveness</a>' }) %>
+<%- include('../partials/management-tabs', { tabs: tabsets.employees }) %>
+
+<div class="kpi-grid mt-24">
+  <div class="card kpi"><p class="value"><%= intel.employees %></p><p class="label">Active employees analysed</p></div>
+  <div class="card kpi"><p class="value"><%= intel.pulse.averageCompetency === null ? '—' : intel.pulse.averageCompetency + '%' %></p><p class="label">Average competency (assessed skills)</p></div>
+  <div class="card kpi"><p class="value"><%= intel.pulse.completionRate === null ? '—' : intel.pulse.completionRate + '%' %></p><p class="label">Training completion</p></div>
+  <div class="card kpi"><p class="value"><%= intel.pulse.passRate === null ? '—' : intel.pulse.passRate + '%' %></p><p class="label">Pass rate · fail <%= intel.pulse.failRate === null ? '—' : intel.pulse.failRate + '%' %></p></div>
+  <div class="card kpi"><p class="value"><%= intel.pulse.retakeRate === null ? '—' : intel.pulse.retakeRate + '%' %></p><p class="label">Retake rate · <%= intel.pulse.awaitingRetake %> waiting</p></div>
+  <div class="card kpi"><p class="value"><%= intel.pulse.overdue %></p><p class="label">Overdue assignments</p></div>
+</div>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>Common weaknesses</h2><p>Skills where the most people are below 70%. Start here when deciding what to train.</p></div>
+  <div class="card-body" style="padding-top:4px;padding-bottom:4px">
+    <% if (!intel.weaknesses.length) { %><p class="dna-empty" style="padding:12px 0">No skill has people below 70% yet (or no evidence exists).</p><% } %>
+    <% intel.weaknesses.forEach(function (w) { %>
+      <div class="skill-row" style="grid-template-columns:minmax(160px,1.3fr) minmax(140px,2fr) 70px 200px">
+        <div><span class="name"><%= w.skill.name %></span><p class="basis"><%= w.skill.roleKey ? roleLabel(w.skill.roleKey) : 'All roles' %> · <%= w.assessed %> assessed</p></div>
+        <div class="bar tone-<%= w.average < 50 ? 'danger' : 'warning' %>"><span style="width:<%= w.average %>%"></span></div>
+        <div><strong><%= w.average %>%</strong></div>
+        <div class="text-sm"><a class="link-gold" href="/bulk-assign?skillId=<%= w.skill.id %>"><%= w.weak %> below 70% — assign practice</a></div>
+      </div>
+    <% }); %>
+  </div>
+</div>
+
+<div class="grid grid-2 mt-24">
+  <div class="card">
+    <div class="card-header"><h2>Role groups</h2><p>Travel Agents, Flight Experts and Supervisors compared. Click to drill down.</p></div>
+    <div class="table-wrap"><table><thead><tr><th>Group</th><th>People</th><th>Average</th></tr></thead><tbody>
+      <% intel.roleGroups.forEach(function (g) { %><tr><td><a class="link-gold" href="/admin/intelligence?role=<%= g.role %>"><%= roleLabel(g.role) %>s</a></td><td><%= g.employees %></td><td><%= g.average === null ? '—' : g.average + '%' %></td></tr><% }); %>
+    </tbody></table></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h2>Improvement trend</h2><p>Average skill score per month (each skill counted once, at its last score that month).</p></div>
+    <div class="card-body">
+      <% if (intel.trend.length < 2) { %><p class="dna-empty">Needs at least two months of evidence.</p><% } else {
+        var W = 420, H = 150, L = 30, R = 10, T = 10, B = 24, pts = intel.trend;
+        function X(i) { return L + i * (W - L - R) / (pts.length - 1); }
+        function Y(v) { return T + (100 - v) / 100 * (H - T - B); } %>
+        <svg class="timeline-chart" viewBox="0 0 <%= W %> <%= H %>" role="img" aria-label="Average skill score by month">
+          <% [0, 50, 100].forEach(function (g) { %><line class="grid" x1="<%= L %>" x2="<%= W - R %>" y1="<%= Y(g).toFixed(1) %>" y2="<%= Y(g).toFixed(1) %>"></line><text x="4" y="<%= (Y(g) + 3).toFixed(1) %>"><%= g %></text><% }); %>
+          <polyline class="line" points="<%= pts.map(function (p, i) { return X(i).toFixed(1) + ',' + Y(p.average).toFixed(1); }).join(' ') %>"></polyline>
+          <% pts.forEach(function (p, i) { %><circle class="dot" cx="<%= X(i).toFixed(1) %>" cy="<%= Y(p.average).toFixed(1) %>" r="3"><title><%= p.month %>: <%= p.average %>%</title></circle><text x="<%= X(i).toFixed(1) %>" y="<%= H - 6 %>" text-anchor="middle"><%= p.month.slice(2) %></text><% }); %>
+        </svg>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>Team comparison</h2></div>
+  <div class="table-wrap"><table><thead><tr><th>Team</th><th>People</th><th>Average</th><th>Skills below 70%</th><th>Retakes</th><th>Overdue</th></tr></thead><tbody>
+    <% if (!intel.teams.length) { %><tr><td colspan="6" class="text-muted">No teams with employees yet.</td></tr><% } %>
+    <% intel.teams.forEach(function (t) { %><tr><td><a class="link-gold" href="/admin/intelligence?teamId=<%= t.team.id %>"><%= t.team.name %></a></td><td><%= t.employees %></td><td><%= t.average === null ? '—' : t.average + '%' %></td><td><%= t.weak %></td><td><%= t.retakes %></td><td><%= t.overdue %></td></tr><% }); %>
+  </tbody></table></div>
+</div>
+
+<% intel.roleGroups.forEach(function (g) { if (!g.skills.length) return; %>
+  <div class="card mt-24">
+    <div class="card-header row-between"><h2><%= roleLabel(g.role) %>s — skill map</h2><a class="link-gold text-sm" href="/admin/intelligence?role=<%= g.role %>">Employees</a></div>
+    <div class="card-body" style="padding-top:4px;padding-bottom:4px">
+      <% g.skills.forEach(function (s) { %>
+        <div class="skill-row" style="grid-template-columns:minmax(160px,1.3fr) minmax(140px,2fr) 60px 150px">
+          <div class="name"><%= s.skill.name %></div>
+          <div class="bar tone-<%= s.average < 50 ? 'danger' : s.average < 80 ? 'warning' : 'success' %>"><span style="width:<%= s.average %>%"></span></div>
+          <div><strong><%= s.average %>%</strong></div>
+          <div class="text-sm text-muted"><%= s.assessed %> assessed · <%= s.weak %> below 70%</div>
+        </div>
+      <% }); %>
+    </div>
+  </div>
+<% }); %>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>Supervisor training status</h2><p>Supervisors are learners too.</p></div>
+  <div class="table-wrap"><table><thead><tr><th>Supervisor</th><th>Assigned</th><th>Completed</th><th>Overdue</th><th>Skill average</th></tr></thead><tbody>
+    <% if (!intel.supervisors.length) { %><tr><td colspan="5" class="text-muted">No active supervisors.</td></tr><% } %>
+    <% intel.supervisors.forEach(function (s) { %><tr><td><a class="link-gold" href="/employees/<%= s.person.id %>/skills"><%= s.person.fullName %></a></td><td><%= s.assigned %></td><td><%= s.completed %></td><td><%= s.overdue %></td><td><%= s.average === null ? '—' : s.average + '%' %></td></tr><% }); %>
+  </tbody></table></div>
+</div>
+
+<% if (intel.drill) { %>
+  <div class="card mt-24" style="margin-bottom:40px" id="drill">
+    <div class="card-header row-between"><h2>Employees — <%= role ? roleLabel(role) + 's' : '' %><%= team ? (role ? ' · ' : '') + team.name : '' %></h2><a class="link-gold text-sm" href="/admin/intelligence">Clear</a></div>
+    <div class="table-wrap"><table><thead><tr><th>Employee</th><th>Team</th><th>Supervisor</th><th>Average</th><th>Weakest skills</th><th>Retakes</th><th>Overdue</th></tr></thead><tbody>
+      <% intel.drill.forEach(function (d) { %><tr>
+        <td><a class="link-gold" href="/employees/<%= d.person.id %>/skills"><%= d.person.fullName %></a></td><td><%= d.team ? d.team.name : '—' %></td><td><%= d.supervisor ? d.supervisor.fullName : '—' %></td>
+        <td><%= d.average === null ? '—' : d.average + '%' %></td><td><%= d.weakest.length ? d.weakest.map(function (w) { return w.name + ' ' + w.score + '%'; }).join(', ') : '—' %></td><td><%= d.retakes %></td><td><%= d.overdue %></td></tr><% }); %>
+    </tbody></table></div>
+  </div>
+<% } %>

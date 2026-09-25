@@ -1,0 +1,154 @@
+<% if (mode === 'employee') { %>
+  <%- include('partials/employee-frame') %>
+<% } else { %>
+  <%- include('partials/page-header', { pageTitle: 'Skill DNA', pageDescription: 'What you can actually demonstrate — built only from your training, practice and real-call evidence.' }) %>
+  <%- include('partials/management-tabs', { tabs: tabsets.learner }) %>
+<% } %>
+
+<% if (saved) { %><div class="form-alert success mt-16">Saved.</div><% } %>
+<% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
+
+<% var TREND = { improving: '▲', declining: '▼', stable: '●', stagnant: '●', new: '' };
+   function tone(row) { return row.status.tone || ''; }
+   function trendText(row) { return row.trend.direction === 'improving' ? '+' + row.trend.delta : row.trend.direction === 'declining' ? String(row.trend.delta) : row.trend.direction === 'stagnant' ? 'no change' : ''; } %>
+
+<div class="card mt-24">
+  <div class="card-body dna-hero">
+    <div>
+      <p class="text-sm text-muted">Overall competency</p>
+      <% if (overall.score === null) { %>
+        <p class="dna-index">—</p>
+        <p class="text-sm text-muted" style="margin-top:8px">No skill has evidence yet, so nothing is scored. Complete practice and it will appear here.</p>
+      <% } else { %>
+        <p class="dna-index"><%= overall.score %><small>%</small></p>
+        <p class="text-sm text-muted" style="margin-top:8px"><%= overall.assessed %> of <%= overall.total %> skills have evidence · <%= overall.high %> with high evidence confidence</p>
+      <% } %>
+      <% if (dev.next && mode === 'learner') { %>
+        <p class="mt-16"><a class="btn btn-gold" href="/dashboard#next">What should I practice next?</a></p>
+      <% } %>
+    </div>
+    <div><%- include('partials/radar', { cats: categories }) %></div>
+  </div>
+</div>
+
+<div class="dna-sections mt-24">
+  <div class="card"><div class="card-body"><h3>Strongest skills</h3>
+    <% if (!sections.strongest.length) { %><p class="dna-empty">No skill is strong <em>and</em> well evidenced yet.</p><% } %>
+    <ul class="dna-list"><% sections.strongest.forEach(function (r) { %><li><span><%= r.skill.name %></span><strong><%= r.score %>%</strong></li><% }); %></ul></div></div>
+  <div class="card"><div class="card-body"><h3>Developing skills</h3>
+    <% if (!sections.developing.length) { %><p class="dna-empty">None right now.</p><% } %>
+    <ul class="dna-list"><% sections.developing.forEach(function (r) { %><li><span><%= r.skill.name %></span><strong><%= r.score %>%</strong></li><% }); %></ul></div></div>
+  <div class="card"><div class="card-body"><h3>Priority improvement</h3>
+    <% if (!sections.priority.length) { %><p class="dna-empty">No skill is below 70%.</p><% } %>
+    <ul class="dna-list"><% sections.priority.forEach(function (r) { %><li><span><%= r.skill.name %> <span class="pill conf-<%= r.confidenceLevel %>"><%= r.confidenceLevel.toLowerCase() %> confidence</span></span><strong><%= r.score %>%</strong></li><% }); %></ul></div></div>
+  <div class="card"><div class="card-body"><h3>Recently improved</h3>
+    <% if (!sections.improved.length) { %><p class="dna-empty">No measured improvement yet.</p><% } %>
+    <ul class="dna-list"><% sections.improved.forEach(function (r) { %><li><span><%= r.skill.name %></span><strong class="trend-improving">▲ +<%= r.trend.delta %></strong></li><% }); %></ul></div></div>
+  <div class="card"><div class="card-body"><h3>Skills declining</h3>
+    <% if (!sections.declining.length) { %><p class="dna-empty">Nothing is declining.</p><% } %>
+    <ul class="dna-list"><% sections.declining.forEach(function (r) { %><li><span><%= r.skill.name %></span><strong class="trend-declining">▼ <%= r.trend.delta %></strong></li><% }); %></ul></div></div>
+  <div class="card"><div class="card-body"><h3>Without enough evidence</h3>
+    <% if (!sections.thin.length) { %><p class="dna-empty">Every skill has solid evidence.</p><% } %>
+    <ul class="dna-list"><% sections.thin.slice(0, 8).forEach(function (r) { %><li><span><%= r.skill.name %></span><span class="text-sm text-muted"><%= r.assessed ? 'one observation' : 'not assessed' %></span></li><% }); %></ul>
+    <% if (sections.thin.length > 8) { %><p class="dna-empty" style="margin-top:6px">+ <%= sections.thin.length - 8 %> more</p><% } %></div></div>
+</div>
+
+<div class="card mt-24 next-card">
+  <div class="card-body">
+    <p class="label">Recommended next practice</p>
+    <% if (!dev.items.length) { %>
+      <p class="mt-16" style="margin-top:8px">Nothing urgent. Keep practising to build evidence.</p>
+    <% } else { %>
+      <ol style="margin:12px 0 0;padding-left:20px">
+        <% dev.items.slice(0, 3).forEach(function (item) { %>
+          <li style="margin-bottom:10px"><strong><%= item.title %></strong><% if (item.estimatedMinutes) { %> <span class="text-sm text-muted">· about <%= item.estimatedMinutes %> min</span><% } %>
+            <p class="text-sm text-muted" style="margin-top:2px"><%= item.reason %></p>
+            <% if (item.action && item.action.href && isSelf) { %><a class="link-gold text-sm" href="<%= item.action.href %>"><%= item.action.label %></a><% } %>
+          </li>
+        <% }); %>
+      </ol>
+    <% } %>
+  </div>
+</div>
+
+<% categories.forEach(function (cat) { %>
+  <div class="card mt-24">
+    <div class="card-header row-between"><h2><%= cat.category %></h2><span class="text-sm text-muted"><%= cat.average === null ? 'not assessed' : 'average ' + cat.average + '%' %></span></div>
+    <div class="card-body" style="padding-top:4px;padding-bottom:4px">
+      <% cat.skills.forEach(function (r) { %>
+        <div class="skill-row">
+          <div><a class="name" href="/employees/<%= r.profileId %>/skills/<%= r.id %>"><%= r.skill.name %></a><p class="basis"><%= r.assessed ? 'Based on ' + r.basis : 'No evidence yet' %></p></div>
+          <div>
+            <div class="bar tone-<%= tone(r) %>" role="img" aria-label="<%= r.skill.name %> <%= r.assessed ? r.score + '%' : 'not assessed' %>"><span style="width:<%= r.assessed ? r.score : 0 %>%"></span></div>
+          </div>
+          <div><strong><%= r.assessed ? r.score + '%' : '—' %></strong> <span class="text-sm text-muted"><%= r.assessed ? r.status.label : 'Not assessed' %></span></div>
+          <div><span class="pill conf-<%= r.confidenceLevel %>" title="Evidence confidence"><%= r.assessed ? r.confidenceLevel.toLowerCase() : 'no evidence' %></span></div>
+          <div style="display:flex;align-items:center;gap:6px"><%- include('partials/spark', { points: r.timeline.map(function (t) { return t.score; }) }) %><span class="text-sm trend-<%= r.trend.direction %>"><%= TREND[r.trend.direction] %> <%= trendText(r) %></span></div>
+        </div>
+      <% }); %>
+    </div>
+  </div>
+<% }); %>
+
+<p class="text-sm text-muted mt-16">Status bands: <%= bands.map(function (b) { return b.min + '%+ ' + b.label; }).join(' · ') %>. The 70% training pass mark is a separate rule: passing a course does not change a skill score by itself.</p>
+
+<% if (manager && coaching) { %>
+  <div class="card mt-24">
+    <div class="card-header row-between"><h2>Coaching</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-gold btn-sm" href="/assignments?personId=<%= employee.id %>">Assign practice</a><a class="btn btn-secondary btn-sm" href="/employees/<%= employee.id %>/training">Training &amp; retakes</a></div></div>
+    <div class="card-body">
+      <h3 class="text-sm text-muted" style="margin-bottom:8px">Add a coaching note</h3>
+      <form method="post" action="/employees/<%= employee.id %>/coaching-notes">
+        <div class="field"><textarea name="body" rows="2" maxlength="2000" required placeholder="Feedback for <%= employee.fullName.split(' ')[0] %> — they will be notified."></textarea></div>
+        <button type="submit" class="btn btn-secondary btn-sm mt-16">Save note</button>
+      </form>
+      <% if (coaching.notes.length) { %><ul class="divide-list mt-16"><% coaching.notes.forEach(function (n) { %><li><p class="text-sm" style="white-space:pre-wrap"><%= n.body %></p><p class="text-sm text-muted"><%= n.author.fullName %> · <%= n.createdAt.toLocaleDateString('en-US') %></p></li><% }); %></ul><% } %>
+    </div>
+  </div>
+
+  <div class="card mt-24">
+    <div class="card-header"><h2>Add a supervisor assessment</h2><p>Your own observation of a skill becomes evidence (weighted like any other) — it never overwrites the score.</p></div>
+    <div class="card-body">
+      <form method="post" id="assessForm" data-base="/employees/<%= employee.id %>/skills/" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:end">
+        <div class="field"><label for="assessSkill">Skill</label><select id="assessSkill"><% rows.forEach(function (r) { %><option value="<%= r.id %>"><%= r.skill.name %></option><% }); %></select></div>
+        <div class="field"><label for="assessScore">Score (0–100)</label><input id="assessScore" name="score" type="number" min="0" max="100" required /></div>
+        <div class="field" style="grid-column:1/-1"><label for="assessNotes">What did you observe?</label><textarea id="assessNotes" name="notes" rows="2" maxlength="1000" required></textarea></div>
+        <button type="submit" class="btn btn-secondary btn-sm" style="width:max-content">Record assessment</button>
+      </form>
+      <script>
+      (function () {
+        var form = document.getElementById('assessForm'), sel = document.getElementById('assessSkill');
+        function sync() { form.action = form.getAttribute('data-base') + sel.value + '/assessment'; }
+        sel.addEventListener('change', sync); sync();
+      })();
+      </script>
+    </div>
+  </div>
+
+  <div class="card mt-24">
+    <div class="card-header"><h2>Training history</h2></div>
+    <% if (!coaching.training.length) { %><div class="card-body"><p class="dna-empty">No training assigned yet.</p></div><% } else { %>
+      <div class="table-wrap"><table><thead><tr><th>Training</th><th>Status</th><th>Latest score</th><th>Due</th></tr></thead><tbody>
+        <% coaching.training.slice(0, 15).forEach(function (t) { %><tr><td><%= t.assignment.course.title %></td><td><%= t.status.replace('_', ' ').toLowerCase() %></td><td><%= t.latestAttempt && t.latestAttempt.score !== null ? Math.round(t.latestAttempt.score) + '%' : '—' %></td><td><%= t.assignment.dueDate ? t.assignment.dueDate.toISOString().slice(0, 10) : '—' %></td></tr><% }); %>
+      </tbody></table></div>
+    <% } %>
+  </div>
+
+  <div class="card mt-24">
+    <div class="card-header"><h2>Assessment history</h2><p>Every attempt is kept — retakes never replace earlier results.</p></div>
+    <% if (!coaching.attempts.length) { %><div class="card-body"><p class="dna-empty">No practice attempts yet.</p></div><% } else { %>
+      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Practice</th><th>Type</th><th>Attempt</th><th>Score</th><th>Result</th></tr></thead><tbody>
+        <% coaching.attempts.forEach(function (a) { %><tr><td><%= a.createdAt.toISOString().slice(0, 10) %></td><td><%= a.assessment.title %></td><td><%= a.assessment.type.replace('_', ' ').toLowerCase() %></td><td>#<%= a.attemptNumber %></td><td><%= a.score !== null ? Math.round(a.score) + '%' : '—' %></td><td><%= a.status === 'COMPLETED' ? 'Passed' : a.status === 'RETAKE_REQUIRED' ? 'Retake required' : a.status.replace('_', ' ').toLowerCase() %></td></tr><% }); %>
+      </tbody></table></div>
+    <% } %>
+  </div>
+
+  <div class="card mt-24" style="margin-bottom:40px">
+    <div class="card-header"><h2>Call analysis history</h2><p>Reviewed call findings only — recordings and transcripts stay with AI Practice administrators.</p></div>
+    <% if (!coaching.callEvidence.length) { %><div class="card-body"><p class="dna-empty">No reviewed call analysis yet.</p></div><% } else { %>
+      <ul class="divide-list" style="padding:0 24px">
+        <% coaching.callEvidence.slice(0, 12).forEach(function (e) { %><li class="row-between" style="gap:12px"><span class="text-sm"><strong><%= e.employeeSkill.skill.name %></strong> — <%= e.notes %></span><span class="text-sm text-muted"><%= Math.round(e.scoreImpact) %>% · <%= e.createdAt.toISOString().slice(0, 10) %></span></li><% }); %>
+      </ul>
+    <% } %>
+  </div>
+<% } %>

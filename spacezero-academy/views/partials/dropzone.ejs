@@ -1,0 +1,19 @@
+<%
+// Reusable drag-and-drop file picker — replaces the native <input type=file>
+// "Choose File" button everywhere in the app. The JS wiring (drag states +
+// filename display) lives once in public/js/app.js and applies to every
+// [data-dropzone] on the page.
+const dzId = typeof inputId !== 'undefined' ? inputId : 'file';
+const dzName = typeof inputName !== 'undefined' ? inputName : 'file';
+const dzAccept = typeof accept !== 'undefined' ? accept : '';
+const dzTitle = typeof dzTitleText !== 'undefined' ? dzTitleText : 'Drag a file here, or click to choose';
+const dzHint = typeof hint !== 'undefined' ? hint : '';
+const dzRequired = typeof required !== 'undefined' && required;
+%>
+<div class="dropzone" data-dropzone>
+  <input id="<%= dzId %>" name="<%= dzName %>" type="file"<%= dzAccept ? ' accept="' + dzAccept + '"' : '' %><%= dzRequired ? ' required' : '' %> />
+  <div class="dz-icon"><%- include('icon', { name: 'upload' }) %></div>
+  <p class="dz-title"><%= dzTitle %></p>
+  <% if (dzHint) { %><p class="dz-hint"><%= dzHint %></p><% } %>
+  <p class="dz-filename" data-dz-filename></p>
+</div>

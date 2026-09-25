@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en"<%= typeof themeAttr !== 'undefined' ? themeAttr : '' %>>
+<head>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=1" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Certificate · <%= cert.profile.fullName %> · SpaceZero Academy</title>
+  <link rel="stylesheet" href="/static/css/styles.css" />
+  <style>
+    body.certificate-page { background: var(--navy-950); min-height: 100vh; }
+    .cert-topbar {
+      display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+      padding: 28px 32px; color: #fff;
+    }
+    .cert-topbar h1 { font-size: 26px; font-weight: 700; }
+    .cert-topbar p { margin: 6px 0 0; color: #aeb9c9; font-size: 14px; }
+    .cert-stage { padding: 8px 32px 56px; display: flex; justify-content: center; }
+    .cert-card {
+      width: 100%; max-width: 780px; background: var(--gold-500); border-radius: 14px; padding: 10px;
+    }
+    .cert-inner {
+      position: relative; background: #f7efe0; border-radius: 8px; padding: 56px 60px; text-align: center;
+      color: #1c2735;
+    }
+    .cert-corner { position: absolute; width: 34px; height: 34px; border: 2px solid var(--gold-600); opacity: .7; }
+    .cert-corner.tl { top: 18px; left: 18px; border-right: 0; border-bottom: 0; }
+    .cert-corner.tr { top: 18px; right: 18px; border-left: 0; border-bottom: 0; }
+    .cert-corner.bl { bottom: 18px; left: 18px; border-right: 0; border-top: 0; }
+    .cert-corner.br { bottom: 18px; right: 18px; border-left: 0; border-top: 0; }
+    .cert-inner h2 {
+      margin-top: 34px; font-family: Georgia, 'Times New Roman', serif; font-size: 34px; font-weight: 700; color: #16233a;
+    }
+    .cert-program { margin-top: 8px; font-size: 12px; letter-spacing: 2.5px; color: #6b5a3d; font-weight: 600; }
+    .cert-presented { margin-top: 30px; font-size: 15px; font-style: italic; color: #4a4030; font-family: Georgia, serif; }
+    .cert-name {
+      margin-top: 10px; font-family: Georgia, 'Times New Roman', serif; font-size: 40px; font-weight: 700;
+      color: var(--gold-600);
+    }
+    .cert-desc { max-width: 560px; margin: 22px auto 0; font-size: 13.5px; line-height: 1.8; color: #514532; }
+    .cert-footer-row {
+      margin-top: 46px; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; text-align: left;
+    }
+    .cert-sig { font-family: 'Brush Script MT', cursive, Georgia, serif; font-size: 26px; color: #2b3242; }
+    .cert-sig-line { border-top: 1px solid #94897a; margin-top: 6px; padding-top: 6px; width: 190px; }
+    .cert-sig-name { font-weight: 700; font-size: 12.5px; color: #241d10; }
+    .cert-sig-title { font-size: 9.5px; letter-spacing: .5px; color: #7a6c50; margin-top: 2px; }
+    .cert-date { text-align: center; }
+    .cert-date .d { font-weight: 700; font-size: 15px; color: #241d10; border-top: 1px solid #94897a; padding-top: 6px; }
+    .cert-date .l { font-size: 9.5px; letter-spacing: 1px; color: #7a6c50; margin-top: 4px; }
+    .cert-seal {
+      width: 82px; height: 82px; border-radius: 999px; border: 1.5px dashed var(--gold-600); display: flex;
+      align-items: center; justify-content: center; position: relative; flex-shrink: 0;
+    }
+    .cert-seal svg.plane { width: 20px; height: 20px; color: var(--gold-600); }
+    .cert-seal-text {
+      position: absolute; inset: 0; font-size: 6.2px; letter-spacing: 1.5px; color: #7a6c50; font-weight: 700;
+    }
+    .cert-note { text-align: center; color: #aeb9c9; font-size: 12px; margin-top: 22px; }
+    .cert-note strong { color: #e7c78d; letter-spacing: .5px; }
+    @media (max-width: 640px) {
+      .cert-inner { padding: 38px 24px; }
+      .cert-name { font-size: 30px; }
+      .cert-inner h2 { font-size: 26px; }
+      .cert-footer-row { flex-direction: column; align-items: center; text-align: center; gap: 18px; }
+      .cert-sig-line { width: auto; }
+    }
+    @media print {
+      body.certificate-page { background: #fff; }
+      .cert-topbar, .cert-note, .no-print { display: none !important; }
+      .cert-stage { padding: 0; }
+      .cert-card { max-width: 100%; box-shadow: none; }
+    }
+  </style>
+</head>
+<body class="certificate-page">
+  <header class="cert-topbar no-print">
+    <div>
+      <h1>Your Certificate</h1>
+      <p>Congratulations on completing the SpaceZero program.</p>
+    </div>
+    <button type="button" class="btn btn-gold" onclick="window.print()">Print / Save PDF</button>
+  </header>
+
+  <div class="cert-stage">
+    <div class="cert-card">
+      <div class="cert-inner">
+        <div class="cert-corner tl"></div>
+        <div class="cert-corner tr"></div>
+        <div class="cert-corner bl"></div>
+        <div class="cert-corner br"></div>
+
+        <div style="display:flex;justify-content:center">
+          <%- include('partials/brand-mark', { brandVariant: 'light', brandSize: 'cert' }) %>
+        </div>
+
+        <h2 style="margin-top:26px">Certificate of Completion</h2>
+        <p class="cert-program"><%= programLabel.toUpperCase() %></p>
+
+        <p class="cert-presented">This certificate is proudly presented to</p>
+        <p class="cert-name"><%= cert.profile.fullName %></p>
+
+        <p class="cert-desc">
+          for successfully completing <strong>&ldquo;<%= cert.title %>&rdquo;</strong><% if (course && course.modules) { %> — a <%= course.modules.length %>-module training program<% } %>, and demonstrating mastery of the material covered through SpaceZero Academy.
+        </p>
+
+        <div class="cert-footer-row">
+          <div>
+            <div class="cert-sig">J.G.</div>
+            <div class="cert-sig-line">
+              <div class="cert-sig-name"><%= signerName %></div>
+              <div class="cert-sig-title"><%= signerTitle.toUpperCase() %></div>
+            </div>
+          </div>
+
+          <div class="cert-seal" aria-hidden="true">
+            <svg class="plane" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12 3.269 3.126A59.77 59.77 0 0 1 21.485 12 59.77 59.77 0 0 1 3.269 20.874L5.999 12Zm0 0h7.5" /></svg>
+          </div>
+
+          <div class="cert-date">
+            <div class="d"><%= cert.issuedAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) %></div>
+            <div class="l">DATE OF COMPLETION</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="cert-note no-print">Click &ldquo;Print / Save PDF&rdquo; to download · Certificate ID <strong><%= certificateNumber %></strong></p>
+</body>
+</html>

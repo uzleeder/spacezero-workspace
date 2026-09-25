@@ -1,0 +1,7 @@
+{
+  "name": "spacezero-vercel-gateway",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": { "build": "node build.cjs" },
+  "engines": { "node": "22.x" }
+}

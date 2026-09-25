@@ -1,0 +1,23 @@
+<%- include('../partials/page-header', { pageTitle: 'Call reviews', pageDescription: 'Every call review across the organization.' }) %>
+
+<%- include('../partials/management-tabs', { tabs: tabsets.employees }) %>
+
+<div class="card mt-24">
+  <% if (reviews.length === 0) { %>
+    <div class="card-body"><%- include('../partials/empty-state', { title: 'No call reviews yet' }) %></div>
+  <% } else { %>
+    <ul class="divide-list" style="padding:0 24px">
+      <% reviews.forEach(function (r) { %>
+        <li>
+          <div class="row-between">
+            <p style="font-weight:500;color:var(--navy-950)"><%= r.agent.fullName %></p>
+            <span class="text-sm text-muted">by <%= r.supervisor.fullName %></span>
+          </div>
+          <% if (r.storagePath) { %><a class="link-gold text-sm" href="/call-reviews/<%= r.id %>/recording">Listen to recording</a><% } %>
+          <% if (r.feedback) { %><p class="text-sm" style="margin-top:6px"><%= r.feedback %></p><% } %>
+          <p class="text-sm text-muted" style="margin-top:6px"><%= r.createdAt.toLocaleString('en-US') %></p>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+</div>

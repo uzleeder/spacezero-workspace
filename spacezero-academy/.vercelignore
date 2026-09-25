@@ -1,0 +1,11 @@
+.env*
+storage/**
+public/uploads/**
+prisma/*.db*
+*.log
+*.zip
+.claude/**
+.codex/**
+node_modules/**
+generated/**
+coverage/**

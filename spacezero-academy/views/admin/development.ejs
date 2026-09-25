@@ -1,0 +1,103 @@
+<%- include('../partials/page-header', { pageTitle: 'Development automation', pageDescription: 'Onboarding paths, assignment rules and follow-ups. Automation recommends by default; it only assigns approved, published training that you attach to a rule or step, and it never changes scores or permissions.', headerAction: '<form method="post" action="/admin/development/run"><button class="btn btn-gold">Run automation now</button></form>' }) %>
+<%- include('../partials/management-tabs', { tabs: tabsets.settings }) %>
+
+<% if (ran) { %><div class="form-alert success mt-16">Automation ran: <%= ran %>. Running it again never creates duplicates.</div><% } %>
+<% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>Recommendation queue</h2><p>Suggestions created by rules, paths and retention checks. Assign or dismiss each one; nothing here has been assigned yet.</p></div>
+  <% if (recommendations.length === 0) { %>
+    <div class="card-body"><%- include('../partials/empty-state', { title: 'Nothing waiting', description: 'New recommendations appear here after the automation runs.' }) %></div>
+  <% } else { %>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Employee</th><th>Recommendation</th><th>Why</th><th>Actions</th></tr></thead>
+      <tbody>
+      <% recommendations.forEach(function (r) { %>
+        <tr>
+          <td><a href="/employees/<%= r.profile.id %>/skills"><%= r.profile.fullName %></a><br><span class="text-sm text-muted"><%= roleLabel(r.profile.role) %></span></td>
+          <td><strong><%= r.title %></strong><% if (r.estimatedMinutes) { %><br><span class="text-sm text-muted">~<%= r.estimatedMinutes %> min</span><% } %></td>
+          <td class="text-sm"><%= r.reason %></td>
+          <td><div style="display:flex;gap:6px;flex-wrap:wrap">
+            <% if (r.courseId) { %><form method="post" action="/recommendations/<%= r.id %>/assign"><button class="btn btn-gold btn-sm">Assign</button></form><% } %>
+            <form method="post" action="/recommendations/<%= r.id %>/dismiss"><button class="btn btn-secondary btn-sm">Dismiss</button></form>
+          </div></td>
+        </tr>
+      <% }); %>
+      </tbody>
+    </table></div>
+  <% } %>
+</div>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>Onboarding &amp; development paths</h2><p>Steps fall due a number of days after each employee's start date. A step fires once, within 30 days of falling due.</p></div>
+  <div class="card-body">
+    <% paths.forEach(function (p) { %>
+      <div style="border:1px solid var(--border,#e2e8f0);border-radius:10px;padding:14px;margin-bottom:14px">
+        <div class="row-between" style="align-items:center;gap:8px;flex-wrap:wrap">
+          <div><strong><%= p.name %></strong> <span class="badge"><%= p.roleKey ? roleLabel(p.roleKey) : 'All roles' %></span> <% if (!p.isActive) { %><span class="badge badge-warning">Paused</span><% } %><% if (p.description) { %><br><span class="text-sm text-muted"><%= p.description %></span><% } %></div>
+          <div style="display:flex;gap:6px">
+            <form method="post" action="/admin/development/paths/<%= p.id %>/toggle"><button class="btn btn-secondary btn-sm"><%= p.isActive ? 'Pause' : 'Resume' %></button></form>
+            <form method="post" action="/admin/development/paths/<%= p.id %>/delete" onsubmit="return confirm('Delete this path? Recommendations already created are kept.')"><button class="btn btn-secondary btn-sm">Delete</button></form>
+          </div>
+        </div>
+        <% if (p.steps.length) { %><ul style="margin:10px 0 0;padding-left:18px">
+          <% p.steps.forEach(function (s) { %><li>Day <%= s.dayOffset %> — <%= s.title %><% if (s.courseTitle) { %> <span class="text-sm text-muted">(<%= s.courseTitle %><%= s.autoAssign ? ', auto-assigned' : ', recommended' %>)</span><% } %>
+            <form method="post" action="/admin/development/steps/<%= s.id %>/delete" style="display:inline"><button class="btn btn-secondary btn-sm" aria-label="Remove step <%= s.title %>">Remove</button></form></li><% }); %>
+        </ul><% } %>
+        <form method="post" action="/admin/development/paths/<%= p.id %>/steps" class="mt-16" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <div class="field" style="margin:0"><label for="day_<%= p.id %>">Day</label><input id="day_<%= p.id %>" name="dayOffset" type="number" min="0" max="730" value="0" style="width:80px" required /></div>
+          <div class="field" style="margin:0"><label for="stitle_<%= p.id %>">Step</label><input id="stitle_<%= p.id %>" name="title" maxlength="120" required /></div>
+          <div class="field" style="margin:0"><label for="scourse_<%= p.id %>">Training</label><select id="scourse_<%= p.id %>" name="courseId"><option value="">— none —</option><% courses.forEach(function (c) { %><option value="<%= c.id %>"><%= c.title %></option><% }); %></select></div>
+          <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="autoAssign" value="1" /> Auto-assign</label>
+          <button class="btn btn-secondary btn-sm">Add step</button>
+        </form>
+      </div>
+    <% }); %>
+    <form method="post" action="/admin/development/paths" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+      <div class="field" style="margin:0"><label for="pname">New path</label><input id="pname" name="name" maxlength="80" placeholder="e.g. First 90 days" required /></div>
+      <div class="field" style="margin:0"><label for="prole">Role</label><select id="prole" name="roleKey"><option value="">All roles</option><% ROLES.forEach(function (r) { %><option value="<%= r %>"><%= roleLabel(r) %></option><% }); %></select></div>
+      <div class="field" style="margin:0"><label for="pdesc">Description</label><input id="pdesc" name="description" maxlength="300" /></div>
+      <button class="btn btn-gold btn-sm">Add path</button>
+    </form>
+  </div>
+</div>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>Assignment rules</h2><p>WHEN the conditions are true for an employee, THEN recommend (default) or assign the chosen training — once per employee.</p></div>
+  <div class="card-body">
+    <% if (rules.length) { %><div class="table-wrap"><table>
+      <thead><tr><th>Rule</th><th>When</th><th>Then</th><th></th></tr></thead>
+      <tbody>
+      <% rules.forEach(function (r) { var c = r.condition; %>
+        <tr>
+          <td><strong><%= r.name %></strong><br><span class="text-sm text-muted"><%= r.roleKey ? roleLabel(r.roleKey) : 'All roles' %><%= r.isActive ? '' : ' · paused' %></span></td>
+          <td class="text-sm">
+            <% if (c.minAgeDays !== undefined) { %>At least <%= c.minAgeDays %> days since start<br><% } %>
+            <% if (c.skillId) { %><%= skillName.get(c.skillId) || 'Skill' %> below <%= c.below %>% (<%= String(c.minConfidence || 'MEDIUM').toLowerCase() %> confidence or better)<br><% } %>
+            <% if (c.retakeOutstanding) { %>A retake is outstanding<% } %>
+          </td>
+          <td class="text-sm"><%= r.action === 'ASSIGN' ? 'Assign' : 'Recommend' %><%= r.courseTitle ? ': ' + r.courseTitle : '' %></td>
+          <td><div style="display:flex;gap:6px">
+            <form method="post" action="/admin/development/rules/<%= r.id %>/toggle"><button class="btn btn-secondary btn-sm"><%= r.isActive ? 'Pause' : 'Resume' %></button></form>
+            <form method="post" action="/admin/development/rules/<%= r.id %>/delete" onsubmit="return confirm('Delete this rule?')"><button class="btn btn-secondary btn-sm">Delete</button></form>
+          </div></td>
+        </tr>
+      <% }); %>
+      </tbody>
+    </table></div><% } %>
+    <form method="post" action="/admin/development/rules" class="mt-16">
+      <div class="grid grid-3">
+        <div class="field"><label for="rname">Rule name</label><input id="rname" name="name" maxlength="80" required /></div>
+        <div class="field"><label for="rrole">Applies to</label><select id="rrole" name="roleKey"><option value="">All roles</option><% ROLES.forEach(function (r) { %><option value="<%= r %>"><%= roleLabel(r) %></option><% }); %></select></div>
+        <div class="field"><label for="rage">Days since start (at least)</label><input id="rage" name="minAgeDays" type="number" min="0" max="3650" /></div>
+        <div class="field"><label for="rskill">Skill is below…</label><select id="rskill" name="skillId"><option value="">— no skill condition —</option><% skills.forEach(function (s) { %><option value="<%= s.id %>"><%= s.name %></option><% }); %></select></div>
+        <div class="field"><label for="rbelow">…this score (%)</label><input id="rbelow" name="below" type="number" min="1" max="100" value="70" /></div>
+        <div class="field"><label for="rconf">Minimum evidence confidence</label><select id="rconf" name="minConfidence"><option value="LOW">Low</option><option value="MEDIUM" selected>Medium</option><option value="HIGH">High</option></select></div>
+        <div class="field"><label for="rcourse">Training</label><select id="rcourse" name="courseId"><option value="">— none —</option><% courses.forEach(function (c) { %><option value="<%= c.id %>"><%= c.title %></option><% }); %></select></div>
+        <div class="field"><label for="raction">Action</label><select id="raction" name="action"><option value="RECOMMEND">Recommend (default)</option><option value="ASSIGN">Assign automatically</option></select></div>
+        <div class="field"><label style="display:flex;gap:8px;align-items:center;margin-top:26px"><input type="checkbox" name="retakeOutstanding" value="1" /> A retake is outstanding</label></div>
+      </div>
+      <button class="btn btn-gold btn-sm">Add rule</button>
+    </form>
+  </div>
+</div>

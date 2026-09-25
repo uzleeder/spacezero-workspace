@@ -1,0 +1,47 @@
+<%- include('partials/page-header', { pageTitle: skill ? 'Assign practice: ' + skill.name : 'Assign', pageDescription: skill ? 'Employees below ' + max + '% on ' + skill.name + ' within your scope. Each person is tracked separately.' : 'Assign training, practice, a retake or skill remediation to several employees at once.' }) %>
+
+<% if (done) { %><div class="form-alert success mt-16"><%= done[0] %> employee<%= done[0] === 1 ? '' : 's' %> assigned<% if (done[1]) { %>; <%= done[1] %> skipped (already have it open, or no earlier attempt to retake)<% } %>.</div><% } %>
+<% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
+
+<form method="post" action="/bulk-assign" class="mt-24">
+  <% if (skill) { %><input type="hidden" name="skillId" value="<%= skill.id %>" /><% } %>
+  <div class="card">
+    <div class="card-header row-between"><h2>Employees</h2><span class="text-sm text-muted"><%= candidates.length %> in scope</span></div>
+    <div class="card-body" style="max-height:320px;overflow-y:auto">
+      <% if (!candidates.length) { %><p class="dna-empty">Nobody matches.</p><% } %>
+      <% candidates.forEach(function (c) { %>
+        <label class="checkbox-row" style="display:flex;justify-content:space-between;gap:8px;margin-bottom:6px"><span><input type="checkbox" name="employeeIds" value="<%= c.id %>" <%= preselected.indexOf(c.id) > -1 ? 'checked' : '' %> /> <%= c.fullName %> <span class="text-sm text-muted">· <%= roleLabel(c.role) %></span></span><% if (c.score !== null) { %><strong><%= c.score %>%</strong><% } %></label>
+      <% }); %>
+    </div>
+  </div>
+
+  <div class="card mt-24">
+    <div class="card-header"><h2>What to assign</h2></div>
+    <div class="card-body">
+      <fieldset style="border:0;padding:0">
+        <% ['COURSE', 'PRACTICE', 'REMEDIATION', 'RETAKE'].forEach(function (k, i) { if (k === 'REMEDIATION' && !skill) return; %>
+          <label style="display:block;margin:6px 0"><input type="radio" name="kind" value="<%= k %>" <%= (skill ? k === 'REMEDIATION' : i === 0) ? 'checked' : '' %> /> <%= KIND_LABEL[k] %></label>
+        <% }); %>
+      </fieldset>
+      <div class="grid grid-2 mt-16">
+        <div class="field"><label for="courseId">Training</label>
+          <select id="courseId" name="courseId" required><option value="" disabled selected>Select an approved training</option><% courses.forEach(function (c) { %><option value="<%= c.id %>"><%= c.title %></option><% }); %></select></div>
+        <div class="field"><label for="assessmentId">Practice <span class="text-sm text-muted">(for Practice / Skill remediation)</span></label>
+          <select id="assessmentId" name="assessmentId"><option value="">—</option><% practices.forEach(function (p) { %><option value="<%= p.id %>" data-course="<%= p.courseId %>"><%= p.title %> (<%= p.type.replace('_', ' ').toLowerCase() %>)</option><% }); %></select>
+          <% if (skill && !practices.length) { %><p class="hint">No approved practice covers <%= skill.name %> yet.<%= isAdmin ? ' Generate micro-practice from Skills & categories.' : ' Ask an administrator to create one.' %></p><% } %></div>
+        <div class="field"><label for="dueDate">Due date</label><input id="dueDate" name="dueDate" type="date" /></div>
+        <div class="field"><label for="minimumScore">Minimum score (%)</label><input id="minimumScore" name="minimumScore" type="number" min="50" max="100" placeholder="Training default" /></div>
+        <div class="field"><label for="requiredAttempts">Required attempts</label><input id="requiredAttempts" name="requiredAttempts" type="number" min="1" max="20" value="1" /></div>
+      </div>
+      <div class="field mt-16"><label for="note">Note to the employees (optional)</label><textarea id="note" name="note" rows="2" maxlength="500"></textarea></div>
+      <button type="submit" class="btn btn-gold mt-16">Assign</button>
+    </div>
+  </div>
+</form>
+<script>
+(function () {
+  var course = document.getElementById('courseId'), practice = document.getElementById('assessmentId');
+  function sync() { Array.prototype.forEach.call(practice.options, function (o) { if (!o.value) return; o.hidden = !!course.value && o.getAttribute('data-course') !== course.value; }); if (practice.selectedOptions[0] && practice.selectedOptions[0].hidden) practice.value = ''; }
+  course.addEventListener('change', sync); sync();
+})();
+</script>

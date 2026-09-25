@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en" data-theme="<%= theme %>">
+<head>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=1" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= typeof title !== 'undefined' ? title + ' · SpaceZero Academy' : 'SpaceZero Academy' %></title>
+  <link rel="stylesheet" href="/static/css/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Outfit:wght@400;500;600&display=swap" />
+  <link rel="stylesheet" href="/static/css/spacezero-ds.css" />
+</head>
+<body>
+  <%- include('partials/intro') %>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <% if (typeof impersonation !== 'undefined' && impersonation) { %>
+    <div class="impersonation-banner no-print">
+      <span>Viewing as <strong><%= profile.fullName %></strong> (<%= roleLabel(profile.role) %>) — impersonated by <%= impersonation.adminName %></span>
+      <form method="post" action="/end-impersonation">
+        <button type="submit">Return to admin</button>
+      </form>
+    </div>
+  <% } %>
+  <div class="app-shell">
+    <div class="backdrop" data-backdrop></div>
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <%- include('partials/brand-mark', { brandVariant: 'dark' }) %>
+        <button type="button" class="sidebar-collapse-btn" data-sidebar-collapse aria-label="Collapse sidebar" title="Collapse sidebar">
+          <%- include('partials/icon', { name: 'collapse' }) %>
+        </button>
+      </div>
+      <div class="workspace-label"><span class="workspace-dot"></span> Above9 Travel <span>WORKSPACE</span></div>
+      <nav class="sidebar-nav" aria-label="Main navigation">
+        <% nav.forEach(function (section) { %>
+          <div class="sidebar-group">
+            <% if (section.title) { %><p class="sidebar-section-title"><%= section.title %></p><% } %>
+            <% section.items.forEach(function (item) { %>
+              <% const alsoPaths = item.activeAlso || [];
+              const matchesPath = function (p) { return currentPath === p || currentPath.indexOf(p + '/') === 0; };
+              const active = matchesPath(item.href) || alsoPaths.some(matchesPath);
+              const iconName = /employees|\/team$/.test(item.href) ? 'people' : /ai-practice/.test(item.href) ? 'upload' : /skill/.test(item.href) ? 'skills' : /admin\/library|call-review/.test(item.href) ? 'calls' : /library/.test(item.href) ? 'library' : /training/.test(item.href) ? 'training' : /notes/.test(item.href) ? 'notes' : /settings/.test(item.href) ? 'settings' : /profile/.test(item.href) ? 'profile' : 'dashboard'; %>
+              <a class="sidebar-link<%= active ? ' active' : '' %>" href="<%= item.href %>" <%- active ? 'aria-current="page"' : '' %>><%- include('partials/icon', { name: iconName }) %><span><%= item.label %></span></a>
+            <% }); %>
+          </div>
+        <% }); %>
+        <% if (profile.role === 'ADMIN' && loginAsRoles) { %>
+          <div class="sidebar-loginas sidebar-viewas">
+            <p class="sidebar-section-title">View as</p>
+            <details data-viewas>
+              <summary aria-label="View as — choose a role"><span><%= roleLabel(profile.role) %></span><span class="viewas-caret" aria-hidden="true">▾</span></summary>
+              <div class="viewas-menu" role="menu">
+                <% loginAsRoles.forEach(function (r) { %>
+                  <a role="menuitem" href="/admin/login-as?role=<%= r.role %>"><span><%= r.label %></span><% if (r.role === profile.role && !(typeof impersonation !== 'undefined' && impersonation)) { %><span class="pill">You</span><% } %></a>
+                <% }); %>
+              </div>
+            </details>
+          </div>
+        <% } %>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-note">EXCELLENCE, EVERY DAY.<br><span>Built for a higher standard.</span></div>
+        <form method="post" action="/logout">
+          <button type="submit"><span>Log out</span></button>
+        </form>
+      </div>
+    </aside>
+
+    <div class="main-area">
+      <header class="topbar">
+        <button class="menu-btn" data-menu-toggle aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <div class="breadcrumb">Workspace <span>/</span> <strong><%= typeof title !== 'undefined' ? title : 'Academy' %></strong></div>
+        <div class="topbar-user">
+          <form method="post" action="/theme" class="no-print">
+            <input type="hidden" name="theme" value="<%= theme === 'dark' ? 'light' : 'dark' %>" />
+            <button type="submit" class="theme-toggle" aria-label="<%= theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode' %>" title="<%= theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode' %>">
+              <svg class="icon-sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2.5M12 19v2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M2.5 12H5M19 12h2.5M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg>
+              <svg class="icon-moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
+            </button>
+          </form>
+          <a href="/notifications" style="position:relative;display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px" aria-label="Notifications">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <% if (unreadNotifications > 0) { %>
+              <span style="position:absolute;top:2px;right:2px;width:8px;height:8px;border-radius:999px;background:var(--red-600)"></span>
+            <% } %>
+          </a>
+          <details class="user-menu" data-user-menu>
+            <summary class="topbar-profile-link" aria-label="Open account menu">
+              <div style="text-align:right">
+                <div class="name"><%= profile.fullName %></div>
+                <div class="role"><%= roleLabel(profile.role) %></div>
+              </div>
+              <%- include('partials/avatar', { profile: profile, size: 'sm' }) %>
+            </summary>
+            <div class="user-menu-panel" role="menu">
+              <a href="/profile" role="menuitem">My Profile</a>
+              <a href="/my/setup" role="menuitem">My Setup</a>
+              <a href="/my/leave" role="menuitem">My Vacation / Leave</a>
+              <a href="/account" role="menuitem">Account / Security</a>
+              <form method="post" action="/logout"><button type="submit" role="menuitem">Log out</button></form>
+            </div>
+          </details>
+        </div>
+      </header>
+      <main class="main-content" id="main-content">
+        <div class="container" style="padding:0; max-width:1152px;">
+          <%- body %>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

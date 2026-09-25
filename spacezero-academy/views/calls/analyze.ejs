@@ -1,0 +1,28 @@
+<%- include('../partials/page-header', { pageTitle: 'Analyze calls', pageDescription: batch.title || 'Saved call recordings' }) %>
+<div style="margin-bottom:12px"><a href="/ai-practice/calls/<%= batch.id %>" class="text-sm link-gold">← Back</a></div>
+<% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
+
+<div class="card mt-24"><div class="card-body">
+  <p class="label">Recordings</p>
+  <ul style="margin:6px 0 20px;padding-left:18px"><% batch.recordings.forEach(function (r) { %><li><%= r.originalFilename || 'Recording' %><%= r.durationSeconds ? ' — ' + Math.max(1, Math.round(r.durationSeconds / 60)) + ' min' : '' %></li><% }); %></ul>
+
+  <form method="post" action="/ai-practice/calls/<%= batch.id %>/analyze" data-once>
+    <div class="field" style="max-width:420px">
+      <label for="purpose">What are these calls for?</label>
+      <select id="purpose" name="purpose">
+        <option value="AUTO" selected>Auto detect (individual if you pick an employee, otherwise reusable training)</option>
+        <option value="INDIVIDUAL">Individual employee improvement</option>
+        <option value="BEST_PRACTICE">Best practice / training material</option>
+      </select>
+    </div>
+    <div class="field mt-16" style="max-width:420px">
+      <label for="targetAgentId">Employee <span class="text-muted">(only for individual improvement)</span></label>
+      <select id="targetAgentId" name="targetAgentId"><option value="">— none —</option><% people.forEach(function (p) { %><option value="<%= p.id %>"><%= p.fullName %></option><% }); %></select>
+    </div>
+    <p class="hint mt-16">Card numbers, ID numbers, emails and phone numbers are masked before the AI reads a transcript. Recordings stay private and never go to the Library.</p>
+    <label class="checkbox-row mt-16"><input type="checkbox" name="authorized" value="yes" required /> I am authorized to process these recordings with Google Gemini. Audio is sent for transcription; redacted transcripts are used for analysis.</label>
+    <button class="btn btn-gold mt-24">Start Analysis</button>
+    <a href="/ai-practice" class="btn btn-secondary mt-24">Not now</a>
+  </form>
+</div></div>
+<script src="/static/js/ai-practice.js" defer></script>

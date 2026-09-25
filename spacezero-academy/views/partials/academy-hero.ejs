@@ -1,0 +1,49 @@
+<section class="academy-hero">
+  <div class="hero-copy">
+    <div class="eyebrow"><span></span> THE ABOVE9 STANDARD</div>
+    <h2>Extraordinary service.<br>Starts with you.</h2>
+    <p>Build the knowledge. Put it into practice.<br>Make every client experience exceptional.</p>
+    <a href="<%= profile.role === 'ADMIN' ? '/admin/training' : '/training' %>" class="btn hero-btn"><%= profile.role === 'ADMIN' ? 'Manage training' : 'Explore my training' %> <span aria-hidden="true">↗</span></a>
+  </div>
+  <div class="hero-art" aria-hidden="true">
+    <svg viewBox="0 0 400 270" fill="none" focusable="false">
+      <defs>
+        <mask id="academy-behind-globe" maskUnits="userSpaceOnUse" x="0" y="0" width="400" height="270">
+          <rect width="400" height="270" fill="white"/>
+          <circle cx="204" cy="133" r="102" fill="black"/>
+        </mask>
+        <path id="academy-aircraft" d="M21 0C21-1 19-2 16-2L3-3-9-17-15-17-8-3-19-2-24-7-27-7-24 0-27 7-24 7-19 2-8 3-15 17-9 17 3 3 16 2C19 2 21 1 21 0Z"/>
+        <radialGradient id="academy-sphere" cx="32%" cy="24%" r="80%">
+          <stop stop-color="#4a3f7a" stop-opacity=".55"/>
+          <stop offset=".6" stop-color="#241f4a" stop-opacity=".32"/>
+          <stop offset="1" stop-color="#13112a" stop-opacity=".8"/>
+        </radialGradient>
+        <linearGradient id="academy-grid" x1="120" y1="42" x2="284" y2="225" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#b3aed4" stop-opacity=".8"/>
+          <stop offset="1" stop-color="#5c5490" stop-opacity=".28"/>
+        </linearGradient>
+        <linearGradient id="academy-flight" x1="53" y1="220" x2="348" y2="66" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#dca878" stop-opacity=".1"/>
+          <stop offset=".55" stop-color="#f0dcc0"/>
+          <stop offset="1" stop-color="#dca878" stop-opacity=".3"/>
+        </linearGradient>
+      </defs>
+      <circle class="planet-halo" cx="204" cy="133" r="120"/>
+      <circle class="planet-surface" cx="204" cy="133" r="101" fill="url(#academy-sphere)"/>
+      <g class="planet-grid" stroke="url(#academy-grid)">
+        <circle cx="204" cy="133" r="101"/>
+        <ellipse class="planet-meridian" cx="204" cy="133" rx="101" ry="101"/>
+        <ellipse class="planet-meridian planet-meridian-two" cx="204" cy="133" rx="101" ry="101"/>
+        <ellipse class="planet-meridian planet-meridian-three" cx="204" cy="133" rx="101" ry="101"/>
+        <ellipse cx="204" cy="133" rx="101" ry="35"/>
+        <path d="M103 133h202 M117 82Q204 116 291 82 M117 184Q204 150 291 184"/>
+      </g>
+      <path class="flight-path" d="M66 190A155 57-24 1 1 342 76A155 57-24 1 1 66 190Z"/>
+      <g mask="url(#academy-behind-globe)"><g class="orbit-plane"><use class="plane-mark" href="#academy-aircraft"/></g></g>
+      <g class="orbit-plane orbit-plane-front">
+        <use class="plane-mark" href="#academy-aircraft"/>
+      </g>
+    </svg>
+    <div class="hero-coordinate">KNOWLEDGE → CONFIDENCE → EXCELLENCE</div>
+  </div>
+</section>

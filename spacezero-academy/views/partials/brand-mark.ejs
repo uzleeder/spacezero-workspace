@@ -1,0 +1,19 @@
+<%
+// Single source of truth for the SpaceZero wordmark: a boxed paper-airplane
+// icon (outlined on dark surfaces, solid navy-filled on light surfaces) plus
+// a two-line "SPACE ZERO / ACADEMY" wordmark, divided by a thin rule, whose
+// color adapts to the surface it sits on. Used in the sidebar, every auth
+// page, and the certificate — so the brand mark never drifts between screens.
+const variant = typeof brandVariant !== 'undefined' ? brandVariant : 'light';
+const size = typeof brandSize !== 'undefined' ? brandSize : '';
+%>
+<div class="brand-mark brand-mark--<%= variant %><%= size ? ' brand-mark--' + size : '' %>">
+  <div class="brand-mark-box">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5 21 3 14.5 21 11 13 3 9.5Z"/><path d="M11 13 21 3"/></svg>
+  </div>
+  <div class="brand-mark-text">
+    <div class="brand-mark-word">SPACE ZERO</div>
+    <div class="brand-mark-rule"></div>
+    <div class="brand-mark-sub">ACADEMY</div>
+  </div>
+</div>

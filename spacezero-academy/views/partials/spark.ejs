@@ -1,0 +1,8 @@
+<%# Tiny trend line. points = array of scores (oldest first). %>
+<% var pts = (typeof points !== 'undefined' && points) ? points : []; %>
+<% if (pts.length >= 2) {
+  var w = 92, h = 26, min = 0, max = 100;
+  var xy = pts.map(function (p, i) { return (2 + i * (w - 4) / (pts.length - 1)).toFixed(1) + ',' + (h - 3 - (Math.max(min, Math.min(max, p)) - min) / (max - min) * (h - 6)).toFixed(1); });
+  var last = xy[xy.length - 1].split(','); %>
+  <svg class="spark" viewBox="0 0 92 26" role="img" aria-label="Score trend: <%= pts.join(', ') %>"><polyline points="<%= xy.join(' ') %>"></polyline><circle cx="<%= last[0] %>" cy="<%= last[1] %>" r="2.6"></circle></svg>
+<% } else { %><span class="text-sm text-muted">—</span><% } %>

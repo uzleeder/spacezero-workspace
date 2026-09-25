@@ -1,0 +1,84 @@
+<%- include('../partials/page-header', { pageTitle: assessment.title, pageDescription: 'Role-play with an AI customer. Speak naturally — they will react realistically.' }) %>
+
+<% if (typeof error !== 'undefined' && error) { %><div class="form-alert error mt-16"><%= error %></div><% } %>
+
+<div class="card mt-24">
+  <div class="card-body">
+    <p class="text-sm text-muted">Scenario</p>
+    <p style="margin-bottom:8px"><%= config.scenarioBrief %></p>
+  </div>
+</div>
+
+<div class="card mt-16">
+  <div class="card-body">
+    <div id="rp-messages" style="display:flex;flex-direction:column;gap:12px;max-height:420px;overflow-y:auto;padding:4px"></div>
+    <div class="mt-16" style="display:flex;gap:8px">
+      <input id="rp-input" type="text" placeholder="Type your response to the customer..." style="flex:1" />
+      <button type="button" id="rp-send" class="btn btn-gold">Send</button>
+    </div>
+    <form method="post" action="/assessments/<%= assessment.id %>/roleplay/finish" id="rp-finish-form" class="mt-16">
+      <input type="hidden" name="sessionId" value="<%= session.id %>" />
+      <input type="hidden" name="transcript" id="rp-transcript-field" value="[]" />
+      <button type="submit" class="btn btn-secondary">Finish & get feedback</button>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  var transcript = <%- JSON.stringify(JSON.parse(session.dataJson).transcript).replace(/</g, '\u003c') %>;
+  var messagesEl = document.getElementById('rp-messages');
+  var inputEl = document.getElementById('rp-input');
+  var sendBtn = document.getElementById('rp-send');
+  var transcriptField = document.getElementById('rp-transcript-field');
+
+  function render() {
+    messagesEl.innerHTML = '';
+    transcript.forEach(function (t) {
+      var row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.justifyContent = t.role === 'agent' ? 'flex-end' : 'flex-start';
+      var bubble = document.createElement('div');
+      bubble.style.maxWidth = '75%';
+      bubble.style.padding = '10px 14px';
+      bubble.style.borderRadius = '12px';
+      bubble.style.fontSize = '14px';
+      bubble.style.background = t.role === 'agent' ? 'var(--gold-500, #d4a24e)' : 'var(--navy-100, #eef1f5)';
+      bubble.style.color = t.role === 'agent' ? '#1a1a1a' : 'var(--navy-950, #0f1c31)';
+      bubble.textContent = t.text;
+      row.appendChild(bubble);
+      messagesEl.appendChild(row);
+    });
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    transcriptField.value = JSON.stringify(transcript);
+  }
+
+  function send() {
+    var message = inputEl.value.trim();
+    if (!message) return;
+    inputEl.value = '';
+    transcript.push({ role: 'agent', text: message });
+    render();
+    sendBtn.disabled = true;
+    fetch('/assessments/<%= assessment.id %>/roleplay/message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'sessionId=<%= session.id %>&transcript=' + encodeURIComponent(JSON.stringify(transcript.slice(0, -1))) + '&message=' + encodeURIComponent(message),
+    })
+      .then(function (res) { if (!res.ok) throw new Error('Request failed'); return res.json(); })
+      .then(function (data) {
+        transcript = data.transcript;
+        render();
+      })
+      .catch(function () {
+        transcript.push({ role: 'customer', text: '(The customer seems to have gone quiet — try again.)' });
+        render();
+      })
+      .finally(function () { sendBtn.disabled = false; });
+  }
+
+  sendBtn.addEventListener('click', send);
+  inputEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); send(); } });
+  render();
+})();
+</script>

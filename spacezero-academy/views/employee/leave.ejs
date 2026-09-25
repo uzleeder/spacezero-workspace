@@ -1,0 +1,54 @@
+<%- include('../partials/employee-frame') %>
+
+<% if (error) { %><div class="form-alert error mt-16"><%= error %></div><% } %>
+<% if (saved) { %><div class="form-alert success mt-16">Saved.</div><% } %>
+
+<% if (isSelf) { %>
+  <div class="card mt-24">
+    <div class="card-header"><h2>Request leave</h2><p>Simple internal request — your supervisor and administrators are notified.</p></div>
+    <div class="card-body">
+      <form method="post" action="/employees/<%= employee.id %>/leave">
+        <div class="grid grid-2">
+          <div class="field">
+            <label for="leaveType">Leave type</label>
+            <select id="leaveType" name="leaveType">
+              <% leave.LEAVE_TYPES.forEach(function (t) { %><option value="<%= t %>" <%= values.leaveType === t ? 'selected' : '' %>><%= leave.TYPE_LABEL[t] %></option><% }); %>
+            </select>
+          </div>
+          <div></div>
+          <div class="field"><label for="startDate">Start date</label><input id="startDate" name="startDate" type="date" value="<%= values.startDate || '' %>" required /></div>
+          <div class="field"><label for="endDate">End date</label><input id="endDate" name="endDate" type="date" value="<%= values.endDate || '' %>" required /></div>
+        </div>
+        <div class="field mt-16"><label for="note">Note / reason (optional)</label><textarea id="note" name="note" rows="2" maxlength="1000"><%= values.note || '' %></textarea></div>
+        <button type="submit" class="btn btn-gold mt-16">Submit request</button>
+      </form>
+    </div>
+  </div>
+<% } %>
+
+<div class="card mt-24" style="margin-bottom:40px">
+  <div class="card-header"><h2><%= isSelf ? 'My requests' : 'Requests' %></h2></div>
+  <% if (requests.length === 0) { %>
+    <div class="card-body"><%- include('../partials/empty-state', { title: 'No leave requests' }) %></div>
+  <% } else { %>
+    <ul class="divide-list" style="padding:0 24px">
+      <% requests.forEach(function (r) { %>
+        <li class="row-between" style="align-items:flex-start;gap:12px">
+          <div>
+            <p style="font-weight:500;color:var(--navy-950)"><%= leave.TYPE_LABEL[r.leaveType] %> · <%= r.startDate.toISOString().slice(0, 10) %> → <%= r.endDate.toISOString().slice(0, 10) %> (<%= r.days %> day<%= r.days === 1 ? '' : 's' %>)</p>
+            <% if (r.note) { %><p class="text-sm text-muted">Your note: <%= r.note %></p><% } %>
+            <% if (r.managementNote) { %><p class="text-sm">Management note: <%= r.managementNote %></p><% } %>
+            <% if (r.reviewedBy) { %><p class="text-sm text-muted">Reviewed by <%= r.reviewedBy.fullName %> on <%= r.reviewedAt.toLocaleDateString('en-US') %></p><% } %>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span class="badge <%= r.status === 'APPROVED' ? 'badge-success' : r.status === 'REJECTED' ? 'badge-danger' : r.status === 'PENDING' ? 'badge-warning' : '' %>"><%= leave.STATUS_LABEL[r.status] %></span>
+            <% if (isSelf && r.status === 'PENDING') { %>
+              <form method="post" action="/leave/<%= r.id %>/cancel"><button class="btn btn-secondary btn-sm" type="submit">Cancel</button></form>
+            <% } %>
+            <% if (canReview && r.status === 'PENDING') { %><a class="btn btn-secondary btn-sm" href="/leave/<%= r.id %>">Review</a><% } %>
+          </div>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+</div>

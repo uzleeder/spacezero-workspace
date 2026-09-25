@@ -1,0 +1,19 @@
+<%- include('../partials/employee-frame') %>
+<div class="card mt-24" style="margin-bottom:40px">
+  <div class="card-header"><h2>Assigned training</h2></div>
+  <% if (list.length === 0) { %>
+    <div class="card-body"><%- include('../partials/empty-state', { title: 'No training assigned', description: 'Nothing has been assigned to this employee yet.' }) %></div>
+  <% } else { %>
+    <ul class="divide-list" style="padding:0 24px">
+      <% list.forEach(function (r) { %>
+        <li class="row-between">
+          <div>
+            <p style="font-weight:500;color:var(--navy-950)"><%= r.assignment.course.title %></p>
+            <p class="text-sm text-muted"><%= r.assignment.course.modules.length %> modules<% if (r.assignment.dueDate) { %> · due <%= r.assignment.dueDate.toLocaleDateString('en-US') %><% } %><% if (r.latestAttempt && r.latestAttempt.score != null) { %> · last score <%= Math.round(r.latestAttempt.score) %>%<% } %></p>
+          </div>
+          <span class="badge <%= r.status === 'COMPLETED' ? 'badge-success' : r.status === 'RETAKE_REQUIRED' || r.status === 'FAILED' ? 'badge-danger' : r.status === 'IN_PROGRESS' ? 'badge-warning' : '' %>"><%= r.status.replace(/_/g, ' ') %></span>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+</div>

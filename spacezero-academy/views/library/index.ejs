@@ -1,0 +1,37 @@
+<%- include('../partials/page-header', { pageTitle: 'Library', pageDescription: 'Reference material — not mandatory training.', headerAction: '<a href="/library/mine" class="link-gold text-sm">My Library &rarr;</a>' }) %>
+
+<% if (profile.role === 'ADMIN') { %><%- include('../partials/management-tabs', { tabs: tabsets.library }) %><% } %>
+
+<form class="mt-24" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:24px">
+  <input type="search" name="q" value="<%= q %>" placeholder="Search the library..." style="width:256px" />
+  <select name="category" style="width:auto">
+    <option value="">All categories</option>
+    <% categories.forEach(function (c) { %>
+      <option value="<%= c.id %>" <%= category === c.id ? 'selected' : '' %>><%= c.name %></option>
+    <% }); %>
+  </select>
+  <button type="submit" class="btn btn-secondary">Search</button>
+</form>
+
+<% if (items.length === 0) { %>
+  <div class="card"><div class="card-body"><%- include('../partials/empty-state', { title: 'No materials found', description: 'Try a different search or category.' }) %></div></div>
+<% } else { %>
+  <div class="grid grid-3">
+    <% items.forEach(function (item) { %>
+      <div class="card" style="padding:20px">
+        <div class="row-between" style="margin-bottom:12px">
+          <span class="badge badge-navy"><%= item.itemType %></span>
+          <button type="button" class="btn btn-ghost btn-sm" data-favorite-toggle="<%= item.id %>" style="<%= favoriteIds.has(item.id) ? 'color:var(--gold-600)' : '' %>">&#9733;</button>
+        </div>
+        <a href="/library/<%= item.id %>">
+          <p style="font-weight:500;color:var(--navy-950)"><%= item.title %></p>
+          <% if (item.description) { %><p class="text-sm text-muted mt-16" style="margin-top:4px"><%= item.description %></p><% } %>
+        </a>
+        <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:4px">
+          <% parseTags(item.tagsJson).forEach(function (tag) { %><span class="tag"><%= tag %></span><% }); %>
+        </div>
+        <p class="text-sm text-muted" style="margin-top:12px"><%= item.category ? item.category.name : 'Uncategorized' %></p>
+      </div>
+    <% }); %>
+  </div>
+<% } %>

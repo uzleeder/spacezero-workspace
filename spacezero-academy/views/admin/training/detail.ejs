@@ -1,0 +1,157 @@
+<%
+const fromAi = course.origin === 'AI_PRACTICE';
+const actions = '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+  (canEdit ? '<a href="#edit-course" class="btn btn-secondary">Edit</a>' : '') +
+  (canAssign ? '<a href="/assignments?courseId=' + course.id + '" class="btn btn-gold">Assign</a>' : '') +
+  (canEdit && fromAi ? '<a href="/ai-practice/' + course.id + '?step=training" class="btn btn-secondary">View source practice</a>' : '') +
+  (canEdit && course.status !== 'ARCHIVED' ? '<button type="button" class="btn btn-danger" data-action="/admin/training/' + course.id + '/archive" data-confirm="Archive this training? Existing assignments and results are kept.">Archive</button>' : '') +
+  (canEdit && course.status === 'ARCHIVED' ? '<button type="button" class="btn btn-secondary" data-action="/admin/training/' + course.id + '/publish">Restore to Training</button>' : '') +
+  (canDelete ? '<form method="post" action="/admin/training/' + course.id + '/delete" onsubmit="return confirm(\'Delete this training? Only possible if nothing was assigned or recorded — otherwise archive it.\')" style="display:inline"><button type="submit" class="btn btn-danger">Delete</button></form>' : '') +
+  '</div>';
+%>
+<%- include('../../partials/page-header', { pageTitle: course.title, pageDescription: course.description, headerAction: actions }) %>
+
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:24px">
+  <% if (course.thumbnailUrl) { %>
+    <img src="<%= course.thumbnailUrl %>" alt="" style="width:56px;height:40px;border-radius:8px;object-fit:cover;margin-right:8px" />
+  <% } %>
+  <span class="badge badge-navy"><%= course.roleKey ? roleLabel(course.roleKey) : 'Everyone' %></span>
+  <span class="badge"><%= course.status %></span>
+  <span class="badge badge-gold"><%= course.modules.length %> modules</span>
+  <span class="badge <%= course.mandatory ? 'badge-warning' : '' %>"><%= course.mandatory ? 'Mandatory' : 'Optional' %></span>
+  <span class="badge">Passing score: <%= course.passingScore %>%</span>
+  <% if (course.durationMinutes) { %><span class="badge"><%= course.durationMinutes %> min</span><% } %>
+  <span class="text-sm text-muted">Created by <%= course.createdBy.fullName %></span>
+</div>
+
+<% if (trace) { %>
+  <div class="card" style="margin-bottom:16px"><div class="card-body">
+    <div class="grid grid-2">
+      <div><p class="label">Source</p><p>Created through AI Practice</p><% if (canEdit) { %><p class="text-sm"><a class="link-gold" href="/ai-practice/<%= course.id %>?step=source">View source practice</a><% if (trace.callId) { %> • <a class="link-gold" href="/ai-practice/calls/<%= trace.callId %>">View the call</a><% } %></p><% } %></div>
+      <div><p class="label">Version</p><p>v<%= course.publishedVersion || 1 %><% if (course.draftVersion > course.publishedVersion) { %> <span class="text-sm text-muted">(v<%= course.draftVersion %> is being prepared in AI Practice)</span><% } %></p></div>
+      <div><p class="label">Status</p><p><%= course.status === 'PUBLISHED' ? 'Approved' : course.status === 'ARCHIVED' ? 'Archived' : course.status %></p></div>
+      <div><p class="label">Published</p><p><%= trace.published && trace.published.publishedAt ? trace.published.publishedAt.toLocaleDateString('en-US') : '—' %><%= trace.approver ? ' • analysis approved by ' + trace.approver : '' %></p></div>
+    </div>
+    <% if (trace.versions.length > 1) { %><details style="margin-top:12px"><summary class="text-sm link-gold" style="cursor:pointer">Version history</summary><ul class="text-sm" style="margin:8px 0 0;padding-left:18px"><% trace.versions.forEach(function (v) { %><li>v<%= v.version %> — <%= v.status.toLowerCase() %><%= v.publishedAt ? ', ' + v.publishedAt.toLocaleDateString('en-US') : '' %></li><% }); %></ul></details><% } %>
+  </div></div>
+<% } %>
+
+<% if (course.status === 'PUBLISHED') { %>
+  <div class="card mt-24" style="margin-bottom:16px">
+    <div class="card-header"><h2>Who can assign this training</h2><p>Being able to see a training does not mean being able to assign it. Even with permission, a supervisor can only assign to employees inside their own team scope.</p></div>
+    <div class="card-body">
+      <% if (profile.role === 'ADMIN') { %>
+        <form method="post" action="/admin/training/<%= course.id %>/assign-permissions">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <% POLICIES.forEach(function (p) { %>
+              <label class="checkbox-row"><input type="radio" name="assignPolicy" value="<%= p %>" <%= course.assignPolicy === p ? 'checked' : '' %> /> <%= POLICY_LABEL[p] %></label>
+            <% }); %>
+          </div>
+          <% if (supervisors.length) { %>
+            <p class="text-sm text-muted mt-16">Supervisors allowed when “Selected supervisors” is chosen:</p>
+            <div style="display:flex;flex-wrap:wrap;gap:12px">
+              <% supervisors.forEach(function (sv) { %>
+                <label class="checkbox-row"><input type="checkbox" name="supervisorIds" value="<%= sv.id %>" <%= grantedIds.includes(sv.id) ? 'checked' : '' %> /> <%= sv.fullName %></label>
+              <% }); %>
+            </div>
+          <% } %>
+          <button type="submit" class="btn btn-secondary mt-16">Save permissions</button>
+        </form>
+      <% } else { %>
+        <p class="text-sm"><strong><%= POLICY_LABEL[course.assignPolicy] %></strong> — <%= canAssign ? 'you may assign this training to your own team.' : 'view only: an administrator controls who can assign it.' %></p>
+      <% } %>
+    </div>
+  </div>
+<% } %>
+
+<div class="card mt-24">
+  <div class="card-body">
+    <p class="text-sm text-muted">Intended audience</p>
+    <% if (audienceSummary.isEmpty) { %><p style="font-weight:500;color:var(--navy-950)">Everyone appropriate — chosen when you assign it</p>
+    <% } else { %><p style="font-weight:500;color:var(--navy-950)"><%= audienceSummary.roles.map(roleLabel).concat(audienceSummary.teams.map(function (t) { return 'Team: ' + t.name; })).concat(audienceSummary.people.map(function (p) { return p.fullName; })).join(' · ') %></p><% } %>
+    <p class="text-sm text-muted" style="margin-top:6px"><%= course.mandatory ? 'Mandatory' : 'Optional' %> · passing score <%= course.passingScore %>%<%= course.defaultDueDate ? ' · due ' + course.defaultDueDate.toISOString().slice(0, 10) : '' %></p>
+  </div>
+</div>
+
+<% if (canEdit) { %>
+  <div class="card mt-24 target-reveal<%= (typeof editError !== 'undefined' && editError) ? ' is-open' : '' %>" id="edit-course">
+    <div class="card-header"><h2>Edit course</h2><p>Update the title, description, duration, or thumbnail.</p></div>
+    <div style="padding:16px 24px 0"><a href="/admin/training/<%= course.id %>" class="text-sm link-gold">Cancel</a></div>
+    <div class="card-body">
+      <% if (typeof editError !== 'undefined' && editError) { %><div class="form-alert error mt-16"><%= editError %></div><% } %>
+      <form method="post" action="/admin/training/<%= course.id %>/edit" enctype="multipart/form-data">
+        <div class="grid grid-2">
+          <div class="field">
+            <label for="title">Title</label>
+            <input id="title" name="title" value="<%= course.title %>" required />
+          </div>
+          <div class="field">
+            <label for="durationMinutes">Duration (minutes)</label>
+            <input id="durationMinutes" name="durationMinutes" type="number" min="0" value="<%= course.durationMinutes || '' %>" />
+          </div>
+        </div>
+        <div class="field mt-16">
+          <label for="description">Description</label>
+          <textarea id="description" name="description" rows="2"><%= course.description || '' %></textarea>
+        </div>
+        <div class="grid grid-2 mt-16">
+          <div class="field"><label for="passingScore">Passing score (%)</label><input id="passingScore" name="passingScore" type="number" min="<%= minPassingScore %>" max="100" value="<%= course.passingScore %>" /><p class="hint">Organization minimum: <%= minPassingScore %>%.</p></div>
+          <div class="field"><label class="checkbox-row" style="margin-top:28px"><input type="hidden" name="mandatory" value="0" /><input type="checkbox" name="mandatory" value="1" <%= course.mandatory ? 'checked' : '' %> /> Mandatory training</label></div>
+        </div>
+        <input type="hidden" name="onboardingForm" value="1" />
+        <label class="checkbox-row mt-16"><input type="checkbox" name="onboarding" value="1" <%= course.onboardingForNewHires ? 'checked' : '' %> /> Assign automatically to new employees<%= course.roleKey ? ' (' + roleLabel(course.roleKey) + ')' : ' (every role)' %> as onboarding training</label>
+        <input type="hidden" name="audienceForm" value="1" />
+        <%- include('../../partials/course-audience', { audience: audience, dueDateValue: dueDateValue }) %>
+        <div class="field mt-16">
+          <label for="thumbnail">Thumbnail</label>
+          <% if (course.thumbnailUrl) { %><img src="<%= course.thumbnailUrl %>" alt="" style="width:120px;height:68px;border-radius:8px;object-fit:cover;margin-bottom:8px;display:block" /><% } %>
+          <%- include('../../partials/dropzone', { inputId: 'thumbnail', inputName: 'thumbnail', accept: 'image/png,image/jpeg,image/webp', dzTitleText: 'Drag an image here, or click to choose', hint: 'Re-upload to replace the current thumbnail. PNG, JPEG, or WEBP.' }) %>
+        </div>
+        <button type="submit" class="btn btn-gold mt-16">Save changes</button>
+      </form>
+    </div>
+  </div>
+<% } %>
+
+<div class="grid grid-2 mt-24">
+  <div class="card">
+    <div class="card-header"><h2>Modules</h2></div>
+    <div class="card-body">
+      <ul class="divide-list">
+        <% course.modules.forEach(function (m) { %>
+          <li>
+            <p style="font-weight:500;color:var(--navy-950)"><%= m.title %></p>
+            <p class="text-sm text-muted"><%= m.contentType %><% if (m.durationMinutes) { %> · <%= m.durationMinutes %> min<% } %></p>
+            <% if (m.description) { %><p class="text-sm" style="margin-top:4px"><%= m.description %></p><% } %>
+            <% if (canEdit && !course.publishedVersion) { %><form method="post" action="/admin/training/<%= course.id %>/modules/<%= m.id %>/required"><label class="checkbox-row"><input name="required" value="true" type="checkbox" <%= m.required ? 'checked' : '' %>> Required material</label><button class="btn btn-secondary btn-sm">Save requirement</button></form><% } %>
+            <% if (canEdit && !course.publishedVersion && !['NOTE', 'LINK', 'QUIZ'].includes(m.contentType)) { %>
+              <form method="post" enctype="multipart/form-data" action="/admin/training/<%= course.id %>/modules/<%= m.id %>/file">
+                <label for="module-file-<%= m.id %>">Protected material</label>
+                <input id="module-file-<%= m.id %>" type="file" name="file" required />
+                <button type="submit" class="btn btn-secondary btn-sm">Upload material</button>
+              </form>
+            <% } %>
+          </li>
+        <% }); %>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>Assignments</h2></div>
+    <div class="card-body">
+      <% if (course.assignments.length === 0) { %>
+        <p class="text-sm text-muted">Not assigned to anyone yet. Use the Assignments page to assign it.</p>
+      <% } else { %>
+        <ul class="divide-list">
+          <% course.assignments.forEach(function (a) { %>
+            <li class="row-between">
+              <span class="text-sm"><%= a.scope %></span>
+              <span class="text-sm text-muted"><%= a._count.recipients %> recipient<%= a._count.recipients === 1 ? '' : 's' %></span>
+            </li>
+          <% }); %>
+        </ul>
+      <% } %>
+    </div>
+  </div>
+</div>

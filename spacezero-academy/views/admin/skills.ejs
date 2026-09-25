@@ -1,0 +1,53 @@
+<%- include('../partials/page-header', { pageTitle: 'Skills & categories', pageDescription: 'The skills the Skill Graph measures. Nothing is hard-coded: add, rename, regroup or archive them. Archiving keeps all history.', headerAction: '<form method="post" action="/admin/skills/taxonomy"><button class="btn btn-gold">Add recommended skills</button></form>' }) %>
+<%- include('../partials/management-tabs', { tabs: tabsets.settings }) %>
+
+<% if (notice) { %><div class="form-alert success mt-16"><%= notice %></div><% } %>
+<% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>Add a skill</h2></div>
+  <div class="card-body">
+    <form method="post" action="/admin/skills" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+      <div class="field" style="margin:0"><label for="sname">Name</label><input id="sname" name="name" maxlength="80" required /></div>
+      <div class="field" style="margin:0"><label for="scat">Category</label><select id="scat" name="category"><option value="">— none —</option><% categories.forEach(function (c) { %><option value="<%= c %>"><%= c %></option><% }); %><option value="__new">New category…</option></select></div>
+      <div class="field" style="margin:0"><label for="snew">New category name</label><input id="snew" name="newCategory" maxlength="60" /></div>
+      <div class="field" style="margin:0"><label for="srole">Role</label><select id="srole" name="roleKey"><option value="">All roles</option><% ROLES.forEach(function (r) { %><option value="<%= r %>"><%= roleLabel(r) %></option><% }); %></select></div>
+      <button class="btn btn-gold btn-sm">Add</button>
+    </form>
+    <form method="post" action="/admin/skills/recalculate" class="mt-16" onsubmit="return confirm('Recalculate every skill score from its evidence? History is kept.')"><button class="btn btn-secondary btn-sm">Recalculate all scores from evidence</button></form>
+  </div>
+</div>
+
+<div class="card mt-24">
+  <div class="table-wrap"><table>
+    <tbody>
+    <% skills.forEach(function (s) { %>
+      <tr>
+        <td colspan="6" style="padding:0">
+          <form method="post" action="/admin/skills/<%= s.id %>" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:8px 12px">
+            <input name="name" value="<%= s.name %>" maxlength="80" aria-label="Name" style="flex:2;min-width:160px" required />
+            <select name="category" aria-label="Category" style="flex:1;min-width:120px"><option value="">— none —</option><% categories.forEach(function (c) { %><option value="<%= c %>" <%= s.category === c ? 'selected' : '' %>><%= c %></option><% }); %></select>
+            <select name="roleKey" aria-label="Role" style="flex:1;min-width:120px"><option value="">All roles</option><% ROLES.forEach(function (r) { %><option value="<%= r %>" <%= s.roleKey === r ? 'selected' : '' %>><%= roleLabel(r) %></option><% }); %></select>
+            <span class="text-sm text-muted"><%= s._count.employeeSkills %> people</span>
+            <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="isActive" value="1" <%= s.isActive ? 'checked' : '' %> /> Active</label>
+            <button class="btn btn-secondary btn-sm">Save</button>
+          </form>
+        </td>
+      </tr>
+    <% }); %>
+    </tbody>
+  </table></div>
+</div>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>Generate micro-practice</h2><p>A 2–5 minute targeted practice for one skill, generated from an approved training. It starts as AI-generated and must be reviewed and approved before it can be assigned.</p></div>
+  <div class="card-body">
+    <% if (!courses.length) { %><p class="text-muted">No published training with an approved analysis yet.</p><% } else { %>
+    <form method="post" action="/admin/skills/micro-practice" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+      <div class="field" style="margin:0"><label for="mskill">Skill</label><select id="mskill" name="skillId"><% skills.filter(function (s) { return s.isActive; }).forEach(function (s) { %><option value="<%= s.id %>"><%= s.name %></option><% }); %></select></div>
+      <div class="field" style="margin:0"><label for="mcourse">Training</label><select id="mcourse" name="courseId"><% courses.forEach(function (c) { %><option value="<%= c.id %>"><%= c.title %></option><% }); %></select></div>
+      <button class="btn btn-gold btn-sm" type="submit">Generate</button>
+    </form>
+    <% } %>
+  </div>
+</div>

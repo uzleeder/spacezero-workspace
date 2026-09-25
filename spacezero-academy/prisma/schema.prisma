@@ -1,0 +1,1454 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  ADMIN
+  SUPERVISOR
+  TRAVEL_AGENT
+  FLIGHT_EXPERT
+}
+
+enum ProfileStatus {
+  INVITED // account created by admin, invitation not yet accepted
+  ACTIVE
+  DISABLED
+  ARCHIVED
+}
+
+enum TrainingStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AssignmentScope {
+  INDIVIDUAL
+  TEAM
+  ROLE
+  COMPANY
+}
+
+enum AttemptStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  RETAKE_REQUIRED
+}
+
+enum ModuleContentType {
+  VIDEO
+  AUDIO
+  PDF
+  PPT
+  DOC
+  IMAGE
+  NOTE
+  LINK
+  QUIZ
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 — AI Training Intelligence enums
+// ---------------------------------------------------------------------------
+
+enum AnalysisStatus {
+  QUEUED
+  EXTRACTING
+  MAPPING
+  VALIDATING
+  READY_FOR_REVIEW
+  APPROVED
+  FAILED
+}
+
+enum AssessmentType {
+  QUIZ
+  ROLEPLAY
+  VOICE
+  TECHNICAL
+  PROCESS_SIM
+  PRODUCT_KNOWLEDGE
+}
+
+enum AssessmentCreatedVia {
+  AI_TRAINING_ANALYSIS
+  AI_CALL_ANALYSIS
+  ADMIN_MANUAL
+}
+
+enum AssessmentStatus {
+  DRAFT
+  AI_GENERATED
+  APPROVED
+  ARCHIVED
+}
+
+enum QuestionType {
+  MCQ
+  MULTI_SELECT
+  ORDERING
+  MATCHING
+  SCENARIO
+  SHORT_ANSWER
+  TRUE_FALSE
+}
+
+enum CallBatchMode {
+  INDIVIDUAL_AGENT
+  BEST_PRACTICE
+}
+
+enum CallBatchStatus {
+  UPLOADED
+  TRANSCRIBING
+  ANALYZING
+  AGGREGATING
+  GENERATING_PRACTICE
+  READY_FOR_REVIEW
+  APPROVED
+  FAILED
+}
+
+enum CallRecordingStatus {
+  UPLOADED
+  TRANSCRIBING
+  TRANSCRIBED
+  FAILED
+}
+
+enum LibraryItemType {
+  VIDEO
+  AUDIO
+  PDF
+  PPT
+  DOC
+  IMAGE
+  NOTE
+  LINK
+}
+
+enum EvidenceSourceType {
+  ASSESSMENT
+  PRACTICE
+  CALL_REVIEW
+  MANUAL_ADJUSTMENT
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+// Practice materials an employee uploads for their own self-review — Phase 1
+// scope is upload + organize only. No AI scoring/analysis is generated
+// against these; they are stored and labeled honestly as uploaded content.
+enum PracticeMaterialType {
+  CALL
+  VIDEO
+  PDF
+  SLIDES
+  DOC
+  NOTE
+}
+
+// ---------------------------------------------------------------------------
+// Organization & Roles
+// ---------------------------------------------------------------------------
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profiles          Profile[]
+  teams             Team[]
+  skills            Skill[]
+  courses           TrainingCourse[]
+  assignments       TrainingAssignment[]
+  categories        LibraryCategory[]
+  items             LibraryItem[]
+  auditLogs         AuditLog[]
+  tenureBands       TenureBand[]
+  practiceMaterials PracticeMaterial[]
+  notes             Note[]
+  assessments       Assessment[]
+  callBatches       CallBatch[]
+  setupRequirements SetupRequirement[]
+  credentials       Credential[]
+  leaveRequests     LeaveRequest[]
+  orgSettings       OrgSetting[]
+}
+
+// Reference/config table describing each role (labels, descriptions shown in UI).
+// Authorization itself is always enforced against Profile.role (the enum), never against this table.
+model Role {
+  id          String   @id @default(cuid())
+  key         UserRole @unique
+  label       String
+  description String?
+  createdAt   DateTime @default(now())
+}
+
+// Admin-configurable tenure bands (e.g. "New Agent" 0-3 months). Never hard-coded in app code.
+model TenureBand {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  label          String
+  minMonths      Int
+  maxMonths      Int?
+  displayOrder   Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// Profiles (employees)
+// ---------------------------------------------------------------------------
+
+model Profile {
+  coachingNotesAbout         CoachingNote[]              @relation("CoachingNoteSubject")
+  coachingNotesWritten       CoachingNote[]              @relation("CoachingNoteAuthor")
+  developmentRecommendations DevelopmentRecommendation[]
+  earnedCertifications       EarnedCertification[]
+  setupTargets               SetupRequirementTarget[]    @relation("SetupTargetProfile")
+  id                         String                      @id @default(cuid())
+  organizationId             String
+  organization               Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  fullName            String
+  username            String        @unique
+  email               String        @unique
+  passwordHash        String?
+  photoUrl            String?
+  phonePrimary        String?
+  phoneSecondary      String?
+  whatsappNumber      String?
+  telegramContact     String?
+  phoneUzbekistan     String?
+  role                UserRole
+  status              ProfileStatus @default(INVITED)
+  employmentStartDate DateTime
+  lastActivityAt      DateTime?
+
+  createdById          String?
+  createdBy            Profile?  @relation("ProfileCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdProfiles      Profile[] @relation("ProfileCreatedBy")
+  testOwnerAdminId     String?
+  testOwnerAdmin       Profile?  @relation("AdminTestProfiles", fields: [testOwnerAdminId], references: [id], onDelete: Restrict)
+  personalTestProfiles Profile[] @relation("AdminTestProfiles")
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  archivedAt DateTime?
+
+  // Relations
+  teamMemberships          TeamMembership[]
+  supervisorOf             SupervisorAssignment[]        @relation("SupervisorAssignments")
+  supervisedBy             SupervisorAssignment[]        @relation("AgentAssignments")
+  employeeSkills           EmployeeSkill[]
+  coursesCreated           TrainingCourse[]              @relation("CourseCreatedBy")
+  assignmentsCreated       TrainingAssignment[]          @relation("AssignmentCreatedBy")
+  trainingRecipient        TrainingAssignmentRecipient[]
+  trainingAttempts         TrainingAttempt[]
+  libraryItemsCreated      LibraryItem[]                 @relation("LibraryItemCreatedBy")
+  libraryFavorites         LibraryFavorite[]
+  libraryRecentlyViewed    LibraryRecentlyViewed[]
+  notifications            Notification[]
+  auditLogs                AuditLog[]                    @relation("AuditActor")
+  invitation               Invitation?
+  passwordResetTokens      PasswordResetToken[]
+  sessions                 Session[]
+  certificates             Certificate[]
+  callReviewsAsAgent       CallReview[]                  @relation("CallReviewAgent")
+  callReviewsAsSupervisor  CallReview[]                  @relation("CallReviewSupervisor")
+  skillEvidenceRecorded    SkillEvidence[]               @relation("SkillEvidenceRecordedBy")
+  practiceMaterials        PracticeMaterial[]
+  notes                    Note[]
+  trainingAnalysesApproved TrainingAnalysis[]            @relation("TrainingAnalysisApprovedBy")
+  assessmentsCreated       Assessment[]                  @relation("AssessmentCreatedBy")
+  assessmentsApproved      Assessment[]                  @relation("AssessmentApprovedBy")
+  callBatchesUploaded      CallBatch[]                   @relation("CallBatchUploadedBy")
+  callBatchesAsTarget      CallBatch[]                   @relation("CallBatchTargetAgent")
+  callBatchesApproved      CallBatch[]                   @relation("CallBatchApprovedBy")
+  mediaProgress            MediaProgress[]
+  localPhone               String?
+  currentAddressEnc        String?
+  setupItems               EmployeeSetupItem[]
+  setupItemsVerified       EmployeeSetupItem[]           @relation("SetupItemVerifiedBy")
+  credentialsOwned         Credential[]                  @relation("CredentialOwner")
+  credentialGrantsOwned    CredentialGrant[]             @relation("CredentialGrantOwner")
+  credentialGrantsReceived CredentialGrant[]             @relation("CredentialGrantee")
+  leaveRequests            LeaveRequest[]                @relation("LeaveRequester")
+  leaveReviewed            LeaveRequest[]                @relation("LeaveReviewer")
+  assignGrants             TrainingAssignGrant[]         @relation("AssignGrantSupervisor")
+
+  @@index([organizationId])
+  @@index([role])
+  @@index([testOwnerAdminId])
+  @@index([status])
+}
+
+model Team {
+  setupTargets   SetupRequirementTarget[] @relation("SetupTargetTeam")
+  id             String                   @id @default(cuid())
+  organizationId String
+  organization   Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  createdById    String?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  archivedAt     DateTime?
+
+  memberships         TeamMembership[]
+  trainingAssignments TrainingAssignment[]
+
+  @@index([organizationId])
+}
+
+model TeamMembership {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  isPrimary Boolean  @default(true)
+  joinedAt  DateTime @default(now())
+
+  @@unique([teamId, profileId])
+  @@index([profileId])
+}
+
+// Decoupled from team membership on purpose: lets any profile (including a
+// Flight Expert, later) be supervised without any schema change.
+model SupervisorAssignment {
+  id           String    @id @default(cuid())
+  supervisorId String
+  supervisor   Profile   @relation("SupervisorAssignments", fields: [supervisorId], references: [id], onDelete: Cascade)
+  agentId      String
+  agent        Profile   @relation("AgentAssignments", fields: [agentId], references: [id], onDelete: Cascade)
+  teamId       String?
+  assignedById String?
+  assignedAt   DateTime  @default(now())
+  unassignedAt DateTime?
+
+  @@index([supervisorId])
+  @@index([agentId])
+}
+
+// ---------------------------------------------------------------------------
+// Skill Graph
+// ---------------------------------------------------------------------------
+
+model Skill {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  roleKey        UserRole?
+  name           String
+  description    String?
+  category       String?
+  displayOrder   Int          @default(0)
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  employeeSkills EmployeeSkill[]
+
+  @@index([organizationId])
+  @@index([roleKey])
+}
+
+model EmployeeSkill {
+  // Phase 3: cached aggregate of the evidence (see lib/skillEngine.js). Recomputed incrementally whenever evidence changes.
+  confidenceLevel     String    @default("NONE")
+  engineVersion       Int?
+  lastEvidenceAt      DateTime?
+  id                  String    @id @default(cuid())
+  profileId           String
+  profile             Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  skillId             String
+  skill               Skill     @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  currentScore        Float     @default(0)
+  confidence          Float     @default(0)
+  evidenceCount       Int       @default(0)
+  lastAssessedAt      DateTime?
+  recommendedPractice Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  history  SkillScoreHistory[]
+  evidence SkillEvidence[]
+
+  @@unique([profileId, skillId])
+  @@index([profileId])
+  @@index([skillId, currentScore])
+}
+
+model SkillScoreHistory {
+  evidenceCount   Int?
+  confidenceLevel String?
+  engineVersion   Int?
+  id              String        @id @default(cuid())
+  employeeSkillId String
+  employeeSkill   EmployeeSkill @relation(fields: [employeeSkillId], references: [id], onDelete: Cascade)
+  score           Float
+  confidence      Float
+  note            String?
+  recordedAt      DateTime      @default(now())
+
+  @@index([employeeSkillId])
+  @@index([employeeSkillId, recordedAt])
+}
+
+model SkillEvidence {
+  // Full evidence trail (spec section 14). `weight` is the weight actually applied when the evidence
+  // was written, so a score can always be explained afterwards.
+  assessmentId    String?
+  assessmentType  String?
+  difficulty      Int?
+  attemptNumber   Int?
+  weight          Float?
+  id              String             @id @default(cuid())
+  employeeSkillId String
+  employeeSkill   EmployeeSkill      @relation(fields: [employeeSkillId], references: [id], onDelete: Cascade)
+  sourceType      EvidenceSourceType
+  sourceId        String?
+  scoreImpact     Float?
+  notes           String?
+  recordedById    String?
+  recordedBy      Profile?           @relation("SkillEvidenceRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+  createdAt       DateTime           @default(now())
+
+  @@index([employeeSkillId, createdAt])
+  @@index([employeeSkillId])
+}
+
+// ---------------------------------------------------------------------------
+// Training
+// ---------------------------------------------------------------------------
+
+model TrainingCourse {
+  // Guided creation (spec section 1): who the training is meant for, and an optional due date the
+  // Assign form starts from. Intended audience is guidance for the assigner; it never assigns by itself.
+  audienceJson    String?
+  defaultDueDate  DateTime?
+  id              String               @id @default(cuid())
+  organizationId  String
+  organization    Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  roleKey         UserRole?
+  status          TrainingStatus       @default(DRAFT)
+  thumbnailUrl    String?
+  durationMinutes Int?
+  // Phase 2 guided-creation fields. 70 is the spec's hardcoded organization-wide floor — a
+  // mandatory course's passingScore may be raised but never lowered below it.
+  mandatory       Boolean              @default(true)
+  passingScore    Int                  @default(70)
+  assignPolicy    TrainingAssignPolicy @default(ADMIN_ONLY)
+  createdById     String
+  createdBy       Profile              @relation("CourseCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  archivedAt      DateTime?
+
+  // AI Practice lifecycle. One row is the source project, its practice package and (once sent) the Training
+  // catalog entry, so "Send to Training" can never leave a disconnected copy behind.
+  origin                String            @default("MANUAL")
+  purpose               String?
+  workspaceArchivedAt   DateTime?
+  draftVersion          Int               @default(1)
+  publishedVersion      Int               @default(0)
+  sentAt                DateTime?
+  sentById              String?
+  versions              TrainingVersion[]
+  // Assigned automatically to new employees (of roleKey, or every role when roleKey is empty) when they are created.
+  onboardingForNewHires Boolean           @default(false)
+
+  modules                  TrainingModule[]
+  assignments              TrainingAssignment[]
+  analysis                 TrainingAnalysis?
+  assessments              Assessment[]
+  generatedFromCallBatches CallBatch[]
+  assignGrants             TrainingAssignGrant[]
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+model TrainingModule {
+  // A module belongs to versions addedInVersion .. (removedInVersion - 1), so changing the material of a sent training never alters an earlier version.
+  addedInVersion   Int               @default(1)
+  removedInVersion Int?
+  id               String            @id @default(cuid())
+  courseId         String
+  course           TrainingCourse    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title            String
+  description      String?
+  contentType      ModuleContentType
+  storagePath      String?
+  externalUrl      String?
+  displayOrder     Int               @default(0)
+  durationMinutes  Int?
+  // Anti-skip mandatory-consumption tracking (Phase 2) applies only to required media.
+  required         Boolean           @default(true)
+  // Best-effort JSON anchor into the source (e.g. {"page":4} or {"timestampSec":212}),
+  // populated by the AI extraction/validation pipeline where technically possible.
+  sourceRefJson    String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  mediaProgress MediaProgress[]
+
+  @@index([courseId])
+}
+
+model TrainingAssignment {
+  courseVersion    Int             @default(1)
+  targetRole       UserRole?
+  assessmentId     String?
+  requiredAttempts Int             @default(1)
+  minimumScore     Int             @default(70)
+  id               String          @id @default(cuid())
+  organizationId   String
+  organization     Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  courseId         String
+  course           TrainingCourse  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  assignedById     String
+  assignedBy       Profile         @relation("AssignmentCreatedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+  scope            AssignmentScope
+  targetTeamId     String?
+  targetTeam       Team?           @relation(fields: [targetTeamId], references: [id], onDelete: SetNull)
+  dueDate          DateTime?
+  notes            String?
+  createdAt        DateTime        @default(now())
+
+  recipients TrainingAssignmentRecipient[]
+
+  @@index([organizationId])
+  @@index([courseId])
+}
+
+model TrainingAssignmentRecipient {
+  id           String             @id @default(cuid())
+  assignmentId String
+  assignment   TrainingAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  profileId    String
+  profile      Profile            @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  createdAt    DateTime           @default(now())
+
+  attempts TrainingAttempt[]
+
+  @@unique([assignmentId, profileId])
+  @@index([profileId])
+}
+
+model TrainingAttempt {
+  id                  String                      @id @default(cuid())
+  recipientId         String
+  recipient           TrainingAssignmentRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  profileId           String
+  profile             Profile                     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  status              AttemptStatus               @default(NOT_STARTED)
+  score               Float?
+  attemptNumber       Int                         @default(1)
+  startedAt           DateTime?
+  completedAt         DateTime?
+  retakeRequestedById String?
+  retakeRequestedAt   DateTime?
+
+  // Phase 2 — Practice Engine. assessmentId is set when this attempt is against a generated
+  // Assessment (quiz/role-play/voice/technical/process-sim/product-knowledge) rather than a
+  // plain "mark course complete" attempt.
+  assessmentId       String?
+  assessment         Assessment? @relation(fields: [assessmentId], references: [id], onDelete: SetNull)
+  skillBreakdownJson String?
+  answersJson        String?
+  transcriptJson     String?
+  level              Int?
+  aiModelVersion     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([recipientId])
+  @@index([profileId])
+  @@index([assessmentId])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 — AI Training Intelligence
+// ---------------------------------------------------------------------------
+
+// The Gemini "Training Map" produced by the extract -> map -> validate pipeline for one
+// TrainingCourse. Nothing here is assignable until an Admin/Supervisor explicitly approves.
+model TrainingAnalysis {
+  id       String         @id @default(cuid())
+  courseId String         @unique
+  course   TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  status   AnalysisStatus @default(QUEUED)
+
+  classificationsJson      String?
+  objectivesJson           String?
+  extractedSkillsJson      String?
+  criticalKnowledgeJson    String?
+  practicalBehaviorsJson   String?
+  commonMistakesJson       String?
+  difficulty               String?
+  recommendedMethodsJson   String?
+  recommendedIntensityJson String?
+  sourceReferencesJson     String?
+  validationNotesJson      String?
+
+  modelVersion String?
+  errorMessage String?
+  retryCount   Int       @default(0)
+  queuedAt     DateTime  @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
+
+  purpose       String?
+  promptVersion String?
+  sourceHash    String?
+  completedStep String?
+  insightsJson  String?
+  startedById   String?
+
+  approvedById String?
+  approvedBy   Profile?  @relation("TrainingAnalysisApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+// Generated (or admin-authored) practice content. One quiz-taking UI serves QUIZ/TECHNICAL/
+// PROCESS_SIM/PRODUCT_KNOWLEDGE via shared Question rows; ROLEPLAY/VOICE use configJson for
+// their simulation setup and are scored from TrainingAttempt.transcriptJson instead.
+model Assessment {
+  id                 String               @id @default(cuid())
+  organizationId     String
+  organization       Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  courseId           String?
+  course             TrainingCourse?      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdVia         AssessmentCreatedVia
+  type               AssessmentType
+  title              String
+  instructions       String?
+  level              Int                  @default(3)
+  passingScore       Int                  @default(70)
+  configJson         String?
+  status             AssessmentStatus     @default(DRAFT)
+  version            Int                  @default(1)
+  promptVersion      String?
+  sourceAssessmentId String?
+
+  createdById  String
+  createdBy    Profile   @relation("AssessmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  approvedById String?
+  approvedBy   Profile?  @relation("AssessmentApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt   DateTime?
+  modelVersion String?
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  archivedAt DateTime?
+
+  questions Question[]
+  attempts  TrainingAttempt[]
+
+  @@index([organizationId])
+  @@index([courseId])
+  @@index([status])
+}
+
+model Question {
+  id                String       @id @default(cuid())
+  assessmentId      String
+  assessment        Assessment   @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  type              QuestionType
+  prompt            String
+  optionsJson       String?
+  correctAnswerJson String
+  explanation       String?
+  skillIdsJson      String?
+  sourceRefJson     String?
+  displayOrder      Int          @default(0)
+  createdAt         DateTime     @default(now())
+
+  @@index([assessmentId])
+}
+
+// Real customer call upload session (spec section 10). One batch = one upload interaction,
+// containing 1+ CallRecording files, processed asynchronously via lib/jobQueue.js.
+model CallBatch {
+  title               String?
+  purpose             String?
+  analysisRequestedAt DateTime?
+  archivedAt          DateTime?
+  id                  String          @id @default(cuid())
+  organizationId      String
+  organization        Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploadedById        String
+  uploadedBy          Profile         @relation("CallBatchUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+  mode                CallBatchMode
+  targetAgentId       String?
+  targetAgent         Profile?        @relation("CallBatchTargetAgent", fields: [targetAgentId], references: [id], onDelete: SetNull)
+  status              CallBatchStatus @default(UPLOADED)
+
+  aggregatedAnalysisJson    String?
+  generatedCourseId         String?
+  generatedCourse           TrainingCourse? @relation(fields: [generatedCourseId], references: [id], onDelete: SetNull)
+  generatedPracticePlanJson String?
+
+  approvedById String?
+  approvedBy   Profile?  @relation("CallBatchApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt   DateTime?
+  errorMessage String?
+  retryCount   Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  recordings CallRecording[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([targetAgentId])
+}
+
+model CallRecording {
+  id                       String              @id @default(cuid())
+  callBatchId              String
+  callBatch                CallBatch           @relation(fields: [callBatchId], references: [id], onDelete: Cascade)
+  storagePath              String
+  mimeType                 String
+  durationSeconds          Int?
+  originalFilename         String?
+  status                   CallRecordingStatus @default(UPLOADED)
+  transcriptText           String?
+  transcriptTimestampsJson String?
+  errorMessage             String?
+  createdAt                DateTime            @default(now())
+
+  @@index([callBatchId])
+}
+
+// Server-validated anti-skip progress for one (learner, required TrainingModule) pair. Client
+// "ended" events are never trusted alone — watchedRangesJson is merged/validated server-side.
+model MediaProgress {
+  id                  String         @id @default(cuid())
+  profileId           String
+  profile             Profile        @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  trainingModuleId    String
+  trainingModule      TrainingModule @relation(fields: [trainingModuleId], references: [id], onDelete: Cascade)
+  durationSeconds     Int?
+  playbackSpeed       Float          @default(1)
+  watchedRangesJson   String         @default("[]")
+  percentComplete     Float          @default(0)
+  lastPositionSeconds Float          @default(0)
+  startedAt           DateTime       @default(now())
+  lastActivityAt      DateTime       @default(now())
+  completedAt         DateTime?
+
+  @@unique([profileId, trainingModuleId])
+  @@index([trainingModuleId])
+}
+
+// ---------------------------------------------------------------------------
+// Knowledge Library
+// ---------------------------------------------------------------------------
+
+model LibraryCategory {
+  id             String            @id @default(cuid())
+  organizationId String
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  parentId       String?
+  parent         LibraryCategory?  @relation("CategoryParent", fields: [parentId], references: [id], onDelete: SetNull)
+  children       LibraryCategory[] @relation("CategoryParent")
+  displayOrder   Int               @default(0)
+  createdAt      DateTime          @default(now())
+
+  items LibraryItem[]
+
+  @@index([organizationId])
+}
+
+model LibraryItem {
+  id               String           @id @default(cuid())
+  organizationId   String
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  categoryId       String?
+  category         LibraryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  title            String
+  description      String?
+  itemType         LibraryItemType
+  storagePath      String?
+  mimeType         String?
+  externalUrl      String?
+  tagsJson         String           @default("[]")
+  visibleRolesJson String?
+  viewCount        Int              @default(0)
+  createdById      String
+  createdBy        Profile          @relation("LibraryItemCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  archivedAt       DateTime?
+
+  favorites      LibraryFavorite[]
+  recentlyViewed LibraryRecentlyViewed[]
+
+  @@index([organizationId])
+  @@index([categoryId])
+}
+
+model LibraryFavorite {
+  id            String      @id @default(cuid())
+  profileId     String
+  profile       Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  libraryItemId String
+  libraryItem   LibraryItem @relation(fields: [libraryItemId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+
+  @@unique([profileId, libraryItemId])
+}
+
+model LibraryRecentlyViewed {
+  id            String      @id @default(cuid())
+  profileId     String
+  profile       Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  libraryItemId String
+  libraryItem   LibraryItem @relation(fields: [libraryItemId], references: [id], onDelete: Cascade)
+  viewedAt      DateTime    @default(now())
+
+  @@unique([profileId, libraryItemId])
+}
+
+// ---------------------------------------------------------------------------
+// Audit, notifications, invitations, auth
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorId        String?
+  actor          Profile?     @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  action         String
+  targetTable    String?
+  targetId       String?
+  metadataJson   String?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+  @@index([actorId])
+  @@index([createdAt])
+}
+
+model Notification {
+  // Same dedupeKey for the same person = one notification, however often the automation runs.
+  dedupeKey String?
+  id        String    @id @default(cuid())
+  profileId String
+  profile   Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([profileId, dedupeKey])
+  @@index([profileId])
+  @@index([profileId, readAt])
+}
+
+model Invitation {
+  id          String           @id @default(cuid())
+  profileId   String           @unique
+  profile     Profile          @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  tokenHash   String           @unique
+  invitedById String
+  status      InvitationStatus @default(PENDING)
+  expiresAt   DateTime
+  createdAt   DateTime         @default(now())
+  acceptedAt  DateTime?
+  resendCount Int              @default(0)
+
+  @@index([status])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  profileId String
+  profile   Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([profileId])
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  profileId  String
+  profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  tokenHash  String   @unique
+  userAgent  String?
+  ipAddress  String?
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  @@index([profileId])
+}
+
+// Persisted rate-limiting for sensitive endpoints (login, forgot-password).
+model RateLimitAttempt {
+  id        String   @id @default(cuid())
+  bucketKey String
+  succeeded Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([bucketKey, createdAt])
+}
+
+// Auto-issued when a training course is completed. Kept simple in Phase 1 —
+// one certificate per (profile, course); no PDF generation yet.
+model Certificate {
+  id          String   @id @default(cuid())
+  profileId   String
+  profile     Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  courseId    String?
+  issuedAt    DateTime @default(now())
+
+  @@unique([profileId, courseId])
+  @@index([profileId])
+}
+
+// Supervisor-uploaded call recordings for their agents, with written
+// feedback. AI-generated coaching is explicitly out of scope for Phase 1.
+model CallReview {
+  id             String   @id @default(cuid())
+  organizationId String
+  agentId        String
+  agent          Profile  @relation("CallReviewAgent", fields: [agentId], references: [id], onDelete: Cascade)
+  supervisorId   String
+  supervisor     Profile  @relation("CallReviewSupervisor", fields: [supervisorId], references: [id], onDelete: Cascade)
+  storagePath    String?
+  mimeType       String?
+  feedback       String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([agentId])
+  @@index([supervisorId])
+}
+
+// Self-uploaded practice content (calls/videos/PDFs/slides/docs/notes).
+// Phase 1: upload + organize only — no AI scoring engine.
+model PracticeMaterial {
+  migratedCourseId String?
+  migratedBatchId  String?
+  id               String               @id @default(cuid())
+  organizationId   String
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  profileId        String
+  profile          Profile              @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  title            String
+  description      String?
+  materialType     PracticeMaterialType
+  storagePath      String?
+  mimeType         String?
+  noteContent      String?
+  createdAt        DateTime             @default(now())
+  archivedAt       DateTime?
+
+  @@index([organizationId])
+  @@index([profileId])
+}
+
+model Note {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  profileId      String
+  profile        Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  title          String?
+  content        String
+  isSaved        Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([profileId])
+  @@index([profileId, isSaved])
+}
+
+model PracticeSession {
+  id                 String   @id @default(cuid())
+  profileId          String
+  assessmentId       String
+  dataJson           String   @default("{}")
+  completedAttemptId String?
+  busy               Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([profileId, assessmentId])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 1 correction — Employee Setup, Credential Vault, Leave, Training permissions
+// ---------------------------------------------------------------------------
+
+enum SetupItemStatus {
+  NOT_SET_UP
+  IN_PROGRESS
+  COMPLETED
+  ISSUE
+  NOT_REQUIRED
+}
+
+// MANUAL items are ticked by management; the other kinds are derived server-side from real data
+// (profile fields / vault contents) so completion cannot be forged with a form post.
+enum SetupRequirementKind {
+  MANUAL
+  LOCAL_PHONE
+  ADDRESS
+  CREDENTIAL_VAULT
+}
+
+// How an item becomes "completed": the employee's own confirmation is enough, management must verify
+// what the employee confirms, or only management may complete it. Set per requirement by an Admin.
+enum SetupVerification {
+  EMPLOYEE_CONFIRMATION
+  MANAGEMENT_VERIFICATION
+  MANAGEMENT_ONLY
+}
+
+// Who a requirement applies to: everyone, the chosen roles, or only the employees/teams it is assigned to.
+// Employees/teams assigned in SetupRequirementTarget are ADDED to the role audience.
+enum SetupAudience {
+  ALL_EMPLOYEES
+  ROLES
+  SPECIFIC
+}
+
+enum LeaveType {
+  VACATION
+  SICK
+  PERSONAL
+  UNPAID
+  OTHER
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum LeaveRecommendation {
+  NONE
+  RECOMMEND_APPROVE
+  RECOMMEND_REJECT
+}
+
+enum TrainingAssignPolicy {
+  ADMIN_ONLY
+  SELECTED_SUPERVISORS
+  ALL_SUPERVISORS
+}
+
+// Admin-editable definition of one line on the Employee Setup checklist. Never hard-coded:
+// rolesJson null = applies to every role, otherwise a JSON array of UserRole values.
+model SetupRequirement {
+  // Who is responsible (EMPLOYEE | SUPERVISOR | ADMIN) and when it is due: a fixed date, or N days after the employee's start date.
+  ownerRole         String?
+  dueDays           Int?
+  dueDate           DateTime?
+  category          String?
+  verification      SetupVerification        @default(MANAGEMENT_VERIFICATION)
+  audience          SetupAudience            @default(ALL_EMPLOYEES)
+  targets           SetupRequirementTarget[]
+  id                String                   @id @default(cuid())
+  organizationId    String
+  organization      Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  key               String
+  label             String
+  description       String?
+  kind              SetupRequirementKind     @default(MANUAL)
+  rolesJson         String?
+  required          Boolean                  @default(true)
+  companyControlled Boolean                  @default(false)
+  credentialSystem  Boolean                  @default(false)
+  displayOrder      Int                      @default(0)
+  archivedAt        DateTime?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  items EmployeeSetupItem[]
+
+  @@unique([organizationId, key])
+  @@index([organizationId])
+}
+
+// One employee's state for one requirement. Rows are never deleted when an employee becomes
+// inactive, so setup history survives for future offboarding verification.
+model EmployeeSetupItem {
+  companyNumber           String?
+  employeeConfirmedAt     DateTime?
+  id                      String           @id @default(cuid())
+  profileId               String
+  profile                 Profile          @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  requirementId           String
+  requirement             SetupRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  status                  SetupItemStatus  @default(NOT_SET_UP)
+  companyControlConfirmed Boolean          @default(false)
+  note                    String?
+  verifiedById            String?
+  verifiedBy              Profile?         @relation("SetupItemVerifiedBy", fields: [verifiedById], references: [id], onDelete: SetNull)
+  verifiedAt              DateTime?
+  updatedById             String?
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+
+  @@unique([profileId, requirementId])
+  @@index([requirementId])
+}
+
+// Extra audience for one setup requirement: a specific employee or a whole team.
+model SetupRequirementTarget {
+  id            String           @id @default(cuid())
+  requirementId String
+  requirement   SetupRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  profileId     String?
+  profile       Profile?         @relation("SetupTargetProfile", fields: [profileId], references: [id], onDelete: Cascade)
+  teamId        String?
+  team          Team?            @relation("SetupTargetTeam", fields: [teamId], references: [id], onDelete: Cascade)
+  createdById   String?
+  createdAt     DateTime         @default(now())
+
+  @@unique([requirementId, profileId])
+  @@unique([requirementId, teamId])
+  @@index([profileId])
+  @@index([teamId])
+}
+
+// Work-system credentials. Only metadata is stored in columns; username/password/note live
+// inside payloadEnc (AES-256-GCM, key from CREDENTIAL_ENCRYPTION_KEY, never in the database).
+model Credential {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ownerId        String
+  owner          Profile      @relation("CredentialOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  system         String
+  systemKey      String?
+  payloadEnc     String
+  keyVersion     Int          @default(1)
+  createdById    String?
+  updatedById    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([ownerId])
+  @@index([organizationId])
+}
+
+// Explicit authorization for one admin to see another admin's credentials (admin credentials are
+// never exposed to other roles or other admins by default).
+model CredentialGrant {
+  id             String   @id @default(cuid())
+  organizationId String
+  ownerId        String
+  owner          Profile  @relation("CredentialGrantOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  granteeId      String
+  grantee        Profile  @relation("CredentialGrantee", fields: [granteeId], references: [id], onDelete: Cascade)
+  grantedById    String
+  createdAt      DateTime @default(now())
+
+  @@unique([ownerId, granteeId])
+}
+
+model LeaveRequest {
+  id                     String              @id @default(cuid())
+  organizationId         String
+  organization           Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  profileId              String
+  profile                Profile             @relation("LeaveRequester", fields: [profileId], references: [id], onDelete: Cascade)
+  teamId                 String?
+  supervisorId           String?
+  leaveType              LeaveType           @default(VACATION)
+  startDate              DateTime
+  endDate                DateTime
+  days                   Int
+  note                   String?
+  status                 LeaveStatus         @default(PENDING)
+  recommendation         LeaveRecommendation @default(NONE)
+  supervisorNote         String?
+  supervisorReviewedById String?
+  supervisorReviewedAt   DateTime?
+  reviewedById           String?
+  reviewedBy             Profile?            @relation("LeaveReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt             DateTime?
+  managementNote         String?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  @@index([organizationId, status])
+  @@index([profileId])
+  @@index([teamId])
+  @@index([supervisorId])
+}
+
+// Small key/value store for organization-level policy switches (e.g. credentials.ownerCanView,
+// leave.supervisorFinalApproval).
+model OrgSetting {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  key            String
+  valueJson      String
+  updatedById    String?
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, key])
+}
+
+// Which supervisors may ASSIGN an approved training (viewing is separate from assigning).
+model TrainingAssignGrant {
+  id           String         @id @default(cuid())
+  courseId     String
+  course       TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  supervisorId String
+  supervisor   Profile        @relation("AssignGrantSupervisor", fields: [supervisorId], references: [id], onDelete: Cascade)
+  grantedById  String
+  createdAt    DateTime       @default(now())
+
+  @@unique([courseId, supervisorId])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3 — Skill intelligence, development and certification
+// ---------------------------------------------------------------------------
+
+// A supervisor's written coaching feedback about one employee (optionally about one skill).
+model CoachingNote {
+  id             String   @id @default(cuid())
+  organizationId String
+  profileId      String
+  profile        Profile  @relation("CoachingNoteSubject", fields: [profileId], references: [id], onDelete: Cascade)
+  authorId       String
+  author         Profile  @relation("CoachingNoteAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  skillId        String?
+  body           String
+  createdAt      DateTime @default(now())
+
+  @@index([profileId, createdAt])
+}
+
+// Something the system recommends an employee do next, produced by an assignment rule, an onboarding
+// path step or a retention check. Recommendations never change scores or permissions; a person accepts
+// (assigns) or dismisses them. sourceKey makes every rule/step/check fire at most once per employee.
+model DevelopmentRecommendation {
+  id               String    @id @default(cuid())
+  organizationId   String
+  profileId        String
+  profile          Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  kind             String
+  source           String
+  sourceKey        String
+  skillId          String?
+  courseId         String?
+  assessmentId     String?
+  title            String
+  reason           String
+  priority         Int       @default(50)
+  estimatedMinutes Int?
+  status           String    @default("OPEN")
+  createdAt        DateTime  @default(now())
+  resolvedAt       DateTime?
+  resolvedById     String?
+
+  @@unique([profileId, sourceKey])
+  @@index([organizationId, status])
+  @@index([profileId, status])
+}
+
+// Configurable onboarding / development path for a role. Steps fall due at employmentStartDate + dayOffset.
+model DevelopmentPath {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  roleKey        UserRole?
+  description    String?
+  isActive       Boolean   @default(true)
+  createdById    String
+  createdAt      DateTime  @default(now())
+
+  steps DevelopmentPathStep[]
+
+  @@index([organizationId])
+}
+
+model DevelopmentPathStep {
+  id           String          @id @default(cuid())
+  pathId       String
+  path         DevelopmentPath @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  dayOffset    Int
+  title        String
+  courseId     String?
+  assessmentId String?
+  autoAssign   Boolean         @default(false)
+  displayOrder Int             @default(0)
+
+  @@index([pathId])
+}
+
+// WHEN <conditions> THEN recommend (default) or assign an approved course/practice.
+model AssignmentRule {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  isActive       Boolean   @default(true)
+  roleKey        UserRole?
+  conditionJson  String
+  action         String    @default("RECOMMEND")
+  courseId       String?
+  assessmentId   String?
+  createdById    String
+  createdAt      DateTime  @default(now())
+
+  @@index([organizationId, isActive])
+}
+
+// Certifications and achievements represent demonstrated competency (requirements are checked
+// against real training and skill evidence), never just "watched the video".
+model CertificationDefinition {
+  id               String    @id @default(cuid())
+  organizationId   String
+  name             String
+  description      String?
+  kind             String    @default("CERTIFICATION")
+  roleKey          UserRole?
+  requirementsJson String
+  validityDays     Int?
+  renewalNote      String?
+  isActive         Boolean   @default(true)
+  createdById      String
+  createdAt        DateTime  @default(now())
+
+  earned EarnedCertification[]
+
+  @@index([organizationId, isActive])
+}
+
+model EarnedCertification {
+  id           String                  @id @default(cuid())
+  definitionId String
+  definition   CertificationDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+  profileId    String
+  profile      Profile                 @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  issuedAt     DateTime                @default(now())
+  expiresAt    DateTime?
+  status       String                  @default("ACTIVE")
+  snapshotJson String
+  issuedById   String?
+
+  @@index([profileId, status])
+  @@index([definitionId])
+}
+
+// Scheduled follow-up after a training is completed: did the skill hold up?
+model RetentionCheck {
+  id             String    @id @default(cuid())
+  organizationId String
+  recipientId    String
+  profileId      String
+  courseId       String
+  offsetDays     Int
+  dueAt          DateTime
+  status         String    @default("PENDING")
+  outcome        String?
+  detailJson     String?
+  checkedAt      DateTime?
+
+  @@unique([recipientId, offsetDays])
+  @@index([status, dueAt])
+  @@index([organizationId, profileId])
+}
+
+// One published/draft version of an AI Practice package. Learners keep the version they were assigned;
+// editing later happens in a new draft version, never in place.
+model TrainingVersion {
+  id            String         @id @default(cuid())
+  courseId      String
+  course        TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  version       Int
+  status        String         @default("DRAFT")
+  note          String?
+  snapshotJson  String?
+  createdById   String?
+  createdAt     DateTime       @default(now())
+  approvedById  String?
+  approvedAt    DateTime?
+  publishedById String?
+  publishedAt   DateTime?
+
+  @@unique([courseId, version])
+}
+
+// A unit of background AI work (building practice, ...). activeKey is set only while the task is active and is
+// unique, which makes a double click / duplicate request impossible to run twice. Also the troubleshooting record:
+// what ran, on which source, with which model and prompt version, how many retries, and why it failed.
+model AiTask {
+  id             String    @id @default(cuid())
+  organizationId String
+  courseId       String?
+  batchId        String?
+  taskType       String
+  status         String    @default("QUEUED")
+  activeKey      String?   @unique
+  payloadJson    String?
+  resultJson     String?
+  errorMessage   String?
+  retryCount     Int       @default(0)
+  model          String?
+  promptVersion  String?
+  sourceHash     String?
+  requestedById  String?
+  createdAt      DateTime  @default(now())
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  @@index([courseId, taskType])
+  @@index([status])
+}

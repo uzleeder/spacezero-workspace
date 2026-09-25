@@ -1,0 +1,37 @@
+<%
+const all = components.length > 0 && components.every(function (c) { return c.status === 'APPROVED'; });
+const flagged = [];
+components.forEach(function (c) {
+  var cfg = {}; try { cfg = c.configJson ? JSON.parse(c.configJson) : {}; } catch (e) { cfg = {}; }
+  var items = cfg && cfg.validation && cfg.validation.items ? cfg.validation.items : [];
+  items.forEach(function (i) { if (i.supportedBySource === false) flagged.push({ title: c.title, note: i.note }); });
+});
+%>
+<% if (components.length === 0) { %>
+  <div class="card mt-24"><div class="card-body"><p class="text-muted">There is no practice to review yet. <a class="link-gold" href="/ai-practice/<%= course.id %>?step=practice">Build practice first</a>.</p></div></div>
+<% } else { %>
+  <div class="card mt-24"><div class="card-header"><h2>Review</h2><p>Check the practice, try it as a learner, then approve. Approving does not publish anything.</p></div>
+    <div class="card-body">
+      <ul class="divide-list">
+        <% groups.forEach(function (g) { %>
+          <% g.items.forEach(function (c) { %>
+            <li class="row-between" style="gap:12px"><span><%= c.title %> <span class="text-muted text-sm">— <%= g.label %>, level <%= c.level %></span></span><span class="badge <%= c.status === 'APPROVED' ? 'badge-success' : 'badge-warning' %>"><%= c.status === 'APPROVED' ? 'Approved' : 'Draft' %></span></li>
+          <% }); %>
+        <% }); %>
+      </ul>
+      <% if (flagged.length) { %>
+        <div class="form-alert info mt-16"><strong>The AI check could not fully confirm <%= flagged.length %> item<%= flagged.length === 1 ? '' : 's' %> against your material:</strong>
+          <ul style="margin:6px 0 0;padding-left:18px"><% flagged.slice(0, 5).forEach(function (f) { %><li><%= f.title %> — <%= f.note %></li><% }); %></ul></div>
+      <% } %>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:20px">
+        <a class="btn btn-secondary" href="/ai-practice/<%= course.id %>/preview">Preview as learner</a>
+        <% if (editable && !all) { %><form method="post" action="/ai-practice/<%= course.id %>/approve" data-once><button class="btn btn-gold">Approve Practice</button></form><% } %>
+        <% if (editable && all) { %>
+          <a class="btn btn-gold" href="/ai-practice/<%= course.id %>/send">Send to Training →</a>
+          <form method="post" action="/ai-practice/<%= course.id %>/approve/revoke" data-once><button class="btn btn-secondary" data-confirm-msg="Withdraw the approval? The practice becomes a draft again.">Withdraw approval</button></form>
+        <% } %>
+      </div>
+      <% if (all && editable) { %><p class="text-sm text-muted mt-16">Approved. Sending it to Training makes it available to assign; nothing is assigned automatically.</p><% } %>
+    </div>
+  </div>
+<% } %>

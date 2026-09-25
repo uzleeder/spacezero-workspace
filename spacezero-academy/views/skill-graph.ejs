@@ -1,0 +1,43 @@
+<%- include('partials/page-header', { pageTitle: 'Skill Graph', pageDescription: 'Your permanent skill measurement — built from real assessment evidence, not just course completion.' }) %>
+<%- include('partials/management-tabs', { tabs: tabsets.learner }) %>
+
+<% if (recommended && recommended.length > 0) { %>
+  <div class="card">
+    <div class="card-header"><h2>Recommended practice</h2><p>Skills flagged from assessment evidence as needing focus.</p></div>
+    <div class="card-body">
+      <ul class="divide-list">
+        <% recommended.forEach(function (s) { %>
+          <li class="row-between">
+            <span style="font-weight:500;color:var(--navy-950)"><%= s.skill.name %></span>
+            <span class="badge badge-warning"><%= Math.round(s.currentScore) %>% — needs practice</span>
+          </li>
+        <% }); %>
+      </ul>
+    </div>
+  </div>
+<% } %>
+
+<% const categories = Object.keys(grouped); %>
+<% if (categories.length === 0) { %>
+  <div class="card"><div class="card-body"><%- include('partials/empty-state', { title: 'No skills defined for your role yet' }) %></div></div>
+<% } else { %>
+  <% categories.forEach(function (category) { %>
+    <div class="card mt-24">
+      <div class="card-header"><h2><%= category %></h2></div>
+      <div class="card-body">
+        <div class="grid grid-2">
+          <% grouped[category].forEach(function (s) { %>
+            <div>
+              <div class="row-between" style="margin-bottom:4px">
+                <span style="font-weight:500;color:var(--navy-950);font-size:14px"><%= s.skill.name %></span>
+                <span class="text-sm text-muted"><%= Math.round(s.currentScore) %>%</span>
+              </div>
+              <div class="progress-track"><div class="progress-fill" style="width:<%= s.currentScore %>%"></div></div>
+              <p class="text-sm text-muted" style="margin-top:4px">Confidence <%= Math.round(s.confidence) %>% · <%= s.evidenceCount %> evidence points · Last assessed: <%= s.lastAssessedAt ? s.lastAssessedAt.toLocaleDateString('en-US') : 'never' %></p>
+            </div>
+          <% }); %>
+        </div>
+      </div>
+    </div>
+  <% }); %>
+<% } %>

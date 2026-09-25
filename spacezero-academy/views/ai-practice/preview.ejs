@@ -1,0 +1,30 @@
+<div class="form-alert info">Preview — this is roughly what the learner sees. Nothing you do here is recorded: no attempt, no score, no skill evidence. Answers are not shown.</div>
+<%- include('../partials/page-header', { pageTitle: course.title, pageDescription: 'Preview as learner', headerAction: '<a href="/ai-practice/' + course.id + '?step=review" class="btn btn-secondary">Back to review</a>' }) %>
+
+<% if (parts.length === 0) { %><div class="card mt-24"><div class="card-body"><p class="text-muted">There is no practice to preview yet.</p></div></div><% } %>
+<% parts.forEach(function (a, ai) { %>
+  <div class="card mt-24">
+    <div class="card-header"><h2><%= ai + 1 %>. <%= a.title %></h2><p><%= PLAN.LABEL[a.type] || a.type %> • Pass <%= a.passingScore %>%</p></div>
+    <div class="card-body">
+      <% if (a.instructions) { %><p class="text-sm"><%= a.instructions %></p><% } %>
+      <% if (['ROLEPLAY', 'VOICE'].includes(a.type)) { %>
+        <p class="text-sm text-muted">Scenario</p><p style="margin-bottom:12px"><%= a.config.scenarioBrief %></p>
+        <p class="text-sm text-muted">The customer begins with</p><p style="font-style:italic;margin-bottom:12px">"<%= a.config.openingLine %>"</p>
+        <p class="text-sm text-muted">You will be scored on</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px"><% (a.config.rubricSkills || []).forEach(function (s) { %><span class="badge badge-navy"><%= s %></span><% }); %></div>
+      <% } else if (a.type === 'PROCESS_SIM') { %>
+        <p class="text-sm text-muted">A step-by-step workflow simulation with <%= (a.config.nodes || []).length %> decision points. The learner chooses an action at each step and sees the consequence.</p>
+        <% var start = (a.config.nodes || []).find(function (n) { return n.id === a.config.startId; }); if (start) { %><p style="margin-top:8px"><strong>First situation:</strong> <%= start.situation %></p><% } %>
+      <% } else { %>
+        <% a.qs.forEach(function (q, i) { %>
+          <div style="margin-top:14px">
+            <p style="font-weight:500"><%= i + 1 %>. <%= q.prompt %></p>
+            <% if (q.options.length) { %><div style="margin-top:8px"><% q.options.forEach(function (o) { %><label class="checkbox-row" style="display:block;margin-bottom:4px"><input type="<%= q.type === 'MULTI_SELECT' ? 'checkbox' : 'radio' %>" disabled /> <%= o %></label><% }); %></div>
+            <% } else { %><textarea rows="2" disabled placeholder="Learner types an answer here" style="width:100%;margin-top:8px"></textarea><% } %>
+          </div>
+        <% }); %>
+      <% } %>
+    </div>
+  </div>
+<% }); %>
+<p style="margin-bottom:40px"></p>

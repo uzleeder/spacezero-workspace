@@ -1,0 +1,26 @@
+<%- include('../partials/page-header', { pageTitle: item.title, pageDescription: item.category ? item.category.name : 'Uncategorized', headerAction: '<button type="button" class="btn btn-secondary" data-favorite-toggle="' + item.id + '">' + (isFavorite ? '★ In My Library' : '☆ Add to My Library') + '</button>' }) %>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
+  <span class="badge badge-navy"><%= item.itemType %></span>
+  <% parseTags(item.tagsJson).forEach(function (tag) { %><span class="badge"><%= tag %></span><% }); %>
+</div>
+
+<div class="card">
+  <div class="card-body no-copy">
+    <% if (item.description) { %><p class="text-sm" style="margin-bottom:16px"><%= item.description %></p><% } %>
+
+    <% if (item.itemType === 'LINK' && item.externalUrl) { %>
+      <a href="<%= item.externalUrl %>" target="_blank" rel="noopener noreferrer" class="link-gold" style="font-weight:500">Open link &rarr;</a>
+    <% } else if (item.itemType === 'NOTE') { %>
+      <p style="white-space:pre-wrap"><%= item.description %></p>
+    <% } else if (item.itemType === 'VIDEO') { %>
+      <video src="/library-file/<%= item.id %>" controls controlsList="nodownload" style="width:100%;border-radius:8px;background:var(--navy-950)"></video>
+    <% } else if (item.itemType === 'IMAGE') { %>
+      <img src="/library-file/<%= item.id %>" alt="<%= item.title %>" style="width:100%;border-radius:8px" />
+    <% } else { %>
+      <iframe src="/library-file/<%= item.id %>" style="height:70vh;width:100%;border-radius:8px;border:1px solid rgba(20,24,31,.1)"></iframe>
+    <% } %>
+
+    <p class="text-sm text-muted mt-24">Viewing in-browser only. Downloading and copying materials is restricted to administrators.</p>
+  </div>
+</div>

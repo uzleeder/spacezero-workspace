@@ -1,0 +1,102 @@
+<%- include('../partials/page-header', { pageTitle: 'Manage library', pageDescription: 'Publish approved reference material and organize it into categories. Customer calls are never added here automatically — only material you deliberately publish.' }) %>
+
+<%- include('../partials/management-tabs', { tabs: tabsets.library }) %>
+
+<div class="grid mt-24" style="grid-template-columns: minmax(0,1fr) 380px; align-items:start">
+  <div class="card">
+    <div class="card-header"><h2>All materials</h2></div>
+    <% if (items.length === 0) { %>
+      <div class="card-body"><%- include('../partials/empty-state', { title: 'No materials uploaded yet' }) %></div>
+    <% } else { %>
+      <ul class="divide-list" style="padding:0 24px">
+        <% items.forEach(function (item) { %>
+          <li class="row-between">
+            <a href="/admin/library/items/<%= item.id %>" style="flex:1;min-width:0">
+              <p style="font-weight:500;color:var(--navy-950)"><%= item.title %></p>
+              <p class="text-sm text-muted"><%= item.itemType %> · <%= item.category ? item.category.name : 'Uncategorized' %> · <%= item.viewCount %> views</p>
+            </a>
+            <div style="display:flex;gap:8px;align-items:center">
+              <span class="badge badge-gold"><%= item.itemType %></span>
+              <button type="button" class="btn btn-danger btn-sm" data-action="/admin/library/items/<%= item.id %>/archive" data-confirm="Archive this item?">Archive</button>
+            </div>
+          </li>
+        <% }); %>
+      </ul>
+    <% } %>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-header"><h2>Categories</h2></div>
+      <div class="card-body">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
+          <% categories.forEach(function (c) { %><span class="badge"><%= c.name %></span><% }); %>
+        </div>
+        <form method="post" action="/admin/library/categories" style="display:flex;gap:8px">
+          <input name="name" placeholder="New category name" required style="flex:1" />
+          <button type="submit" class="btn btn-secondary">Add</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card mt-24">
+      <div class="card-header"><h2>Add material</h2></div>
+      <div class="card-body">
+        <% if (error) { %><div class="form-alert error"><%= error %></div><% } %>
+        <form method="post" action="/admin/library/items" enctype="multipart/form-data">
+          <div class="grid grid-2">
+            <div class="field">
+              <label for="title">Title</label>
+              <input id="title" name="title" required />
+            </div>
+            <div class="field">
+              <label for="itemType">Type</label>
+              <select id="itemType" name="itemType" data-item-type-select>
+                <option>VIDEO</option><option>AUDIO</option><option selected>PDF</option><option>PPT</option><option>DOC</option>
+                <option>IMAGE</option><option>NOTE</option><option>LINK</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="categoryId">Category</label>
+              <select id="categoryId" name="categoryId">
+                <option value="">Uncategorized</option>
+                <% categories.forEach(function (c) { %><option value="<%= c.id %>"><%= c.name %></option><% }); %>
+              </select>
+            </div>
+            <div class="field">
+              <label for="tags">Tags</label>
+              <input id="tags" name="tags" placeholder="business class, A380" />
+            </div>
+          </div>
+
+          <div class="field mt-24">
+            <label for="description">Description</label>
+            <textarea id="description" name="description" rows="2"></textarea>
+          </div>
+
+          <div class="field mt-24" data-show-for-type="LINK">
+            <label for="externalUrl">URL</label>
+            <input id="externalUrl" name="externalUrl" type="url" placeholder="https://" />
+          </div>
+          <div class="field mt-24" data-show-for-type="VIDEO,AUDIO,PDF,PPT,DOC,IMAGE">
+            <label for="file">File</label>
+            <%- include('../partials/dropzone', { inputId: 'file', inputName: 'file', hint: 'Video, audio, PDF, PPT/PPTX, DOC/DOCX, or an image. Publishing a call here makes it visible to the selected roles — do it only for approved educational calls.' }) %>
+          </div>
+
+          <div class="mt-24">
+            <p class="label">Visible to</p>
+            <div style="display:flex;flex-wrap:wrap;gap:12px">
+              <label class="checkbox-row"><input type="checkbox" name="visibleRoles" value="ADMIN" /> Administrator</label>
+              <label class="checkbox-row"><input type="checkbox" name="visibleRoles" value="SUPERVISOR" /> Supervisor</label>
+              <label class="checkbox-row"><input type="checkbox" name="visibleRoles" value="TRAVEL_AGENT" /> Travel Agent</label>
+              <label class="checkbox-row"><input type="checkbox" name="visibleRoles" value="FLIGHT_EXPERT" /> Flight Expert</label>
+            </div>
+            <p class="hint">Leave all unchecked to make this visible to everyone.</p>
+          </div>
+
+          <button type="submit" class="btn btn-gold mt-24">Add to library</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

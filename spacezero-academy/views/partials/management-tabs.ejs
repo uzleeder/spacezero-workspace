@@ -1,0 +1,6 @@
+<div class="tabs no-print">
+  <% tabs.forEach(function (t) { %>
+    <% const active = currentPath === t.href || currentPath.indexOf(t.href + '/') === 0; %>
+    <a class="tab-link<%= active ? ' active' : '' %>" href="<%= t.href %>"><%= t.label %></a>
+  <% }); %>
+</div>

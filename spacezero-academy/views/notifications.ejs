@@ -1,0 +1,18 @@
+<%- include('partials/page-header', { pageTitle: 'Notifications' }) %>
+<div class="card">
+  <% if (notifications.length === 0) { %>
+    <div class="card-body"><%- include('partials/empty-state', { title: 'No notifications yet' }) %></div>
+  <% } else { %>
+    <ul class="divide-list">
+      <% notifications.forEach(function (n) { %>
+        <li>
+          <a href="<%= n.link || '#' %>" style="display:block">
+            <p style="font-weight:500;color:var(--navy-950)"><%= n.title %></p>
+            <% if (n.body) { %><p class="text-sm text-muted" style="margin-top:2px"><%= n.body %></p><% } %>
+            <p class="text-sm text-muted" style="margin-top:2px"><%= n.createdAt.toLocaleString('en-US') %></p>
+          </a>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+</div>

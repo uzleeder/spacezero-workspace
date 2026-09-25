@@ -1,0 +1,84 @@
+<%
+const qs = function (extra) {
+  const p = new URLSearchParams();
+  Object.entries(Object.assign({}, filters, { view: view, month: month }, extra)).forEach(function (e) { if (e[1]) p.set(e[0], e[1]); });
+  return '/leave?' + p.toString();
+};
+const monthDate = new Date(month + '-01T00:00:00Z');
+const prevMonth = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() - 1, 1)).toISOString().slice(0, 7);
+const nextMonth = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 1)).toISOString().slice(0, 7);
+%>
+<%- include('../partials/page-header', { pageTitle: 'Vacation Overview', pageDescription: profile.role === 'SUPERVISOR' ? 'Leave requests from your assigned team.' : 'Leave requests across the organization.' }) %>
+<%- include('../partials/management-tabs', { tabs: tabsets.employees }) %>
+
+<div class="card mt-24">
+  <form class="filter-bar" method="get" action="/leave">
+    <input type="hidden" name="view" value="<%= view %>" /><input type="hidden" name="month" value="<%= month %>" />
+    <select name="status" aria-label="Status"><option value="">All statuses</option><% Object.keys(leave.STATUS_LABEL).forEach(function (s) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= leave.STATUS_LABEL[s] %></option><% }); %></select>
+    <select name="teamId" aria-label="Team"><option value="">All teams</option><% teams.forEach(function (t) { %><option value="<%= t.id %>" <%= filters.teamId === t.id ? 'selected' : '' %>><%= t.name %></option><% }); %></select>
+    <% if (supervisors.length) { %><select name="supervisorId" aria-label="Supervisor"><option value="">All supervisors</option><% supervisors.forEach(function (s) { %><option value="<%= s.id %>" <%= filters.supervisorId === s.id ? 'selected' : '' %>><%= s.fullName %></option><% }); %></select><% } %>
+    <select name="profileId" aria-label="Employee"><option value="">All employees</option><% people.forEach(function (p) { %><option value="<%= p.id %>" <%= filters.profileId === p.id ? 'selected' : '' %>><%= p.fullName %></option><% }); %></select>
+    <input type="date" name="from" value="<%= filters.from %>" aria-label="From date" /><input type="date" name="to" value="<%= filters.to %>" aria-label="To date" />
+    <button type="submit" class="btn btn-secondary">Filter</button>
+  </form>
+  <div style="padding:0 24px 16px;display:flex;gap:8px;align-items:center">
+    <a class="btn btn-sm <%= view === 'list' ? 'btn-gold' : 'btn-secondary' %>" href="<%= qs({ view: 'list' }) %>">List view</a>
+    <a class="btn btn-sm <%= view === 'calendar' ? 'btn-gold' : 'btn-secondary' %>" href="<%= qs({ view: 'calendar' }) %>">Calendar view</a>
+    <span class="badge badge-warning" style="margin-left:auto"><%= pendingCount %> pending</span>
+  </div>
+</div>
+
+<% if (view === 'calendar' && calendar) { %>
+  <div class="card mt-24" style="margin-bottom:40px">
+    <div class="card-header row-between">
+      <a class="btn btn-secondary btn-sm" href="<%= qs({ month: prevMonth }) %>">← Previous</a>
+      <h2><%= monthDate.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }) %></h2>
+      <a class="btn btn-secondary btn-sm" href="<%= qs({ month: nextMonth }) %>">Next →</a>
+    </div>
+    <div class="table-wrap">
+      <table style="table-layout:fixed">
+        <thead><tr><% ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(function (d) { %><th><%= d %></th><% }); %></tr></thead>
+        <tbody>
+          <% calendar.weeks.forEach(function (week) { %>
+            <tr>
+              <% week.forEach(function (cell) { %>
+                <td style="vertical-align:top;height:92px;<%= cell.inMonth ? '' : 'opacity:.45' %>">
+                  <div class="text-sm text-muted"><%= cell.date.getUTCDate() %></div>
+                  <% cell.entries.slice(0, 3).forEach(function (r) { %>
+                    <a href="/leave/<%= r.id %>" class="text-sm" style="display:block;<%= r.status === 'PENDING' ? 'font-style:italic' : 'font-weight:500' %>"><%= r.profile.fullName %><%= r.status === 'PENDING' ? ' (pending)' : '' %></a>
+                  <% }); %>
+                  <% if (cell.entries.length > 3) { %><span class="text-sm text-muted">+<%= cell.entries.length - 3 %> more</span><% } %>
+                </td>
+              <% }); %>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% } else { %>
+  <div class="card mt-24" style="margin-bottom:40px">
+    <% if (requests.length === 0) { %>
+      <div class="card-body"><%- include('../partials/empty-state', { title: 'No leave requests match', description: 'Adjust the filters.' }) %></div>
+    <% } else { %>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Days</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            <% requests.forEach(function (r) { %>
+              <tr>
+                <td><a href="/employees/<%= r.profile.id %>/leave"><%= r.profile.fullName %></a></td>
+                <td><%= leave.TYPE_LABEL[r.leaveType] %></td>
+                <td><%= r.startDate.toISOString().slice(0, 10) %> → <%= r.endDate.toISOString().slice(0, 10) %></td>
+                <td><%= r.days %></td>
+                <td><span class="badge <%= r.status === 'APPROVED' ? 'badge-success' : r.status === 'REJECTED' ? 'badge-danger' : r.status === 'PENDING' ? 'badge-warning' : '' %>"><%= leave.STATUS_LABEL[r.status] %></span>
+                  <% if (r.recommendation !== 'NONE') { %><span class="text-sm text-muted"> · Supervisor: <%= r.recommendation === 'RECOMMEND_APPROVE' ? 'recommends approval' : 'recommends rejection' %></span><% } %></td>
+                <td><a class="btn btn-secondary btn-sm" href="/leave/<%= r.id %>">Open</a></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </div>
+<% } %>

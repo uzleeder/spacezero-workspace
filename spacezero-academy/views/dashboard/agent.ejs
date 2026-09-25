@@ -1,0 +1,102 @@
+<%- include('../partials/page-header', { pageTitle: 'Welcome, ' + profile.fullName.split(' ')[0], pageDescription: roleLabel(profile.role), headerAction: '<a href="/skill-graph" class="btn btn-secondary">My Skill DNA</a>' }) %>
+
+<div class="card" style="margin-bottom:16px"><div class="card-body row-between" style="gap:16px;flex-wrap:wrap"><div><p class="label" style="font-weight:600;color:var(--navy-950)">My status</p><p class="text-sm text-muted" style="margin-top:4px"><%= readiness && readiness.reasons.length ? readiness.reasons.join(' · ') : 'Activated, set up and mandatory training done.' %></p></div><%- include('../partials/readiness-badge', { readiness: readiness }) %></div></div>
+<%- include('../partials/attention', { attention: attention }) %>
+
+<a class="card card-link" href="/my/setup" style="display:block;margin-bottom:24px">
+  <div class="card-body row-between" style="gap:16px;flex-wrap:wrap">
+    <div><p class="label" style="font-weight:600;color:var(--navy-950)">My setup</p><p class="text-sm text-muted" style="margin-top:4px"><%= setup.completed %> of <%= setup.required %> required items completed<% if (!setup.fullySetUp && !setup.notStarted) { %> — see what is still missing<% } %></p></div>
+    <%- include('../partials/setup-badge', { setup: setup }) %>
+  </div>
+</a>
+
+<div class="kpi-grid">
+  <div class="card kpi"><p class="value"><%= me.dev.summary.required %></p><p class="label">Required training open</p></div>
+  <div class="card kpi"><p class="value"><%= me.dev.summary.current %></p><p class="label">Current training</p></div>
+  <div class="card kpi"><p class="value"><%= me.dev.summary.retakes %></p><p class="label">Retakes required</p></div>
+  <div class="card kpi"><p class="value"><%= me.dev.summary.overdue %></p><p class="label">Overdue</p></div>
+  <a class="card kpi card-link" href="/skill-graph"><p class="value"><%= me.overall === null ? '—' : me.overall + '%' %></p><p class="label">Skill overview</p></a>
+</div>
+
+<div id="next" class="card mt-24 next-card">
+  <div class="card-body">
+    <p class="label">What should I practice next?</p>
+    <% if (!me.next) { %>
+      <h2>You are all caught up</h2>
+      <p class="text-sm text-muted">Nothing urgent. Your supervisor can assign more practice, and every attempt builds your Skill DNA.</p>
+    <% } else { %>
+      <h2><%= me.next.title %></h2>
+      <p class="text-sm text-muted"><%= me.next.estimatedMinutes ? me.next.estimatedMinutes + '-minute practice · ' : '' %>Reason</p>
+      <p style="margin:2px 0 14px"><%= me.next.reason %></p>
+      <% if (me.next.action && me.next.action.href) { %><a class="btn btn-gold" href="<%= me.next.action.href %>"><%= me.next.action.type === 'START' ? 'Start practice' : me.next.action.label %></a>
+      <% } else if (me.next.action) { %><span class="badge"><%= me.next.action.label %></span><% } %>
+    <% } %>
+  </div>
+</div>
+
+<div class="grid grid-2 mt-24">
+  <div class="card">
+    <div class="card-header"><h2>Required actions</h2><p>Most urgent first.</p></div>
+    <div class="card-body" style="padding-top:0;padding-bottom:0">
+      <% if (!me.required.length) { %><p class="dna-empty" style="padding:16px 0">No required actions. Nice.</p><% } %>
+      <% me.required.forEach(function (i) { %>
+        <div class="attention-row">
+          <div style="flex:1;min-width:160px"><p style="font-weight:500;color:var(--navy-950)"><%= i.title %></p><p class="text-sm text-muted"><%= i.reason %></p></div>
+          <% if (i.action && i.action.href) { %><a class="btn <%= i.kind === 'OVERDUE' || i.kind === 'RETAKE' ? 'btn-gold' : 'btn-secondary' %> btn-sm" href="<%= i.action.href %>"><%= i.action.label %></a><% } %>
+        </div>
+      <% }); %>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header row-between"><h2>My Skill DNA</h2><a class="link-gold text-sm" href="/skill-graph">Open</a></div>
+    <div class="card-body">
+      <%- include('../partials/radar', { cats: me.categories }) %>
+      <% if (me.sections.strongest.length) { %><p class="text-sm mt-16"><strong>Strongest:</strong> <%= me.sections.strongest.slice(0, 3).map(function (r) { return r.skill.name + ' ' + r.score + '%'; }).join(' · ') %></p><% } %>
+      <% if (me.sections.priority.length) { %><p class="text-sm"><strong>Improve:</strong> <%= me.sections.priority.slice(0, 3).map(function (r) { return r.skill.name + ' ' + r.score + '%'; }).join(' · ') %></p><% } %>
+      <% if (!me.sections.strongest.length && !me.sections.priority.length) { %><p class="dna-empty">Your profile fills in as you complete practice.</p><% } %>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-2 mt-24">
+  <div class="card">
+    <div class="card-header"><h2>Recommended practice</h2></div>
+    <div class="card-body" style="padding-top:0;padding-bottom:0">
+      <% if (!me.recommended.length) { %><p class="dna-empty" style="padding:16px 0">No recommendations right now.</p><% } %>
+      <% me.recommended.forEach(function (i, idx) { %>
+        <div class="attention-row">
+          <div style="flex:1;min-width:160px"><p style="font-weight:500;color:var(--navy-950)"><%= idx + 1 %>. <%= i.title %></p><p class="text-sm text-muted"><%= i.reason %></p><% if (i.estimatedMinutes) { %><p class="text-sm text-muted">About <%= i.estimatedMinutes %> min</p><% } %></div>
+          <% if (i.action && i.action.href) { %><a class="btn btn-secondary btn-sm" href="<%= i.action.href %>"><%= i.action.label %></a><% } else if (i.action) { %><span class="text-sm text-muted"><%= i.action.label %></span><% } %>
+        </div>
+      <% }); %>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h2>Recent improvement</h2></div>
+    <div class="card-body">
+      <% if (!me.sections.improved.length) { %><p class="dna-empty">Improvement shows up here once a skill has been measured twice.</p><% } %>
+      <ul class="dna-list"><% me.sections.improved.slice(0, 5).forEach(function (r) { %><li><span><%= r.skill.name %></span><strong class="trend-improving">▲ +<%= r.trend.delta %> → <%= r.score %>%</strong></li><% }); %></ul>
+      <% if (me.sections.declining.length) { %><p class="text-sm mt-16"><strong>Watch:</strong> <%= me.sections.declining.slice(0, 3).map(function (r) { return r.skill.name + ' (' + r.trend.delta + ')'; }).join(' · ') %></p><% } %>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-2 mt-24" style="margin-bottom:40px">
+  <div class="card">
+    <div class="card-header row-between"><h2>Completed training</h2><a class="link-gold text-sm" href="/training">Training history</a></div>
+    <div class="card-body">
+      <% if (!me.completed.length) { %><p class="dna-empty">Nothing completed yet.</p><% } %>
+      <ul class="dna-list"><% me.completed.forEach(function (l) { %><li><span><%= l.course.title %></span><span class="text-sm text-muted"><%= l.latest && l.latest.score !== null ? Math.round(l.latest.score) + '%' : '' %></span></li><% }); %></ul>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header row-between"><h2>Achievements &amp; certificates</h2><a class="link-gold text-sm" href="/library">Knowledge Library</a></div>
+    <div class="card-body">
+      <% if (!me.earned.length && !me.legacy.length) { %><p class="dna-empty">Certifications are earned by demonstrating skills, not by watching videos.</p><% } %>
+      <ul class="dna-list">
+        <% me.earned.forEach(function (c) { %><li><span><%= c.definition.name %></span><span class="text-sm text-muted"><%= c.definition.kind === 'ACHIEVEMENT' ? 'Achievement' : 'Certification' %><%= c.expiresAt ? ' · until ' + c.expiresAt.toISOString().slice(0, 10) : '' %></span></li><% }); %>
+        <% me.legacy.forEach(function (c) { %><li><span><%= c.title %></span><span class="text-sm text-muted">Course certificate</span></li><% }); %>
+      </ul>
+    </div>
+  </div>
+</div>

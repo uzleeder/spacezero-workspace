@@ -1,0 +1,24 @@
+<%- include('partials/page-header', { pageTitle: 'Employees & Teams', pageDescription: 'Aggregate Skill Graph view across your team.' }) %>
+
+<%- include('partials/management-tabs', { tabs: tabsets.employees }) %>
+
+<div class="card mt-24">
+  <% if (rows.length === 0) { %>
+    <div class="card-body"><%- include('partials/empty-state', { title: 'No agents assigned to you yet' }) %></div>
+  <% } else { %>
+    <div class="card-body">
+      <% rows.forEach(function (row) { %>
+        <div class="mt-24" style="margin-top:20px">
+          <div class="row-between" style="margin-bottom:4px">
+            <a href="/team/<%= row.agent.id %>" style="font-weight:500;color:var(--navy-950)"><%= row.agent.fullName %></a>
+            <span class="text-sm text-muted"><%= row.avg %>% average · <a class="link-gold" href="/assignments?personId=<%= row.agent.id %>">Assign practice</a></span>
+          </div>
+          <div class="progress-track"><div class="progress-fill navy" style="width:<%= row.avg %>%"></div></div>
+          <% if (row.weakest.length > 0) { %>
+            <p class="text-sm text-muted" style="margin-top:4px">Weakest: <%= row.weakest.map(w => w.skill.name + ' (' + Math.round(w.currentScore) + '%)').join(', ') %></p>
+          <% } %>
+        </div>
+      <% }); %>
+    </div>
+  <% } %>
+</div>

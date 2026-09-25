@@ -1,0 +1,43 @@
+<%
+const now = new Date();
+const isOverdue = function (r) { return r.assignment.dueDate && r.assignment.dueDate < now && r.status !== 'COMPLETED'; };
+const GROUPS = [
+  { title: 'Overdue', test: isOverdue, tone: 'badge-danger' },
+  { title: 'To Do', test: function (r) { return r.status === 'NOT_STARTED' && !isOverdue(r); } },
+  { title: 'In Progress', test: function (r) { return r.status === 'IN_PROGRESS' && !isOverdue(r); } },
+  { title: 'Retake Required', test: function (r) { return (r.status === 'RETAKE_REQUIRED' || r.status === 'FAILED') && !isOverdue(r); }, tone: 'badge-danger' },
+  { title: 'Completed', test: function (r) { return r.status === 'COMPLETED'; } },
+];
+%>
+<%- include('partials/page-header', { pageTitle: 'My Training', pageDescription: 'Training and practice assigned to you.' }) %>
+<%- include('partials/management-tabs', { tabs: tabsets.learner }) %>
+
+<% if (list.length === 0) { %>
+  <div class="card"><div class="card-body"><%- include('partials/empty-state', { title: 'No training assigned yet', description: 'Your admin or supervisor will assign training here.' }) %></div></div>
+<% } else { %>
+  <% GROUPS.forEach(function (group) { %>
+    <% const items = list.filter(group.test); %>
+    <% if (items.length > 0) { %>
+      <div class="card mt-24">
+        <div class="card-header"><h2><%= group.title %></h2><span class="badge <%= group.tone || '' %>"><%= items.length %></span></div>
+        <div class="card-body">
+          <ul class="divide-list">
+            <% items.forEach(function (r) { %>
+              <li class="row-between">
+                <div>
+                  <a href="/training-course/<%= r.assignment.courseId %>" style="font-weight:500;color:var(--navy-950)"><%= r.assignment.course.title %></a>
+                  <p class="text-sm text-muted"><%= r.assignment.course.modules.length %> modules<% if (r.assignment.dueDate) { %> · due <%= r.assignment.dueDate.toLocaleDateString('en-US') %><% } %></p>
+                </div>
+                <% if (r.status === 'NOT_STARTED' || r.status === 'RETAKE_REQUIRED') { %>
+                  <form method="post" action="/training/<%= r.id %>/start"><button type="submit" class="btn btn-secondary btn-sm"><%= r.status === 'RETAKE_REQUIRED' ? 'Start retake' : 'Start' %></button></form>
+                <% } else if (r.status === 'IN_PROGRESS') { %>
+                  <a class="btn btn-gold btn-sm" href="/training-course/<%= r.assignment.courseId %>">Start</a>
+                <% } %>
+              </li>
+            <% }); %>
+          </ul>
+        </div>
+      </div>
+    <% } %>
+  <% }); %>
+<% } %>

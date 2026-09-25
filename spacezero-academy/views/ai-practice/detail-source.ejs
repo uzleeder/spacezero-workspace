@@ -1,0 +1,57 @@
+<div class="card mt-24">
+  <div class="card-header"><h2>Source material</h2><p>Saved privately. Employees never see this until you approve practice and send it to Training.</p></div>
+  <div class="card-body">
+    <% if (callBatch) { %><p class="text-sm">Created from a call analysis — <a class="link-gold" href="/ai-practice/calls/<%= callBatch.id %>">view the call</a>.</p><% } %>
+    <% if (course.modules.length === 0) { %>
+      <p class="text-muted">Nothing here yet. Add a file or some notes below.</p>
+    <% } else { %>
+      <ul class="divide-list">
+        <% course.modules.forEach(function (m) {
+          var ref = null; try { ref = m.sourceRefJson ? JSON.parse(m.sourceRefJson) : null; } catch (e) { ref = null; } %>
+          <li class="row-between" style="gap:12px;flex-wrap:wrap">
+            <div style="min-width:0">
+              <p style="font-weight:500;color:var(--navy-950)"><%= m.title %></p>
+              <p class="text-sm text-muted"><%= TYPE_LABEL[m.contentType] || m.contentType %><%= ref && ref.durationSeconds ? ' • ' + Math.max(1, Math.round(ref.durationSeconds / 60)) + ' min' : '' %></p>
+              <% if (m.contentType === 'NOTE' && m.description) { %><p class="text-sm" style="margin-top:4px;white-space:pre-wrap"><%= m.description.length > 300 ? m.description.slice(0, 300) + '…' : m.description %></p><% } %>
+            </div>
+            <div style="display:flex;gap:6px">
+              <% if (m.storagePath) { %><a class="btn btn-secondary btn-sm" href="/training-file/<%= m.id %>" target="_blank" rel="noopener">View</a><% } %>
+              <% if (editable) { %><form method="post" action="/ai-practice/<%= course.id %>/sources/<%= m.id %>/remove" data-once><button class="btn btn-secondary btn-sm" data-confirm-msg="Remove this from the source?">Remove</button></form><% } %>
+            </div>
+          </li>
+        <% }); %>
+      </ul>
+    <% } %>
+  </div>
+</div>
+
+<% if (editable) { %>
+<div class="card mt-24">
+  <div class="card-header"><h2>+ Add more material</h2><p>Related files are analyzed together as one source.</p></div>
+  <div class="card-body">
+    <form method="post" action="/ai-practice/<%= course.id %>/sources" enctype="multipart/form-data" data-once>
+      <div class="field"><label for="more-files">Files</label><input id="more-files" name="files" type="file" multiple accept="<%= ACCEPT %>" /></div>
+      <div class="field mt-16"><label for="more-note">Notes <span class="text-muted">(optional)</span></label><textarea id="more-note" name="noteText" rows="3"></textarea></div>
+      <button class="btn btn-secondary mt-16">Add</button>
+    </form>
+  </div>
+</div>
+<% } %>
+
+<div class="card mt-24" id="rename">
+  <div class="card-body">
+    <form method="post" action="/ai-practice/<%= course.id %>/rename" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+      <div class="field" style="margin:0;flex:1;min-width:220px"><label for="rename-title">Name</label><input id="rename-title" name="title" value="<%= course.title %>" maxlength="160" required /></div>
+      <button class="btn btn-secondary">Rename</button>
+    </form>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
+      <form method="post" action="/ai-practice/<%= course.id %>/duplicate" data-once><button class="btn btn-secondary btn-sm">Duplicate</button></form>
+      <form method="post" action="/ai-practice/<%= course.id %>/archive" data-once><button class="btn btn-secondary btn-sm">Archive</button></form>
+      <form method="post" action="/ai-practice/<%= course.id %>/delete" data-once><button class="btn btn-danger btn-sm" data-confirm-msg="Delete this? If training or skill records depend on it, it will be archived instead.">Delete</button></form>
+    </div>
+  </div>
+</div>
+
+<% if (!course.analysis && editable && course.modules.length) { %>
+  <p class="mt-24"><a class="btn btn-gold" href="/ai-practice/<%= course.id %>/analyze">Start Analysis</a></p>
+<% } %>

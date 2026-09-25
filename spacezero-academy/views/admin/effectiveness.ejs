@@ -1,0 +1,50 @@
+<%- include('../partials/page-header', { pageTitle: detail ? detail.course.title : 'Training effectiveness', pageDescription: 'Observed skill change after training, from stored score history. It does not prove the training caused the change.', headerAction: '<a href="/admin/intelligence" class="btn btn-secondary">Organization intelligence</a>' }) %>
+<div class="form-alert info mt-16">The effectiveness indicator is an <strong>internal operational metric</strong> — not scientifically validated. Use it to decide where to look, and inspect the numbers behind it.</div>
+
+<% if (!detail) { %>
+  <div class="card mt-24" style="margin-bottom:40px">
+    <% if (!rows.length) { %><div class="card-body"><p class="dna-empty">No approved training has been assigned yet.</p></div><% } else { %>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Training</th><th>Assigned</th><th>Completed</th><th>Pass rate</th><th>Avg score</th><th>Retake rate</th><th>Observed change</th><th>Indicator</th></tr></thead>
+      <tbody><% rows.forEach(function (r) { %><tr>
+        <td><a class="link-gold" href="/admin/intelligence/training/<%= r.course.id %>"><%= r.course.title %></a><p class="text-sm text-muted"><%= r.skills.length ? r.skills.join(', ') : 'no mapped skills' %></p></td>
+        <td><%= r.assigned %></td><td><%= r.completed %></td><td><%= r.passRate === null ? '—' : r.passRate + '%' %></td><td><%= r.averageScore === null ? '—' : r.averageScore + '%' %></td><td><%= r.retakeRate === null ? '—' : r.retakeRate + '%' %></td>
+        <td><%= r.observed.enough ? (r.observed.change >= 0 ? '+' : '') + r.observed.change + ' pts' : 'not enough evidence' %></td>
+        <td><%= r.indicator.score === null ? '—' : r.indicator.score %></td></tr><% }); %></tbody>
+    </table></div><% } %>
+  </div>
+<% } else { %>
+  <div class="kpi-grid mt-24">
+    <div class="card kpi"><p class="value"><%= detail.assigned %></p><p class="label">Assigned</p></div>
+    <div class="card kpi"><p class="value"><%= detail.completed %></p><p class="label">Completed</p></div>
+    <div class="card kpi"><p class="value"><%= detail.passRate === null ? '—' : detail.passRate + '%' %></p><p class="label">Pass rate</p></div>
+    <div class="card kpi"><p class="value"><%= detail.averageAttempts === null ? '—' : detail.averageAttempts %></p><p class="label">Average attempts</p></div>
+    <div class="card kpi"><p class="value"><%= detail.averageScore === null ? '—' : detail.averageScore + '%' %></p><p class="label">Average score</p></div>
+    <div class="card kpi"><p class="value"><%= detail.retakeRate === null ? '—' : detail.retakeRate + '%' %></p><p class="label">Retake rate</p></div>
+  </div>
+
+  <div class="card mt-24">
+    <div class="card-header"><h2>Observed skill change after training</h2><p>Skills targeted: <%= detail.skills.length ? detail.skills.join(', ') : 'none mapped (the training has no approved skill analysis)' %></p></div>
+    <div class="card-body">
+      <% if (!detail.observed.enough) { %>
+        <p class="dna-empty">Not enough evidence yet: <%= detail.observed.pairs %> paired observation<%= detail.observed.pairs === 1 ? '' : 's' %> (at least <%= detail.observed.minimum %> are needed). A "before" score exists only for people who were assessed on the skill before this was assigned.</p>
+      <% } else { %>
+        <div class="kpi-grid">
+          <div class="card kpi"><p class="value"><%= detail.observed.before %>%</p><p class="label">Before training</p></div>
+          <div class="card kpi"><p class="value"><%= detail.observed.after %>%</p><p class="label">Immediately after</p></div>
+          <div class="card kpi"><p class="value"><%= detail.observed.later === null ? '—' : detail.observed.later + '%' %></p><p class="label"><%= detail.observed.later === null ? 'Later: not enough data yet' : '30 days later' %></p></div>
+          <div class="card kpi"><p class="value"><%= (detail.observed.change >= 0 ? '+' : '') + detail.observed.change %></p><p class="label">percentage points observed</p></div>
+        </div>
+        <p class="text-sm text-muted mt-16">Based on <%= detail.observed.pairs %> observations from <%= detail.observed.people %> people. Other practice, coaching and real calls happened in the same period, so this is an observed change, not proof of cause.</p>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="card mt-24" style="margin-bottom:40px">
+    <div class="card-header"><h2>Effectiveness indicator: <%= detail.indicator.score === null ? '—' : detail.indicator.score + ' / 100' %></h2><p><%= detail.indicator.disclaimer %></p></div>
+    <div class="table-wrap"><table><thead><tr><th>Part</th><th>Value</th><th>Weight used</th><th>How it is scored</th></tr></thead><tbody>
+      <% detail.indicator.parts.forEach(function (p) { %><tr><td><%= p.label %></td><td><%= p.value === null ? 'no data' : Math.round(p.value) %></td><td><%= p.used ? p.effectiveWeight + '%' : 'left out' %></td><td class="text-sm text-muted"><%= p.note || '' %></td></tr><% }); %>
+    </tbody></table></div>
+    <% if (detail.indicator.reason) { %><div class="card-body"><p class="text-sm text-muted"><%= detail.indicator.reason %></p></div><% } %>
+  </div>
+<% } %>

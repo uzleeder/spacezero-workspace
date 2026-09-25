@@ -1,0 +1,5 @@
+<%# One readiness status. Text always says it; colour only reinforces. Reasons are shown as a tooltip and, when `showReasons` is set, underneath. %>
+<% if (typeof readiness !== 'undefined' && readiness) { %>
+  <span class="badge <%= readiness.tone %>" title="<%= readiness.reasons.join('; ') %>"><%= readiness.label %></span>
+  <% if (typeof showReasons !== 'undefined' && showReasons && readiness.reasons.length) { %><p class="text-sm text-muted" style="margin-top:4px"><%= readiness.reasons.join(' · ') %></p><% } %>
+<% } else { %><span class="text-sm text-muted">—</span><% } %>

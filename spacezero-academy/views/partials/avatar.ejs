@@ -1,0 +1,27 @@
+<%
+// Shared avatar renderer: an uploaded photo always wins; otherwise Admins
+// and Supervisors get the staff "9" mark, everyone else gets their initials.
+// profile: { fullName, role, photoUrl }. size: 'sm' | 'md' | 'lg' (default 'sm').
+// identify: true colours the initials circle by a per-person hue (an easy way to tell rows
+// apart in a list) instead of the flat staff navy — opt-in, so it never changes the topbar,
+// sidebar or profile-header avatars that already work today.
+const p = profile;
+const sizeClass = typeof size !== 'undefined' ? size : 'sm';
+const initials = p.fullName.split(' ').slice(0, 2).map(function (w) { return w[0]; }).join('').toUpperCase();
+const isStaff = p.role === 'ADMIN' || p.role === 'SUPERVISOR';
+const AVATAR_HUES = ['rose', 'apricot', 'sand', 'mint', 'teal', 'sky', 'lilac', 'orchid'];
+function avatarHue(id) { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return AVATAR_HUES[h % AVATAR_HUES.length]; }
+const hueClass = (typeof identify !== 'undefined' && identify && !isStaff && !p.photoUrl) ? ' avatar-hue-' + avatarHue(p.id) : '';
+%>
+<% if (p.photoUrl) { %>
+  <img src="<%= p.photoUrl %>" alt="<%= p.fullName %>" class="avatar avatar-<%= sizeClass %>" style="object-fit:cover" />
+<% } else if (isStaff) { %>
+  <div class="avatar avatar-<%= sizeClass %> avatar-staff" role="img" aria-label="<%= p.fullName %>">
+    <svg viewBox="0 0 100 100" class="avatar-staff-mark" aria-hidden="true">
+      <line x1="8" y1="56" x2="44" y2="56" stroke="currentColor" stroke-width="10" stroke-linecap="square" />
+      <text x="48" y="80" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="72" fill="currentColor">9</text>
+    </svg>
+  </div>
+<% } else { %>
+  <div class="avatar avatar-<%= sizeClass %><%= hueClass %>"><%= initials %></div>
+<% } %>

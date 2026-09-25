@@ -1,0 +1,26 @@
+<%
+const sentNow = st.key === 'SENT';
+const sameView = st.primary && !st.primary.post && (st.primary.href === '/ai-practice/' + course.id + '?step=' + step); // the button would only reload this page
+const action = st.primary && !sameView ? (st.primary.post
+  ? '<form method="post" action="' + st.primary.href + '" data-once style="display:inline"><button class="btn btn-gold">' + st.primary.label + '</button></form>'
+  : '<a class="btn btn-gold" href="' + st.primary.href + '">' + st.primary.label + '</a>') : '';
+%>
+<%- include('../partials/page-header', { pageTitle: course.title, pageDescription: st.note || '', headerAction: action }) %>
+<div style="margin-bottom:12px"><a href="/ai-practice" class="text-sm link-gold">← AI Practice</a></div>
+
+<% if (notice) { %><div class="form-alert success mt-16" role="status"><%= notice %></div><% } %>
+<% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
+<% if (autoRefresh) { %><div data-autorefresh hidden></div><% } %>
+
+<%- include('../partials/ai-steps', { steps: steps, current: st.step, viewing: step, id: course.id, failed: st.key === 'FAILED' }) %>
+<p style="margin:10px 0 0"><span class="badge <%= st.tone %>"><%= st.label %></span>
+  <% if (course.publishedVersion) { %><span class="badge badge-success" style="margin-left:6px">In Training: version <%= course.publishedVersion %></span><% } %>
+  <% if (!editable) { %><span class="text-sm text-muted" style="margin-left:8px">This version is in Training and cannot be edited in place.</span><% } %></p>
+
+<% if (step === 'source') { %>   <%- include('detail-source') %>
+<% } else if (step === 'analysis') { %> <%- include('detail-analysis') %>
+<% } else if (step === 'practice') { %> <%- include('detail-practice') %>
+<% } else if (step === 'review') { %> <%- include('detail-review') %>
+<% } else { %> <%- include('detail-training') %>
+<% } %>
+<script src="/static/js/ai-practice.js" defer></script>

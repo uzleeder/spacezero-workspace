@@ -1,0 +1,38 @@
+<%- include('../partials/page-header', { pageTitle: 'Send to Training', pageDescription: course.title }) %>
+<div style="margin-bottom:12px"><a href="/ai-practice/<%= course.id %>?step=review" class="text-sm link-gold">← Back</a></div>
+<% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
+<% if (blocker) { %><div class="form-alert error mt-16" role="alert"><%= blocker %> <a class="link-gold" href="/ai-practice/<%= course.id %>?step=review">Go to review</a></div><% } %>
+
+<div class="card mt-24"><div class="card-header"><h2>What goes to Training</h2><p>The approved package is sent as it is — you do not rebuild anything in Training.</p></div>
+  <div class="card-body">
+    <ul style="margin:0;padding-left:18px">
+      <li>Version <strong>v<%= course.draftVersion %></strong> of the practice package</li>
+      <li><%= components.length %> practice component<%= components.length === 1 ? '' : 's' %>: <%= components.map(function (c) { return c.title; }).join(' • ') %></li>
+      <li><%= course.modules.length %> source item<%= course.modules.length === 1 ? '' : 's' %> stay linked as the learning material</li>
+      <% if (skills.length) { %><li>Skills measured: <%= skills.join(', ') %></li><% } %>
+      <li>Approval details and a link back to this source</li>
+    </ul>
+  </div>
+</div>
+
+<div class="card mt-16"><div class="card-header"><h2>Training details</h2><p>Sensible defaults are filled in. Assigning still happens in Training.</p></div>
+  <div class="card-body">
+    <form method="post" action="/ai-practice/<%= course.id %>/send" data-once>
+      <div class="grid grid-2">
+        <div class="field"><label for="title">Title</label><input id="title" name="title" value="<%= course.title %>" maxlength="160" required /></div>
+        <div class="field"><label for="durationMinutes">Estimated duration (minutes)</label><input id="durationMinutes" name="durationMinutes" type="number" min="1" max="999" value="<%= minutes %>" /></div>
+      </div>
+      <div class="field mt-16"><label for="description">Description</label><textarea id="description" name="description" rows="3"><%= course.description || '' %></textarea></div>
+      <div class="grid grid-2 mt-16">
+        <div class="field"><label for="passingScore">Passing score (%)</label><input id="passingScore" name="passingScore" type="number" min="<%= minPassingScore %>" max="100" value="<%= Math.max(course.passingScore, minPassingScore) %>" required /><p class="hint">Organization minimum: <%= minPassingScore %>%.</p></div>
+        <div class="field"><label for="roleKey">Intended for</label>
+          <select id="roleKey" name="roleKey"><option value="">Everyone appropriate</option><% ['TRAVEL_AGENT', 'FLIGHT_EXPERT', 'SUPERVISOR'].forEach(function (r) { %><option value="<%= r %>" <%= suggestedRole === r ? 'selected' : '' %>><%= roleLabel(r) %></option><% }); %></select></div>
+      </div>
+      <label class="checkbox-row mt-16"><input type="checkbox" name="mandatory" value="1" <%= course.mandatory ? 'checked' : '' %> /> Mandatory training</label>
+      <label class="checkbox-row mt-16"><input type="checkbox" name="onboarding" value="1" <%= course.onboardingForNewHires ? 'checked' : '' %> /> Assign automatically to new employees of the role above as onboarding training</label>
+      <button class="btn btn-gold mt-24" <%= blocker ? 'disabled' : '' %>>Send to Training</button>
+      <a href="/ai-practice/<%= course.id %>?step=review" class="btn btn-secondary mt-24">Cancel</a>
+    </form>
+  </div>
+</div>
+<script src="/static/js/ai-practice.js" defer></script>
