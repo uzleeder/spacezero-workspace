@@ -1,0 +1,48 @@
+name: spacezero-academy-legacy
+
+volumes:
+  academy_legacy_db:
+  academy_legacy_storage:
+  academy_legacy_uploads:
+
+services:
+  migrate:
+    build: { context: ., dockerfile: Dockerfile }
+    env_file: .env
+    command: ["npm", "run", "db:migrate:production"]
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+
+  seed:
+    build: { context: ., dockerfile: Dockerfile }
+    env_file: .env
+    command: ["npm", "run", "db:seed"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    restart: "no"
+
+  app:
+    build: { context: ., dockerfile: Dockerfile }
+    env_file: .env
+    volumes:
+      - academy_legacy_storage:/data/storage
+      - academy_legacy_uploads:/data/uploads
+    ports:
+      # Existing LMS deployments use 3000 and 3001; Django Academy uses 3002.
+      - "3003:3000"
+    depends_on:
+      seed: { condition: service_completed_successfully }
+    restart: always
+
+  db:
+    image: postgres:16-alpine
+    env_file: .env.db
+    volumes:
+      - academy_legacy_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: always
