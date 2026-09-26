@@ -10,7 +10,10 @@ function requestSecurity(req, res, next) {
   if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
     const origin = req.get('origin');
     const expected = process.env.APP_ORIGIN || 'http://localhost:3000';
-    const sameOriginOpaque = origin === 'null' && req.get('sec-fetch-site') === 'same-origin';
+    // Browsers can submit a normal form with an opaque `null` origin when the
+    // page was opened from a sandboxed/opaque context. Permit that only in the
+    // temporary development deployment; production must provide a real origin.
+    const sameOriginOpaque = origin === 'null' && (process.env.NODE_ENV !== 'production' || req.get('sec-fetch-site') === 'same-origin');
     const originMatches = origin === expected;
     const crossSite = req.get('sec-fetch-site') === 'cross-site' && !originMatches;
     if (crossSite || (origin && !originMatches && !sameOriginOpaque) || (process.env.NODE_ENV === 'production' && !origin && req.get('sec-fetch-site') !== 'same-origin')) {
