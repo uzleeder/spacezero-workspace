@@ -1,0 +1,14 @@
+<div class="card" style="padding:12px;margin-bottom:8px" data-repeater-item>
+  <div class="row-between" style="gap:8px;align-items:flex-start">
+    <select name="blockType" data-block-type style="min-width:160px">
+      <% Object.keys(BLOCK_TYPES).forEach(function (t) { %><option value="<%= t %>" <%= b.type === t ? 'selected' : '' %>><%= BLOCK_TYPES[t] %></option><% }); %>
+    </select>
+    <div style="display:flex;gap:4px">
+      <button type="button" class="btn btn-secondary btn-sm" data-move-up title="Move up">↑</button>
+      <button type="button" class="btn btn-secondary btn-sm" data-move-down title="Move down">↓</button>
+      <button type="button" class="btn btn-secondary btn-sm" data-remove title="Remove">✕</button>
+    </div>
+  </div>
+  <div class="field mt-8" data-block-text-field><textarea name="blockText" rows="2" maxlength="4000" placeholder="Text — use **bold** for emphasis"><%= b.text || '' %></textarea></div>
+  <div class="field mt-8" data-block-items-field><textarea name="blockItems" rows="3" maxlength="4000" placeholder="One item per line"><%= (b.items || []).join('\n') %></textarea></div>
+</div>

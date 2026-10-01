@@ -7,6 +7,7 @@ const { prisma } = require('./prisma');
 const { loadLearning } = require('./teamIntel');
 
 const { KEYS: READINESS_KEYS } = require('./readiness');
+const { passportStatus: computePassportStatus, STATUS: PASSPORT_STATUS } = require('./passport');
 const TRAINING_STATUSES = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'RETAKE_REQUIRED'];
 const str = (v) => (typeof v === 'string' ? v.trim() : '');
 const num = (v) => { const n = Number(str(v)); return str(v) !== '' && Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : null; };
@@ -25,6 +26,7 @@ function parseFilters(query) {
     startFrom: str(query.startFrom),
     startTo: str(query.startTo),
     readiness: READINESS_KEYS.includes(str(query.readiness)) ? str(query.readiness) : '',
+    passportStatus: Object.values(PASSPORT_STATUS).includes(str(query.passportStatus)) ? str(query.passportStatus) : '',
   };
 }
 
@@ -60,6 +62,10 @@ async function applyLearningFilters(profiles, f, now = new Date()) {
 /** Keeps only the people whose readiness status was asked for (readiness is computed by the caller). */
 const byReadiness = (profiles, map, f) => (f.readiness ? profiles.filter((p) => map.get(p.id) && map.get(p.id).key === f.readiness) : profiles);
 
-const isActive = (f) => Boolean(f.readiness || f.skillId || f.min !== null || f.max !== null || f.trainingStatus || f.retake || f.overdue || f.startFrom || f.startTo);
+// Passport status needs no decryption — it is derived purely from the plaintext expiration date,
+// so it can be computed cheaply for a whole list without ever touching the encrypted number.
+const byPassportStatus = (profiles, f, now = new Date()) => (f.passportStatus ? profiles.filter((p) => computePassportStatus(p.passportExpiresAt, now) === f.passportStatus) : profiles);
 
-module.exports = { parseFilters, whereFor, applyLearningFilters, byReadiness, isActive, TRAINING_STATUSES };
+const isActive = (f) => Boolean(f.readiness || f.skillId || f.min !== null || f.max !== null || f.trainingStatus || f.retake || f.overdue || f.startFrom || f.startTo || f.passportStatus);
+
+module.exports = { parseFilters, whereFor, applyLearningFilters, byReadiness, byPassportStatus, isActive, TRAINING_STATUSES };

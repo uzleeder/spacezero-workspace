@@ -1,21 +1,7 @@
-<%- include('../partials/page-header', { pageTitle: 'Policies', pageDescription: 'Organization-wide rules for credentials, vacation and training permissions.' }) %>
-<%- include('../partials/management-tabs', { tabs: tabsets.settings }) %>
+<% const fieldValue = (name, fallback) => typeof values !== "undefined" && typeof values[name] === "string" ? values[name] : fallback; %>
+<%- include('../partials/advanced-page-header', { sectionLabel: 'Training Configuration', pageTitle: 'Training Configuration', pageDescription: 'Organization-wide Training and Skill Graph rules. Everyday access & approval policies moved to Settings → Security.' }) %>
 
-<% if (saved) { %><div class="form-alert success mt-16">Policies saved.</div><% } %>
-
-<div class="card mt-24">
-  <div class="card-header"><h2>Access &amp; approval policies</h2></div>
-  <div class="card-body">
-    <form method="post" action="/admin/policies">
-      <% policies.forEach(function (p) { %>
-        <div class="field" style="margin-bottom:20px">
-          <label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" name="<%= p.key %>" value="1" <%= p.value ? 'checked' : '' %> style="margin-top:4px" /> <span><strong><%= p.label %></strong><br><span class="text-sm text-muted"><%= p.help %></span></span></label>
-        </div>
-      <% }); %>
-      <button type="submit" class="btn btn-gold">Save policies</button>
-    </form>
-  </div>
-</div>
+<% if (saved) { %><div class="form-alert success mt-16">Changes saved.</div><% } %>
 
 <% if (typeof purged !== 'undefined' && purged !== null) { %><div class="form-alert success mt-16">Removed <%= purged %> expired call batch<%= purged === 1 ? '' : 'es' %>.</div><% } %>
 <% if (typeof error !== 'undefined' && error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
@@ -23,36 +9,41 @@
 <div class="card mt-24">
   <div class="card-header"><h2>Training, calls &amp; Skill Graph scoring</h2><p>How AI-generated practice is graded, how long customer calls are kept, and how evidence becomes a skill score.</p></div>
   <div class="card-body">
-    <form method="post" action="/admin/policies/ai">
+    <form method="post" action="/admin/policies/ai" onsubmit="return confirm('Apply these organization-wide training, retention and scoring rules? Scoring changes recalculate skill scores from existing evidence.')">
       <div class="grid grid-2">
-        <div class="field"><label for="minPassingScore">Lowest passing score for mandatory training (%)</label><input id="minPassingScore" name="minPassingScore" type="number" min="50" max="100" value="<%= minPassingScore %>" required /><p class="hint">A course may raise its own threshold, never go below this.</p></div>
-        <div class="field"><label for="retentionDays">Keep customer calls for (days)</label><input id="retentionDays" name="retentionDays" type="number" min="0" max="3650" value="<%= retentionDays %>" /><p class="hint">0 keeps them until an Admin deletes them. Finished batches older than this are deleted automatically (recordings, transcripts and analysis).</p></div>
-      </div>
-      <p class="label mt-16">Evidence weight by source</p>
-      <div class="grid grid-4">
-        <% SOURCE_KEYS.forEach(function (k) { %><div class="field"><label for="source_<%= k %>"><%= k.replace('_', ' ').toLowerCase() %></label><input id="source_<%= k %>" name="source_<%= k %>" type="number" step="0.05" min="0.1" max="3" value="<%= scoring.sourceWeights[k] %>" required /></div><% }); %>
-      </div>
-      <p class="label mt-16">Evidence weight by difficulty level</p>
-      <div class="grid grid-4">
-        <% [1, 2, 3, 4, 5].forEach(function (k) { %><div class="field"><label for="difficulty_<%= k %>">Level <%= k %></label><input id="difficulty_<%= k %>" name="difficulty_<%= k %>" type="number" step="0.05" min="0.1" max="3" value="<%= scoring.difficultyWeights[k] %>" required /></div><% }); %>
-        <div class="field"><label for="halfLifeDays">Recency half-life (days)</label><input id="halfLifeDays" name="halfLifeDays" type="number" min="7" max="730" value="<%= scoring.halfLifeDays %>" required /></div>
-      </div>
-      <p class="label mt-16">Reliability by kind of evidence</p>
-      <div class="grid grid-4">
-        <% TYPE_KEYS.forEach(function (k) { %><div class="field"><label for="type_<%= k %>"><%= k.replace('_', ' ').toLowerCase() %></label><input id="type_<%= k %>" name="type_<%= k %>" type="number" step="0.05" min="0.1" max="3" value="<%= scoring.typeWeights[k] %>" required /></div><% }); %>
-      </div>
-      <p class="label mt-16">Skill status bands (lowest band must start at 0)</p>
-      <div class="grid grid-4">
-        <% statusBands.forEach(function (b, i) { %><div class="field"><label for="band_label_<%= i %>">From</label><div style="display:flex;gap:6px"><input id="band_min_<%= i %>" name="band_min_<%= i %>" type="number" min="0" max="100" value="<%= b.min %>" style="width:64px" required /><input id="band_label_<%= i %>" name="band_label_<%= i %>" value="<%= b.label %>" maxlength="30" required /></div><input type="hidden" name="band_tone_<%= i %>" value="<%= b.tone || '' %>" /></div><% }); %>
+        <div class="field"><label for="minPassingScore">Lowest passing score for mandatory training (%)</label><input id="minPassingScore" name="minPassingScore" type="number" min="50" max="100" value="<%= fieldValue('minPassingScore', minPassingScore) %>" required /><p class="hint">A course may raise its own threshold, never go below this.</p></div>
+        <div class="field"><label for="retentionDays">Keep customer calls for (days)</label><input id="retentionDays" name="retentionDays" type="number" min="0" max="3650" value="<%= fieldValue('retentionDays', retentionDays) %>" /><p class="hint">0 keeps them until an Admin deletes them. Finished batches older than this are deleted automatically (recordings, transcripts and analysis).</p></div>
       </div>
       <p class="label mt-16">Follow-up and reminders</p>
       <div class="grid grid-3">
-        <div class="field"><label for="retentionSchedule">Follow-up days after training (comma separated)</label><input id="retentionSchedule" name="retentionSchedule" value="<%= retentionSchedule.join(', ') %>" /></div>
-        <div class="field"><label for="declinePoints">A drop of this many points counts as a decline</label><input id="declinePoints" name="declinePoints" type="number" min="3" max="50" value="<%= declinePoints %>" /></div>
-        <div class="field"><label for="dueSoonDays">"Due soon" reminder window (days)</label><input id="dueSoonDays" name="dueSoonDays" type="number" min="1" max="30" value="<%= dueSoonDays %>" /></div>
+        <div class="field"><label for="retentionSchedule">Follow-up days after training (comma separated)</label><input id="retentionSchedule" name="retentionSchedule" value="<%= fieldValue('retentionSchedule', retentionSchedule.join(', ')) %>" /></div>
+        <div class="field"><label for="declinePoints">A drop of this many points counts as a decline</label><input id="declinePoints" name="declinePoints" type="number" min="3" max="50" value="<%= fieldValue('declinePoints', declinePoints) %>" /></div>
+        <div class="field"><label for="dueSoonDays">"Due soon" reminder window (days)</label><input id="dueSoonDays" name="dueSoonDays" type="number" min="1" max="30" value="<%= fieldValue('dueSoonDays', dueSoonDays) %>" /></div>
       </div>
-      <p class="hint mt-16">A skill score is the weighted average of all its evidence: weight = source × difficulty × recency. Practical evidence (role-play, real calls) counts more than recall, and newer evidence counts more than old.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px"><button type="submit" class="btn btn-gold">Save</button></div>
+
+      <details class="mt-24" <%= error ? 'open' : '' %>>
+        <summary class="text-sm link-gold" style="cursor:pointer;font-weight:500">Advanced scoring options</summary>
+        <p class="text-sm text-muted mt-8">A skill score is the weighted average of all its evidence: weight = source × difficulty × recency. Practical evidence (role-play, real calls) counts more than recall, and newer evidence counts more than old. Most organizations never need to change these.</p>
+        <p class="label mt-16">Evidence weight by source</p>
+        <div class="grid grid-4">
+          <% SOURCE_KEYS.forEach(function (k) { %><div class="field"><label for="source_<%= k %>"><%= k.replace('_', ' ').toLowerCase() %></label><input id="source_<%= k %>" name="source_<%= k %>" type="number" step="0.05" min="0.1" max="3" value="<%= fieldValue('source_' + k, scoring.sourceWeights[k]) %>" required /></div><% }); %>
+        </div>
+        <p class="label mt-16">Evidence weight by difficulty level</p>
+        <div class="grid grid-4">
+          <% [1, 2, 3, 4, 5].forEach(function (k) { %><div class="field"><label for="difficulty_<%= k %>">Level <%= k %></label><input id="difficulty_<%= k %>" name="difficulty_<%= k %>" type="number" step="0.05" min="0.1" max="3" value="<%= fieldValue('difficulty_' + k, scoring.difficultyWeights[k]) %>" required /></div><% }); %>
+          <div class="field"><label for="halfLifeDays">Recency half-life (days)</label><input id="halfLifeDays" name="halfLifeDays" type="number" min="7" max="730" value="<%= fieldValue('halfLifeDays', scoring.halfLifeDays) %>" required /></div>
+        </div>
+        <p class="label mt-16">Reliability by kind of evidence</p>
+        <div class="grid grid-4">
+          <% TYPE_KEYS.forEach(function (k) { %><div class="field"><label for="type_<%= k %>"><%= k.replace('_', ' ').toLowerCase() %></label><input id="type_<%= k %>" name="type_<%= k %>" type="number" step="0.05" min="0.1" max="3" value="<%= fieldValue('type_' + k, scoring.typeWeights[k]) %>" required /></div><% }); %>
+        </div>
+        <p class="label mt-16">Skill status bands (lowest band must start at 0)</p>
+        <div class="grid grid-4">
+          <% statusBands.forEach(function (b, i) { %><div class="field"><label for="band_label_<%= i %>">From</label><div style="display:flex;gap:6px"><input id="band_min_<%= i %>" name="band_min_<%= i %>" type="number" min="0" max="100" value="<%= fieldValue('band_min_' + i, b.min) %>" style="width:64px" required /><input id="band_label_<%= i %>" name="band_label_<%= i %>" value="<%= fieldValue('band_label_' + i, b.label) %>" maxlength="30" required /></div><input type="hidden" name="band_tone_<%= i %>" value="<%= fieldValue('band_tone_' + i, b.tone || '') %>" /></div><% }); %>
+        </div>
+      </details>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px"><button type="submit" class="btn btn-gold">Save Changes</button></div>
     </form>
     <form method="post" action="/admin/policies/purge-calls" class="mt-16" onsubmit="return confirm('Delete every finished call batch older than the retention period now?')"><button type="submit" class="btn btn-secondary btn-sm" <%= retentionDays ? '' : 'disabled' %>>Remove expired calls now</button></form>
   </div>

@@ -1,0 +1,169 @@
+Hello Ali,
+
+Here is the SpaceZero Academy user and administrator guide in English, replacing the Uzbek version sent earlier. It describes the current project as of September 29, 2026. Available pages and actions depend on your role, permissions and assigned records.
+
+Platform address: https://workspace.spacezero.uz
+
+1. WHAT SPACEZERO IS FOR
+
+SpaceZero is Above9 Travel’s internal platform for preparing employees, developing practical skills and verifying learning outcomes.
+
+The workflow is: TRAIN → PRACTICE → VERIFY → IDENTIFY WEAKNESSES → RETRAIN → IMPROVE.
+
+Watching a lesson is not the same as demonstrating competence. Setup tracks operational readiness; training tracks assigned learning; Skill Graph tracks evidence of skills. These are separate measures.
+
+2. ACCOUNTS, ACTIVATION AND SIGN-IN
+
+An administrator creates an employee through Employees & Teams → Add employee, entering their name, username, email, role, employment start date and applicable team/supervisor details.
+
+The employee opens their invitation email and creates their own password. Invitation links are single-use and expire after 24 hours. Sign-in uses a username or email, password and company code supplied by the organization’s administrator. Passwords must contain at least six characters.
+
+Forgot your password? starts the reset flow. Reset links are single-use and expire after one hour. An administrator can resend an expired invitation. Invite all pending handles employees who have not activated; its behavior depends on the configured email service.
+
+Active, invited, disabled and archived account states affect access. Creating a profile does not by itself complete activation.
+
+3. USER ROLES
+
+Administrator: manages the organization’s employees, teams, training, AI Practice, library and configuration.
+
+Supervisor: works within their assigned employee/team scope. Access does not extend automatically to another supervisor’s employees. Setup management also requires explicit administrator-granted capabilities.
+
+Travel Agent: completes their assigned training and practice, manages their own setup, and follows their results and skills.
+
+Flight Expert: follows training and skills relevant to technical flight operations and aviation knowledge, alongside their own setup and progress.
+
+Administrators and supervisors can also receive training. A role does not grant unrestricted access to every record or secret.
+
+4. DASHBOARD AND NAVIGATION
+
+Dashboard provides an overview of assigned, in-progress, completed and retake-required training, together with relevant items needing attention.
+
+Main navigation includes Dashboard, My Training and Library. AI Practice is available to administrators. Management navigation includes Employees & Teams, Training, and Settings & Security as appropriate to the role. Company Standards & Workflow and SpaceZero AI have separate entries.
+
+The account menu provides access to profile, personal setup, leave and account-related pages. Light and dark themes are available. The introductory 0–100% animation shown on refresh is a visual loading introduction, not a training completion score.
+
+5. EMPLOYEES & TEAMS
+
+Administrators can search and filter employees by role, employment status, team, supervisor, setup state and missing requirements. Search controls and column headings remain visible while scrolling.
+
+An employee record contains Overview, Setup, Training, Skills, Vacation / Leave, Activity and, where authorized, Credentials. Management actions include editing employee details, changing roles or assignments, disabling/reactivating accounts and archiving records.
+
+Team membership and supervisor assignments determine scope. Merely selecting a supervisor role does not assign employees to that supervisor.
+
+Download Excel exports all employees visible to the administrator, independently of current list filters. Employees and Admins appear on separate worksheets with name, username, role and a separately supplied export-password field. The Admins worksheet also includes the agreed administrator-associated test profiles.
+
+Stored account passwords are hashed and cannot be recovered from those hashes. Export-password entries are only values supplied separately for export; the file does not verify that they remain valid sign-in passwords. Missing values remain blank. This guide includes no passwords or employee spreadsheet attachment.
+
+6. EMPLOYEE SETUP
+
+There is one authoritative setup flow. Employees see requirements applicable to their role, such as equipment, system access and communication tools. Administrators configure these requirements dynamically.
+
+Employee workflow:
+• Select I Have or I Don’t Have for relevant items.
+• For I Don’t Have, enter a short explanation of what is missing.
+• Make several changes, then select Save Changes once.
+
+I Have does not automatically mean management approval. Employee-confirmation requirements may complete immediately; management-verification requirements wait for approval. Management-only and automatically calculated requirements cannot simply be self-confirmed into completion.
+
+Administrators use a compact checklist for common changes. The ••• control opens advanced status and notes. Company-controlled accounts, calculated requirements and exception states may need additional detail. Existing notes, verification history and exceptions should be preserved.
+
+Settings & Security → Setup requirements lets administrators create, edit and archive requirements; configure categories, required/optional status, applicable roles and verification rules; and maintain multiple separate GDS or system-access requirements. Archiving a requirement is not the same as deleting its history.
+
+7. SUPERVISOR SETUP PERMISSIONS
+
+Go to Settings & Security → Supervisor permissions and select a supervisor.
+
+The current dedicated capabilities are:
+• View Team Setup: view setup records for their authorized team.
+• Manage Team Setup: update checklist items and advanced details.
+• Verify Team Setup: approve items that require management verification.
+
+Select the necessary combination and save. Full setup management may require all three capabilities. Revoking a capability affects subsequent requests; opening a page must not recreate revoked access.
+
+Capabilities do not expand team scope. Supervisors cannot grant themselves permissions or change global setup requirements. The dedicated permissions screen currently covers Setup. Training, Skills and Leave still use their existing role, team and policy checks; do not assume that a complete new permissions builder for all management functions has been delivered.
+
+8. MY TRAINING AND TRAINING MANAGEMENT
+
+My Training is the employee’s learning area. Open assigned courses, review materials, complete required practice and assessments, and track progress or required retakes.
+
+Required video/audio may need to be played through before practice unlocks. Opening a page alone does not satisfy every course requirement. Passing depends on the course’s score threshold, required attempts and assessment rules.
+
+The management Training section provides the approved catalog and assignment workflow. Depending on course permissions and management scope, training can be assigned to employees, teams or eligible groups. My Training is where recipients complete those assignments.
+
+9. AI PRACTICE: FROM MATERIAL TO MEASURABLE PRACTICE
+
+AI Practice is the administrator’s creation workspace, separate from an employee’s assigned learning list.
+
+Typical workflow:
+1. Use Upload Material to add supported calls, video, audio, documents or other source materials.
+2. Open the material and initiate analysis. Uploading alone does not mean all processing has finished.
+3. Review the findings, source references, knowledge and skill mapping.
+4. Generate appropriate practice, such as questions, scenarios, role-play or process exercises.
+5. Review the content and expected outcomes; edit or regenerate where necessary.
+6. Approve and use Send to Training to move the package into the training workflow.
+7. Assign it and monitor attempts and results.
+
+AI output does not replace administrator review. Check weak or unsupported conclusions against the source. Processing depends on file size, AI service availability and background workers. Raw calls do not automatically become shared Library content.
+
+10. SKILL GRAPH / SKILL DNA
+
+Skill Graph focuses on competence rather than course count. It uses assessment evidence, confidence, history and available results to describe strengths and weaknesses. A high percentage with little supporting evidence should not be treated as firmly established mastery.
+
+Travel Agents and Flight Experts have different relevant skill areas. Examples include discovery and objection handling for sales, and fare rules or routing for technical work.
+
+A useful management cycle is: identify a weak skill → choose relevant practice → review the result → follow new evidence and progress. Intelligence, Development and Certifications provide related management views where configured and supported by data. Empty or insufficient data should not be interpreted as a completed evaluation.
+
+11. LIBRARY, NOTES AND COMPANY STANDARDS
+
+Library is for reference knowledge and revisiting useful materials. Search, categories and selected/favorite materials help users find relevant information. Viewing a Library item does not automatically complete mandatory training. Viewing and downloading depend on the applicable role and permissions.
+
+Notes provides personal notes for applicable learner roles. It is separate from official company policy content.
+
+Company Standards & Workflow contains company principles, responsibilities and operational processes. Search and Quick Reference help locate everyday guidance. Administrators maintain content through Manage. Where acknowledgement is required, users confirm they have read it and management can follow acknowledgement status.
+
+12. SPACEZERO AI ASSISTANT
+
+SpaceZero AI answers questions about information already inside the platform. Examples:
+• Who isn’t fully set up?
+• Which employees have unresolved setup issues?
+• Who has overdue training?
+• Who needs a retake?
+• Which employees haven’t acknowledged required standards?
+• What requires my attention today?
+
+The assistant is read-only: asking a question does not change roles, assignments or setup records. Its answers are scoped to authorized information. If there is insufficient data, it should say that a reliable answer could not be found.
+
+SpaceZero AI retrieves and explains operational information. AI Practice creates training/practice material. These are different functions.
+
+13. LEAVE, CREDENTIALS, NOTIFICATIONS AND AUDIT
+
+Vacation / Leave lets employees submit requests and authorized management review them under existing policies. Final approval authority depends on configuration.
+
+Credentials is a separate protected vault for work-system credentials, not a page for viewing an employee’s platform login password. Record access and secret-reveal checks are separate.
+
+Notifications surfaces relevant tasks and events. Security & Audit records important management and permission actions without serving as a repository for passwords.
+
+View as provides an administrator role-preview/test workflow where available. It does not remove underlying security restrictions or grant unlimited access to sensitive data.
+
+14. RECOMMENDED ADMINISTRATOR ROUTINE
+
+Initial preparation:
+Check employee records and roles → assign teams/supervisors → configure setup requirements → grant necessary supervisor setup capabilities → send invitations → monitor activation and setup.
+
+Training cycle:
+Prepare material → analyze and generate practice in AI Practice → administrator review → Send to Training → assign → review results and retakes → monitor skill development.
+
+Daily review:
+Check incomplete setup, open issues, overdue training, retakes, leave requests and outstanding required-standard acknowledgements. Resolve the underlying record or assignment rather than treating a dashboard indicator as a standalone task.
+
+15. EMAIL AND DEPLOYMENT STATUS
+
+Account email is configured through Resend with SpaceZero Academy <noreply@spacezero.uz> as sender. Activation and reset links point to https://workspace.spacezero.uz. Provider acceptance and inbox delivery are separate stages; check Spam and delivery status when needed.
+
+This guide is not confirmation that the public domain, database, storage and background AI processing have all passed final production verification. localhost refers to the development server on the local computer. Before broad employee rollout, verify sign-in, activation, private materials and background processing on the public domain itself.
+
+The separate downloadable HTML demo is for presenting the design and sample interactions. It contains sample data and is not the live authenticated platform.
+
+Best regards,
+SpaceZero Academy
+Crafted by UZLEEDER

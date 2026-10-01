@@ -1,0 +1,16 @@
+<%
+  // Shared header for every page inside Settings → Advanced: a short breadcrumb plus a single
+  // "back to Advanced Settings" link, replacing the old page-wide horizontal tab strip
+  // (lib/navTabs.js#settingsTabs) as the primary way to navigate this area. The Admin always sees
+  // where they are and how to get back; the destination itself is unchanged.
+  const advancedHref = '/admin/settings?tab=advanced';
+%>
+<div class="breadcrumb advanced-crumb">
+  <a href="/admin/settings">Settings</a>
+  <span aria-hidden="true">/</span>
+  <a href="<%= advancedHref %>">Advanced</a>
+  <span aria-hidden="true">/</span>
+  <strong><%= sectionLabel %></strong>
+</div>
+<a href="<%= advancedHref %>" class="link-gold text-sm advanced-back-link">← Advanced Settings</a>
+<%- include('page-header', { pageTitle: pageTitle, pageDescription: typeof pageDescription !== 'undefined' ? pageDescription : '', headerAction: typeof headerAction !== 'undefined' ? headerAction : '' }) %>

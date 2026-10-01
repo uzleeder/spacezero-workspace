@@ -1,4 +1,5 @@
-<%- include('../../partials/page-header', { pageTitle: 'Employees & Teams', pageDescription: 'The management centre for every employee: setup readiness, training, leave and credentials.', headerAction: '<div style="display:flex;gap:10px;flex-wrap:wrap"><a href="/admin/employees/export.xlsx" class="btn btn-secondary" download title="All employees: names, usernames and roles. Hashed passwords cannot be exported.">Download Excel</a><a href="/admin/employees/new" class="btn btn-gold">+ Add employee</a></div>' }) %>
+<div class="employee-directory-toolbar">
+<%- include('../../partials/page-header', { pageTitle: 'Employees & Teams', pageDescription: 'The management centre for every employee: setup readiness, training, leave and credentials.', headerAction: '<div style="display:flex;gap:10px;flex-wrap:wrap"><a href="/admin/employees/export.xlsx" class="btn btn-secondary" download title="Employees and Admins sheets: names, usernames, roles and separately supplied export passwords.">Download Excel</a><a href="/admin/employees/new" class="btn btn-gold">+ Add employee</a></div>' }) %>
 
 <%- include('../../partials/management-tabs', { tabs: tabsets.employees }) %>
 
@@ -6,7 +7,9 @@
   <% [['', 'All employees'], ['ADMIN', 'Admins'], ['SUPERVISOR', 'Supervisors'], ['FLIGHT_EXPERT', 'Flight Experts'], ['TRAVEL_AGENT', 'Travel Agents']].forEach(function (r) { %>
     <a href="/admin/employees<%= r[0] ? '?role=' + r[0] : '' %>" class="btn btn-sm <%= role === r[0] ? 'btn-gold' : 'btn-secondary' %>"><%= r[1] %></a>
   <% }); %>
-  <a href="/admin/teams" class="btn btn-sm btn-secondary">Teams</a>
+  <button type="button" class="btn btn-sm <%= activeFilters.length > 0 ? 'btn-gold' : 'btn-secondary' %>" data-employee-filters-toggle aria-expanded="<%= activeFilters.length > 0 ? 'true' : 'false' %>" aria-controls="employee-filters-panel">More filters</button>
+</div>
+
 </div>
 
 <% if (pendingInvites > 0) { %>
@@ -18,8 +21,9 @@
 
 <div class="card mt-16 employee-directory">
   <div class="employee-directory__sticky">
+  <div id="employee-filters-panel" <%= activeFilters.length > 0 ? '' : 'hidden' %>>
   <form class="filter-bar">
-    <input type="text" name="q" value="<%= q %>" placeholder="Search by name..." />
+    <input type="text" name="q" value="<%= q %>" placeholder="Search by name or email..." />
     <select name="role">
       <option value="">All roles</option>
       <option value="ADMIN" <%= role === 'ADMIN' ? 'selected' : '' %>>Administrator</option>
@@ -51,10 +55,27 @@
           <option value="">Any missing item</option>
           <% requirements.forEach(function (r) { %><option value="<%= r.key %>" <%= missing === r.key ? 'selected' : '' %>>Missing: <%= r.label %></option><% }); %>
         </select>
+        <select name="passportStatus" aria-label="Passport status">
+          <option value="">Any passport status</option>
+          <% Object.values(PASSPORT_STATUS).forEach(function (s) { %><option value="<%= s %>" <%= f.passportStatus === s ? 'selected' : '' %>>Passport: <%= PASSPORT_STATUS_LABEL[s] %></option><% }); %>
+        </select>
         <%- include('../../partials/employee-filters', { f: f, filterSkills: filterSkills }) %>
+        <div class="more-filters-actions">
+          <a href="/admin/employees" class="btn btn-ghost btn-sm">Clear all</a>
+          <button type="submit" class="btn btn-gold btn-sm">Apply filters</button>
+        </div>
       </div>
     </details>
   </form>
+  <% if (activeFilters.length > 0) { %>
+    <div class="active-filter-chips">
+      <% activeFilters.forEach(function (chip) { %>
+        <a href="<%= chip.href %>" class="filter-chip"><%= chip.label %> <span aria-hidden="true">×</span></a>
+      <% }); %>
+      <a href="/admin/employees" class="filter-chip filter-chip-clear">Clear all</a>
+    </div>
+  <% } %>
+  </div>
   <div class="employee-directory__heading" aria-hidden="true"></div>
   </div>
 

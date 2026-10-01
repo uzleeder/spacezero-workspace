@@ -14,6 +14,16 @@ const { getSetting } = require('../lib/orgSettings');
 const { describeAudience } = require('../lib/courseAudience');
 const { assignableCoursesWhere, canAssignCourse } = require('../lib/trainingPermissions');
 const { liveVersion } = require('../lib/courseVersions');
+const { hasCapability } = require('../lib/supervisorCapabilities');
+
+// A Supervisor has no assign access at all until an Admin grants 'training.assign' — separate from,
+// and in addition to, the per-course assignPolicy/TrainingAssignGrant check further down (which
+// governs WHICH courses; this governs whether they may assign anything at all).
+const mayUseAssignForm = async (req, res, next) => {
+  if (req.profile.role !== 'SUPERVISOR') return next();
+  if (await hasCapability(req.profile, 'training.assign')) return next();
+  return res.status(403).render('forbidden');
+};
 
 async function loadFormData(actor) {
   const courses = await prisma.trainingCourse.findMany({
@@ -55,7 +65,7 @@ async function formHints(actor, courses, people, query) {
   };
 }
 
-router.get('/assignments', requireRole('ADMIN', 'SUPERVISOR'), async (req, res) => {
+router.get('/assignments', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm, async (req, res) => {
   const actor = req.profile;
   const { courses, teams, people } = await loadFormData(actor);
   const assignments = await prisma.trainingAssignment.findMany({
@@ -76,7 +86,7 @@ router.get('/assignments', requireRole('ADMIN', 'SUPERVISOR'), async (req, res) 
   });
 });
 
-router.post('/assignments', requireRole('ADMIN', 'SUPERVISOR'), async (req, res) => {
+router.post('/assignments', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm, async (req, res) => {
   const actor = req.profile;
   const targetProfileIds = Array.isArray(req.body.targetProfileIds)
     ? req.body.targetProfileIds

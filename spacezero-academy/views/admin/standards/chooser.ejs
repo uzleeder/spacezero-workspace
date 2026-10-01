@@ -1,0 +1,16 @@
+<%- include('../../partials/page-header', { pageTitle: 'What would you like to create?', headerAction: '<a href="/admin/standards" class="btn btn-secondary">Cancel</a>' }) %>
+<%- include('../../partials/management-tabs', { tabs: tabsets.standards }) %>
+
+<div class="grid grid-2 mt-24">
+  <% CONTENT_TYPES.forEach(function (t) { %>
+    <a class="card card-link" href="/admin/standards/new?type=<%= t.toLowerCase() %>" style="padding:24px">
+      <h3 style="font-weight:600;color:var(--navy-950)"><%= CONTENT_TYPE_LABEL[t] %></h3>
+      <p class="text-sm text-muted mt-4">
+        <%= t === 'STANDARD' ? 'A principle or policy everyone (or a role) is expected to follow.' :
+            t === 'RESPONSIBILITY' ? 'What is expected from a role, as a short list.' :
+            t === 'WORKFLOW' ? 'Clear, numbered step-by-step operating procedure.' :
+            'Controlled wording employees may be required to communicate.' %>
+      </p>
+    </a>
+  <% }); %>
+</div>

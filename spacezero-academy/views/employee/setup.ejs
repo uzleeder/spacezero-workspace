@@ -1,7 +1,8 @@
 <%- include('../partials/employee-frame') %>
 
 <% if (error) { %><div class="form-alert error mt-16"><%= error %></div><% } %>
-<% if (saved) { %><div class="form-alert success mt-16">Saved.</div><% } %>
+<% if (saved && conflicts > 0) { %><div class="form-alert error mt-16"><%= conflicts %> item<%= conflicts === 1 ? '' : 's' %> could not be saved because <%= conflicts === 1 ? 'it was' : 'they were' %> changed elsewhere in the meantime — reopen this page and try again.</div><% } %>
+<% if (saved && changed !== null) { %><div class="form-alert success mt-16">✓ Setup updated<%= changed ? ' — ' + changed + ' item' + (changed === 1 ? '' : 's') + ' changed' : '' %></div><% } %>
 
 <div class="card mt-24">
   <div class="card-body">
@@ -14,74 +15,193 @@
     </div>
     <div class="progress-track mt-16"><div class="progress-fill navy" style="width:<%= setup.percent %>%"></div></div>
     <p class="text-sm text-muted mt-16"><%= setup.completed %> of <%= setup.required %> required items completed.
-      <% if (setup.notStarted) { %>Setup starts once this account has been activated.<% } else if (isSelf) { %>Some items you can confirm yourself; the rest are verified by your supervisor or an administrator.<% } %></p>
+      <% if (setup.notStarted) { %>Setup starts once this account has been activated.<% } else if (isSelf && !manage) { %>Some items you can confirm yourself; the rest are verified by your supervisor or an administrator.<% } %></p>
   </div>
 </div>
 
-<div class="card mt-24">
-  <div class="card-header"><h2>Checklist</h2></div>
-  <ul class="divide-list" style="padding:0 24px">
-    <% setup.rows.forEach(function (row) { %>
-      <% const r = row.requirement; const done = row.status === 'COMPLETED'; %>
-      <li>
-        <div class="row-between" style="align-items:flex-start;gap:16px">
-          <div style="flex:1;min-width:0">
+<% if (manage) { %>
+  <%
+    // The compact checklist handles the common case (a plain, non-company-controlled item that is
+    // either not set up or completed) as a single checkbox. Anything else — company-controlled items
+    // (WhatsApp/Telegram), calculated items, or a row already in an exception state (In Progress /
+    // Issue / Not Required) — keeps its full row and its own individual edit, unchanged in spirit
+    // from before, just grouped separately so the common path stays short and scannable.
+    const bulkEligible = setup.rows.filter((row) => row.requirement.kind === 'MANUAL' && !row.requirement.companyControlled && (['NOT_SET_UP', 'COMPLETED'].includes(row.status) || (isAdmin && row.awaitingVerification)));
+    const otherRows = setup.rows.filter((row) => !bulkEligible.includes(row));
+  %>
+  <% if (bulkEligible.length) { %>
+  <div class="card mt-24">
+    <div class="card-header row-between">
+      <h2>Checklist</h2>
+      <span class="text-sm text-muted" data-unsaved-count hidden></span>
+    </div>
+    <form method="post" action="/employees/<%= employee.id %>/setup/bulk" data-bulk-setup-form>
+      <ul class="divide-list" style="padding:0 24px">
+        <% bulkEligible.forEach(function (row) { const r = row.requirement; const done = row.status === 'COMPLETED'; %>
+        <li style="padding:10px 0">
+          <label class="checkbox-row" style="justify-content:space-between;width:100%;gap:12px">
+            <span style="display:flex;align-items:center;gap:10px;min-width:0">
+              <input type="checkbox" name="checked" value="<%= r.id %>" <%= done ? 'checked' : '' %> data-bulk-checkbox data-was="<%= done ? '1' : '0' %>" />
+              <span style="min-width:0"><%= r.label %><% if (!r.required) { %> <span class="badge" style="margin-left:4px">Optional</span><% } %></span>
+            </span>
+            <% if (row.ownerLabel || row.dueAt) { %><span class="text-sm text-muted" style="white-space:nowrap"><%= row.ownerLabel ? 'Owner: ' + row.ownerLabel : '' %><%= row.ownerLabel && row.dueAt ? ' · ' : '' %><% if (row.dueAt) { %><span class="<%= row.overdue ? 'trend-declining' : '' %>">Due: <%= row.dueAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) %><%= row.overdue ? ' — overdue' : '' %></span><% } %></span><% } %>
+          </label>
+          <% if (row.awaitingVerification) { %><p class="text-sm text-muted" style="margin:4px 0 0 26px">Awaiting your verification — check this item and Save Changes to complete it.</p><% } %>
+          <input type="hidden" name="ts_<%= r.id %>" value="<%= row.item ? row.item.updatedAt.toISOString() : '' %>" />
+          <details style="margin-left:26px;margin-top:4px">
+            <summary class="text-sm text-muted" style="cursor:pointer">•••<% if (row.item && row.item.note) { %> · has a note<% } %></summary>
+            <div class="mt-8"><%- include('../partials/setup-item-editor', { employee: employee, r: r, row: row, isAdmin: isAdmin, STATUSES: STATUSES, STATUS_LABEL: STATUS_LABEL, formId: 'item-form-' + r.id }) %></div>
+          </details>
+        </li>
+        <% }); %>
+      </ul>
+      <div class="card-body row-between" style="border-top:1px solid var(--border-subtle)">
+        <span class="text-sm text-muted" data-unsaved-hint>No changes yet</span>
+        <button type="submit" class="btn btn-gold" data-bulk-save>Save Changes</button>
+      </div>
+    </form>
+    <%
+      // Nested <form> elements are invalid HTML, so each "..." editor above binds to one of these
+      // real, empty forms via form="item-form-<id>" instead of being a DOM descendant of the bulk
+      // form — see the comment in partials/setup-item-editor.ejs.
+    %>
+    <% bulkEligible.forEach(function (row) { %><form id="item-form-<%= row.requirement.id %>" method="post" action="/employees/<%= employee.id %>/setup/<%= row.requirement.id %>" hidden></form><% }); %>
+  </div>
+  <% } %>
+
+  <% if (otherRows.length) { %>
+  <div class="card mt-24">
+    <div class="card-header"><h2><%= bulkEligible.length ? 'Company-controlled & exceptions' : 'Checklist' %></h2><% if (bulkEligible.length) { %><p>Needs a company number, calculated automatically, or already has a special status.</p><% } %></div>
+    <ul class="divide-list" style="padding:0 24px">
+      <% otherRows.forEach(function (row) { %>
+        <% const r = row.requirement; const done = row.status === 'COMPLETED'; %>
+        <li>
+          <div class="row-between" style="align-items:flex-start;gap:16px">
+            <div style="flex:1;min-width:0">
+              <p style="font-weight:500;color:var(--navy-950)">
+                <span aria-hidden="true"><%= done ? '✓' : row.status === 'NOT_REQUIRED' ? '–' : '✗' %></span>
+                <%= r.label %>
+                <% if (!r.required) { %><span class="badge" style="margin-left:6px">Optional</span><% } %>
+              </p>
+              <p class="text-sm text-muted" style="margin-top:2px"><%= r.category || 'Other' %><% if (!row.derived) { %> · <%= VERIFICATION_LABEL[row.rule] %><% } %></p>
+              <% if (r.description) { %><p class="text-sm text-muted" style="margin-top:2px"><%= r.description %></p><% } %>
+              <% if (row.ownerLabel || row.dueAt) { %><p class="text-sm" style="margin-top:2px"><%= row.ownerLabel ? 'Owner: ' + row.ownerLabel : '' %><%= row.ownerLabel && row.dueAt ? ' · ' : '' %><% if (row.dueAt) { %><span class="<%= row.overdue ? 'trend-declining' : '' %>">Due: <%= row.dueAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) %><%= row.overdue ? ' — overdue' : '' %></span><% } %></p><% } %>
+              <p class="text-sm text-muted" style="margin-top:2px">
+                <% if (row.derived) { %>Calculated from real data<% if (r.kind === 'CREDENTIAL_VAULT') { %> — contents of the vault are never shown here<% } %>.<% } %>
+                <% if (row.item && row.item.verifiedAt && done) { %> Verified by <%= row.item.verifiedBy ? row.item.verifiedBy.fullName : 'management' %> on <%= row.item.verifiedAt.toLocaleDateString('en-US') %>.<% } else if (done && row.item && row.item.employeeConfirmedAt) { %> Confirmed by the employee on <%= row.item.employeeConfirmedAt.toLocaleDateString('en-US') %>.<% } %>
+                <% if (row.awaitingVerification) { %> Confirmed by the employee — awaiting verification by a supervisor or administrator.<% } %>
+                <% if (row.item) { %> Last updated <%= row.item.updatedAt.toLocaleDateString('en-US') %>.<% } %>
+                <% if (row.awaitingCompanyControl) { %> Waiting for company ownership/recovery confirmation.<% } %>
+              </p>
+              <% if (r.companyControlled && row.item && row.item.accountType === 'PERSONAL_WORK') { %><p class="text-sm" style="margin-top:2px">Personal number — used for work.</p>
+              <% } else if (r.companyControlled && row.item && row.item.companyNumber) { %><p class="text-sm" style="margin-top:2px">Company number/account: <%= row.item.companyNumber %></p><% } %>
+              <% if (row.item && row.item.note) { %><p class="text-sm" style="margin-top:2px">Note: <%= row.item.note %></p><% } %>
+            </div>
+            <span class="badge <%= done ? 'badge-success' : row.status === 'ISSUE' ? 'badge-danger' : row.status === 'NOT_REQUIRED' ? '' : 'badge-warning' %>"><%= STATUS_LABEL[row.status] %></span>
+          </div>
+          <% if (!row.derived || isAdmin) { %>
+            <div class="mt-16"><%- include('../partials/setup-item-editor', { employee: employee, r: r, row: row, isAdmin: isAdmin, STATUSES: STATUSES, STATUS_LABEL: STATUS_LABEL }) %></div>
+          <% } %>
+        </li>
+      <% }); %>
+    </ul>
+  </div>
+  <% } %>
+<% } else { %>
+  <%
+    // The employee's own compact checklist: a plain I Have / I Don't Have choice, batched into one
+    // Save — same idea as the manage checklist above, just with self-confirm semantics (see
+    // POST /employees/:id/setup/self-bulk). Items this employee cannot touch themselves —
+    // company-controlled (WhatsApp/Telegram), management-only, already management-verified, or
+    // explicitly Not Required — stay in a small read-only/exception list below, unchanged.
+    const canSelfBulk = isSelf && !setup.notStarted;
+    const selfBulkEligible = canSelfBulk ? setup.rows.filter((row) => row.requirement.kind === 'MANUAL' && !row.requirement.companyControlled && row.rule !== 'MANAGEMENT_ONLY' && row.status !== 'NOT_REQUIRED' && !(row.status === 'COMPLETED' && row.item && row.item.verifiedById)) : [];
+    const otherSelfRows = canSelfBulk ? setup.rows.filter((row) => !selfBulkEligible.includes(row)) : setup.rows;
+  %>
+  <% if (selfBulkEligible.length) { %>
+  <div class="card mt-24">
+    <div class="card-header row-between">
+      <h2>Checklist</h2>
+      <span class="text-sm text-muted" data-unsaved-count hidden></span>
+    </div>
+    <form method="post" action="/employees/<%= employee.id %>/setup/self-bulk" data-self-bulk-form>
+      <ul class="divide-list" style="padding:0 24px">
+        <% selfBulkEligible.forEach(function (row) { const r = row.requirement; const haveChecked = row.status === 'COMPLETED' || row.status === 'IN_PROGRESS'; const flagged = row.status === 'ISSUE'; const selfCompleted = row.status === 'COMPLETED' && row.item && row.item.employeeConfirmedAt && !row.item.verifiedById; %>
+        <li style="padding:10px 0" data-self-row>
+          <div class="row-between" style="gap:12px;flex-wrap:wrap">
+            <span style="font-weight:500;color:var(--navy-950)"><%= r.label %><% if (!r.required) { %> <span class="badge" style="margin-left:4px">Optional</span><% } %></span>
+            <span style="display:flex;gap:14px;flex-wrap:wrap">
+              <label class="checkbox-row"><input type="radio" name="choice_<%= r.id %>" value="have" data-have-radio <%= haveChecked ? 'checked' : '' %> data-was="<%= haveChecked ? 'have' : flagged ? 'dontHave' : '' %>" /> I Have</label>
+              <label class="checkbox-row"><input type="radio" name="choice_<%= r.id %>" value="dontHave" data-donthave-radio <%= flagged ? 'checked' : '' %> data-was="<%= haveChecked ? 'have' : flagged ? 'dontHave' : '' %>" /> I Don't Have</label>
+            </span>
+          </div>
+          <% if (selfCompleted) { %><p class="text-sm text-muted mt-4">Confirmed by the employee on <%= row.item.employeeConfirmedAt.toLocaleDateString('en-US') %>.</p><% } %>
+          <% if (row.awaitingVerification) { %>
+            <p class="text-sm text-muted mt-4">Confirmed by the employee — awaiting verification by a supervisor or administrator.</p>
+            <button type="submit" form="withdraw-form-<%= r.id %>" class="btn btn-secondary btn-sm" style="margin-top:4px">Withdraw my confirmation</button>
+          <% } %>
+          <div class="mt-8" data-note-field <%= flagged ? '' : 'hidden' %>>
+            <textarea name="note_<%= r.id %>" rows="2" maxlength="500" placeholder="Issue / note — required for &quot;I Don't Have&quot;"><%= (row.item && row.item.note) || '' %></textarea>
+          </div>
+          <input type="hidden" name="ts_<%= r.id %>" value="<%= row.item ? row.item.updatedAt.toISOString() : '' %>" />
+        </li>
+        <% }); %>
+      </ul>
+      <div class="card-body row-between" style="border-top:1px solid var(--border-subtle)">
+        <span class="text-sm text-muted" data-unsaved-hint>No changes yet</span>
+        <button type="submit" class="btn btn-gold" data-self-bulk-save>Save Changes</button>
+      </div>
+    </form>
+    <%
+      // Nested <form> elements are invalid HTML — a <form>...</form> written inside the self-bulk
+      // form above (as this "Withdraw" control used to be) makes the browser close the OUTER form
+      // the instant it hits that inner closing tag, silently detaching every later row (and the Save
+      // Changes button itself) from the real form's DOM subtree, so most of a batch save is dropped
+      // on submit. Each Withdraw control is therefore a real, empty form rendered OUTSIDE the
+      // self-bulk form and bound back to its button via form="withdraw-form-<id>" instead — same
+      // technique as views/partials/setup-item-editor.ejs's formId param.
+    %>
+    <% selfBulkEligible.forEach(function (row) { if (!row.awaitingVerification) return; %><form id="withdraw-form-<%= row.requirement.id %>" method="post" action="/employees/<%= employee.id %>/setup/<%= row.requirement.id %>/confirm" hidden><input type="hidden" name="undo" value="1" /></form><% }); %>
+  </div>
+  <% } %>
+
+  <% if (otherSelfRows.length) { %>
+  <div class="card mt-24">
+    <div class="card-header"><h2><%= selfBulkEligible.length ? 'Other items' : 'Checklist' %></h2></div>
+    <div class="card-body">
+      <div class="grid grid-3">
+        <% otherSelfRows.forEach(function (row) { %>
+          <% const r = row.requirement; const done = row.status === 'COMPLETED'; %>
+          <div class="card" style="padding:16px">
             <p style="font-weight:500;color:var(--navy-950)">
               <span aria-hidden="true"><%= done ? '✓' : row.status === 'NOT_REQUIRED' ? '–' : '✗' %></span>
               <%= r.label %>
               <% if (!r.required) { %><span class="badge" style="margin-left:6px">Optional</span><% } %>
             </p>
-            <p class="text-sm text-muted" style="margin-top:2px"><%= r.category || 'Other' %><% if (!row.derived) { %> · <%= VERIFICATION_LABEL[row.rule] %><% } %></p>
-            <% if (r.description) { %><p class="text-sm text-muted" style="margin-top:2px"><%= r.description %></p><% } %>
-            <% if (row.ownerLabel || row.dueAt) { %><p class="text-sm" style="margin-top:2px"><%= row.ownerLabel ? 'Owner: ' + row.ownerLabel : '' %><%= row.ownerLabel && row.dueAt ? ' · ' : '' %><% if (row.dueAt) { %><span class="<%= row.overdue ? 'trend-declining' : '' %>">Due: <%= row.dueAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) %><%= row.overdue ? ' — overdue' : '' %></span><% } %></p><% } %>
-            <p class="text-sm text-muted" style="margin-top:2px">
-              <% if (row.derived) { %>Calculated from real data<% if (r.kind === 'CREDENTIAL_VAULT') { %> — contents of the vault are never shown here<% } %>.<% } %>
-              <% if (row.item && row.item.verifiedAt && done) { %> Verified by <%= row.item.verifiedBy ? row.item.verifiedBy.fullName : 'management' %> on <%= row.item.verifiedAt.toLocaleDateString('en-US') %>.<% } else if (done && row.item && row.item.employeeConfirmedAt) { %> Confirmed by the employee on <%= row.item.employeeConfirmedAt.toLocaleDateString('en-US') %>.<% } %>
-              <% if (row.awaitingVerification) { %> Confirmed by the employee — awaiting verification by a supervisor or administrator.<% } %>
-              <% if (row.item) { %> Last updated <%= row.item.updatedAt.toLocaleDateString('en-US') %>.<% } %>
-              <% if (row.awaitingCompanyControl) { %> Waiting for company ownership/recovery confirmation.<% } %>
-            </p>
-            <% if (r.companyControlled && row.item && row.item.companyNumber) { %><p class="text-sm" style="margin-top:2px">Company number/account: <%= row.item.companyNumber %></p><% } %>
-            <% if (row.item && row.item.note) { %><p class="text-sm" style="margin-top:2px">Note: <%= row.item.note %></p><% } %>
+            <p class="text-sm text-muted mt-4"><%= r.category || 'Other' %></p>
+            <p class="mt-8"><span class="badge <%= done ? 'badge-success' : row.status === 'ISSUE' ? 'badge-danger' : row.status === 'NOT_REQUIRED' ? '' : 'badge-warning' %>"><%= STATUS_LABEL[row.status] %></span></p>
+            <details class="mt-8">
+              <summary class="text-sm text-muted" style="cursor:pointer">•••<% if (row.item && row.item.note) { %> · has a note<% } %></summary>
+              <div class="mt-8">
+                <% if (!row.derived) { %><p class="text-sm text-muted"><%= VERIFICATION_LABEL[row.rule] %></p><% } %>
+                <% if (r.description) { %><p class="text-sm text-muted mt-4"><%= r.description %></p><% } %>
+                <p class="text-sm text-muted mt-4">
+                  <% if (row.derived) { %>Calculated from real data<% if (r.kind === 'CREDENTIAL_VAULT') { %> — contents of the vault are never shown here<% } %>.<% } %>
+                  <% if (row.item && row.item.verifiedAt && done) { %> Verified by <%= row.item.verifiedBy ? row.item.verifiedBy.fullName : 'management' %> on <%= row.item.verifiedAt.toLocaleDateString('en-US') %>.<% } %>
+                  <% if (row.item) { %> Last updated <%= row.item.updatedAt.toLocaleDateString('en-US') %>.<% } %>
+                  <% if (row.awaitingCompanyControl) { %> Waiting for company ownership/recovery confirmation.<% } %>
+                </p>
+                <% if (row.item && row.item.note) { %><p class="text-sm mt-4">Note: <%= row.item.note %></p><% } %>
+                <% if (isSelf && row.rule === 'MANAGEMENT_ONLY') { %><p class="text-sm text-muted mt-8">Only your supervisor or an administrator can mark this as completed.</p><% } %>
+              </div>
+            </details>
           </div>
-          <span class="badge <%= done ? 'badge-success' : row.status === 'ISSUE' ? 'badge-danger' : row.status === 'NOT_REQUIRED' ? '' : 'badge-warning' %>"><%= STATUS_LABEL[row.status] %></span>
-        </div>
-
-        <% if (isSelf && !row.derived && !setup.notStarted && row.status !== 'NOT_REQUIRED') { %>
-          <% const mine = row.item; const pending = row.awaitingVerification; %>
-          <div class="mt-16" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <% if (row.rule === 'MANAGEMENT_ONLY') { %>
-              <span class="text-sm text-muted">Only your supervisor or an administrator can mark this as completed.</span>
-            <% } else if (pending || (done && mine && !mine.verifiedById && mine.employeeConfirmedAt)) { %>
-              <form method="post" action="/employees/<%= employee.id %>/setup/<%= r.id %>/confirm"><input type="hidden" name="undo" value="1" /><button type="submit" class="btn btn-secondary btn-sm">Withdraw my confirmation</button></form>
-            <% } else if (!done) { %>
-              <form method="post" action="/employees/<%= employee.id %>/setup/<%= r.id %>/confirm"><button type="submit" class="btn btn-gold btn-sm"><%= row.rule === 'EMPLOYEE_CONFIRMATION' ? 'I have this — mark completed' : 'I have this — request verification' %></button></form>
-            <% } %>
-          </div>
-        <% } %>
-        <% if (manage) { %>
-          <% if (!row.derived || isAdmin) { %>
-            <form method="post" action="/employees/<%= employee.id %>/setup/<%= r.id %>" class="mt-16" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-              <select name="status" aria-label="Status for <%= r.label %>">
-                <% STATUSES.forEach(function (s) {
-                     if (row.derived && !['NOT_SET_UP', 'NOT_REQUIRED'].includes(s)) return;
-                     if (s === 'NOT_REQUIRED' && !isAdmin) return; %>
-                  <option value="<%= s %>" <%= (row.item ? row.item.status : 'NOT_SET_UP') === s ? 'selected' : '' %>><%= row.derived && s === 'NOT_SET_UP' ? 'Required (calculated)' : STATUS_LABEL[s] %></option>
-                <% }); %>
-              </select>
-              <input name="note" value="<%= row.item && row.item.note ? row.item.note : '' %>" placeholder="Optional note" maxlength="500" style="flex:1;min-width:160px" />
-              <% if (r.companyControlled && !row.derived) { %>
-                <input name="companyNumber" value="<%= row.item && row.item.companyNumber ? row.item.companyNumber : '' %>" placeholder="Company number / account" maxlength="40" style="min-width:170px" aria-label="Company number for <%= r.label %>" />
-                <label class="checkbox-row"><input type="checkbox" name="companyControlConfirmed" value="1" <%= row.item && row.item.companyControlConfirmed ? 'checked' : '' %> /> Company owns &amp; can recover this</label>
-              <% } %>
-              <button type="submit" class="btn btn-secondary btn-sm">Save</button>
-            </form>
-          <% } %>
-        <% } %>
-      </li>
-    <% }); %>
-  </ul>
-</div>
+        <% }); %>
+      </div>
+    </div>
+  </div>
+  <% } %>
+<% } %>
 
 <% if (setup.history && setup.history.length) { %>
 <div class="card mt-24">
@@ -95,6 +215,73 @@
     <% }); %>
   </ul>
 </div>
+<% } %>
+<% if (passAccess.statusVisible) { %>
+<div class="card mt-24">
+  <div class="card-header row-between">
+    <h2>Passport Details</h2>
+    <% if (passStatus) { %><span class="badge <%= PASSPORT_STATUS_TONE[passStatus] %>"><%= PASSPORT_STATUS_LABEL[passStatus] %></span><% } %>
+  </div>
+  <div class="card-body">
+    <% if (!employee.passportNumberEnc) { %>
+      <%- include('../partials/empty-state', { title: 'Passport Details Required', description: 'A passport number and expiration date have not been added yet.' }) %>
+    <% } else if (!passAccess.view) { %>
+      <p class="text-sm text-muted">Passport on file. Status: <span class="badge <%= PASSPORT_STATUS_TONE[passStatus] %>"><%= PASSPORT_STATUS_LABEL[passStatus] %></span></p>
+      <p class="text-sm text-muted mt-4">The Passport Number itself is not visible with your current access.</p>
+    <% } else { %>
+      <p class="text-sm text-muted">Number: <strong><%= passportFull || passportMasked %></strong><% if (passportExpiresAt) { %> · Expires <%= new Date(passportExpiresAt).toLocaleDateString('en-US') %><% } %></p>
+      <% if (passStatus === 'EXPIRED') { %><p class="text-sm" style="color:var(--red-600);margin-top:6px">This passport has expired.</p><% } %>
+      <% if (passportMasked && !passportFull) { %>
+        <form class="passport-reveal-form" data-reveal-url="/employees/<%= employee.id %>/passport/reveal" style="display:flex;gap:6px;align-items:center;margin-top:10px">
+          <input type="password" name="password" placeholder="Your password" autocomplete="current-password" required style="width:150px" />
+          <button type="submit" class="btn btn-secondary btn-sm">Reveal full number</button>
+        </form>
+        <div class="passport-reveal-output text-sm mt-16" hidden style="background:var(--navy-50, #f4f6fa);border-radius:8px;padding:10px 12px"></div>
+      <% } %>
+    <% } %>
+
+    <% if (passAccess.manage) { %>
+      <details class="mt-16" <%= !employee.passportNumberEnc ? 'open' : '' %>>
+        <summary class="text-sm link-gold" style="cursor:pointer"><%= employee.passportNumberEnc ? 'Update passport details' : 'Add passport details' %></summary>
+        <form method="post" action="/employees/<%= employee.id %>/passport" class="mt-16" autocomplete="off">
+          <div class="grid grid-2">
+            <div class="field">
+              <label for="passportNumber">Passport number</label>
+              <input id="passportNumber" name="passportNumber" maxlength="20" autocomplete="off" value="<%= isSelf ? (passportFull || '') : '' %>" placeholder="<%= employee.passportNumberEnc && !isSelf ? 'Leave blank to keep the current number' : '' %>" />
+            </div>
+            <div class="field">
+              <label for="passportExpiresAt">Expiration date</label>
+              <input id="passportExpiresAt" name="passportExpiresAt" type="date" value="<%= passportExpiresAt %>" required />
+            </div>
+          </div>
+          <p class="hint">Only the number and expiration date are stored — never a scan or photo. The number is encrypted at rest and masked from management by default.</p>
+          <button type="submit" class="btn btn-gold mt-16"><%= employee.passportNumberEnc ? 'Save changes' : 'Save passport details' %></button>
+        </form>
+      </details>
+    <% } %>
+  </div>
+</div>
+<script>
+(function () {
+  document.querySelectorAll('.passport-reveal-form').forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var out = form.parentElement.querySelector('.passport-reveal-output');
+      var body = new URLSearchParams(new FormData(form));
+      fetch(form.getAttribute('data-reveal-url'), { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
+        .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+        .then(function (r) {
+          form.querySelector('input[name=password]').value = '';
+          out.hidden = false;
+          if (!r.ok) { out.textContent = r.data.error || 'Could not reveal.'; return; }
+          out.textContent = 'Passport number: ' + r.data.passportNumber + ' — hides automatically in 30 seconds.';
+          setTimeout(function () { out.textContent = ''; out.hidden = true; }, 30000);
+        })
+        .catch(function () { out.hidden = false; out.textContent = 'Could not reveal.'; });
+    });
+  });
+})();
+</script>
 <% } %>
 <div class="card mt-24" style="margin-bottom:40px">
   <div class="card-header"><h2>Contact &amp; address</h2><p>Sensitive personal information — shown only on this authorized profile.</p></div>
@@ -119,3 +306,4 @@
     <% } %>
   </div>
 </div>
+<% if (manage || isSelf) { %><script src="/static/js/setup-bulk.js" defer></script><% } %>

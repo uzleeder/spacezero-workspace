@@ -19,11 +19,12 @@ const ALLOWED_PHOTO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 const AVATAR_DIR = path.join(require('../lib/uploadRoot').UPLOAD_ROOT, 'avatars');
 
 router.use('/profile', requireSession, async (req, res, next) => {
+  res.locals.personalSection = req.query.section === 'security' || req.path === '/password' ? 'security' : 'profile';
   res.locals.empTabs = await require('../lib/employeeTabs').tabsForRequest(req, req.profile);
   next();
 });
 
-router.get('/account', requireSession, (req, res) => res.redirect('/profile#account-security'));
+router.get('/account', requireSession, (req, res) => res.redirect('/profile?section=security#account-security'));
 
 router.get('/profile', requireSession, async (req, res) => {
   const data = await loadProfileOverview(req.profile.id);

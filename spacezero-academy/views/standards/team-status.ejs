@@ -1,0 +1,23 @@
+<%- include('../partials/page-header', { pageTitle: 'Team acknowledgement status', pageDescription: 'Who on your team has acknowledged required standards.', headerAction: '<a href="/standards" class="link-gold text-sm">&larr; Company Standards &amp; Workflow</a>' }) %>
+
+<% if (rows.length === 0) { %>
+  <div class="card mt-24"><div class="card-body"><%- include('../partials/empty-state', { title: 'No team members to show' }) %></div></div>
+<% } else { %>
+  <ul class="divide-list mt-24">
+    <% rows.forEach(function (r) { %>
+      <li class="row-between">
+        <div>
+          <p style="font-weight:500;color:var(--navy-950)"><%= r.profile.fullName %></p>
+          <p class="text-sm text-muted"><%= roleLabel(r.profile.role) %></p>
+        </div>
+        <% if (r.summary.required === 0) { %>
+          <span class="badge">No requirements</span>
+        <% } else if (r.summary.pending === 0) { %>
+          <span class="badge badge-success">✓ Acknowledged</span>
+        <% } else { %>
+          <span class="badge badge-warning"><%= r.summary.acknowledged %> of <%= r.summary.required %> acknowledged</span>
+        <% } %>
+      </li>
+    <% }); %>
+  </ul>
+<% } %>

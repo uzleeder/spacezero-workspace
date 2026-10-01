@@ -1,0 +1,23 @@
+<%- include('../partials/page-header', { pageTitle: 'Search', pageDescription: 'Company Standards & Workflow', headerAction: '<a href="/standards" class="link-gold text-sm">&larr; Company Standards &amp; Workflow</a>' }) %>
+
+<form class="mt-24" action="/standards/search" style="display:flex;gap:12px;margin-bottom:24px">
+  <input type="search" name="q" value="<%= q %>" placeholder="Search standards, responsibilities and workflows…" style="flex:1;max-width:420px" autofocus />
+  <button type="submit" class="btn btn-secondary">Search</button>
+</form>
+
+<% if (q && results.length === 0) { %>
+  <div class="card"><div class="card-body"><%- include('../partials/empty-state', { title: 'No matches found', description: 'Try a different search term.' }) %></div></div>
+<% } else if (results.length) { %>
+  <ul class="divide-list">
+    <% results.forEach(function (item) { %>
+      <li>
+        <a class="row-between" href="/standards/<%= item.id %>" style="align-items:flex-start">
+          <div>
+            <p style="font-weight:500;color:var(--navy-950)"><%= item.title %></p>
+            <p class="text-sm text-muted mt-4"><%= CONTENT_TYPE_LABEL[item.contentType] %><%= item.category ? ' · ' + item.category : '' %></p>
+          </div>
+        </a>
+      </li>
+    <% }); %>
+  </ul>
+<% } %>

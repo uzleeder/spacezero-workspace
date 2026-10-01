@@ -57,3 +57,9 @@ next-env.d.ts
 # release ZIPs built by npm run package
 /dist/
 ngrok*.log
+
+# stray server/test run logs
+/logs/
+
+# pg_dump output may contain real rows; never committed
+*.dump

@@ -7,7 +7,17 @@
   </div>
 
   <div>
+    <% if (employee.role === 'SUPERVISOR') { %>
     <div class="card">
+      <div class="card-header"><h2>Management access</h2></div>
+      <div class="card-body">
+        <p class="text-sm text-muted">What this Supervisor is allowed to do for their own team — off by default, granted individually.</p>
+        <p class="mt-8"><span class="badge <%= managementAccessCount ? 'badge-success' : '' %>"><%= managementAccessCount ? managementAccessCount + ' ' + (managementAccessCount === 1 ? 'capability' : 'capabilities') + ' granted' : 'Nothing granted yet' %></span></p>
+        <a href="/admin/supervisor-permissions/<%= employee.id %>" class="btn btn-secondary mt-16">Manage permissions</a>
+      </div>
+    </div>
+    <% } %>
+    <div class="card mt-24">
       <div class="card-header"><h2>Manage account</h2></div>
       <% if (employee.role !== 'ADMIN' && (employee.testOwnerAdminId === profile.id || (!employee.testOwnerAdminId && employee.createdById === profile.id))) { %>
         <form method="post" action="/admin/employees/<%= employee.id %>/personal-test-profile" class="card-body">

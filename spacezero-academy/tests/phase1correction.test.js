@@ -40,6 +40,7 @@ before(async () => {
   }
   admin = await user('ADMIN', 'admin'); admin2 = await user('ADMIN', 'admin2');
   supA = await user('SUPERVISOR', 'supA'); supB = await user('SUPERVISOR', 'supB');
+  for (const supervisor of [supA, supB]) await post(admin, '/admin/supervisor-permissions/' + supervisor.id, { capabilities: ['setup.view', 'setup.manage', 'setup.verify', 'training.assign'] });
   agentA = await user('TRAVEL_AGENT', 'agentA'); agentB = await user('TRAVEL_AGENT', 'agentB'); expertA = await user('FLIGHT_EXPERT', 'expertA');
   outsider = await user('ADMIN', 'outsider', otherOrg.id);
   teamA = await prisma.team.create({ data: { organizationId: org.id, name: 'P1C Team A' } });
@@ -53,9 +54,9 @@ after(async () => { await prisma.$disconnect(); });
 // ---------------------------------------------------------------- navigation
 test('sidebar shows only the simplified sections and never Call Intelligence or Calls & Library', async () => {
   const labels = (role) => navForRole(role).flatMap((s) => s.items.map((i) => i.label));
-  assert.deepEqual(labels('ADMIN'), ['Dashboard', 'My Training', 'AI Practice', 'Library', 'Employees & Teams', 'Training', 'Settings & Security']);
-  assert.deepEqual(labels('SUPERVISOR'), ['Dashboard', 'My Training', 'Library', 'Employees & Teams', 'Training']); // AI Practice is Admin-only
-  assert.deepEqual(labels('TRAVEL_AGENT'), ['Dashboard', 'My Training', 'Library']);
+  assert.deepEqual(labels('ADMIN'), ['Dashboard', 'My Training', 'AI Practice', 'Library', 'Employees & Teams', 'Training', 'Company Standards & Workflow', 'SpaceZero AI', 'Settings']);
+  assert.deepEqual(labels('SUPERVISOR'), ['Dashboard', 'My Training', 'Library', 'Employees & Teams', 'Training', 'Company Standards & Workflow', 'SpaceZero AI']); // AI Practice is Admin-only
+  assert.deepEqual(labels('TRAVEL_AGENT'), ['Dashboard', 'My Training', 'Library', 'Company Standards & Workflow', 'SpaceZero AI']);
   for (const role of ['ADMIN', 'SUPERVISOR', 'TRAVEL_AGENT', 'FLIGHT_EXPERT']) {
     assert.ok(!labels(role).some((l) => /Call Intelligence|Calls & Library/i.test(l)));
   }
@@ -69,10 +70,18 @@ test('old Call Intelligence links still work by redirecting into AI Practice', a
   assert.equal(res.status, 302); assert.equal(res.headers.location, '/ai-practice');
 });
 
-test('the top-right user menu offers profile, setup, leave, account and logout', async () => {
+test('the top-right user menu is one compact "Profile & Settings" entry, which itself organizes profile, setup, leave and account security', async () => {
   const page = await get(agentA, '/dashboard');
-  for (const label of ['My Profile', 'My Setup', 'My Vacation / Leave', 'Account / Security', 'Log out']) assert.match(page.text, new RegExp(label.replace('/', '\\/')));
-  assert.equal((await get(agentA, '/account')).headers.location, '/profile#account-security');
+  assert.match(page.text, /Profile &amp; Settings/);
+  assert.match(page.text, /Log out/);
+  // the old duplicated shortcuts are gone from the dropdown itself (they live inside Profile & Settings now)
+  assert.doesNotMatch(page.text, /role="menuitem">My Profile</);
+  assert.doesNotMatch(page.text, /role="menuitem">My Setup</);
+  assert.doesNotMatch(page.text, /role="menuitem">My Vacation/);
+  assert.doesNotMatch(page.text, /role="menuitem">Account \/ Security</);
+  assert.equal((await get(agentA, '/account')).headers.location, '/profile?section=security#account-security');
+  const profilePage = await get(agentA, '/profile');
+  for (const label of ['Profile', 'Setup', 'Vacation &amp; Leave', 'Account &amp; Security']) assert.match(profilePage.text, new RegExp(label));
 });
 
 // ---------------------------------------------------------------- setup calculation
@@ -103,7 +112,7 @@ test('setup percentage is computed from stored facts: derived items, verificatio
   // The role-specific item does count for a supervisor.
   r = calc([], { role: 'SUPERVISOR', status: 'ACTIVE', localPhone: '' });
   assert.ok(r.missingKeys.includes('sup_only')); assert.ok(r.missingKeys.includes('local_phone'));
-  assert.equal(DEFAULT_REQUIREMENTS.length, 18);
+  assert.equal(DEFAULT_REQUIREMENTS.length, 19); // 18 original + Passport Details
 });
 
 test('an employee sees their own setup progress with text, never colour alone; others cannot open it', async () => {
@@ -123,7 +132,7 @@ test('setup cannot be forged: no self-verification, no ticking derived items, co
 
   assert.equal((await post(agentA, `/employees/${agentA.id}/setup/${pc.id}`, { status: 'COMPLETED' })).status, 403); // employee cannot verify themselves
   assert.equal(await stored(pc.id), null);
-  assert.equal((await post(admin, `/employees/${admin.id}/setup/${pc.id}`, { status: 'COMPLETED' })).status, 403); // an admin cannot verify their own setup either
+  assert.equal((await post(supA, `/employees/${supA.id}/setup/${pc.id}`, { status: 'COMPLETED' })).status, 403); // a supervisor still cannot verify their own setup
   assert.ok(denied(await post(supB, `/employees/${agentA.id}/setup/${pc.id}`, { status: 'COMPLETED' }))); // another team's supervisor
   assert.equal(await stored(pc.id), null);
 
@@ -139,6 +148,31 @@ test('setup cannot be forged: no self-verification, no ticking derived items, co
   const row = await stored(pc.id);
   assert.equal(row.status, 'COMPLETED'); assert.equal(row.verifiedById, supA.id); assert.ok(row.verifiedAt);
   assert.ok(await prisma.auditLog.findFirst({ where: { organizationId: org.id, action: 'setup.item_verified', targetId: agentA.id } }));
+});
+
+test('ADMIN SELF-SETUP: an Admin may bulk-manage and individually verify their own setup, but a Supervisor still cannot', async () => {
+  const pc = await prisma.setupRequirement.findFirst({ where: { organizationId: org.id, key: 'pc' } });
+  const egf = await prisma.setupRequirement.findFirst({ where: { organizationId: org.id, key: 'egf' } });
+
+  const page = await get(admin, `/employees/${admin.id}/setup`);
+  assert.equal(page.status, 200);
+  assert.match(page.text, /data-bulk-setup-form/, 'an admin viewing their own setup sees the compact manage checklist, not the self-confirm cards');
+
+  const bulk = await post(admin, `/employees/${admin.id}/setup/bulk`, { checked: [pc.id] });
+  assert.equal(bulk.status, 302);
+  const pcRow = await prisma.employeeSetupItem.findFirst({ where: { profileId: admin.id, requirementId: pc.id } });
+  assert.equal(pcRow.status, 'COMPLETED');
+  assert.equal(pcRow.verifiedById, admin.id, 'the admin verified their own item');
+
+  const individual = await post(admin, `/employees/${admin.id}/setup/${egf.id}`, { status: 'COMPLETED', note: 'self' });
+  assert.equal(individual.status, 302);
+  const egfRow = await prisma.employeeSetupItem.findFirst({ where: { profileId: admin.id, requirementId: egf.id } });
+  assert.equal(egfRow.status, 'COMPLETED');
+
+  // A Supervisor is a different story: still blocked from self-managing, exactly as before.
+  const supPage = await get(supA, `/employees/${supA.id}/setup`);
+  assert.doesNotMatch(supPage.text, /data-bulk-setup-form/);
+  assert.equal((await post(supA, `/employees/${supA.id}/setup/bulk`, { checked: [pc.id] })).status, 403);
 });
 
 test('WhatsApp only counts once company ownership is confirmed', async () => {
@@ -203,15 +237,17 @@ test('reveal needs the viewer password, is audited without the secret, and wrong
   assert.ok(!JSON.stringify(viewed).includes(SECRET));
 });
 
-test('credential access matrix: owner, assigned supervisor and admin yes; everyone else looks like a missing record', async () => {
+test('credential access matrix: owner and admin yes; the agent\'s own supervisor is denied by default; everyone else looks like a missing record', async () => {
   const cred = await prisma.credential.findFirst({ where: { ownerId: agentA.id, systemKey: 'gmail' } });
   const reveal = (who) => post(who, `/credentials/${cred.id}/reveal`, { password: PASSWORD });
   assert.equal((await reveal(agentA)).status, 200);  // owner (org policy allows it by default)
-  assert.equal((await reveal(supA)).status, 200);    // the agent's own supervisor
+  // supA already holds setup.view/manage/verify (granted in before()) but NOT credentials.view_team —
+  // "Manage Team Setup" must never imply Credential Vault access.
+  assert.equal((await reveal(supA)).status, 404);
   for (const stranger of [supB, agentB, expertA, outsider]) assert.equal((await reveal(stranger)).status, 404);
   // direct-ID manipulation of update/delete by unauthorized users is indistinguishable from a bad ID
   const before = cred.payloadEnc;
-  for (const who of [supB, agentB, expertA, outsider]) {
+  for (const who of [supA, supB, agentB, expertA, outsider]) {
     assert.equal((await post(who, `/credentials/${cred.id}/update`, { password: 'hacked' })).status, 404);
     assert.equal((await post(who, `/credentials/${cred.id}/delete`)).status, 404);
   }
@@ -221,7 +257,26 @@ test('credential access matrix: owner, assigned supervisor and admin yes; everyo
   assert.equal((await post(agentA, `/credentials/${cred.id}/update`, { password: 'mine' })).status, 403);
   assert.ok(await prisma.auditLog.findFirst({ where: { organizationId: org.id, action: 'credential.access_denied' } }));
   // vault pages: unauthorized viewers get nothing
-  for (const who of [supB, agentB, outsider]) assert.ok(denied(await get(who, `/employees/${agentA.id}/credentials`)));
+  for (const who of [supA, supB, agentB, outsider]) assert.ok(denied(await get(who, `/employees/${agentA.id}/credentials`)));
+});
+
+test('credentials.view_team: an explicit Admin grant (never the setup capabilities) unlocks a Supervisor\'s own-team credential access, scoped to their own team only', async () => {
+  const cred = await prisma.credential.findFirst({ where: { ownerId: agentA.id, systemKey: 'gmail' } });
+  const reveal = (who) => post(who, `/credentials/${cred.id}/reveal`, { password: PASSWORD });
+  assert.equal((await reveal(supA)).status, 404); // still denied — not yet granted
+  const grant = await post(admin, '/admin/supervisor-permissions/' + supA.id, { capabilities: ['setup.view', 'setup.manage', 'setup.verify', 'training.assign', 'credentials.view_team'] });
+  assert.equal(grant.status, 302);
+  assert.equal((await reveal(supA)).status, 200); // now unlocked
+  assert.equal((await reveal(supB)).status, 404); // supB's own grant is unaffected — this never widens WHO, only WHAT
+  assert.ok(await prisma.auditLog.findFirst({ where: { organizationId: org.id, action: 'supervisor.capability_granted', targetId: supA.id, metadataJson: { contains: 'credentials.view_team' } } }));
+  // revoking it (back to just the setup capabilities) immediately blocks it again
+  await post(admin, '/admin/supervisor-permissions/' + supA.id, { capabilities: ['setup.view', 'setup.manage', 'setup.verify', 'training.assign'] });
+  assert.equal((await reveal(supA)).status, 404);
+  // re-grant: later tests in this file exercise supA as an authorized vault viewer (impersonation
+  // blocking, the owner-view policy toggle, the Credentials tab) — that authorization now comes
+  // from this explicit capability rather than the old unconditional role check.
+  await post(admin, '/admin/supervisor-permissions/' + supA.id, { capabilities: ['setup.view', 'setup.manage', 'setup.verify', 'training.assign', 'credentials.view_team'] });
+  assert.equal((await reveal(supA)).status, 200);
 });
 
 test('a Flight Expert or Supervisor vault is visible only to the owner and admins; admin vaults need an explicit grant', async () => {
@@ -391,20 +446,23 @@ test('the employee list shows setup state and filters by setup, missing item, te
   assert.equal(all.status, 200); assert.match(all.text, /Setup Required|Fully Set Up/);
   assert.match((await get(admin, '/admin/employees?setup=required')).text, /P1C agentB/);
   assert.match((await get(admin, `/admin/employees?teamId=${teamB.id}`)).text, /P1C agentB/);
-  assert.doesNotMatch((await get(admin, `/admin/employees?teamId=${teamB.id}`)).text, /P1C agentA/);
-  assert.doesNotMatch((await get(admin, `/admin/employees?supervisorId=${supB.id}`)).text, /P1C expertA/);
-  assert.doesNotMatch((await get(admin, '/admin/employees?setup=fully')).text, /P1C agentB/);
+  // Boundary-anchored: the topbar notification dropdown (Part 1) legitimately shows the viewer's
+  // own recent notification text (e.g. a leave request naming another employee) on every page now,
+  // so a bare-name check is no longer specific to the employee TABLE row it means to assert on.
+  assert.doesNotMatch((await get(admin, `/admin/employees?teamId=${teamB.id}`)).text, />P1C agentA</);
+  assert.doesNotMatch((await get(admin, `/admin/employees?supervisorId=${supB.id}`)).text, />P1C expertA</);
+  assert.doesNotMatch((await get(admin, '/admin/employees?setup=fully')).text, />P1C agentB</);
   assert.match((await get(admin, '/admin/employees?missing=pc')).text, /P1C agentB/);
   const mine = await get(supA, '/team');
-  assert.match(mine.text, /P1C agentA/); assert.doesNotMatch(mine.text, /P1C agentB/);
-  assert.doesNotMatch((await get(supA, '/team?setup=required&missing=pc')).text, /P1C agentB/);
+  assert.match(mine.text, /P1C agentA/); assert.doesNotMatch(mine.text, />P1C agentB</);
+  assert.doesNotMatch((await get(supA, '/team?setup=required&missing=pc')).text, />P1C agentB</);
   assert.ok(denied(await get(agentA, '/admin/employees')));
   assert.ok(denied(await get(supA, '/admin/employees')));
 });
 
 test('the employee record tabs render for authorized viewers and hide Credentials from the unauthorized', async () => {
   const ownPage = await get(agentA, '/profile');
-  assert.match(ownPage.text, /Vacation \/ Leave/);
+  assert.match(ownPage.text, /Vacation &amp; Leave/);
   const supPage = await get(supA, `/team/${agentA.id}`);
   assert.equal(supPage.status, 200); assert.match(supPage.text, /Credentials/);
   assert.ok(denied(await get(supB, `/team/${agentA.id}`)));
@@ -460,13 +518,16 @@ test('setup requirements are admin-editable, role-specific, reorderable and arch
 });
 
 test('policy changes are admin-only and audited', async () => {
-  await post(admin, '/admin/policies', { 'credentials.ownerCanView': '1' }); // final-approval box left unticked
+  // Everyday access & approval policies live under Settings → Security (Task 4) — plain Admin, no
+  // System Configuration Access needed; the deeper Training/Skill-scoring form stays at /admin/policies.
+  await post(admin, '/admin/settings/security', { 'credentials.ownerCanView': '1' }); // final-approval box left unticked
   const audit = await prisma.auditLog.findFirst({ where: { organizationId: org.id, action: 'policy.changed' } });
   assert.equal(audit, null); // nothing changed from the defaults, so nothing is logged
-  await post(admin, '/admin/policies', { 'credentials.ownerCanView': '1', 'leave.supervisorFinalApproval': '1' });
+  await post(admin, '/admin/settings/security', { 'credentials.ownerCanView': '1', 'leave.supervisorFinalApproval': '1' });
   assert.ok(await prisma.auditLog.findFirst({ where: { organizationId: org.id, action: 'policy.changed', targetId: 'leave.supervisorFinalApproval' } }));
-  await post(admin, '/admin/policies', { 'credentials.ownerCanView': '1' });
-  assert.equal((await get(admin, '/admin/policies?saved=1')).status, 200);
+  await post(admin, '/admin/settings/security', { 'credentials.ownerCanView': '1' });
+  assert.equal((await get(admin, '/admin/settings?tab=security&saved=1')).status, 200);
+  assert.ok(denied(await post(agentA, '/admin/settings/security', { 'credentials.ownerCanView': '0' })));
 });
 
 test('employee, role, team and supervisor changes are audited', async () => {

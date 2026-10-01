@@ -1,3 +1,6 @@
 <%- include('page-header', { pageTitle: employee.fullName, pageDescription: '@' + employee.username + ' · ' + roleLabel(employee.role) + (isSelf ? ' · this is you' : '') }) %>
 <% if (typeof readiness !== 'undefined' && readiness) { %><p style="margin:8px 0 0"><span class="text-sm text-muted">Status:</span> <%- include('readiness-badge', { readiness: readiness, showReasons: false }) %> <span class="text-sm text-muted"><%= readiness.reasons.join(' · ') %></span></p><% } %>
-<%- include('management-tabs', { tabs: tabs }) %>
+<% if (isSelf) { %>
+<p class="text-sm text-muted mt-16">Profile &amp; Settings</p>
+<%- include('personal-tabs', { personalTabs: tabs }) %>
+<% } else { %><%- include('management-tabs', { tabs: tabs }) %><% } %>

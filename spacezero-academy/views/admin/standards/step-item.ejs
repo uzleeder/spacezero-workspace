@@ -1,0 +1,32 @@
+<div class="card" style="padding:12px;margin-bottom:8px" data-repeater-item>
+  <div class="row-between" style="gap:8px;align-items:flex-start">
+    <div class="field" style="flex:1"><input name="stepTitle" value="<%= s.title || '' %>" maxlength="140" placeholder="Step title" /></div>
+    <div style="display:flex;gap:4px">
+      <button type="button" class="btn btn-secondary btn-sm" data-move-up title="Move up">↑</button>
+      <button type="button" class="btn btn-secondary btn-sm" data-move-down title="Move down">↓</button>
+      <button type="button" class="btn btn-secondary btn-sm" data-remove title="Remove">✕</button>
+    </div>
+  </div>
+  <div class="field mt-8"><textarea name="stepInstruction" rows="2" maxlength="1000" placeholder="Clear instruction — use **bold** for emphasis"><%= s.instruction || '' %></textarea></div>
+  <details class="mt-8">
+    <summary class="text-sm link-gold">Advanced (optional)</summary>
+    <div class="field mt-8"><label>Detailed explanation</label><textarea name="stepExplanation" rows="2" maxlength="2000"><%= (s.detail && s.detail.explanation) || '' %></textarea></div>
+    <div class="field mt-8"><label>Checklist <span class="text-muted">(one per line)</span></label><textarea name="stepChecklist" rows="2" maxlength="2000"><%= (s.detail && s.detail.checklist || []).join('\n') %></textarea></div>
+    <div class="field mt-8"><label>Important note</label><input name="stepImportantNote" value="<%= (s.detail && s.detail.importantNote) || '' %>" maxlength="500" /></div>
+    <div class="field mt-8"><label>Warning / caution</label><input name="stepWarning" value="<%= (s.detail && s.detail.warning) || '' %>" maxlength="500" /></div>
+    <div class="grid grid-2 mt-8">
+      <div class="field"><label>Related disclosure</label>
+        <select name="stepDisclosureRefId">
+          <option value="">None</option>
+          <% disclosures.forEach(function (d) { %><option value="<%= d.id %>" <%= (s.detail && s.detail.disclosureRefId) === d.id ? 'selected' : '' %>><%= d.title %></option><% }); %>
+        </select>
+      </div>
+      <div class="field"><label>Related standard / workflow</label>
+        <select name="stepRelatedItemId">
+          <option value="">None</option>
+          <% relatable.forEach(function (r) { %><option value="<%= r.id %>" <%= (s.detail && s.detail.relatedItemId) === r.id ? 'selected' : '' %>><%= r.title %></option><% }); %>
+        </select>
+      </div>
+    </div>
+  </details>
+</div>

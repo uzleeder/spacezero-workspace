@@ -1,0 +1,38 @@
+<%- include('../../partials/page-header', { pageTitle: 'Settings', pageDescription: 'General organization settings, security policies, and — for an authorized Admin — advanced SpaceZero configuration.' }) %>
+
+<nav class="tabs no-print mt-24" aria-label="Settings sections">
+  <a class="tab-link<%= tab === 'general' ? ' active' : '' %>" href="/admin/settings?tab=general">General</a>
+  <a class="tab-link<%= tab === 'security' ? ' active' : '' %>" href="/admin/settings?tab=security">Security</a>
+  <% if (advanced) { %><a class="tab-link<%= tab === 'advanced' ? ' active' : '' %>" href="/admin/settings?tab=advanced">Advanced</a><% } %>
+</nav>
+
+
+<% if (saved) { %><div class="form-alert success mt-16" role="status">Changes saved.</div><% } %>
+<% if (typeof error !== 'undefined' && error) { %><div class="form-alert mt-16" role="alert"><%= error %></div><% } %>
+
+<% if (tab === 'general') { %>
+  <section class="mt-24">
+    <h2>Organization settings</h2>
+    <p class="text-sm text-muted mt-8">Organization security policies are available in Security. Authorized administrators manage setup, skills, tenure and development in Advanced.</p>
+    <p class="text-sm text-muted mt-16">Your personal profile and sign-in settings are available in <a href="/profile" class="link-gold">Profile &amp; Settings</a>.</p>
+  </section><% } else if (tab === 'security') { %>
+  <div class="card mt-24">
+    <div class="card-header"><h2>Access &amp; approval policies</h2></div>
+    <div class="card-body">
+      <form method="post" action="/admin/settings/security">
+        <% policies.forEach(function (p) { %>
+          <div class="field" style="margin-bottom:20px">
+            <label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" name="<%= p.key %>" value="1" <%= p.value ? 'checked' : '' %> style="margin-top:4px" /> <span><strong><%= p.label %></strong><br><span class="text-sm text-muted"><%= p.help %></span></span></label>
+          </div>
+        <% }); %>
+        <button type="submit" class="btn btn-gold">Save Changes</button>
+      </form>
+    </div>
+  </div>
+<% } else if (tab === 'advanced' && advanced) { %>
+  <div class="mt-24">
+    <h2 style="font-size:22px;font-weight:600;color:var(--navy-950)">Advanced Settings</h2>
+    <p class="text-sm text-muted mt-4">Configure how SpaceZero works across your organization.</p>
+  </div>
+  <div class="mt-24"><%- include('../../partials/admin-configuration-sections', { sections: sections }) %></div>
+<% } %>

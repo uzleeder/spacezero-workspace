@@ -4,7 +4,7 @@
 
 <div class="card mt-24">
   <form class="filter-bar">
-    <input type="text" name="q" value="<%= q %>" placeholder="Search by name..." />
+    <input type="text" name="q" value="<%= q %>" placeholder="Search by name or email..." />
     <select name="status">
       <option value="">All employment statuses</option>
       <% [['ACTIVE','Active'],['INVITED','Invited'],['DISABLED','Disabled']].forEach(function (s) { %><option value="<%= s[0] %>" <%= status === s[0] ? 'selected' : '' %>><%= s[1] %></option><% }); %>
@@ -20,6 +20,10 @@
         <select name="missing">
           <option value="">Any missing item</option>
           <% requirements.forEach(function (r) { %><option value="<%= r.key %>" <%= missing === r.key ? 'selected' : '' %>>Missing: <%= r.label %></option><% }); %>
+        </select>
+        <select name="passportStatus" aria-label="Passport status">
+          <option value="">Any passport status</option>
+          <% Object.values(PASSPORT_STATUS).forEach(function (s) { %><option value="<%= s %>" <%= f.passportStatus === s ? 'selected' : '' %>>Passport: <%= PASSPORT_STATUS_LABEL[s] %></option><% }); %>
         </select>
         <%- include('../partials/employee-filters', { f: f, filterSkills: filterSkills }) %>
       </div>

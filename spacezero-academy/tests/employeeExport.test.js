@@ -4,6 +4,15 @@ const assert = require('node:assert/strict');
 const AdmZip = require('adm-zip');
 const { employeeWorkbook } = require('../lib/employeeExport');
 
+test('explicitly supplied export passwords retain leading zeros and missing values stay blank', () => {
+  const zip = new AdmZip(employeeWorkbook([
+    { fullName: 'Demo admin', username: 'demo-admin', role: 'ADMIN', exportPassword: '001234' },
+    { fullName: 'Demo expert', username: 'demo-expert', role: 'FLIGHT_EXPERT' },
+  ]));
+  assert.match(zip.readAsText('xl/worksheets/sheet2.xml'), /<c r="D2" t="inlineStr"[^>]*><is><t xml:space="preserve">001234<\/t>/);
+  assert.match(zip.readAsText('xl/worksheets/sheet1.xml'), /<c r="D2" t="inlineStr"[^>]*><is><t xml:space="preserve"><\/t>/);
+});
+
 test('employee export preserves names as text and never includes password fields', () => {
   const file = employeeWorkbook([{ fullName: 'O‘tkir & <Ali>', username: '=1+1', role: 'TRAVEL_AGENT', passwordHash: 'PRIVATE_HASH', password: 'PRIVATE_PASSWORD' }]);
   const zip = new AdmZip(file);

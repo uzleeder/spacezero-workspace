@@ -1,8 +1,7 @@
-<%- include('../partials/page-header', { pageTitle: 'Employee setup requirements', pageDescription: 'The checklist every employee is measured against. Add tools, choose who they apply to and how they are verified. Nothing here needs a developer — and archiving never deletes setup history.', headerAction: '<a href="/admin/setup-requirements/new" class="btn btn-gold">+ Add tool / requirement</a>' }) %>
-<%- include('../partials/management-tabs', { tabs: tabsets.settings }) %>
+<%- include('../partials/advanced-page-header', { sectionLabel: 'Setup Requirements', pageTitle: 'Employee setup requirements', pageDescription: 'The checklist every employee is measured against. Add tools, choose who they apply to and how they are verified. Nothing here needs a developer — and archiving never deletes setup history.', headerAction: '<div style="display:flex;gap:10px;flex-wrap:wrap"><a href="/admin/employees" class="btn btn-secondary">View Employees &amp; Teams</a><a href="/admin/setup-requirements/new" class="btn btn-gold">+ Add tool / requirement</a></div>' }) %>
 
 <% if (saved) { %>
-  <div class="form-alert success mt-16">Saved.<% if (applied !== null) { %> It applies to <strong><%= applied %></strong> active employee<%= applied === 1 ? '' : 's' %><% if (pending) { %>; <strong><%= pending %></strong> now show<%= pending === 1 ? 's' : '' %> <em>Setup Required</em> until it is completed<% } %>.<% } %></div>
+  <div class="form-alert success mt-16">Changes saved.<% if (applied !== null) { %> It applies to <strong><%= applied %></strong> active employee<%= applied === 1 ? '' : 's' %><% if (pending) { %>; <strong><%= pending %></strong> now show<%= pending === 1 ? 's' : '' %> <em>Setup Required</em> until it is completed<% } %>.<% } %></div>
 <% } %>
 <% if (error) { %><div class="form-alert error mt-16"><%= error %></div><% } %>
 

@@ -44,7 +44,7 @@ const DEFAULT_REQUIREMENTS = [
   { key: 'crm', label: 'CRM', category: 'System Access', credentialSystem: true },
   { key: 'dialpad', label: 'Dialpad', category: 'Communication', credentialSystem: true },
   { key: 'whatsapp', label: 'WhatsApp', category: 'Communication', companyControlled: true, description: 'Company-controlled number with company ownership/recovery confirmed.' },
-  { key: 'telegram', label: 'Telegram', category: 'Communication', companyControlled: true, description: 'Company-controlled account/number — no personal account for company operations.' },
+  { key: 'telegram', label: 'Telegram', category: 'Communication', required: false, companyControlled: true, allowPersonalAccount: true, description: 'Optional. Either a company-controlled account, or a personal number used for work.' },
   { key: 'email_signature', label: 'Email Signature', category: 'Account' },
   { key: 'virtual_card', label: 'Virtual Card', category: 'Company Setup', description: 'Correct employee/company details, WhatsApp and phone numbers verified. Do not record card numbers here.' },
   { key: 'bookmarks', label: 'Bookmarks', category: 'Extension / Software' },
@@ -53,6 +53,7 @@ const DEFAULT_REQUIREMENTS = [
   { key: 'credential_vault', label: 'Passwords / Credential Vault', category: 'Security / Credentials', kind: 'CREDENTIAL_VAULT', description: 'Complete when a vault entry exists for every required work system.' },
   { key: 'local_phone', label: 'Local Phone Number', category: 'Employee Information', kind: 'LOCAL_PHONE' },
   { key: 'current_address', label: 'Current Living Address', category: 'Employee Information', kind: 'ADDRESS' },
+  { key: 'passport_details', label: 'Passport Details', category: 'Employee Information', kind: 'PASSPORT', description: 'Passport Number and Expiration Date on file. The number itself is never shown here.' },
 ];
 const DEFAULT_CATEGORY = new Map(DEFAULT_REQUIREMENTS.map((r) => [r.key, r.category]));
 
@@ -68,7 +69,9 @@ async function ensureDefaultRequirements(organizationId) {
         category: r.category,
         description: r.description || null,
         kind: r.kind || 'MANUAL',
+        required: r.required === undefined ? true : Boolean(r.required),
         companyControlled: Boolean(r.companyControlled),
+        allowPersonalAccount: Boolean(r.allowPersonalAccount),
         credentialSystem: Boolean(r.credentialSystem),
         displayOrder: i,
       })),
@@ -80,6 +83,25 @@ async function ensureDefaultRequirements(organizationId) {
   for (const row of uncategorised) {
     const category = DEFAULT_CATEGORY.get(row.key);
     if (category) await prisma.setupRequirement.update({ where: { id: row.id }, data: { category } });
+  }
+  // One-time relaxation for organizations whose Telegram requirement still has its old, stricter
+  // shape (required + company-only, never customized by an Admin): Telegram is now optional and
+  // accepts a personal work number. An Admin who already edited it away from these exact defaults
+  // is never overwritten.
+  await prisma.setupRequirement.updateMany({
+    where: { organizationId, key: 'telegram', required: true, companyControlled: true, allowPersonalAccount: false },
+    data: { required: false, allowPersonalAccount: true },
+  });
+  // One-time addition of Passport Details as a new mandatory Setup requirement: every organization
+  // gets it added once if missing, regardless of when its other requirements were first seeded, so
+  // existing accounts pick it up without resetting any other Setup progress. An organization that
+  // already has this key (an Admin later edited or archived it) is never touched again.
+  if (!(await prisma.setupRequirement.count({ where: { organizationId, key: 'passport_details' } }))) {
+    const maxOrder = await prisma.setupRequirement.aggregate({ where: { organizationId }, _max: { displayOrder: true } });
+    const seed = DEFAULT_REQUIREMENTS.find((r) => r.key === 'passport_details');
+    await prisma.setupRequirement.create({
+      data: { organizationId, key: seed.key, label: seed.label, category: seed.category, description: seed.description, kind: seed.kind, required: true, displayOrder: (maxOrder._max.displayOrder ?? -1) + 1 },
+    });
   }
 }
 
@@ -145,6 +167,12 @@ function computeSetup({ profile, requirements, items, vaultSystemKeys, hasAddres
     } else if (requirement.kind === 'ADDRESS') {
       derived = true;
       status = exempt ? 'NOT_REQUIRED' : hasAddress ? 'COMPLETED' : 'NOT_SET_UP';
+    } else if (requirement.kind === 'PASSPORT') {
+      // Complete once both fields exist — expiration status (Valid/Expiring/Expired) is a
+      // separate, ongoing operational concern (readiness, notifications, filters), not something
+      // that reopens this one-time onboarding requirement once it has been provided.
+      derived = true;
+      status = exempt ? 'NOT_REQUIRED' : profile.passportNumberEnc && profile.passportExpiresAt ? 'COMPLETED' : 'NOT_SET_UP';
     } else if (requirement.kind === 'CREDENTIAL_VAULT') {
       derived = true;
       if (exempt) status = 'NOT_REQUIRED';
@@ -159,8 +187,11 @@ function computeSetup({ profile, requirements, items, vaultSystemKeys, hasAddres
       // the required proof (management verification / employee confirmation) does not count.
       const managementProof = Boolean(item.verifiedById || item.verifiedAt);
       const proven = rule === 'EMPLOYEE_CONFIRMATION' ? managementProof || Boolean(item.employeeConfirmedAt) : managementProof;
+      // A company-controlled item normally needs company ownership confirmed. When the requirement
+      // allows a personal account too, recording that choice (accountType) satisfies it instead.
+      const personalAccountOk = requirement.allowPersonalAccount && item.accountType === 'PERSONAL_WORK';
       if (!proven) status = 'IN_PROGRESS';
-      else if (requirement.companyControlled && !item.companyControlConfirmed) status = 'IN_PROGRESS'; // ticked, but company ownership/recovery not confirmed yet
+      else if (requirement.companyControlled && !item.companyControlConfirmed && !personalAccountOk) status = 'IN_PROGRESS'; // ticked, but neither company ownership nor a personal-account choice is on record yet
     }
     if (!derived && status === 'IN_PROGRESS' && item?.employeeConfirmedAt) awaitingVerification = true;
 
@@ -179,7 +210,7 @@ function computeSetup({ profile, requirements, items, vaultSystemKeys, hasAddres
       derived,
       rule,
       awaitingVerification,
-      awaitingCompanyControl: Boolean(requirement.companyControlled && item?.status === 'COMPLETED' && !item.companyControlConfirmed),
+      awaitingCompanyControl: Boolean(requirement.companyControlled && item?.status === 'COMPLETED' && !item.companyControlConfirmed && !(requirement.allowPersonalAccount && item.accountType === 'PERSONAL_WORK')),
       counts: requirement.required && status !== 'NOT_REQUIRED',
     };
   });

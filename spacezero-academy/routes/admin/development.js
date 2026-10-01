@@ -8,6 +8,10 @@ const express = require('express');
 const router = express.Router();
 const { prisma } = require('../../lib/prisma');
 const { requireAdmin } = require('../../lib/authMiddleware');
+const { requireSystemConfigAccess } = require('../../lib/supervisorCapabilities');
+// Development automation, certification definitions and the skills taxonomy are all "Admin
+// Configuration" (Task 3, Training/Skills) — organization-wide rules, not day-to-day management.
+const advanced = [requireAdmin, requireSystemConfigAccess];
 const { logAudit } = require('../../lib/audit');
 const { roleLabel } = require('../../lib/roles');
 const { runAutomation } = require('../../lib/automation');
@@ -19,37 +23,42 @@ const ROLES = ['TRAVEL_AGENT', 'FLIGHT_EXPERT', 'SUPERVISOR'];
 const text = (v, max) => String(v ?? '').trim().slice(0, max);
 const int = (v, min, max) => { const n = Number(v); return Number.isInteger(n) && n >= min && n <= max ? n : null; };
 const role = (v) => (ROLES.includes(v) ? v : null);
+const skillRole = (v) => (v === 'ADMIN' ? v : role(v));
 const asList = (v) => (Array.isArray(v) ? v : v === undefined ? [] : [v]).map(String);
 const notFound = (res) => res.status(404).render('not-found', { layout: false });
-const back = (res, path, params = {}) => res.redirect(`${path}${Object.keys(params).length ? '?' + new URLSearchParams(params).toString() : ''}`);
+const back = (res, path, params = { saved: '1' }) => res.redirect(`${path}${Object.keys(params).length ? '?' + new URLSearchParams(params).toString() : ''}`);
+router.use((req, res, next) => { res.locals.saved = req.query.saved === '1'; next(); });
 const parse = (v, fallback) => { try { return v ? JSON.parse(v) : fallback; } catch { return fallback; } };
 
 const publishedCourse = (organizationId, id) => prisma.trainingCourse.findFirst({ where: { id: String(id || ''), organizationId, status: 'PUBLISHED', archivedAt: null }, select: { id: true, title: true } });
 
 // ------------------------------------------------------------------ development: paths, rules, queue
-router.get('/development', requireAdmin, async (req, res) => {
+async function renderDevelopment(req, res, extras = {}) {
   const organizationId = req.profile.organizationId;
-  const [recommendations, paths, rules, courses, skills] = await Promise.all([
+  const [recommendations, paths, rules, courses, skills, bands] = await Promise.all([
     prisma.developmentRecommendation.findMany({ where: { organizationId, status: 'OPEN' }, orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }], take: 100, include: { profile: { select: { id: true, fullName: true, role: true } } } }),
     prisma.developmentPath.findMany({ where: { organizationId }, orderBy: { createdAt: 'asc' }, include: { steps: { orderBy: { dayOffset: 'asc' } } } }),
     prisma.assignmentRule.findMany({ where: { organizationId }, orderBy: { createdAt: 'asc' } }),
     prisma.trainingCourse.findMany({ where: { organizationId, status: 'PUBLISHED', archivedAt: null }, orderBy: { title: 'asc' }, select: { id: true, title: true } }),
     prisma.skill.findMany({ where: { organizationId, isActive: true }, orderBy: [{ category: 'asc' }, { name: 'asc' }], select: { id: true, name: true, roleKey: true } }),
+    prisma.tenureBand.findMany({ where: { organizationId }, orderBy: { displayOrder: 'asc' } }),
   ]);
   const courseTitle = new Map(courses.map((c) => [c.id, c.title]));
   const skillName = new Map(skills.map((s) => [s.id, s.name]));
   const ruleRows = rules.map((r) => ({ ...r, condition: parse(r.conditionJson, {}), courseTitle: r.courseId ? courseTitle.get(r.courseId) || '(unavailable)' : null }));
   res.set('Cache-Control', 'private, no-store');
-  res.render('admin/development', { title: 'Development automation', recommendations, paths: paths.map((p) => ({ ...p, steps: p.steps.map((s) => ({ ...s, courseTitle: s.courseId ? courseTitle.get(s.courseId) || '(unavailable)' : null })) })), rules: ruleRows, courses, skills, skillName, ROLES, roleLabel, ran: typeof req.query.ran === 'string' ? req.query.ran.slice(0, 300) : null, error: typeof req.query.error === 'string' ? req.query.error.slice(0, 200) : null });
-});
+  res.render('admin/development', { title: 'Development automation', recommendations, paths: paths.map((p) => ({ ...p, steps: p.steps.map((s) => ({ ...s, courseTitle: s.courseId ? courseTitle.get(s.courseId) || '(unavailable)' : null })) })), rules: ruleRows, courses, skills, skillName, bands, ROLES, roleLabel, ran: typeof req.query.ran === 'string' ? req.query.ran.slice(0, 300) : null, error: typeof req.query.error === 'string' ? req.query.error.slice(0, 200) : null, values: {}, saved: req.query.saved === '1', ...extras });
+}
+router.get('/development', advanced, renderDevelopment);
+router.renderDevelopment = renderDevelopment;
 
-router.post('/development/run', requireAdmin, async (req, res) => {
+router.post('/development/run', advanced, async (req, res) => {
   const s = await runAutomation(req.profile.organizationId, { actorId: req.profile.id });
   const bits = [`${s.retentionScheduled} follow-ups scheduled`, `${s.retention.checked} checked`, `${s.paths.recommended + s.rules.recommended} recommended`, `${s.paths.assigned + s.rules.assigned} assigned`, `${s.certifications.issued} certificates issued`];
   back(res, '/admin/development', { ran: bits.join(' · ') });
 });
 
-router.post('/development/paths', requireAdmin, async (req, res) => {
+router.post('/development/paths', advanced, async (req, res) => {
   const name = text(req.body.name, 80);
   if (name.length < 2) return back(res, '/admin/development', { error: 'Enter a name for the path.' });
   const path = await prisma.developmentPath.create({ data: { organizationId: req.profile.organizationId, name, roleKey: role(req.body.roleKey), description: text(req.body.description, 300) || null, createdById: req.profile.id } });
@@ -59,21 +68,21 @@ router.post('/development/paths', requireAdmin, async (req, res) => {
 
 async function ownPath(req) { return prisma.developmentPath.findFirst({ where: { id: req.params.id, organizationId: req.profile.organizationId } }); }
 
-router.post('/development/paths/:id/toggle', requireAdmin, async (req, res) => {
+router.post('/development/paths/:id/toggle', advanced, async (req, res) => {
   const path = await ownPath(req); if (!path) return notFound(res);
   await prisma.developmentPath.update({ where: { id: path.id }, data: { isActive: !path.isActive } });
   await logAudit({ organizationId: path.organizationId, actorId: req.profile.id, action: 'development.path_toggled', targetTable: 'DevelopmentPath', targetId: path.id, metadata: { isActive: !path.isActive } });
   back(res, '/admin/development');
 });
 
-router.post('/development/paths/:id/delete', requireAdmin, async (req, res) => {
+router.post('/development/paths/:id/delete', advanced, async (req, res) => {
   const path = await ownPath(req); if (!path) return notFound(res);
   await prisma.developmentPath.delete({ where: { id: path.id } }); // recommendations already created stay as history
   await logAudit({ organizationId: path.organizationId, actorId: req.profile.id, action: 'development.path_deleted', targetTable: 'DevelopmentPath', targetId: path.id, metadata: { name: path.name } });
   back(res, '/admin/development');
 });
 
-router.post('/development/paths/:id/steps', requireAdmin, async (req, res) => {
+router.post('/development/paths/:id/steps', advanced, async (req, res) => {
   const path = await ownPath(req); if (!path) return notFound(res);
   const dayOffset = int(req.body.dayOffset, 0, 730);
   const title = text(req.body.title, 120);
@@ -86,7 +95,7 @@ router.post('/development/paths/:id/steps', requireAdmin, async (req, res) => {
   back(res, '/admin/development');
 });
 
-router.post('/development/steps/:id/delete', requireAdmin, async (req, res) => {
+router.post('/development/steps/:id/delete', advanced, async (req, res) => {
   const step = await prisma.developmentPathStep.findFirst({ where: { id: req.params.id, path: { organizationId: req.profile.organizationId } } });
   if (!step) return notFound(res);
   await prisma.developmentPathStep.delete({ where: { id: step.id } });
@@ -94,7 +103,7 @@ router.post('/development/steps/:id/delete', requireAdmin, async (req, res) => {
   back(res, '/admin/development');
 });
 
-router.post('/development/rules', requireAdmin, async (req, res) => {
+router.post('/development/rules', advanced, async (req, res) => {
   const organizationId = req.profile.organizationId;
   const name = text(req.body.name, 80);
   const condition = {};
@@ -116,7 +125,7 @@ router.post('/development/rules', requireAdmin, async (req, res) => {
   back(res, '/admin/development');
 });
 
-router.post('/development/rules/:id/toggle', requireAdmin, async (req, res) => {
+router.post('/development/rules/:id/toggle', advanced, async (req, res) => {
   const rule = await prisma.assignmentRule.findFirst({ where: { id: req.params.id, organizationId: req.profile.organizationId } });
   if (!rule) return notFound(res);
   await prisma.assignmentRule.update({ where: { id: rule.id }, data: { isActive: !rule.isActive } });
@@ -124,7 +133,7 @@ router.post('/development/rules/:id/toggle', requireAdmin, async (req, res) => {
   back(res, '/admin/development');
 });
 
-router.post('/development/rules/:id/delete', requireAdmin, async (req, res) => {
+router.post('/development/rules/:id/delete', advanced, async (req, res) => {
   const rule = await prisma.assignmentRule.findFirst({ where: { id: req.params.id, organizationId: req.profile.organizationId } });
   if (!rule) return notFound(res);
   await prisma.assignmentRule.delete({ where: { id: rule.id } });
@@ -133,7 +142,7 @@ router.post('/development/rules/:id/delete', requireAdmin, async (req, res) => {
 });
 
 // ------------------------------------------------------------------ certifications
-router.get('/certifications', requireAdmin, async (req, res) => {
+router.get('/certifications', advanced, async (req, res) => {
   const organizationId = req.profile.organizationId;
   const [definitions, courses, skills, recent] = await Promise.all([
     prisma.certificationDefinition.findMany({ where: { organizationId }, orderBy: { createdAt: 'asc' }, include: { _count: { select: { earned: true } } } }),
@@ -153,7 +162,7 @@ router.get('/certifications', requireAdmin, async (req, res) => {
   res.render('admin/certifications', { title: 'Certifications', defs, courses, skills, recent, ROLES, roleLabel, ran: typeof req.query.ran === 'string' ? req.query.ran.slice(0, 200) : null, error: typeof req.query.error === 'string' ? req.query.error.slice(0, 200) : null });
 });
 
-router.post('/certifications', requireAdmin, async (req, res) => {
+router.post('/certifications', advanced, async (req, res) => {
   const organizationId = req.profile.organizationId;
   const name = text(req.body.name, 80);
   if (name.length < 2) return back(res, '/admin/certifications', { error: 'Enter a name.' });
@@ -174,12 +183,12 @@ router.post('/certifications', requireAdmin, async (req, res) => {
   back(res, '/admin/certifications');
 });
 
-router.post('/certifications/evaluate', requireAdmin, async (req, res) => {
+router.post('/certifications/evaluate', advanced, async (req, res) => {
   const r = await evaluateOrganization(req.profile.organizationId);
   back(res, '/admin/certifications', { ran: `${r.issued} issued · ${r.expired} expired` });
 });
 
-router.post('/certifications/:id/toggle', requireAdmin, async (req, res) => {
+router.post('/certifications/:id/toggle', advanced, async (req, res) => {
   const def = await prisma.certificationDefinition.findFirst({ where: { id: req.params.id, organizationId: req.profile.organizationId } });
   if (!def) return notFound(res);
   await prisma.certificationDefinition.update({ where: { id: def.id }, data: { isActive: !def.isActive } });
@@ -187,7 +196,7 @@ router.post('/certifications/:id/toggle', requireAdmin, async (req, res) => {
   back(res, '/admin/certifications');
 });
 
-router.post('/certifications/earned/:id/revoke', requireAdmin, async (req, res) => {
+router.post('/certifications/earned/:id/revoke', advanced, async (req, res) => {
   const earned = await prisma.earnedCertification.findFirst({ where: { id: req.params.id, definition: { organizationId: req.profile.organizationId } } });
   if (!earned) return notFound(res);
   await prisma.earnedCertification.update({ where: { id: earned.id }, data: { status: 'REVOKED' } });
@@ -196,7 +205,7 @@ router.post('/certifications/earned/:id/revoke', requireAdmin, async (req, res) 
 });
 
 // ------------------------------------------------------------------ skills & categories
-router.get('/skills', requireAdmin, async (req, res) => {
+async function renderSkills(req, res, extras = {}) {
   const organizationId = req.profile.organizationId;
   const [skills, courses] = await Promise.all([
     prisma.skill.findMany({ where: { organizationId }, orderBy: [{ isActive: 'desc' }, { category: 'asc' }, { displayOrder: 'asc' }, { name: 'asc' }], include: { _count: { select: { employeeSkills: true } } } }),
@@ -204,15 +213,17 @@ router.get('/skills', requireAdmin, async (req, res) => {
   ]);
   const categories = [...new Set(skills.map((s) => s.category).filter(Boolean))].sort();
   res.set('Cache-Control', 'private, no-store');
-  res.render('admin/skills', { title: 'Skills & categories', skills, categories, courses, ROLES, roleLabel, notice: typeof req.query.notice === 'string' ? req.query.notice.slice(0, 200) : null, error: typeof req.query.error === 'string' ? req.query.error.slice(0, 200) : null });
-});
+  res.render('admin/skills', { title: 'Skill Catalog', skills, categories, courses, ROLES: ['ADMIN', ...ROLES], roleLabel, notice: typeof req.query.notice === 'string' ? req.query.notice.slice(0, 200) : null, error: typeof req.query.error === 'string' ? req.query.error.slice(0, 200) : null, values: {}, ...extras });
+}
+router.get('/skills', advanced, (req, res) => renderSkills(req, res));
+router.renderSkills = renderSkills;
 
-router.post('/skills', requireAdmin, async (req, res) => {
+router.post('/skills', advanced, async (req, res) => {
   const organizationId = req.profile.organizationId;
   const name = text(req.body.name, 80);
   const category = (req.body.category === '__new' ? text(req.body.newCategory, 60) : text(req.body.category, 60)) || null;
   if (name.length < 2) return back(res, '/admin/skills', { error: 'Enter a skill name.' });
-  const roleKey = role(req.body.roleKey);
+  const roleKey = skillRole(req.body.roleKey);
   const duplicate = await prisma.skill.findFirst({ where: { organizationId, roleKey, name: { equals: name } } });
   if (duplicate) return back(res, '/admin/skills', { error: 'A skill with that name already exists for this role.' });
   const skill = await prisma.skill.create({ data: { organizationId, name, category, roleKey, description: text(req.body.description, 300) || null } });
@@ -220,20 +231,20 @@ router.post('/skills', requireAdmin, async (req, res) => {
   back(res, '/admin/skills', { notice: `Added ${name}.` });
 });
 
-router.post('/skills/taxonomy', requireAdmin, async (req, res) => {
+router.post('/skills/taxonomy', advanced, async (req, res) => {
   const r = await ensureTaxonomy(req.profile.organizationId);
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'skill.taxonomy_applied', targetTable: 'Organization', targetId: req.profile.organizationId, metadata: r });
   back(res, '/admin/skills', { notice: `Added ${r.created} recommended skills, regrouped ${r.regrouped}.` });
 });
 
-router.post('/skills/recalculate', requireAdmin, async (req, res) => {
+router.post('/skills/recalculate', advanced, async (req, res) => {
   const r = await recomputeOrganization(req.profile.organizationId);
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'skill.recalculated', targetTable: 'Organization', targetId: req.profile.organizationId, metadata: { rows: r } });
   back(res, '/admin/skills', { notice: 'Skill scores recalculated from evidence. History was preserved.' });
 });
 
 /** Micro-practice: a 2–5 minute targeted practice for ONE skill, generated from an approved training. Starts as AI_GENERATED and needs approval. */
-router.post('/skills/micro-practice', requireAdmin, async (req, res) => {
+router.post('/skills/micro-practice', advanced, async (req, res) => {
   const organizationId = req.profile.organizationId;
   const skill = await prisma.skill.findFirst({ where: { id: String(req.body.skillId || ''), organizationId, isActive: true } });
   if (!skill) return notFound(res);
@@ -250,13 +261,13 @@ router.post('/skills/micro-practice', requireAdmin, async (req, res) => {
   }
 });
 
-router.post('/skills/:id', requireAdmin, async (req, res) => {
+router.post('/skills/:id', advanced, async (req, res) => {
   const skill = await prisma.skill.findFirst({ where: { id: req.params.id, organizationId: req.profile.organizationId } });
   if (!skill) return notFound(res);
   const name = text(req.body.name, 80);
   if (name.length < 2) return back(res, '/admin/skills', { error: 'Enter a skill name.' });
   const category = (req.body.category === '__new' ? text(req.body.newCategory, 60) : text(req.body.category, 60)) || null;
-  const data = { name, category, roleKey: role(req.body.roleKey), description: text(req.body.description, 300) || null, isActive: req.body.isActive === '1' };
+  const data = { name, category, roleKey: skillRole(req.body.roleKey), description: text(req.body.description, 300) || null, isActive: req.body.isActive === '1' };
   await prisma.skill.update({ where: { id: skill.id }, data });
   await logAudit({ organizationId: skill.organizationId, actorId: req.profile.id, action: 'skill.updated', targetTable: 'Skill', targetId: skill.id, metadata: { before: { name: skill.name, category: skill.category, role: skill.roleKey, isActive: skill.isActive }, after: { name, category, role: data.roleKey, isActive: data.isActive } } });
   back(res, '/admin/skills', { notice: 'Skill updated. Archived skills keep their history.' });

@@ -19,5 +19,9 @@ async function recordAttempt(bucketKey, succeeded) {
 
 const LOGIN_RATE_LIMIT = { maxAttempts: 8, windowMs: 15 * 60 * 1000 };
 const FORGOT_PASSWORD_RATE_LIMIT = { maxAttempts: 5, windowMs: 60 * 60 * 1000 };
+// Gemini calls are the most expensive/abusable operation in the app (AI Practice analysis/build
+// triggers, call-batch processing, and the SpaceZero AI assistant) — per-profile, not per-IP,
+// since these routes always run behind requireSession.
+const AI_RATE_LIMIT = { maxAttempts: 20, windowMs: 10 * 60 * 1000 };
 
-module.exports = { isRateLimited, recordAttempt, LOGIN_RATE_LIMIT, FORGOT_PASSWORD_RATE_LIMIT };
+module.exports = { isRateLimited, recordAttempt, LOGIN_RATE_LIMIT, FORGOT_PASSWORD_RATE_LIMIT, AI_RATE_LIMIT };

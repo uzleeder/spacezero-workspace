@@ -1,0 +1,23 @@
+<%- include('../../partials/page-header', { pageTitle: 'Permissions — ' + supervisor.fullName, pageDescription: 'Only capabilities granted here apply, and only within ' + supervisor.fullName + '\'s own team.', headerAction: '<a href="/admin/supervisor-permissions" class="btn btn-secondary">Back</a>' }) %>
+
+<form method="post" action="/admin/supervisor-permissions/<%= supervisor.id %>" class="mt-24" onsubmit="return confirm('Apply these management permissions for this supervisor?')">
+  <% CATEGORIES.forEach(function (category) { %>
+    <div class="card mt-16">
+      <div class="card-header"><h2><%= category %></h2></div>
+      <div class="card-body">
+        <% CAPABILITIES.filter(function (c) { return c.category === category; }).forEach(function (c) { %>
+          <label class="checkbox-row" style="display:block;margin:10px 0">
+            <input type="checkbox" name="capabilities" value="<%= c.key %>" <%= granted.has(c.key) ? 'checked' : '' %> />
+            <strong><%= c.label %></strong>
+            <p class="text-sm text-muted" style="margin:2px 0 0 24px"><%= c.description %></p>
+          </label>
+        <% }); %>
+      </div>
+    </div>
+  <% }); %>
+
+  <div class="row-between mt-24" style="margin-bottom:40px">
+    <a href="/admin/supervisor-permissions" class="text-sm link-gold">Cancel</a>
+    <button type="submit" class="btn btn-gold">Save Permissions</button>
+  </div>
+</form>

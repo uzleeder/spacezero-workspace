@@ -31,7 +31,22 @@ const NAV_SECTIONS = [
         activeAlsoByRole: { SUPERVISOR: ['/team-skills', '/employees', '/leave', '/call-reviews'] },
       },
       { href: '/admin/training', label: 'Training', roles: ['ADMIN', 'SUPERVISOR'], activeAlso: ['/assignments'] },
-      { href: '/admin/settings', label: 'Settings & Security', roles: ['ADMIN'], activeAlso: ['/admin/audit-logs', '/admin/analytics', '/admin/setup-requirements', '/admin/policies'] },
+    ],
+  },
+  {
+    items: [
+      { href: '/standards', label: 'Company Standards & Workflow', roles: ALL_ROLES, activeAlso: ['/admin/standards'] },
+      { href: '/assistant', label: 'SpaceZero AI', roles: ALL_ROLES },
+      // ONE Settings entry for every Admin (Task 4). Inside: General and Security are ordinary,
+      // day-to-day settings any Admin reaches; Advanced (the former separate "Admin Configuration")
+      // only renders for an Admin who also holds System Configuration Access — that capability
+      // check happens inside the Settings page itself (routes/admin/settings.js), and every
+      // Advanced route it links to re-checks the same capability server-side regardless of whether
+      // this sidebar item, or the Advanced tab within it, is shown.
+      {
+        href: '/admin/settings', label: 'Settings', roles: ['ADMIN'],
+        activeAlso: ['/admin/configuration', '/admin/setup-requirements', '/admin/policies', '/admin/supervisor-permissions', '/admin/standards', '/admin/skills', '/admin/development', '/admin/certifications', '/admin/audit-logs', '/admin/analytics'],
+      },
     ],
   },
 ];

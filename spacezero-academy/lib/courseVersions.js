@@ -12,6 +12,7 @@
 const { prisma } = require('./prisma');
 const { logAudit } = require('./audit');
 const { getSetting } = require('./orgSettings');
+const { createNotification } = require('./notifications');
 
 const safe = (v, fallback) => { try { return v ? JSON.parse(v) : fallback; } catch { return fallback; } };
 const isTargetedRetake = (a) => safe(a.configJson, {}) && safe(a.configJson, {}).targetedRetake === true;
@@ -78,6 +79,52 @@ async function revokeApproval(actor, course) {
   return { ok: true, revoked: changed.count };
 }
 
+// ------------------------------------------------------------------ Supervisor Training Creation: review workflow
+/**
+ * A Supervisor with 'training.create' hands their prepared draft to an Admin. Reuses the exact
+ * same readiness check as sending to Training (`sendBlocker`) — nothing may be submitted that
+ * would not also be sendable — so there is no separate, divergent "ready" definition to maintain.
+ * Idempotent: submitting again while already SUBMITTED changes nothing and still reports ok.
+ */
+async function submitForApproval(actor, course) {
+  const isDraftEditable = !course.publishedVersion || (course.draftVersion || 1) > course.publishedVersion; // same rule as routes/aiPractice.js's editable()
+  if (!isDraftEditable) return { ok: false, error: 'This version is already in Training.' };
+  if (course.reviewStatus === 'SUBMITTED') return { ok: true, alreadySubmitted: true };
+  const blocker = await sendBlocker(course);
+  if (blocker) return { ok: false, error: blocker };
+  const moved = await prisma.trainingCourse.updateMany({
+    where: { id: course.id, reviewStatus: course.reviewStatus },
+    data: { reviewStatus: 'SUBMITTED', reviewNote: null, submittedAt: new Date(), submittedById: actor.id },
+  });
+  if (!moved.count) return { ok: true, alreadySubmitted: true }; // lost a race with another submit — already covered
+  await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'training.submitted_for_approval', targetTable: 'TrainingCourse', targetId: course.id, metadata: { version: course.draftVersion || 1 } });
+  return { ok: true, alreadySubmitted: false };
+}
+
+/** Admin sends a submitted draft back with a required note. The Supervisor keeps working the same draft — nothing is discarded. */
+async function requestChanges(actor, course, note) {
+  const text = String(note || '').trim().slice(0, 1000);
+  if (!text) return { ok: false, error: 'Explain what needs to change before sending this back.' };
+  if (course.reviewStatus !== 'SUBMITTED') return { ok: false, error: 'This is not currently awaiting approval.' };
+  const moved = await prisma.trainingCourse.updateMany({ where: { id: course.id, reviewStatus: 'SUBMITTED' }, data: { reviewStatus: 'CHANGES_REQUESTED', reviewNote: text } });
+  if (!moved.count) return { ok: false, error: 'This is not currently awaiting approval.' };
+  await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'training.changes_requested', targetTable: 'TrainingCourse', targetId: course.id, metadata: { note: text } });
+  if (course.submittedById) {
+    await createNotification({ profileId: course.submittedById, type: 'training.changes_requested', title: 'Changes requested', body: `An admin requested changes to "${course.title}": ${text}`, link: `/ai-practice/${course.id}?step=review` });
+  }
+  return { ok: true };
+}
+
+/** A light, read-only submission/review timeline for the detail page — built from the audit log, not a second history table. */
+async function reviewHistory(courseId) {
+  const rows = await prisma.auditLog.findMany({
+    where: { targetTable: 'TrainingCourse', targetId: courseId, action: { in: ['training.submitted_for_approval', 'training.changes_requested', 'training.sent_to_training', 'training.version_published'] } },
+    include: { actor: { select: { fullName: true } } },
+    orderBy: { createdAt: 'asc' },
+  });
+  return rows.map((r) => ({ action: r.action, actorName: r.actor ? r.actor.fullName : 'Someone', at: r.createdAt, note: (() => { try { return JSON.parse(r.metadataJson || '{}').note || null; } catch { return null; } })() }));
+}
+
 // ------------------------------------------------------------------ Send to Training
 /** What sending checks. Returns null when the package may be sent. */
 async function sendBlocker(course) {
@@ -105,7 +152,10 @@ async function sendToTraining(actor, course, fields = {}) {
   const components = await packageComponents(course);
   const analysis = await prisma.trainingAnalysis.findUnique({ where: { courseId: course.id } });
   const modules = modulesFor(await prisma.trainingModule.findMany({ where: { courseId: course.id }, select: { id: true, title: true, contentType: true, required: true, addedInVersion: true, removedInVersion: true } }), version).map(({ addedInVersion: _a, removedInVersion: _r, ...m }) => m);
-  const data = { status: 'PUBLISHED', archivedAt: null, publishedVersion: version, sentAt: now, sentById: actor.id };
+  // Publishing always supersedes any pending Supervisor-submission review state, whether this
+  // course went through that workflow or not — sentById/sentAt above already record the approving
+  // Admin and when, satisfying "Approve & Send to Training records the approving Admin and timestamp".
+  const data = { status: 'PUBLISHED', archivedAt: null, publishedVersion: version, sentAt: now, sentById: actor.id, reviewStatus: 'NONE', reviewNote: null };
   for (const key of ['title', 'description', 'mandatory', 'onboardingForNewHires', 'passingScore', 'durationMinutes', 'roleKey']) if (fields[key] !== undefined) data[key] = fields[key];
   const claimed = await prisma.$transaction(async (tx) => {
     // The guard makes the transition atomic: only one request can move publishedVersion forward.
@@ -207,4 +257,5 @@ module.exports = {
   liveVersion, modulesFor, learnerVersion, draftWhere, publishedWhere, packageComponents, lockReason, isTargetedRetake,
   approvePackage, revokeApproval, sendBlocker, sendToTraining, createNewVersion, discardDraftVersion, versionHistory,
   deletionPolicy, archiveSource, restoreSource, getSetting,
+  submitForApproval, requestChanges, reviewHistory,
 };

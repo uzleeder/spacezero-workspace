@@ -19,6 +19,7 @@ const { registerJobType } = require('./jobQueue');
 const { runOnboarding } = require('./onboarding');
 const { coversSkill, estimateMinutes } = require('./development');
 const { liveVersion } = require('./courseVersions');
+const { runPassportReminders } = require('./passport');
 
 const DAY_MS = 86400000;
 const parse = (v, fallback) => { try { return v ? JSON.parse(v) : fallback; } catch { return fallback; } };
@@ -314,6 +315,7 @@ async function runAutomation(organizationId, { now = new Date(), actorId = null 
   summary.paths = await runPaths(organizationId, now);
   summary.onboarding = await runOnboarding(organizationId, { now });
   summary.setupReminders = await runSetupReminders(organizationId);
+  summary.passportReminders = await runPassportReminders(organizationId, now);
   summary.rules = await runRules(organizationId, now);
   summary.notifications = await runNotifications(organizationId, now);
   summary.certifications = await evaluateOrganization(organizationId, { now });

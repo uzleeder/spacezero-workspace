@@ -5,7 +5,8 @@ const router = express.Router();
 const multer = require('multer');
 
 const { prisma } = require('../lib/prisma');
-const { parseFilters, whereFor, applyLearningFilters, byReadiness } = require('../lib/employeeFilters');
+const { parseFilters, whereFor, applyLearningFilters, byReadiness, byPassportStatus } = require('../lib/employeeFilters');
+const { STATUS: PASSPORT_STATUS, STATUS_LABEL: PASSPORT_STATUS_LABEL } = require('../lib/passport');
 const { readinessFor } = require('../lib/readiness');
 const { requireRole } = require('../lib/authMiddleware');
 const { supervisedProfileIds, isSupervisorOfAgent } = require('../lib/authz');
@@ -17,6 +18,7 @@ const { SETUP_FILTERS, parseSetupQuery, matchesSetup, requirementOptions } = req
 const { validateUpload, saveUpload } = require('../lib/storage');
 const { logAudit } = require('../lib/audit');
 const { createNotification } = require('../lib/notifications');
+const { hasCapability } = require('../lib/supervisorCapabilities');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 150 * 1024 * 1024 } });
 
@@ -27,13 +29,13 @@ router.get('/team', requireRole('SUPERVISOR'), async (req, res) => {
   const status = str(req.query.status);
   const f = parseFilters(req.query);
   const found = await prisma.profile.findMany({
-    where: { id: { in: agentIds }, status: status || undefined, fullName: req.query.q ? { contains: str(req.query.q) } : undefined, ...(await whereFor(req.profile.organizationId, f)) },
+    where: { id: { in: agentIds }, status: status || undefined, ...(req.query.q ? { OR: [{ fullName: { contains: str(req.query.q) } }, { email: { contains: str(req.query.q) } }] } : {}), ...(await whereFor(req.profile.organizationId, f)) },
     include: { teamMemberships: { include: { team: true } } },
     orderBy: { fullName: 'asc' },
   });
   const setupMap = await loadSetupForProfiles(req.profile.organizationId, found);
   const readinessMap = await readinessFor(req.profile.organizationId, found, { setupMap });
-  const agents = byReadiness(await applyLearningFilters(found, f), readinessMap, f);
+  const agents = byPassportStatus(byReadiness(await applyLearningFilters(found, f), readinessMap, f), f);
   const summaries = [];
   for (const agent of agents.filter((a) => matchesSetup(setupMap.get(a.id), setupQuery))) {
     summaries.push({ agent, summary: await getMyTrainingSummary(agent.id), setup: setupMap.get(agent.id), readiness: readinessMap.get(agent.id) });
@@ -41,6 +43,7 @@ router.get('/team', requireRole('SUPERVISOR'), async (req, res) => {
   res.render('team/index', {
     title: 'Employees & Teams', summaries, f, filterSkills: await prisma.skill.findMany({ where: { organizationId: req.profile.organizationId, isActive: true }, orderBy: [{ category: 'asc' }, { name: 'asc' }], select: { id: true, name: true } }), SETUP_FILTERS, requirements: await requirementOptions(req.profile.organizationId),
     q: str(req.query.q), status, setup: setupQuery.setup, missing: setupQuery.missing,
+    PASSPORT_STATUS, PASSPORT_STATUS_LABEL,
   });
 });
 
@@ -51,17 +54,22 @@ router.get('/team/:id', requireRole('SUPERVISOR'), async (req, res) => {
   const data = await loadProfileOverview(req.params.id);
   if (!data) return res.status(404).render('not-found', { layout: false });
 
-  const trainingList = await getMyTrainingList(req.params.id);
+  // "View Team Training History & Reassign/Retake" is its own Admin-grantable capability — a
+  // Supervisor may see the rest of this page (setup, skills, overview) without it; only the
+  // training-history section and the retake action are gated on it.
+  const canViewTrainingHistory = req.profile.role === 'ADMIN' || await hasCapability(req.profile, 'training.viewHistory');
+  const trainingList = canViewTrainingHistory ? await getMyTrainingList(req.params.id) : [];
   const retakeCandidates = trainingList.filter((r) => r.status === 'COMPLETED' || r.status === 'FAILED');
 
   res.locals.empTabs = await tabsForRequest(req, data.profile);
-  res.render('team/detail', { title: data.profile.fullName, data, retakeCandidates, canRecordEvidence: true });
+  res.render('team/detail', { title: data.profile.fullName, data, retakeCandidates, canRecordEvidence: true, canViewTrainingHistory });
 });
 
 // /team-skills is now Team Intelligence (routes/teamIntel.js).
 
 router.post('/training/:recipientId/retake', requireRole('ADMIN', 'SUPERVISOR'), async (req, res) => {
   const actor = req.profile;
+  if (actor.role === 'SUPERVISOR' && !(await hasCapability(actor, 'training.viewHistory'))) return res.status(403).render('forbidden');
   const recipient = await prisma.trainingAssignmentRecipient.findUnique({ where: { id: req.params.recipientId } });
   if (recipient) {
     if (actor.role === 'SUPERVISOR' && !(await isSupervisorOfAgent(actor.id, recipient.profileId))) {

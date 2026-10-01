@@ -17,15 +17,29 @@ const { readinessFor } = require('../lib/readiness');
 const { employeeTimeline } = require('../lib/timeline');
 const { createNotification } = require('../lib/notifications');
 const { safeRedirect } = require('../lib/requestSecurity');
+const { hasCapability, canViewSetupTab } = require('../lib/supervisorCapabilities');
+const { passportAccess, passportStatus, maskPassportNumber, validatePassportNumber, parseExpirationDate, decryptPassportNumber, encryptPassportNumber, STATUS_LABEL: PASSPORT_STATUS_LABEL, STATUS_TONE: PASSPORT_STATUS_TONE } = require('../lib/passport');
+const { verifyPassword } = require('../lib/password');
+const { isRateLimited, recordAttempt } = require('../lib/rateLimit');
 
 const notFound = (res) => res.status(404).render('not-found', { layout: false });
-// Nobody verifies their own setup — not even an admin; another admin or the supervisor must.
-const canManageSetup = (actor, ctx) => !ctx.isSelf && (actor.role === 'ADMIN' || actor.role === 'SUPERVISOR');
-
+// An Admin may manage (bulk-check, verify) their OWN setup — the org's highest authority does not
+// need a second admin to sign off on their own PC/GDS/etc. A Supervisor still cannot self-verify,
+// and beyond that needs the Admin-granted 'setup.manage' capability for anyone else's setup —
+// unconditional role === 'SUPERVISOR' access was removed; see lib/supervisorCapabilities.js.
+async function canManageSetup(actor, ctx) {
+  if (actor.role === 'ADMIN') return true;
+  if (actor.role !== 'SUPERVISOR' || ctx.isSelf) return false;
+  return hasCapability(actor, 'setup.manage');
+}
 async function frame(req, ctx) {
-  const access = await credentialAccess(req.profile, ctx.employee, { impersonating: Boolean(req.impersonation) });
-  const readiness = (await readinessFor(req.profile.organizationId, [ctx.employee])).get(ctx.employee.id) || null;
-  return { tabs: employeeTabs(req.profile, ctx, { credentials: access.view || access.manage }), employee: ctx.employee, isSelf: ctx.isSelf, roleLabel, readiness };
+  const [access, readinessMap, canViewSetup] = await Promise.all([
+    credentialAccess(req.profile, ctx.employee, { impersonating: Boolean(req.impersonation) }),
+    readinessFor(req.profile.organizationId, [ctx.employee]),
+    canViewSetupTab(req.profile, ctx),
+  ]);
+  const readiness = readinessMap.get(ctx.employee.id) || null;
+  return { tabs: employeeTabs(req.profile, ctx, { credentials: access.view || access.manage, canViewSetup }), employee: ctx.employee, isSelf: ctx.isSelf, roleLabel, readiness };
 }
 
 async function renderSetup(req, res, ctx, extra = {}) {
@@ -35,6 +49,21 @@ async function renderSetup(req, res, ctx, extra = {}) {
   if (ctx.employee.currentAddressEnc) {
     try { address = decryptText(ctx.employee.currentAddressEnc, `address:${ctx.employee.id}`); } catch { address = ''; }
   }
+  const canManage = await canManageSetup(actor, ctx);
+  const passAccess = await passportAccess(actor, ctx.employee);
+  const passStatus = passportStatus(ctx.employee.passportExpiresAt);
+  // Self sees their own full number (it is their own data, no reveal step needed); a management
+  // viewer with view access sees only the masked form here — the full value needs the separate,
+  // password-gated /passport/reveal action, exactly like the Credential Vault.
+  let passportFull = null;
+  let passportMasked = null;
+  if (ctx.employee.passportNumberEnc) {
+    try {
+      const plain = decryptPassportNumber(ctx.employee.id, ctx.employee.passportNumberEnc);
+      if (ctx.isSelf && passAccess.view) passportFull = plain;
+      else if (passAccess.view) passportMasked = maskPassportNumber(plain);
+    } catch { /* undecryptable: treated as not shown */ }
+  }
   res.render('employee/setup', {
     title: `${ctx.employee.fullName} — Setup`,
     ...(await frame(req, ctx)),
@@ -42,12 +71,21 @@ async function renderSetup(req, res, ctx, extra = {}) {
     STATUSES,
     STATUS_LABEL,
     VERIFICATION_LABEL,
-    manage: canManageSetup(actor, ctx) && ctx.employee.status !== 'INVITED', // setup starts when the employee is activated
+    manage: canManage && ctx.employee.status !== 'INVITED', // setup starts when the employee is activated
     isAdmin: actor.role === 'ADMIN',
-    canEditContact: ctx.isSelf || canManageSetup(actor, ctx),
+    canEditContact: ctx.isSelf || canManage,
     address,
+    passAccess,
+    passStatus,
+    PASSPORT_STATUS_LABEL,
+    PASSPORT_STATUS_TONE,
+    passportFull,
+    passportMasked,
+    passportExpiresAt: ctx.employee.passportExpiresAt ? ctx.employee.passportExpiresAt.toISOString().slice(0, 10) : '',
     error: null,
     saved: false,
+    changed: null,
+    conflicts: 0,
     ...extra,
   });
 }
@@ -55,16 +93,175 @@ async function renderSetup(req, res, ctx, extra = {}) {
 router.get('/my/setup', requireSession, (req, res) => res.redirect(`/employees/${req.profile.id}/setup`));
 
 router.get('/employees/:id/setup', requireSession, async (req, res) => {
-  const ctx = await loadEmployeeFor(req.profile, req.params.id);
+  const actor = req.profile;
+  const ctx = await loadEmployeeFor(actor, req.params.id);
   if (!ctx) return notFound(res);
-  await renderSetup(req, res, ctx, { saved: req.query.saved === '1' });
+  if (!(await canViewSetupTab(actor, ctx))) return res.status(403).render('forbidden');
+  const digits = (v) => (/^\d{1,4}$/.test(String(v || '')) ? Number(v) : null);
+  await renderSetup(req, res, ctx, { saved: req.query.saved === '1', changed: digits(req.query.changed), conflicts: digits(req.query.conflicts) || 0 });
+});
+
+// Compact-checklist bulk save: one submit changes many plain checkbox items at once (checked =
+// Completed, unchecked = Not Set Up). Only MANUAL, non-company-controlled requirements are eligible
+// here — anything with a special status (In Progress / Issue / Not Required), a derived value, or a
+// company-controlled item stays on the individual "..." editor, which keeps every existing status,
+// note, verification and Telegram-style account-type field working exactly as before. Every row that
+// actually changes gets its own audit entry (never one vague "Setup updated"), and a row whose stored
+// updatedAt no longer matches what the browser last saw is skipped rather than silently overwritten.
+// Registered BEFORE the :requirementId route below — otherwise Express would match "bulk" as an id.
+router.post('/employees/:id/setup/bulk', requireSession, async (req, res) => {
+  const actor = req.profile;
+  const ctx = await loadEmployeeFor(actor, req.params.id);
+  if (!ctx) return notFound(res);
+  if (!(await canManageSetup(actor, ctx))) return res.status(403).render('forbidden');
+  if (ctx.employee.status === 'INVITED') return renderSetup(req, res, ctx, { error: 'Setup starts once the employee has activated their account.' });
+
+  const allRequirements = await prisma.setupRequirement.findMany({ where: { organizationId: actor.organizationId, archivedAt: null } });
+  const applicable = [];
+  for (const requirement of allRequirements) {
+    if (requirement.kind !== 'MANUAL' || requirement.companyControlled) continue;
+    if (await requirementAppliesToProfile(requirement, ctx.employee)) applicable.push(requirement);
+  }
+  if (!applicable.length) return res.redirect(`/employees/${ctx.employee.id}/setup?saved=1&changed=0`);
+
+  const rawChecked = req.body.checked;
+  const checkedIds = new Set((Array.isArray(rawChecked) ? rawChecked : rawChecked ? [rawChecked] : []).map(String));
+  const existingItems = await prisma.employeeSetupItem.findMany({ where: { profileId: ctx.employee.id, requirementId: { in: applicable.map((r) => r.id) } } });
+  const existingByReq = new Map(existingItems.map((i) => [i.requirementId, i]));
+
+  const changes = [];
+  const mayVerify = await hasCapability(actor, 'setup.verify');
+  let conflicts = 0;
+  for (const requirement of applicable) {
+    const existing = existingByReq.get(requirement.id) || null;
+    const currentStatus = existing?.status || 'NOT_SET_UP';
+    // A row already in an exception state (In Progress / Issue / Not Required) is left alone here —
+    // it is not part of the plain checked/unchecked toggle and must be changed from the "..." editor.
+    const pendingAdminVerification = actor.role === 'ADMIN' && currentStatus === 'IN_PROGRESS' && Boolean(existing?.employeeConfirmedAt);
+    if (pendingAdminVerification && !checkedIds.has(requirement.id)) continue; // Saving another checkbox must not withdraw a pending confirmation.
+    if (currentStatus !== 'NOT_SET_UP' && currentStatus !== 'COMPLETED' && !pendingAdminVerification) continue;
+    const targetStatus = checkedIds.has(requirement.id) ? 'COMPLETED' : 'NOT_SET_UP';
+    if (targetStatus === currentStatus) continue;
+    if (targetStatus === 'COMPLETED' && effectiveRule(requirement) !== 'EMPLOYEE_CONFIRMATION' && !mayVerify) {
+      return renderSetup(req, res, ctx, { error: 'You do not have permission to verify this item. Ask an Admin to grant "Verify Team Setup".' });
+    }
+
+    const loadedTs = req.body['ts_' + requirement.id];
+    if (existing && loadedTs && new Date(loadedTs).getTime() !== existing.updatedAt.getTime()) { conflicts += 1; continue; }
+
+    changes.push({ requirement, from: currentStatus, to: targetStatus, existing });
+  }
+
+  if (changes.length) {
+    await prisma.$transaction(changes.map(({ requirement, to, existing }) => prisma.employeeSetupItem.upsert({
+      where: { profileId_requirementId: { profileId: ctx.employee.id, requirementId: requirement.id } },
+      update: {
+        status: to,
+        verifiedById: to === 'COMPLETED' ? actor.id : null,
+        verifiedAt: to === 'COMPLETED' ? new Date() : null,
+        employeeConfirmedAt: to === 'NOT_SET_UP' ? null : (existing?.employeeConfirmedAt ?? null),
+        updatedById: actor.id,
+      },
+      create: { profileId: ctx.employee.id, requirementId: requirement.id, status: to, verifiedById: to === 'COMPLETED' ? actor.id : null, verifiedAt: to === 'COMPLETED' ? new Date() : null, updatedById: actor.id },
+    })));
+    for (const c of changes) {
+      await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'setup.status_changed', targetTable: 'Profile', targetId: ctx.employee.id, metadata: { requirement: c.requirement.key, from: c.from, to: c.to, via: 'bulk' } });
+      if (c.to === 'COMPLETED') await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'setup.item_verified', targetTable: 'Profile', targetId: ctx.employee.id, metadata: { requirement: c.requirement.key, via: 'bulk' } });
+    }
+  }
+
+  const qs = new URLSearchParams({ saved: '1', changed: String(changes.length) });
+  if (conflicts) qs.set('conflicts', String(conflicts));
+  res.redirect(`/employees/${ctx.employee.id}/setup?${qs.toString()}`);
+});
+
+// The employee's own compact checklist: I Have / I Don't Have for many items, one Save. Same
+// verification-rule preservation as the existing /confirm route below (I Have completes the item
+// outright only when the requirement's rule is EMPLOYEE_CONFIRMATION; otherwise it only moves the
+// item to "awaiting verification" — management still has to verify it). I Don't Have requires a
+// note and reuses the existing ISSUE status. Registered BEFORE the :requirementId route below —
+// otherwise Express would match "self-bulk" as an id.
+router.post('/employees/:id/setup/self-bulk', requireSession, async (req, res) => {
+  const actor = req.profile;
+  if (req.params.id !== actor.id || req.impersonation) return res.status(403).render('forbidden');
+  const ctx = await loadEmployeeFor(actor, actor.id);
+  if (!ctx) return notFound(res);
+  if (actor.status !== 'ACTIVE') return res.status(403).render('forbidden');
+
+  const allRequirements = await prisma.setupRequirement.findMany({ where: { organizationId: actor.organizationId, archivedAt: null } });
+  const applicable = [];
+  for (const requirement of allRequirements) {
+    if (requirement.kind !== 'MANUAL' || requirement.companyControlled) continue;
+    if (effectiveRule(requirement) === 'MANAGEMENT_ONLY') continue;
+    if (await requirementAppliesToProfile(requirement, ctx.employee)) applicable.push(requirement);
+  }
+  if (!applicable.length) return res.redirect(`/employees/${actor.id}/setup?saved=1&changed=0`);
+
+  const existingItems = await prisma.employeeSetupItem.findMany({ where: { profileId: actor.id, requirementId: { in: applicable.map((r) => r.id) } } });
+  const existingByReq = new Map(existingItems.map((i) => [i.requirementId, i]));
+  const choiceFor = (id) => { const v = req.body['choice_' + id]; return v === 'have' || v === 'dontHave' ? v : null; };
+
+  // Every "I Don't Have" needs a note before ANYTHING in this batch is saved — never a partial,
+  // confusing save where some items applied and one silently didn't for lack of a note.
+  const missingNotes = [];
+  for (const requirement of applicable) {
+    if (choiceFor(requirement.id) !== 'dontHave') continue;
+    const note = String(req.body['note_' + requirement.id] || '').trim();
+    if (!note) missingNotes.push(requirement.label);
+  }
+  if (missingNotes.length) return renderSetup(req, res, ctx, { error: `Add a short note for: ${missingNotes.join(', ')} — a note is required for "I Don't Have".` });
+
+  const changes = [];
+  let conflicts = 0;
+  for (const requirement of applicable) {
+    const existing = existingByReq.get(requirement.id) || null;
+    const currentStatus = existing?.status || 'NOT_SET_UP';
+    if (currentStatus === 'NOT_REQUIRED') continue; // management marked this not required for them
+    if (currentStatus === 'COMPLETED' && existing?.verifiedById) continue; // management-verified; not theirs to change here
+    const choice = choiceFor(requirement.id);
+    if (!choice) continue; // untouched — leave exactly as-is
+    const wantsDontHave = choice === 'dontHave';
+
+    const loadedTs = req.body['ts_' + requirement.id];
+    if (existing && loadedTs && new Date(loadedTs).getTime() !== existing.updatedAt.getTime()) { conflicts += 1; continue; }
+
+    let data; let action;
+    if (wantsDontHave) {
+      const note = String(req.body['note_' + requirement.id] || '').trim().slice(0, 500);
+      if (currentStatus === 'ISSUE' && existing.note === note) continue; // no actual change
+      data = { status: 'ISSUE', note, employeeConfirmedAt: null, verifiedById: null, verifiedAt: null };
+      action = 'setup.employee_flagged_issue';
+    } else {
+      const rule = effectiveRule(requirement);
+      const nextStatus = rule === 'EMPLOYEE_CONFIRMATION' ? 'COMPLETED' : 'IN_PROGRESS';
+      if (currentStatus === nextStatus) continue; // already there — no-op
+      data = { status: nextStatus, note: null, employeeConfirmedAt: new Date(), verifiedById: null, verifiedAt: null };
+      action = 'setup.employee_confirmed';
+    }
+    changes.push({ requirement, from: currentStatus, to: data.status, data, action });
+  }
+
+  if (changes.length) {
+    await prisma.$transaction(changes.map(({ requirement, data }) => prisma.employeeSetupItem.upsert({
+      where: { profileId_requirementId: { profileId: actor.id, requirementId: requirement.id } },
+      update: { ...data, updatedById: actor.id },
+      create: { profileId: actor.id, requirementId: requirement.id, ...data, updatedById: actor.id },
+    })));
+    for (const c of changes) {
+      await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: c.action, targetTable: 'Profile', targetId: actor.id, metadata: { requirement: c.requirement.key, from: c.from, to: c.to, via: 'self-bulk' } });
+    }
+  }
+
+  const qs = new URLSearchParams({ saved: '1', changed: String(changes.length) });
+  if (conflicts) qs.set('conflicts', String(conflicts));
+  res.redirect(`/employees/${actor.id}/setup?${qs.toString()}`);
 });
 
 router.post('/employees/:id/setup/:requirementId', requireSession, async (req, res) => {
   const actor = req.profile;
   const ctx = await loadEmployeeFor(actor, req.params.id);
   if (!ctx) return notFound(res);
-  if (!canManageSetup(actor, ctx)) return res.status(403).render('forbidden');
+  if (!(await canManageSetup(actor, ctx))) return res.status(403).render('forbidden');
 
   const requirement = await prisma.setupRequirement.findFirst({ where: { id: req.params.requirementId, organizationId: actor.organizationId, archivedAt: null } });
   if (!requirement || !(await requirementAppliesToProfile(requirement, ctx.employee))) return notFound(res);
@@ -78,8 +275,9 @@ router.post('/employees/:id/setup/:requirementId', requireSession, async (req, r
     return fail(`${requirement.label} is calculated automatically from the employee's real data and cannot be ticked by hand.`);
   }
   const confirmed = req.body.companyControlConfirmed === '1';
-  if (status === 'COMPLETED' && requirement.companyControlled && !confirmed) {
-    return fail(`Confirm that the company owns and can recover this ${requirement.label} account/number before marking it completed.`);
+  const accountType = requirement.allowPersonalAccount && ['COMPANY', 'PERSONAL_WORK'].includes(req.body.accountType) ? req.body.accountType : null;
+  if (status === 'COMPLETED' && requirement.companyControlled && !confirmed && accountType !== 'PERSONAL_WORK') {
+    return fail(`Confirm that the company owns and can recover this ${requirement.label} account/number before marking it completed${requirement.allowPersonalAccount ? ', or choose a personal number used for work' : ''}.`);
   }
   const note = String(req.body.note || '').trim().slice(0, 500) || null;
   // The company-controlled number/account (WhatsApp, Telegram). A phone number, not a secret — but it is still never written to audit metadata.
@@ -90,11 +288,19 @@ router.post('/employees/:id/setup/:requirementId', requireSession, async (req, r
   }
 
   const existing = await prisma.employeeSetupItem.findUnique({ where: { profileId_requirementId: { profileId: ctx.employee.id, requirementId: requirement.id } } });
+
+  // Verification depends on the requirement, not its previous state: resetting to NOT_SET_UP
+  // or completing a fresh item must never bypass the separate verification permission.
+  if (status === 'COMPLETED' && effectiveRule(requirement) !== 'EMPLOYEE_CONFIRMATION' && actor.role === 'SUPERVISOR' && !(await hasCapability(actor, 'setup.verify'))) {
+    return fail('You do not have permission to verify this item. Ask an Admin to grant "Verify Team Setup".');
+  }
+
   const data = {
     status,
     note,
     employeeConfirmedAt: status === 'NOT_SET_UP' ? null : existing?.employeeConfirmedAt ?? null,
     ...(companyNumber !== undefined ? { companyNumber } : {}),
+    ...(requirement.allowPersonalAccount ? { accountType } : {}),
     companyControlConfirmed: requirement.companyControlled && ['COMPLETED', 'IN_PROGRESS', 'ISSUE'].includes(status) ? confirmed : false,
     verifiedById: status === 'COMPLETED' ? actor.id : null,
     verifiedAt: status === 'COMPLETED' ? new Date() : null,
@@ -150,7 +356,7 @@ router.post('/employees/:id/contact', requireSession, async (req, res) => {
   const actor = req.profile;
   const ctx = await loadEmployeeFor(actor, req.params.id);
   if (!ctx) return notFound(res);
-  if (!ctx.isSelf && !canManageSetup(actor, ctx)) return res.status(403).render('forbidden');
+  if (!ctx.isSelf && !(await canManageSetup(actor, ctx))) return res.status(403).render('forbidden');
 
   const phone = String(req.body.localPhone || '').trim();
   const address = String(req.body.currentAddress || '').trim();
@@ -170,6 +376,65 @@ router.post('/employees/:id/contact', requireSession, async (req, res) => {
     await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'employee.contact_updated', targetTable: 'Profile', targetId: ctx.employee.id, metadata: { phoneChanged, addressChanged } });
   }
   res.redirect(`/employees/${ctx.employee.id}/setup?saved=1`);
+});
+
+// Passport Details (Number + Expiration Date only, never a scan). Self may update their own;
+// otherwise only an Admin may (a Supervisor's access here is capped at view, never manage — see
+// lib/passport.js#passportAccess). The number is encrypted the same way as Credential Vault
+// secrets and is never written to audit metadata; only the fact that it changed is.
+const REVEAL_LIMIT = { maxAttempts: 10, windowMs: 15 * 60 * 1000 };
+router.post('/employees/:id/passport', requireSession, async (req, res) => {
+  const actor = req.profile;
+  const ctx = await loadEmployeeFor(actor, req.params.id);
+  if (!ctx) return notFound(res);
+  const access = await passportAccess(actor, ctx.employee);
+  if (!access.manage) return res.status(403).render('forbidden');
+
+  const { date: expiresAt, error: dateError } = parseExpirationDate(req.body.passportExpiresAt);
+  if (dateError) return renderSetup(req, res, ctx, { error: dateError });
+
+  const isNew = !ctx.employee.passportNumberEnc;
+  const numberRaw = String(req.body.passportNumber || '').trim();
+  const data = { passportExpiresAt: expiresAt };
+  if (numberRaw) {
+    // Same "leave blank to keep the current value" convention as the Credential Vault's update
+    // form — the current number is never sent back to this page to be re-typed unchanged.
+    const numberError = validatePassportNumber(numberRaw);
+    if (numberError) return renderSetup(req, res, ctx, { error: numberError });
+    data.passportNumberEnc = encryptPassportNumber(ctx.employee.id, numberRaw.toUpperCase());
+  } else if (isNew) {
+    return renderSetup(req, res, ctx, { error: 'Passport number is required.' });
+  }
+  await prisma.profile.update({ where: { id: ctx.employee.id }, data });
+  const action = isNew ? 'passport.details_added' : ctx.isSelf ? 'passport.details_updated' : 'passport.admin_updated_employee_passport';
+  await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action, targetTable: 'Profile', targetId: ctx.employee.id, metadata: { employeeName: ctx.employee.fullName } });
+  res.redirect(`/employees/${ctx.employee.id}/setup?saved=1`);
+});
+
+// Full-value reveal: needs the viewer's own password again, is rate limited, and is audited
+// without the secret — identical shape to POST /credentials/:credId/reveal.
+router.post('/employees/:id/passport/reveal', requireSession, async (req, res) => {
+  const actor = req.profile;
+  res.set('Cache-Control', 'no-store');
+  const ctx = await loadEmployeeFor(actor, req.params.id);
+  if (!ctx || !ctx.employee.passportNumberEnc) return res.status(404).json({ error: 'Not found' });
+  const access = await passportAccess(actor, ctx.employee);
+  if (!access.view) {
+    await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'passport.access_denied', targetTable: 'Profile', targetId: ctx.employee.id });
+    return res.status(404).json({ error: 'Not found' });
+  }
+  const bucket = `passportreveal:${actor.id}`;
+  if (await isRateLimited(bucket, REVEAL_LIMIT)) return res.status(429).json({ error: 'Too many attempts. Try again later.' });
+  if (!req.body.password || !(await verifyPassword(String(req.body.password), actor.passwordHash))) {
+    await recordAttempt(bucket, false);
+    await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'passport.reveal_failed', targetTable: 'Profile', targetId: ctx.employee.id });
+    return res.status(401).json({ error: 'Your password is incorrect.' });
+  }
+  await recordAttempt(bucket, true);
+  let number;
+  try { number = decryptPassportNumber(ctx.employee.id, ctx.employee.passportNumberEnc); } catch { return res.status(500).json({ error: 'This could not be decrypted.' }); }
+  await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'passport.viewed', targetTable: 'Profile', targetId: ctx.employee.id, metadata: { employeeName: ctx.employee.fullName } });
+  res.json({ passportNumber: number });
 });
 
 router.get('/employees/:id/training', requireSession, async (req, res) => {

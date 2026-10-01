@@ -4,7 +4,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=1" />
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title><%= typeof title !== 'undefined' ? title + ' · SpaceZero Academy' : 'SpaceZero Academy' %></title>
+  <title><%= typeof title !== 'undefined' ? title + ' · SpaceZero Workspace' : 'SpaceZero Workspace' %></title>
   <link rel="stylesheet" href="/static/css/styles.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -40,7 +40,7 @@
               <% const alsoPaths = item.activeAlso || [];
               const matchesPath = function (p) { return currentPath === p || currentPath.indexOf(p + '/') === 0; };
               const active = matchesPath(item.href) || alsoPaths.some(matchesPath);
-              const iconName = /employees|\/team$/.test(item.href) ? 'people' : /ai-practice/.test(item.href) ? 'upload' : /skill/.test(item.href) ? 'skills' : /admin\/library|call-review/.test(item.href) ? 'calls' : /library/.test(item.href) ? 'library' : /training/.test(item.href) ? 'training' : /notes/.test(item.href) ? 'notes' : /settings/.test(item.href) ? 'settings' : /profile/.test(item.href) ? 'profile' : 'dashboard'; %>
+              const iconName = /employees|\/team$/.test(item.href) ? 'people' : /ai-practice/.test(item.href) ? 'upload' : /skill/.test(item.href) ? 'skills' : /admin\/library|call-review/.test(item.href) ? 'calls' : /library/.test(item.href) ? 'library' : /training/.test(item.href) ? 'training' : /notes/.test(item.href) ? 'notes' : /settings/.test(item.href) ? 'settings' : /profile/.test(item.href) ? 'profile' : /standards/.test(item.href) ? 'book' : /assistant/.test(item.href) ? 'ai' : 'dashboard'; %>
               <a class="sidebar-link<%= active ? ' active' : '' %>" href="<%= item.href %>" <%- active ? 'aria-current="page"' : '' %>><%- include('partials/icon', { name: iconName }) %><span><%= item.label %></span></a>
             <% }); %>
           </div>
@@ -61,9 +61,7 @@
       </nav>
       <div class="sidebar-footer">
         <div class="sidebar-note">EXCELLENCE, EVERY DAY.<br><span>Built for a higher standard.</span></div>
-        <form method="post" action="/logout">
-          <button type="submit"><span>Log out</span></button>
-        </form>
+        <uzleeder-crafted theme="dark" size="sm"></uzleeder-crafted>
       </div>
     </aside>
 
@@ -72,7 +70,7 @@
         <button class="menu-btn" data-menu-toggle aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         </button>
-        <div class="breadcrumb">Workspace <span>/</span> <strong><%= typeof title !== 'undefined' ? title : 'Academy' %></strong></div>
+        <div class="breadcrumb">Workspace <span>/</span> <strong><%= typeof title !== 'undefined' ? title : 'Workspace' %></strong></div>
         <div class="topbar-user">
           <form method="post" action="/theme" class="no-print">
             <input type="hidden" name="theme" value="<%= theme === 'dark' ? 'light' : 'dark' %>" />
@@ -81,12 +79,35 @@
               <svg class="icon-moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
             </button>
           </form>
-          <a href="/notifications" style="position:relative;display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px" aria-label="Notifications">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            <% if (unreadNotifications > 0) { %>
-              <span style="position:absolute;top:2px;right:2px;width:8px;height:8px;border-radius:999px;background:var(--red-600)"></span>
-            <% } %>
-          </a>
+          <details class="notif-menu" data-notif-menu>
+            <summary style="position:relative;display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px" aria-label="Notifications">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              <% if (unreadNotifications > 0) { %>
+                <span style="position:absolute;top:2px;right:2px;width:8px;height:8px;border-radius:999px;background:var(--red-600)"></span>
+              <% } %>
+            </summary>
+            <div class="notif-menu-panel" role="menu">
+              <div class="notif-menu-header">Notifications</div>
+              <% if (notificationPreview.length === 0) { %>
+                <p class="notif-menu-empty">No notifications yet</p>
+              <% } else { %>
+                <% notificationPreview.forEach(function (n) {
+                  const iconName = /^training\./.test(n.type) ? 'training' : /^setup\./.test(n.type) ? 'profile' : /^skill\./.test(n.type) ? 'skills' : /^call_review\./.test(n.type) ? 'calls' : /^passport\./.test(n.type) ? 'passport' : 'dashboard';
+                %>
+                  <a class="notif-row<%= n.readAt ? '' : ' unread' %>" role="menuitem" href="/notifications/<%= n.id %>/open">
+                    <span class="notif-row-icon"><%- include('partials/icon', { name: iconName }) %></span>
+                    <span class="notif-row-text">
+                      <span class="notif-row-title"><%= n.title %></span>
+                      <% if (n.body) { %><span class="notif-row-context"><%= n.body %></span><% } %>
+                      <span class="notif-row-time"><%= formatRelativeTime(n.createdAt) %></span>
+                    </span>
+                    <% if (!n.readAt) { %><span class="notif-row-dot" aria-hidden="true"></span><% } %>
+                  </a>
+                <% }); %>
+              <% } %>
+              <a class="notif-menu-seeall" href="/notifications" role="menuitem">See all notifications</a>
+            </div>
+          </details>
           <details class="user-menu" data-user-menu>
             <summary class="topbar-profile-link" aria-label="Open account menu">
               <div style="text-align:right">
@@ -96,10 +117,7 @@
               <%- include('partials/avatar', { profile: profile, size: 'sm' }) %>
             </summary>
             <div class="user-menu-panel" role="menu">
-              <a href="/profile" role="menuitem">My Profile</a>
-              <a href="/my/setup" role="menuitem">My Setup</a>
-              <a href="/my/leave" role="menuitem">My Vacation / Leave</a>
-              <a href="/account" role="menuitem">Account / Security</a>
+              <a href="/profile" role="menuitem">Profile &amp; Settings</a>
               <form method="post" action="/logout"><button type="submit" role="menuitem">Log out</button></form>
             </div>
           </details>

@@ -13,7 +13,7 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
 
 // Directory names that are never packaged, at any depth.
-const EXCLUDED_DIRS = new Set(['node_modules', '.git', '.claude', '.codex', '.vercel', '.idea', '.vscode', 'storage', 'uploads', 'generated', 'coverage', 'dist', 'tmp', 'temp', 'sessions', '.next', 'build']);
+const EXCLUDED_DIRS = new Set(['node_modules', '.git', '.claude', '.codex', '.vercel', '.idea', '.vscode', 'storage', 'uploads', 'generated', 'coverage', 'dist', 'tmp', 'temp', 'sessions', '.next', 'build', 'deploy', 'logs']);
 // File names / patterns that are never packaged.
 const EXCLUDED_FILE = [
   /^\.env(\..*)?$/,            // .env, .env.local, .env.production ...

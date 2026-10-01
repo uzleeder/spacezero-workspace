@@ -13,6 +13,7 @@
       var btn = event.submitter || form.querySelector('button[type="submit"]');
       if (btn && !btn.disabled) {
         setTimeout(function () {
+          if (event.defaultPrevented) return;
           btn.disabled = true;
           btn.dataset.originalText = btn.textContent;
           btn.textContent = 'Please wait…';
@@ -242,4 +243,12 @@
   if (!box) return;
   document.addEventListener('click', function (e) { if (box.open && !box.contains(e.target)) box.open = false; });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && box.open) { box.open = false; box.querySelector('summary').focus(); } });
+})();
+// Closes the notification bell dropdown on outside click or Escape. Opening it never marks
+// anything read — that only happens when a row (or "See all") is actually clicked.
+(function () {
+  var menu = document.querySelector('[data-notif-menu]');
+  if (!menu) return;
+  document.addEventListener('click', function (e) { if (menu.open && !menu.contains(e.target)) menu.open = false; });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && menu.open) { menu.open = false; menu.querySelector('summary').focus(); } });
 })();
