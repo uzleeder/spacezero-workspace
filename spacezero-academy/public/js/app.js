@@ -63,8 +63,27 @@
       try { window.localStorage.setItem(KEY, next ? '1' : '0'); } catch (e) { /* remembering is optional */ }
     });
   }
+  // ---- Flash toast: a brief confirmation that survives the reload a "fire and reload" action does,
+  // so an action like Resend invitation can actually show "Sent" instead of just silently refreshing.
+  var FLASH_KEY = 'sz-flash-message';
+  function showFlash(message) {
+    var toast = document.createElement('div');
+    toast.className = 'flash-toast form-alert success';
+    toast.setAttribute('role', 'status');
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    requestAnimationFrame(function () { toast.classList.add('flash-toast--in'); });
+    var remove = function () { toast.remove(); };
+    setTimeout(remove, 4000);
+    toast.addEventListener('click', remove);
+  }
+  try {
+    var pendingFlash = sessionStorage.getItem(FLASH_KEY);
+    if (pendingFlash) { sessionStorage.removeItem(FLASH_KEY); showFlash(pendingFlash); }
+  } catch (e) { /* storage is optional */ }
+
   // ---- Generic "fire and reload" action buttons ----
-  // <button data-action="/employees/123/disable" data-confirm="Are you sure?">
+  // <button data-action="/employees/123/disable" data-confirm="Are you sure?" data-success-message="Sent">
   document.querySelectorAll('[data-action]').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var msg = btn.getAttribute('data-confirm');
@@ -85,6 +104,8 @@
             (btn.closest('.card-body, .row-between, li, td') || btn.parentElement).appendChild(box);
             btn.disabled = false;
           } else {
+            var successMessage = btn.getAttribute('data-success-message');
+            if (successMessage) { try { sessionStorage.setItem(FLASH_KEY, successMessage); } catch (e) { /* optional */ } }
             window.location.reload();
           }
         })

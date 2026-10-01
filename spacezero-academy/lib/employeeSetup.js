@@ -34,22 +34,28 @@ const VERIFICATION_HELP = {
 const AUDIENCES = ['ALL_EMPLOYEES', 'ROLES', 'SPECIFIC'];
 const ROLES = ['TRAVEL_AGENT', 'FLIGHT_EXPERT', 'SUPERVISOR', 'ADMIN'];
 
+// Self-attestable items below (personal equipment/tool access, not company-shared accounts) default
+// to EMPLOYEE_CONFIRMATION: only the employee themselves can really know whether they have a PC or
+// are logged into their GDS, so routing every one of these through a supervisor/admin verification
+// step just blocks self-service setup without adding a real check. WhatsApp/Telegram stay excluded —
+// they are companyControlled, and effectiveRule() forces MANAGEMENT_VERIFICATION for those regardless
+// of this field, so the setting below cannot weaken company-owned accounts.
 const DEFAULT_REQUIREMENTS = [
-  { key: 'pc', label: 'PC', category: 'Equipment' },
-  { key: 'egf', label: 'EGF', category: 'System Access', credentialSystem: true },
-  { key: 'ovago', label: 'Ovago', category: 'System Access', credentialSystem: true },
-  { key: 'cockpit', label: 'Cockpit', category: 'System Access', credentialSystem: true },
-  { key: 'gds', label: 'GDS', category: 'System Access', credentialSystem: true },
-  { key: 'gmail', label: 'Gmail', category: 'Account', credentialSystem: true },
-  { key: 'crm', label: 'CRM', category: 'System Access', credentialSystem: true },
-  { key: 'dialpad', label: 'Dialpad', category: 'Communication', credentialSystem: true },
+  { key: 'pc', label: 'PC', category: 'Equipment', verification: 'EMPLOYEE_CONFIRMATION' },
+  { key: 'egf', label: 'EGF', category: 'System Access', credentialSystem: true, verification: 'EMPLOYEE_CONFIRMATION' },
+  { key: 'ovago', label: 'Ovago', category: 'System Access', credentialSystem: true, verification: 'EMPLOYEE_CONFIRMATION' },
+  { key: 'cockpit', label: 'Cockpit', category: 'System Access', credentialSystem: true, verification: 'EMPLOYEE_CONFIRMATION' },
+  { key: 'gds', label: 'GDS', category: 'System Access', credentialSystem: true, verification: 'EMPLOYEE_CONFIRMATION' },
+  { key: 'gmail', label: 'Gmail', category: 'Account', credentialSystem: true, verification: 'EMPLOYEE_CONFIRMATION' },
+  { key: 'crm', label: 'CRM', category: 'System Access', credentialSystem: true, verification: 'EMPLOYEE_CONFIRMATION' },
+  { key: 'dialpad', label: 'Dialpad', category: 'Communication', credentialSystem: true, verification: 'EMPLOYEE_CONFIRMATION' },
   { key: 'whatsapp', label: 'WhatsApp', category: 'Communication', companyControlled: true, description: 'Company-controlled number with company ownership/recovery confirmed.' },
   { key: 'telegram', label: 'Telegram', category: 'Communication', required: false, companyControlled: true, allowPersonalAccount: true, description: 'Optional. Either a company-controlled account, or a personal number used for work.' },
-  { key: 'email_signature', label: 'Email Signature', category: 'Account' },
-  { key: 'virtual_card', label: 'Virtual Card', category: 'Company Setup', description: 'Correct employee/company details, WhatsApp and phone numbers verified. Do not record card numbers here.' },
-  { key: 'bookmarks', label: 'Bookmarks', category: 'Extension / Software' },
-  { key: 'flight_search_extension', label: 'Flight Search Extension', category: 'Extension / Software' },
-  { key: 'google_flights_extension', label: 'Google Flights Extension', category: 'Extension / Software' },
+  { key: 'email_signature', label: 'Email Signature', category: 'Account', verification: 'EMPLOYEE_CONFIRMATION' },
+  { key: 'virtual_card', label: 'Virtual Card', category: 'Company Setup', description: 'Correct employee/company details, WhatsApp and phone numbers verified. Do not record card numbers here.', verification: 'EMPLOYEE_CONFIRMATION' },
+  { key: 'bookmarks', label: 'Bookmarks', category: 'Extension / Software', verification: 'EMPLOYEE_CONFIRMATION' },
+  { key: 'flight_search_extension', label: 'Flight Search Extension', category: 'Extension / Software', verification: 'EMPLOYEE_CONFIRMATION' },
+  { key: 'google_flights_extension', label: 'Google Flights Extension', category: 'Extension / Software', verification: 'EMPLOYEE_CONFIRMATION' },
   { key: 'credential_vault', label: 'Passwords / Credential Vault', category: 'Security / Credentials', kind: 'CREDENTIAL_VAULT', description: 'Complete when a vault entry exists for every required work system.' },
   { key: 'local_phone', label: 'Local Phone Number', category: 'Employee Information', kind: 'LOCAL_PHONE' },
   { key: 'current_address', label: 'Current Living Address', category: 'Employee Information', kind: 'ADDRESS' },
@@ -73,6 +79,7 @@ async function ensureDefaultRequirements(organizationId) {
         companyControlled: Boolean(r.companyControlled),
         allowPersonalAccount: Boolean(r.allowPersonalAccount),
         credentialSystem: Boolean(r.credentialSystem),
+        verification: r.verification || 'MANAGEMENT_VERIFICATION',
         displayOrder: i,
       })),
     });
@@ -92,6 +99,13 @@ async function ensureDefaultRequirements(organizationId) {
     where: { organizationId, key: 'telegram', required: true, companyControlled: true, allowPersonalAccount: false },
     data: { required: false, allowPersonalAccount: true },
   });
+  // NOTE: the self-attestable default items (PC, tool/account access, extensions) moved from
+  // MANAGEMENT_VERIFICATION to EMPLOYEE_CONFIRMATION above in DEFAULT_REQUIREMENTS — that only
+  // affects organizations seeded from now on. An existing organization's already-seeded rows are
+  // migrated once via scripts/relax-self-service-setup.cjs (run manually, not here): unlike the
+  // Telegram/Passport Details migrations below, "is this row still at MANAGEMENT_VERIFICATION" is not
+  // a safe signal to re-check on every request — that is the exact value an Admin might deliberately
+  // choose again later, and re-running this on every call would silently overwrite that choice.
   // One-time addition of Passport Details as a new mandatory Setup requirement: every organization
   // gets it added once if missing, regardless of when its other requirements were first seeded, so
   // existing accounts pick it up without resetting any other Setup progress. An organization that
