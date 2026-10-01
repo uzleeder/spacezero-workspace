@@ -27,10 +27,10 @@
       <% } %>
       <div class="card-body" style="display:flex;flex-wrap:wrap;gap:8px">
         <% if (employee.status === 'INVITED') { %>
-          <button type="button" class="btn btn-secondary" data-action="/admin/employees/<%= employee.id %>/resend-invite">Resend invitation</button>
+          <button type="button" class="btn btn-secondary" data-action="/admin/employees/<%= employee.id %>/resend-invite" data-success-message="Invitation sent">Resend invitation</button>
         <% } %>
         <% if (employee.status === 'ACTIVE') { %>
-          <button type="button" class="btn btn-secondary" data-action="/admin/employees/<%= employee.id %>/reset-password">Trigger password reset</button>
+          <button type="button" class="btn btn-secondary" data-action="/admin/employees/<%= employee.id %>/reset-password" data-success-message="Password reset email sent">Trigger password reset</button>
           <button type="button" class="btn btn-danger" data-action="/admin/employees/<%= employee.id %>/disable" data-confirm="Disable this account?">Disable account</button>
         <% } %>
         <% if (employee.status === 'DISABLED') { %>

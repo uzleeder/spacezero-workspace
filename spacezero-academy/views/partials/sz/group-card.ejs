@@ -66,7 +66,7 @@ const groupHref = (id) => isAdmin ? `/admin/employees/${id}` : `/team/${id}`;
       <td>
         <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
           <% if (g.key === 'never-started' && isAdmin) { %>
-            <button type="button" class="sz-btn sz-btn--primary sz-btn--block sz-btn--sm" data-action="/admin/employees/<%= p.id %>/resend-invite">Resend invite</button>
+            <button type="button" class="sz-btn sz-btn--primary sz-btn--block sz-btn--sm" data-action="/admin/employees/<%= p.id %>/resend-invite" data-success-message="Invitation sent">Resend invite</button>
           <% } else if (g.key === 'urgent') { %>
             <a class="sz-btn sz-btn--primary sz-btn--block sz-btn--sm" href="/employees/<%= p.id %>/setup">Fix setup</a>
           <% } else if (g.key === 'needs-you') { %>
