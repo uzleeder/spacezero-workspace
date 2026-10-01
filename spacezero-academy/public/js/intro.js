@@ -3,10 +3,9 @@
   var intro = document.getElementById('academy-intro');
   if (!intro) return;
   var key = 'spacezero-intro-seen-v1';
-  var navigation = window.performance && window.performance.getEntriesByType
-    ? window.performance.getEntriesByType('navigation')[0] : null;
-  var isReload = navigation && navigation.type === 'reload';
-  try { if (!isReload && sessionStorage.getItem(key)) return; } catch (_) { /* Storage is optional. */ }
+  // Admin actions (resend invite, disable, reset password, ...) reload the page via
+  // window.location.reload() on success (public/js/app.js) — that must not replay this.
+  try { if (sessionStorage.getItem(key)) return; } catch (_) { /* Storage is optional. */ }
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var duration = reduced ? 250 : 2400;
   var bar = intro.querySelector('[role="progressbar"]');
