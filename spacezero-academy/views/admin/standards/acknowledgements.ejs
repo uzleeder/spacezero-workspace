@@ -1,0 +1,37 @@
+<%- include('../../partials/page-header', { pageTitle: 'Acknowledgements — ' + item.title, headerAction: '<a href="/admin/standards" class="link-gold text-sm">&larr; Back to management</a>' }) %>
+
+<form class="mt-24" style="display:flex;flex-wrap:wrap;gap:12px">
+  <select name="role" onchange="this.form.submit()">
+    <option value="">All roles</option>
+    <% ROLES.forEach(function (r) { %><option value="<%= r %>" <%= roleFilter === r ? 'selected' : '' %>><%= roleLabel(r) %></option><% }); %>
+  </select>
+  <select name="status" onchange="this.form.submit()">
+    <option value="">All statuses</option>
+    <option value="acknowledged" <%= statusFilter === 'acknowledged' ? 'selected' : '' %>>Acknowledged</option>
+    <option value="pending" <%= statusFilter === 'pending' ? 'selected' : '' %>>Pending</option>
+  </select>
+</form>
+
+<% if (rows.length === 0) { %>
+  <div class="card mt-24"><div class="card-body"><%- include('../../partials/empty-state', { title: 'No employees match this filter' }) %></div></div>
+<% } else { %>
+  <ul class="divide-list mt-24">
+    <% rows.forEach(function (r) { %>
+      <li class="row-between">
+        <div>
+          <p style="font-weight:500;color:var(--navy-950)"><%= r.profile.fullName %></p>
+          <p class="text-sm text-muted"><%= roleLabel(r.profile.role) %></p>
+        </div>
+        <% if (r.stale) { %>
+          <span class="badge badge-warning">Acknowledged v<%= r.version %> (stale — re-acknowledgement owed) · <%= r.acceptedAt.toLocaleDateString('en-US') %></span>
+        <% } else if (!r.acknowledged) { %>
+          <span class="badge badge-warning">Not acknowledged</span>
+        <% } else if (!r.current) { %>
+          <span class="badge badge-success">✓ Acknowledged v<%= r.version %> (carried forward) · <%= r.acceptedAt.toLocaleDateString('en-US') %></span>
+        <% } else { %>
+          <span class="badge badge-success">✓ Acknowledged v<%= r.version %> · <%= r.acceptedAt.toLocaleDateString('en-US') %></span>
+        <% } %>
+      </li>
+    <% }); %>
+  </ul>
+<% } %>

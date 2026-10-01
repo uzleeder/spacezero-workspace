@@ -4,7 +4,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=1" />
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Certificate · <%= cert.profile.fullName %> · SpaceZero Academy</title>
+  <title>Certificate · <%= cert.profile.fullName %> · SpaceZero Workspace</title>
   <link rel="stylesheet" href="/static/css/styles.css" />
   <style>
     body.certificate-page { background: var(--navy-950); min-height: 100vh; }
@@ -100,7 +100,7 @@
         <p class="cert-name"><%= cert.profile.fullName %></p>
 
         <p class="cert-desc">
-          for successfully completing <strong>&ldquo;<%= cert.title %>&rdquo;</strong><% if (course && course.modules) { %> — a <%= course.modules.length %>-module training program<% } %>, and demonstrating mastery of the material covered through SpaceZero Academy.
+          for successfully completing <strong>&ldquo;<%= cert.title %>&rdquo;</strong><% if (course && course.modules) { %> — a <%= course.modules.length %>-module training program<% } %>, and demonstrating mastery of the material covered through SpaceZero Workspace.
         </p>
 
         <div class="cert-footer-row">

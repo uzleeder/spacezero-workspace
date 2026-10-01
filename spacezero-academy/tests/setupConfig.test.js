@@ -33,6 +33,7 @@ before(async () => {
     return p;
   }
   admin = await user('ADMIN', 'admin'); sup = await user('SUPERVISOR', 'sup');
+  await post(admin, '/admin/supervisor-permissions/' + sup.id, { capabilities: ['setup.view', 'setup.manage', 'setup.verify'] });
   agentA = await user('TRAVEL_AGENT', 'agentA'); agentB = await user('TRAVEL_AGENT', 'agentB'); agentC = await user('TRAVEL_AGENT', 'agentC');
   expert = await user('FLIGHT_EXPERT', 'expert'); invited = await user('TRAVEL_AGENT', 'invited', { status: 'INVITED' });
   outsider = await user('ADMIN', 'outsider', { organizationId: otherOrg.id });
@@ -46,6 +47,14 @@ before(async () => {
   const base = await prisma.setupRequirement.findMany({ where: { organizationId: org.id } });
   for (const p of [agentA, agentB, agentC, expert, invited, sup]) {
     await prisma.employeeSetupItem.createMany({ data: base.map((r) => ({ profileId: p.id, requirementId: r.id, status: 'COMPLETED', employeeConfirmedAt: new Date() })) });
+  }
+  // Passport Details auto-seeds as a 19th mandatory requirement the moment any route touches this
+  // org (lib/employeeSetup.js's ensureDefaultRequirements backfill). Giving every activated employee
+  // a completed passport here keeps this file's own "18/18 = 100%, 18/19 = 95%" baseline comments
+  // accurate as "19/19 = 100%, 19/20 = 95%" — the same percentages either way — without having to
+  // touch every individual percentage assertion below.
+  for (const p of [agentA, agentB, agentC, expert, sup]) {
+    await prisma.profile.update({ where: { id: p.id }, data: { passportNumberEnc: 'v1.fake.fake.fake', passportExpiresAt: new Date('2035-01-01T00:00:00.000Z') } });
   }
 });
 after(async () => { await prisma.$disconnect(); });

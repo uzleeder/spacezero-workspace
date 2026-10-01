@@ -1,15 +1,20 @@
 'use strict';
 
-// AI Practice = the Admin's workspace:  SOURCE -> ANALYSIS -> PRACTICE -> REVIEW -> TRAINING.
-// Each step is its own action the Admin starts; uploading never analyzes, analyzing never generates practice,
-// and approving never publishes. Everything here is Admin-only and organization-scoped on the server; object IDs
-// in the URL are always re-checked against the Admin's organization, never trusted.
+// AI Practice = the AI Practice workspace: SOURCE -> ANALYSIS -> PRACTICE -> REVIEW -> TRAINING.
+// Each step is its own action the actor starts; uploading never analyzes, analyzing never generates
+// practice, and approving never publishes. Organization-scoped on the server; object IDs in the URL
+// are always re-checked, never trusted. An Admin may work on any course in the organization. A
+// Supervisor may work here ONLY with the Admin-granted 'training.create' or 'training.revise'
+// capability (lib/supervisorCapabilities.js), and even then ONLY on courses they created themselves
+// — loadCourse() below enforces that ownership scope for every route that uses it, so this is not
+// re-checked route by route. The final publish step ("Send to Training") stays Admin-only regardless
+// of ownership or capability: a Supervisor prepares a draft and submits it for approval instead —
+// see the "Supervisor Training Creation: review" section below.
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 
 const { prisma } = require('../lib/prisma');
-const { requireRole } = require('../lib/authMiddleware');
 const { ACCEPT, storeFiles, storeCallFiles, releaseFile } = require('../lib/sourceFiles');
 const { logAudit } = require('../lib/audit');
 const { getSetting } = require('../lib/orgSettings');
@@ -24,8 +29,36 @@ const { ensureWorkspace } = require('../lib/aiPracticeBackfill');
 const { relevanceFor } = require('../lib/practiceRelevance');
 const { reviseWithPrompt } = require('../lib/practiceReview');
 const { safeParse } = require('../lib/practiceEngine');
+const { isRateLimited, AI_RATE_LIMIT } = require('../lib/rateLimit');
+const { hasCapability } = require('../lib/supervisorCapabilities');
 
-const creators = requireRole('ADMIN'); // AI Practice is an Admin-only workspace
+const redirectToLogin = (req, res) => res.redirect(`/login?next=${encodeURIComponent(req.originalUrl || '/dashboard')}`);
+// Admin: unconditional. Supervisor: only with an explicit, Admin-granted capability — nothing is
+// automatic from the SUPERVISOR role alone. Course-level ownership scoping happens in loadCourse().
+const creators = async (req, res, next) => {
+  const actor = req.profile;
+  if (!actor) return redirectToLogin(req, res);
+  if (actor.role === 'ADMIN') return next();
+  if (actor.role === 'SUPERVISOR' && (await hasCapability(actor, 'training.create') || await hasCapability(actor, 'training.revise'))) return next();
+  return res.status(403).render('forbidden');
+};
+// Starting brand-new material specifically needs 'training.create' — a Supervisor granted only
+// 'training.revise' may propose a new version of their existing published training, but may not
+// start a fresh one (see the new-version route further down for the mirror-image check).
+const mayCreateNew = async (req, res, next) => {
+  const actor = req.profile;
+  if (!actor) return redirectToLogin(req, res);
+  if (actor.role === 'ADMIN') return next();
+  if (actor.role === 'SUPERVISOR' && await hasCapability(actor, 'training.create')) return next();
+  return res.status(403).render('forbidden');
+};
+// The final publish is always the Admin's decision — never automatic, and never available to the
+// Supervisor who prepared the draft, even for their own course (spec: "may NOT approve/publish
+// their own Training"). A Supervisor submits for approval instead (see further down).
+const adminOnly = (req, res, next) => {
+  if (!req.profile) return redirectToLogin(req, res);
+  return req.profile.role === 'ADMIN' ? next() : res.status(403).render('forbidden');
+};
 const MAX_FILES = 10;
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 300 * 1024 * 1024, files: MAX_FILES, fields: 30 } });
 const notFound = (res) => res.status(404).render('not-found', { layout: false });
@@ -40,13 +73,24 @@ const receive = (field) => (req, res, next) => upload.array(field, MAX_FILES)(re
 });
 
 async function loadCourse(actor, id, include = {}) {
-  const course = await prisma.trainingCourse.findFirst({ where: { id, organizationId: actor.organizationId }, include });
+  // A Supervisor (even one with training.create/training.revise) never sees another Supervisor's or
+  // the Admin's course here — this is the one place that scoping is enforced, so every route below
+  // that calls loadCourse() is automatically covered.
+  const where = actor.role === 'ADMIN' ? { id, organizationId: actor.organizationId } : { id, organizationId: actor.organizationId, createdById: actor.id };
+  const course = await prisma.trainingCourse.findFirst({ where, include });
   // The workspace always works on the version being edited: material added later or removed earlier is not part of it.
   if (course && Array.isArray(course.modules)) course.modules = versions.modulesFor(course.modules, course.draftVersion || 1);
   return course;
 }
 const editable = (course) => !course.publishedVersion || (course.draftVersion || 1) > course.publishedVersion;
 const back = (res, id, params = {}) => res.redirect(`/ai-practice/${id}${Object.keys(params).length ? `?${new URLSearchParams(params).toString()}` : ''}`);
+// Gemini calls are the most expensive operation in the app; every route that triggers one (directly
+// or via the job queue) checks this first. Returns true (and already responded) when rate limited.
+async function aiGate(res, actor, courseId) {
+  if (!(await isRateLimited(`ai:${actor.id}`, AI_RATE_LIMIT))) return false;
+  back(res, courseId, { error: 'Too many AI requests in a short time. Please wait a few minutes and try again.' });
+  return true;
+}
 
 // ------------------------------------------------------------------ home
 router.get('/ai-practice', creators, async (req, res) => {
@@ -66,12 +110,12 @@ router.get('/ai-practice', creators, async (req, res) => {
 });
 
 // ------------------------------------------------------------------ upload (SAVE ONLY)
-router.get('/ai-practice/new', creators, async (req, res) => {
+router.get('/ai-practice/new', mayCreateNew, async (req, res) => {
   const people = await prisma.profile.findMany({ where: { organizationId: req.profile.organizationId, status: 'ACTIVE' }, orderBy: { fullName: 'asc' }, select: { id: true, fullName: true } });
   res.render('ai-practice-new', { title: 'Upload material', error: null, ACCEPT, people, values: {}, kind: req.query.kind === 'call' ? 'call' : 'material' });
 });
 
-router.post('/ai-practice/new', creators, receive('files'), async (req, res) => {
+router.post('/ai-practice/new', mayCreateNew, receive('files'), async (req, res) => {
   const actor = req.profile;
   const kind = req.body.kind === 'call' ? 'call' : 'material';
   const files = req.files || [];
@@ -155,16 +199,17 @@ async function removeBatch(actor, batch) {
 router.get('/ai-practice/:id', creators, async (req, res) => {
   const actor = req.profile;
   await ensureWorkspace(actor).catch(() => undefined);
-  const course = await loadCourse(actor, req.params.id, { analysis: true, modules: { orderBy: { displayOrder: 'asc' } }, createdBy: { select: { fullName: true } } });
+  const course = await loadCourse(actor, req.params.id, { analysis: true, modules: { orderBy: { displayOrder: 'asc' } }, createdBy: { select: { fullName: true } }, submittedBy: { select: { fullName: true } } });
   if (!course) return notFound(res);
   if (course.origin !== 'AI_PRACTICE') return res.redirect(`/admin/training/${course.id}`); // hand-built training is managed in Training
 
-  const [components, build, history, batch] = await Promise.all([
+  const [components, build, history, batch, reviewHistory] = await Promise.all([
     state.loadComponents(course), tasks.latestBuild(course.id), versions.versionHistory(course.id),
     prisma.callBatch.findFirst({ where: { generatedCourseId: course.id }, select: { id: true, title: true } }),
+    versions.reviewHistory(course.id),
   ]);
   const live = components.filter((c) => !versions.isTargetedRetake(c));
-  const st = state.courseState(course, { build, components: live });
+  const st = state.courseState(course, { build, components: live, isAdmin: actor.role === 'ADMIN' });
   const stepKey = state.STEPS.find((s) => s.key === req.query.step) ? req.query.step : state.STEPS[Math.min(st.step, 5) - 1].key;
 
   const analysis = course.analysis;
@@ -186,6 +231,7 @@ router.get('/ai-practice/:id', creators, async (req, res) => {
     PLAN: plan, PURPOSE_LABEL: analysisLib.PURPOSE_LABEL, ACCEPT, roleLabel, TYPE_LABEL: state.TYPE_LABEL,
     notice: typeof req.query.notice === 'string' ? req.query.notice.slice(0, 200) : null, error: typeof req.query.error === 'string' ? req.query.error.slice(0, 300) : null,
     autoRefresh: ['ANALYZING', 'BUILDING'].includes(st.key) && !st.halted,
+    isAdmin: actor.role === 'ADMIN', reviewHistory,
   });
 });
 
@@ -247,6 +293,7 @@ router.post('/ai-practice/:id/analyze', creators, async (req, res) => {
   if (!course) return notFound(res);
   if (!editable(course)) return back(res, course.id, { error: 'This is in Training. Create a new version to analyze new material.' });
   if (!course.modules.length) return back(res, course.id, { error: 'Add some material first.' });
+  if (await aiGate(res, actor, course.id)) return;
   const purpose = analysisLib.PURPOSES.includes(req.body.purpose) ? req.body.purpose : 'AUTO';
   // Optional approved reference knowledge: only Library items of this organization, chosen explicitly, at most 5.
   const wanted = (Array.isArray(req.body.referenceIds) ? req.body.referenceIds : req.body.referenceIds ? [req.body.referenceIds] : []).map(String).slice(0, 5);
@@ -262,6 +309,7 @@ router.post('/ai-practice/:id/analyze', creators, async (req, res) => {
 router.post('/ai-practice/:id/analysis/retry', creators, async (req, res) => {
   const course = await loadCourse(req.profile, req.params.id);
   if (!course) return notFound(res);
+  if (await aiGate(res, req.profile, course.id)) return;
   const row = await analysisLib.retryAnalysis(course.id, { startedById: req.profile.id }); // keeps the steps that already finished
   if (row) await logAudit({ organizationId: course.organizationId, actorId: req.profile.id, action: 'ai_practice.analysis_retried', targetTable: 'TrainingCourse', targetId: course.id });
   back(res, course.id, { step: 'analysis' });
@@ -301,6 +349,7 @@ router.post('/ai-practice/:id/practice/build', creators, async (req, res) => {
   if (!['READY_FOR_REVIEW', 'APPROVED'].includes(course.analysis.status)) return back(res, course.id, { step: 'analysis', error: 'The analysis is not ready yet.' });
   const chosen = req.body.mode === 'custom' ? plan.readCustomPlan(req.body) : plan.recommendedPlan(course.analysis);
   if (!chosen.length) return back(res, course.id, { step: 'practice', error: 'Choose at least one kind of practice.' });
+  if (await aiGate(res, actor, course.id)) return;
   await approveAnalysis(actor, course); // "Create practice" is the Admin's confirmation that the analysis is right
   const started = await tasks.startBuild({ actor, course, plan: chosen, sourceHash: course.analysis.sourceHash });
   if (!started.ok) return back(res, course.id, { step: 'practice', error: started.error });
@@ -311,6 +360,7 @@ router.post('/ai-practice/:id/practice/retry', creators, async (req, res) => {
   const course = await loadCourse(req.profile, req.params.id);
   if (!course) return notFound(res);
   if (!editable(course)) return back(res, course.id, { step: 'practice', error: 'This version is in Training.' });
+  if (await aiGate(res, req.profile, course.id)) return;
   const r = await tasks.retryBuild({ actor: req.profile, course });
   back(res, course.id, r.ok ? { step: 'practice' } : { step: 'practice', error: r.error });
 });
@@ -324,6 +374,7 @@ router.post('/ai-practice/:id/practice/add', creators, async (req, res) => {
   if (type === 'SCENARIO') { type = 'ROLEPLAY'; level = 5; }          // a difficult scenario = an AI role-play at the highest difficulty
   if (type === 'CALL_COACHING') type = 'VOICE';                         // call coaching = the learner speaks the call and is coached on it
   if (!plan.COMPONENT_TYPES.includes(type)) return back(res, course.id, { step: 'practice', error: 'Choose what to add.' });
+  if (await aiGate(res, actor, course.id)) return;
   const item = plan.describe(type, req.body.count, level);
   const started = await tasks.startBuild({ actor, course, plan: [{ ...item, add: true }], sourceHash: course.analysis.sourceHash }); // "add" always builds one more
   back(res, course.id, started.ok ? { step: 'practice' } : { step: 'practice', error: started.error });
@@ -342,6 +393,7 @@ async function loadComponent(req, res, { needsAnalysis = false } = {}) {
 router.post('/ai-practice/:id/components/:aid/regenerate', creators, async (req, res) => {
   const { course, component } = await loadComponent(req, res, { needsAnalysis: true });
   if (!component) return;
+  if (await aiGate(res, req.profile, course.id)) return;
   try {
     const made = await tasks.generateComponent({ course, analysis: course.analysis, actor: req.profile, type: component.type, level: component.level, count: Math.max(3, component.questions.length || 6) });
     await prisma.assessment.update({ where: { id: component.id }, data: { status: 'ARCHIVED', archivedAt: new Date() } });
@@ -356,6 +408,7 @@ router.post('/ai-practice/:id/components/:aid/regenerate', creators, async (req,
 router.post('/ai-practice/:id/components/:aid/harder', creators, async (req, res) => {
   const { course, component } = await loadComponent(req, res);
   if (!component) return;
+  if (await aiGate(res, req.profile, course.id)) return;
   try {
     const full = await prisma.assessment.findFirst({ where: { id: component.id }, include: { questions: { orderBy: { displayOrder: 'asc' } }, course: true } });
     await reviseWithPrompt({ assessment: full, instruction: 'Make this more difficult: add complications, a less cooperative customer or trickier edge cases, while staying strictly within the training material.' });
@@ -373,6 +426,7 @@ router.post('/ai-practice/:id/components/:aid/adjust', creators, async (req, res
   if (!component) return;
   const instruction = clip(req.body.instruction, 600);
   if (instruction.length < 5) return back(res, course.id, { step: 'practice', error: 'Tell the AI what to change, for example "Focus more on closing".' });
+  if (await aiGate(res, req.profile, course.id)) return;
   try {
     const full = await prisma.assessment.findFirst({ where: { id: component.id }, include: { questions: { orderBy: { displayOrder: 'asc' } }, course: true } });
     await reviseWithPrompt({ assessment: full, instruction });
@@ -417,8 +471,28 @@ router.post('/ai-practice/:id/approve/revoke', creators, async (req, res) => {
   back(res, course.id, r.ok ? { step: 'review', notice: 'Approval withdrawn. The practice is a draft again.' } : { step: 'review', error: r.error });
 });
 
-// ------------------------------------------------------------------ send to Training
-router.get('/ai-practice/:id/send', creators, async (req, res) => {
+// ---- Supervisor Training Creation: submit for Admin approval ----
+// A Supervisor (with training.create/training.revise) hands their prepared draft to an Admin —
+// this is their terminal action here; only an Admin may publish (below). Reachable by an Admin too
+// (harmless no-op-ish path) but the UI only ever offers it to a Supervisor working their own draft.
+router.post('/ai-practice/:id/submit-for-approval', creators, async (req, res) => {
+  const course = await loadCourse(req.profile, req.params.id);
+  if (!course) return notFound(res);
+  const r = await versions.submitForApproval(req.profile, course);
+  back(res, course.id, r.ok ? { step: 'review', notice: r.alreadySubmitted ? 'Already submitted — waiting for an admin to review it.' : 'Submitted for admin approval.' } : { step: 'review', error: r.error });
+});
+
+// Admin sends a submitted draft back with a note. The Supervisor keeps the same draft to revise —
+// nothing here discards their work, matching "Preserve review/submission history."
+router.post('/ai-practice/:id/review/request-changes', adminOnly, async (req, res) => {
+  const course = await loadCourse(req.profile, req.params.id);
+  if (!course) return notFound(res);
+  const r = await versions.requestChanges(req.profile, course, req.body.note);
+  back(res, course.id, r.ok ? { step: 'review', notice: 'Sent back with your note.' } : { step: 'review', error: r.error });
+});
+
+// ------------------------------------------------------------------ send to Training (Admin only — see adminOnly above)
+router.get('/ai-practice/:id/send', adminOnly, async (req, res) => {
   const actor = req.profile;
   const course = await loadCourse(actor, req.params.id, { analysis: true, modules: { orderBy: { displayOrder: 'asc' } } });
   if (!course) return notFound(res);
@@ -433,7 +507,7 @@ router.get('/ai-practice/:id/send', creators, async (req, res) => {
   });
 });
 
-router.post('/ai-practice/:id/send', creators, async (req, res) => {
+router.post('/ai-practice/:id/send', adminOnly, async (req, res) => {
   const actor = req.profile;
   const course = await loadCourse(actor, req.params.id);
   if (!course) return notFound(res);
@@ -449,9 +523,11 @@ router.post('/ai-practice/:id/send', creators, async (req, res) => {
 });
 
 router.post('/ai-practice/:id/new-version', creators, async (req, res) => {
-  const course = await loadCourse(req.profile, req.params.id);
+  const actor = req.profile;
+  if (actor.role === 'SUPERVISOR' && !(await hasCapability(actor, 'training.revise'))) return res.status(403).render('forbidden');
+  const course = await loadCourse(actor, req.params.id);
   if (!course) return notFound(res);
-  const r = await versions.createNewVersion(req.profile, course);
+  const r = await versions.createNewVersion(actor, course);
   back(res, course.id, r.ok ? { step: 'practice', notice: r.existing ? `Version ${r.version} is already being edited.` : `Version ${r.version} created as a copy. Version ${course.publishedVersion} stays in Training untouched.` } : { step: 'training', error: r.error });
 });
 

@@ -1,0 +1,16 @@
+<%
+  // Shared look for every standalone error page (403/404/500) — the same branded card used for
+  // sign-in, instead of a bare message floating in an empty page. `tone` (passed by the caller)
+  // picks the icon color: 'danger' for something blocked/broken, 'muted' for a plain "not found".
+%>
+<div class="auth-shell">
+  <div class="auth-box error-box">
+    <div class="auth-brand">
+      <%- include('brand-mark', { brandVariant: 'light' }) %>
+    </div>
+    <div class="icon-circle <%= tone %> error-icon"><%- iconSvg %></div>
+    <h1><%= errorTitle %></h1>
+    <p class="subtitle"><%= errorMessage %></p>
+    <a href="<%= typeof backHref !== 'undefined' ? backHref : '/dashboard' %>" class="btn btn-gold mt-24" style="width:100%"><%= typeof backLabel !== 'undefined' ? backLabel : 'Back to dashboard' %></a>
+  </div>
+</div>

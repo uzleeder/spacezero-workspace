@@ -1,0 +1,20 @@
+<%- include('../partials/page-header', { pageTitle: CONTENT_TYPE_LABEL[type], pageDescription: type === 'RESPONSIBILITY' ? 'What is expected from you in your role.' : undefined, headerAction: '<a href="/standards" class="link-gold text-sm">&larr; Company Standards &amp; Workflow</a>' }) %>
+
+<% if (items.length === 0) { %>
+  <div class="card mt-24"><div class="card-body"><%- include('../partials/empty-state', { title: 'Nothing published here yet' }) %></div></div>
+<% } else { %>
+  <ul class="divide-list mt-24">
+    <% items.forEach(function (item) { %>
+      <li>
+        <a class="row-between" href="/standards/<%= item.id %>" style="align-items:flex-start">
+          <div>
+            <p style="font-weight:500;color:var(--navy-950)"><%= item.title %><% if (item.quickReference) { %> <span class="badge badge-gold">Quick ref</span><% } %></p>
+            <% if (item.currentVersion.shortDescription) { %><p class="text-sm text-muted mt-4"><%= item.currentVersion.shortDescription %></p><% } %>
+            <% if (item.category) { %><p class="text-sm text-muted mt-4"><%= item.category %></p><% } %>
+          </div>
+          <% if (item.currentVersion.acknowledgementRequired) { %><span class="badge badge-warning">Acknowledgement required</span><% } %>
+        </a>
+      </li>
+    <% }); %>
+  </ul>
+<% } %>

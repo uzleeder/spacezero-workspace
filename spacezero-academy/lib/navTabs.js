@@ -8,7 +8,6 @@ function employeeManagementTabs(role) {
       { label: 'My Team', href: '/team' },
       { label: 'Team Intelligence', href: '/team-skills' },
       { label: 'Vacation Overview', href: '/leave' },
-      { label: 'Call reviews', href: '/call-reviews' },
     ];
   }
   return [
@@ -16,20 +15,8 @@ function employeeManagementTabs(role) {
     { label: 'Teams', href: '/admin/teams' },
     { label: 'Intelligence', href: '/admin/intelligence' },
     { label: 'Vacation Overview', href: '/leave' },
-    { label: 'Call reviews', href: '/admin/call-reviews' },
   ];
 }
-
-const settingsTabs = () => [
-  { label: 'Settings', href: '/admin/settings' },
-  { label: 'Setup requirements', href: '/admin/setup-requirements' },
-  { label: 'Policies', href: '/admin/policies' },
-  { label: 'Skills', href: '/admin/skills' },
-  { label: 'Development', href: '/admin/development' },
-  { label: 'Certifications', href: '/admin/certifications' },
-  { label: 'Security & Audit', href: '/admin/audit-logs' },
-  { label: 'Analytics', href: '/admin/analytics' },
-];
 
 const trainingTabs = () => [
   { label: 'Catalog', href: '/admin/training' },
@@ -50,14 +37,20 @@ function libraryTabs(role) {
     : [{ label: 'Library', href: '/library' }];
 }
 
+function standardsTabs(role) {
+  return role === 'ADMIN'
+    ? [{ label: 'Company Standards & Workflow', href: '/standards' }, { label: 'Manage', href: '/admin/standards' }]
+    : [{ label: 'Company Standards & Workflow', href: '/standards' }];
+}
+
 function tabsetsFor(role) {
   return {
     employees: employeeManagementTabs(role),
-    settings: settingsTabs(),
     training: trainingTabs(),
     learner: learnerTabs(role),
     library: libraryTabs(role),
+    standards: standardsTabs(role),
   };
 }
 
-module.exports = { employeeManagementTabs, settingsTabs, trainingTabs, learnerTabs, libraryTabs, tabsetsFor };
+module.exports = { employeeManagementTabs, trainingTabs, learnerTabs, libraryTabs, standardsTabs, tabsetsFor };

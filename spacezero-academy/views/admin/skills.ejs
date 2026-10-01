@@ -1,43 +1,91 @@
-<%- include('../partials/page-header', { pageTitle: 'Skills & categories', pageDescription: 'The skills the Skill Graph measures. Nothing is hard-coded: add, rename, regroup or archive them. Archiving keeps all history.', headerAction: '<form method="post" action="/admin/skills/taxonomy"><button class="btn btn-gold">Add recommended skills</button></form>' }) %>
-<%- include('../partials/management-tabs', { tabs: tabsets.settings }) %>
+<script src="/static/js/settings-forms.js" defer></script>
+<% if (saved) { %><div class="form-alert success mt-16" role="status">Changes saved.</div><% } %>
+<%- include('../partials/advanced-page-header', { sectionLabel: 'Skills', pageTitle: 'Skill Catalog', pageDescription: 'The skills the Skill Graph measures, used across employee roles. Nothing is hard-coded: add, rename, regroup or archive them. Archiving keeps all history.', headerAction: '<div style="display:flex;gap:10px;flex-wrap:wrap"><a href="/admin/intelligence" class="btn btn-secondary">View employee skills</a><form method="post" action="/admin/skills/taxonomy"><button class="btn btn-gold">Add recommended skills</button></form></div>' }) %>
 
 <% if (notice) { %><div class="form-alert success mt-16"><%= notice %></div><% } %>
 <% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
 
-<div class="card mt-24">
-  <div class="card-header"><h2>Add a skill</h2></div>
+<details class="card mt-24" <%= values.name !== undefined ? 'open' : '' %>>
+  <summary class="card-header link-gold" style="cursor:pointer">+ Add skill</summary>
   <div class="card-body">
     <form method="post" action="/admin/skills" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
-      <div class="field" style="margin:0"><label for="sname">Name</label><input id="sname" name="name" maxlength="80" required /></div>
-      <div class="field" style="margin:0"><label for="scat">Category</label><select id="scat" name="category"><option value="">— none —</option><% categories.forEach(function (c) { %><option value="<%= c %>"><%= c %></option><% }); %><option value="__new">New category…</option></select></div>
-      <div class="field" style="margin:0"><label for="snew">New category name</label><input id="snew" name="newCategory" maxlength="60" /></div>
-      <div class="field" style="margin:0"><label for="srole">Role</label><select id="srole" name="roleKey"><option value="">All roles</option><% ROLES.forEach(function (r) { %><option value="<%= r %>"><%= roleLabel(r) %></option><% }); %></select></div>
+      <div class="field" style="margin:0"><label for="sname">Name</label><input id="sname" name="name" value="<%= values.name || '' %>" maxlength="80" required /></div>
+      <div class="field" style="margin:0"><label for="scat">Category</label><select id="scat" name="category"><option value="">— none —</option><% categories.forEach(function (c) { %><option value="<%= c %>" <%= values.category === c ? 'selected' : '' %>><%= c %></option><% }); %><% if (values.category && values.category !== '__new' && !categories.includes(values.category)) { %><option value="<%= values.category %>" selected><%= values.category %></option><% } %><option value="__new" <%= values.category === '__new' ? 'selected' : '' %>>New category…</option></select></div>
+      <div class="field" style="margin:0"><label for="snew">New category name</label><input id="snew" name="newCategory" value="<%= values.newCategory || '' %>" maxlength="60" /></div>
+      <div class="field" style="margin:0"><label for="srole">Role</label><select id="srole" name="roleKey"><option value="">All roles</option><% ROLES.forEach(function (r) { %><option value="<%= r %>" <%= values.roleKey === r ? 'selected' : '' %>><%= roleLabel(r) %></option><% }); %></select></div>
       <button class="btn btn-gold btn-sm">Add</button>
     </form>
     <form method="post" action="/admin/skills/recalculate" class="mt-16" onsubmit="return confirm('Recalculate every skill score from its evidence? History is kept.')"><button class="btn btn-secondary btn-sm">Recalculate all scores from evidence</button></form>
   </div>
-</div>
+</details>
 
 <div class="card mt-24">
-  <div class="table-wrap"><table>
-    <tbody>
-    <% skills.forEach(function (s) { %>
-      <tr>
-        <td colspan="6" style="padding:0">
-          <form method="post" action="/admin/skills/<%= s.id %>" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:8px 12px">
-            <input name="name" value="<%= s.name %>" maxlength="80" aria-label="Name" style="flex:2;min-width:160px" required />
-            <select name="category" aria-label="Category" style="flex:1;min-width:120px"><option value="">— none —</option><% categories.forEach(function (c) { %><option value="<%= c %>" <%= s.category === c ? 'selected' : '' %>><%= c %></option><% }); %></select>
-            <select name="roleKey" aria-label="Role" style="flex:1;min-width:120px"><option value="">All roles</option><% ROLES.forEach(function (r) { %><option value="<%= r %>" <%= s.roleKey === r ? 'selected' : '' %>><%= roleLabel(r) %></option><% }); %></select>
-            <span class="text-sm text-muted"><%= s._count.employeeSkills %> people</span>
-            <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="isActive" value="1" <%= s.isActive ? 'checked' : '' %> /> Active</label>
-            <button class="btn btn-secondary btn-sm">Save</button>
-          </form>
-        </td>
-      </tr>
-    <% }); %>
-    </tbody>
-  </table></div>
+  <div class="card-header"><h2>All skills</h2></div>
+  <div class="card-body">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+      <input type="text" id="skill-search" placeholder="Search skills..." style="flex:1;min-width:160px" aria-label="Search skills" />
+      <select id="skill-role-filter" aria-label="Filter by role">
+        <option value="">Role: All</option>
+        <option value="__everyone">Everyone</option>
+        <% ROLES.forEach(function (r) { %><option value="<%= r %>"><%= roleLabel(r) %></option><% }); %>
+      </select>
+      <select id="skill-status-filter" aria-label="Filter by status">
+        <option value="">Status: All</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+      </select>
+    </div>
+    <% if (!skills.length) { %>
+      <%- include('../partials/empty-state', { title: 'No skills configured' }) %>
+    <% } %>
+    <ul class="divide-list" id="skill-rows">
+      <% skills.forEach(function (s) { %>
+        <li data-skill-row data-name="<%= s.name.toLowerCase() %>" data-role="<%= s.roleKey || '__everyone' %>" data-status="<%= s.isActive ? 'active' : 'inactive' %>">
+          <div class="row-between" style="align-items:center;gap:12px;flex-wrap:wrap">
+            <div style="min-width:0">
+              <p style="font-weight:500;color:var(--navy-950)"><%= s.name %></p>
+              <p class="text-sm text-muted"><%= s.roleKey ? roleLabel(s.roleKey) : 'Everyone' %><% if (s.category) { %> · <%= s.category %><% } %> · <%= s._count.employeeSkills %> people</p>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span class="badge <%= s.isActive ? 'badge-success' : '' %>"><%= s.isActive ? 'Active' : 'Inactive' %></span>
+              <details>
+                <summary class="btn btn-ghost btn-sm" aria-label="Actions for <%= s.name %>">⋯</summary>
+                <form method="post" action="/admin/skills/<%= s.id %>" onsubmit="return !<%= s.isActive ? 'true' : 'false' %> || this.elements.namedItem('isActive').checked || confirm('Deactivate this skill? Existing evidence and history will be kept.')" class="mt-8" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+                  <div class="field" style="margin:0"><label>Name</label><input name="name" value="<%= s.name %>" maxlength="80" required style="min-width:160px" /></div>
+                  <div class="field" style="margin:0"><label>Category</label><select name="category"><option value="">— none —</option><% categories.forEach(function (c) { %><option value="<%= c %>" <%= s.category === c ? 'selected' : '' %>><%= c %></option><% }); %></select></div>
+                  <div class="field" style="margin:0"><label>Role</label><select name="roleKey"><option value="">All roles</option><% ROLES.forEach(function (r) { %><option value="<%= r %>" <%= s.roleKey === r ? 'selected' : '' %>><%= roleLabel(r) %></option><% }); %></select></div>
+                  <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="isActive" value="1" <%= s.isActive ? 'checked' : '' %> /> Active</label>
+                  <button class="btn btn-secondary btn-sm">Save</button>
+                </form>
+              </details>
+            </div>
+          </div>
+        </li>
+      <% }); %>
+    </ul>
+  </div>
 </div>
+<script>
+(function () {
+  var search = document.getElementById('skill-search');
+  var roleFilter = document.getElementById('skill-role-filter');
+  var statusFilter = document.getElementById('skill-status-filter');
+  var rows = Array.prototype.slice.call(document.querySelectorAll('[data-skill-row]'));
+  if (!search || !rows.length) return;
+  function apply() {
+    var q = (search.value || '').toLowerCase();
+    var role = roleFilter.value;
+    var status = statusFilter.value;
+    rows.forEach(function (row) {
+      var matches = (!q || row.dataset.name.indexOf(q) !== -1) && (!role || row.dataset.role === role) && (!status || row.dataset.status === status);
+      // .divide-list li sets its own display:flex in CSS, which beats the [hidden] UA rule at
+      // equal specificity — an inline style is needed to actually hide the row.
+      row.style.display = matches ? '' : 'none';
+    });
+  }
+  [search, roleFilter, statusFilter].forEach(function (el) { el.addEventListener('input', apply); el.addEventListener('change', apply); });
+})();
+</script>
 
 <div class="card mt-24">
   <div class="card-header"><h2>Generate micro-practice</h2><p>A 2–5 minute targeted practice for one skill, generated from an approved training. It starts as AI-generated and must be reviewed and approved before it can be assigned.</p></div>

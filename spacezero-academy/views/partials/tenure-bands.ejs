@@ -1,0 +1,26 @@
+<section class="card mt-24" id="tenure-bands">
+  <div class="card-header"><h2>Tenure Bands</h2><p>Define employee experience stages shown on employee profiles. Existing training and development rules remain unchanged.</p></div>
+  <div class="card-body">
+    <% const entered = typeof values !== 'undefined' ? values : {}; %>
+    <ul class="divide-list">
+    <% bands.forEach(b => { %>
+      <li class="row-between"><strong><%= b.label %></strong><span class="text-sm"><%= b.minMonths %><%= b.maxMonths === null ? '+' : '–' + b.maxMonths %> months</span>
+        <details><summary class="btn btn-ghost btn-sm" aria-label="Actions for <%= b.label %>">⋯</summary>
+          <button type="button" class="btn btn-ghost btn-sm" data-action="/admin/settings/tenure-bands/<%= b.id %>/delete" data-confirm="Remove this tenure band?">Remove</button>
+        </details>
+      </li>
+    <% }); %>
+    </ul>
+    <% if (!bands.length) { %><p class="text-sm text-muted">No tenure bands configured.</p><% } %>
+    <details class="mt-16" <%= entered.label !== undefined ? 'open' : '' %>><summary class="link-gold">+ Add tenure band</summary>
+      <form method="post" action="/admin/settings/tenure-bands" class="mt-16">
+        <div class="grid grid-3">
+          <div class="field"><label for="tenure-label">Name</label><input id="tenure-label" name="label" value="<%= entered.label || '' %>" required /></div>
+          <div class="field"><label for="tenure-min">Minimum months</label><input id="tenure-min" name="minMonths" type="number" min="0" value="<%= entered.minMonths || '' %>" required /></div>
+          <div class="field"><label for="tenure-max">Maximum months (blank = no limit)</label><input id="tenure-max" name="maxMonths" type="number" min="0" value="<%= entered.maxMonths || '' %>" /></div>
+        </div>
+        <button class="btn btn-secondary" type="submit">Add tenure band</button>
+      </form>
+    </details>
+  </div>
+</section>

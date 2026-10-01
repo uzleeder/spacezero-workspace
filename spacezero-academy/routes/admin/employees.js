@@ -4,7 +4,8 @@ const express = require('express');
 const router = express.Router();
 
 const { prisma } = require('../../lib/prisma');
-const { parseFilters, whereFor, applyLearningFilters, byReadiness } = require('../../lib/employeeFilters');
+const { parseFilters, whereFor, applyLearningFilters, byReadiness, byPassportStatus } = require('../../lib/employeeFilters');
+const { STATUS: PASSPORT_STATUS, STATUS_LABEL: PASSPORT_STATUS_LABEL } = require('../../lib/passport');
 const { readinessFor } = require('../../lib/readiness');
 const { applyOnboarding } = require('../../lib/onboarding');
 const { requireAdmin } = require('../../lib/authMiddleware');
@@ -18,6 +19,7 @@ const { tabsForRequest } = require('../../lib/employeeTabs');
 const { SETUP_FILTERS, parseSetupQuery, matchesSetup, requirementOptions } = require('../../lib/employeeList');
 const { getMyTrainingSummary } = require('../../lib/training');
 const { employeeWorkbook } = require('../../lib/employeeExport');
+const { roleLabel } = require('../../lib/roles');
 
 const { sendAccountEmail, isEmailConfigured } = require('../../lib/mailer');
 const { sendReset } = require('../../lib/accountEmail');
@@ -29,6 +31,29 @@ function requiresSupervisor(role) {
 
 const STATUS_TONE = { ACTIVE: 'badge-success', INVITED: 'badge-warning', DISABLED: 'badge-danger', ARCHIVED: '' };
 const STATUS_LABEL = { ACTIVE: 'Active', INVITED: 'Invited', DISABLED: 'Disabled', ARCHIVED: 'Archived' };
+
+// Active-filter chips for the "More filters" panel — each one just re-links to the same page
+// with that one query param removed, so there is no second filter-state to keep in sync.
+function buildActiveFilterChips(basePath, query, { teams, supervisors, requirements, SETUP_FILTERS, STATUS_LABEL: statusLabels }) {
+  const chips = [];
+  const removeHref = (keys) => {
+    const params = new URLSearchParams(query);
+    keys.forEach((k) => params.delete(k));
+    const qs = params.toString();
+    return basePath + (qs ? '?' + qs : '');
+  };
+  if (query.q) chips.push({ label: `Search: "${query.q}"`, href: removeHref(['q']) });
+  if (query.role) chips.push({ label: `Role: ${roleLabel(query.role)}`, href: removeHref(['role']) });
+  if (query.status) chips.push({ label: `Status: ${statusLabels[query.status] || query.status}`, href: removeHref(['status']) });
+  if (query.teamId) { const t = teams.find((x) => x.id === query.teamId); chips.push({ label: `Team: ${t ? t.name : 'Unknown'}`, href: removeHref(['teamId']) }); }
+  if (query.supervisorId) { const s = supervisors.find((x) => x.id === query.supervisorId); chips.push({ label: `Supervisor: ${s ? s.fullName : 'Unknown'}`, href: removeHref(['supervisorId']) }); }
+  if (query.setup) chips.push({ label: `Setup: ${SETUP_FILTERS[query.setup] || query.setup}`, href: removeHref(['setup']) });
+  if (query.missing) { const r = requirements.find((x) => x.key === query.missing); chips.push({ label: `Missing: ${r ? r.label : query.missing}`, href: removeHref(['missing']) }); }
+  if (query.trainingStatus) chips.push({ label: `Training: ${String(query.trainingStatus).replace(/_/g, ' ').toLowerCase()}`, href: removeHref(['trainingStatus']) });
+  if (query.readiness) chips.push({ label: `Readiness: ${String(query.readiness).replace(/_/g, ' ').toLowerCase()}`, href: removeHref(['readiness']) });
+  if (query.passportStatus) chips.push({ label: `Passport: ${String(query.passportStatus).replace(/_/g, ' ').toLowerCase()}`, href: removeHref(['passportStatus']) });
+  return chips;
+}
 
 router.post('/employees/:id/personal-test-profile', requireAdmin, async (req, res) => {
   const admin = req.profile;
@@ -60,7 +85,7 @@ router.get('/employees', requireAdmin, async (req, res) => {
       organizationId: admin.organizationId,
       role: str(req.query.role) || undefined,
       status: str(req.query.status) || undefined,
-      fullName: req.query.q ? { contains: str(req.query.q) } : undefined,
+      ...(req.query.q ? { OR: [{ fullName: { contains: str(req.query.q) } }, { email: { contains: str(req.query.q) } }] } : {}),
       teamMemberships: teamId ? { some: { teamId } } : undefined,
       supervisedBy: supervisorId ? { some: { supervisorId, unassignedAt: null } } : undefined,
       ...excludeOtherAdminsTestProfiles(admin),
@@ -74,7 +99,7 @@ router.get('/employees', requireAdmin, async (req, res) => {
   });
   const setupMap = await loadSetupForProfiles(admin.organizationId, found);
   const readinessMap = await readinessFor(admin.organizationId, found, { setupMap });
-  const employees = byReadiness((await applyLearningFilters(found, f)).filter((e) => matchesSetup(setupMap.get(e.id), setupQuery)), readinessMap, f);
+  const employees = byPassportStatus(byReadiness((await applyLearningFilters(found, f)).filter((e) => matchesSetup(setupMap.get(e.id), setupQuery)), readinessMap, f), f);
   const trainingMap = new Map(await Promise.all(employees.map(async (e) => [e.id, await getMyTrainingSummary(e.id)])));
   const [teams, supervisors, requirements] = await Promise.all([
     prisma.team.findMany({ where: { organizationId: admin.organizationId, archivedAt: null }, orderBy: { name: 'asc' } }),
@@ -104,6 +129,9 @@ router.get('/employees', requireAdmin, async (req, res) => {
     supervisorId,
     setup: setupQuery.setup,
     missing: setupQuery.missing,
+    PASSPORT_STATUS,
+    PASSPORT_STATUS_LABEL,
+    activeFilters: buildActiveFilterChips('/admin/employees', req.query, { teams, supervisors, requirements, SETUP_FILTERS, STATUS_LABEL }),
   });
 });
 
@@ -235,13 +263,16 @@ router.get('/employees/:id', requireAdmin, async (req, res) => {
   });
   if (!employee) return res.status(404).render('not-found', { layout: false });
 
-  const [teams, supervisors, data] = await Promise.all([
+  const [teams, supervisors, data, managementAccessCount] = await Promise.all([
     prisma.team.findMany({ where: { organizationId: admin.organizationId, archivedAt: null }, orderBy: { name: 'asc' } }),
     prisma.profile.findMany({
       where: { organizationId: admin.organizationId, role: 'SUPERVISOR', status: { not: 'ARCHIVED' }, ...excludeOtherAdminsTestProfiles(admin) },
       orderBy: { fullName: 'asc' },
     }),
     loadProfileOverview(employee.id),
+    // Task 3 "easy person-level management": a quick-glance count on the Supervisor's own profile,
+    // reusing the same grant table the Admin Configuration → Supervisor permissions screen manages.
+    employee.role === 'SUPERVISOR' ? prisma.supervisorCapability.count({ where: { organizationId: admin.organizationId, supervisorId: employee.id } }) : null,
   ]);
   res.locals.empTabs = await tabsForRequest(req, employee);
 
@@ -251,6 +282,7 @@ router.get('/employees/:id', requireAdmin, async (req, res) => {
     teams,
     supervisors,
     data,
+    managementAccessCount,
     error: null,
     fieldErrors: {},
     canRecordEvidence: true,

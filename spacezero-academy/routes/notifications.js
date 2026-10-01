@@ -19,4 +19,13 @@ router.get('/notifications', requireSession, async (req, res) => {
   res.render('notifications', { title: 'Notifications', notifications });
 });
 
+// Opened from the bell dropdown: marks just this one notification read (never the whole list)
+// and sends the viewer straight to its destination, falling back to the full page.
+router.get('/notifications/:id/open', requireSession, async (req, res) => {
+  const n = await prisma.notification.findUnique({ where: { id: req.params.id } });
+  if (!n || n.profileId !== req.profile.id) return res.redirect('/notifications');
+  if (!n.readAt) await prisma.notification.update({ where: { id: n.id }, data: { readAt: new Date() } });
+  res.redirect(n.link || '/notifications');
+});
+
 module.exports = router;

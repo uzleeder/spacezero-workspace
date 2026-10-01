@@ -1,0 +1,128 @@
+<%
+const typeNote = { STANDARD: 'A principle or policy.', RESPONSIBILITY: 'A short list of what is expected from a role.', WORKFLOW: 'A step-by-step operating procedure.', DISCLOSURE: 'Controlled wording employees may be required to communicate.' };
+%>
+<%- include('../../partials/advanced-page-header', {
+  sectionLabel: 'Standards',
+  pageTitle: mode === 'new' ? 'New ' + CONTENT_TYPE_LABEL[contentType] : 'Edit — ' + values.title,
+  pageDescription: typeNote[contentType],
+  headerAction: '<a href="/admin/standards" class="btn btn-secondary">Cancel</a>' + (mode === 'edit' ? ' <a href="/admin/standards/' + item.id + '/preview" target="_blank" class="btn btn-secondary">Preview</a>' : ''),
+}) %>
+
+<% if (errors.length) { %><div class="form-alert error mt-16" role="alert"><% errors.forEach(function (e) { %><p><%= e %></p><% }); %></div><% } %>
+
+<form method="post" action="<%= mode === 'new' ? '/admin/standards' : '/admin/standards/' + item.id %>" class="mt-24" data-standards-form>
+  <input type="hidden" name="contentType" value="<%= contentType %>" />
+
+  <div class="card">
+    <div class="card-header"><h2>Details</h2></div>
+    <div class="card-body">
+      <div class="grid grid-2">
+        <div class="field"><label for="title">Title</label><input id="title" name="title" value="<%= values.title %>" maxlength="140" required /></div>
+        <div class="field"><label for="category">Category <span class="text-muted">(optional)</span></label><input id="category" name="category" value="<%= values.category %>" maxlength="60" placeholder="e.g. Client Communication" /></div>
+      </div>
+      <div class="field mt-16"><label for="shortDescription">Short description / introduction</label><textarea id="shortDescription" name="shortDescription" rows="2" maxlength="300"><%= values.shortDescription %></textarea></div>
+    </div>
+  </div>
+
+  <div class="card mt-24">
+    <div class="card-header"><h2>Applies to</h2></div>
+    <div class="card-body">
+      <fieldset style="border:0;padding:0">
+        <legend class="text-sm text-muted">Audience</legend>
+        <label style="display:block;margin:6px 0"><input type="radio" name="rolesAudience" value="ALL" <%= values.rolesAudience === 'ALL' ? 'checked' : '' %> /> Everyone</label>
+        <label style="display:block;margin:6px 0"><input type="radio" name="rolesAudience" value="ROLES" <%= values.rolesAudience === 'ROLES' ? 'checked' : '' %> /> Specific roles</label>
+        <div style="margin:0 0 6px 24px" data-audience-roles>
+          <% ROLES.forEach(function (role) { %><label style="margin-right:16px"><input type="checkbox" name="roles" value="<%= role %>" <%= values.roles.includes(role) ? 'checked' : '' %> /> <%= roleLabel(role) %></label><% }); %>
+        </div>
+      </fieldset>
+    </div>
+  </div>
+
+  <% if (contentType === 'STANDARD') { %>
+  <div class="card mt-24">
+    <div class="card-header row-between"><h2>Content</h2><p>Headings, paragraphs, lists and callouts — no raw HTML.</p></div>
+    <div class="card-body">
+      <div data-repeater="blocks">
+        <div data-repeater-list>
+          <% blocks.forEach(function (b) { %><%- include('block-item', { b: b, BLOCK_TYPES: BLOCK_TYPE_LABEL }) %><% }); %>
+        </div>
+        <template data-repeater-template><%- include('block-item', { b: { type: 'paragraph', text: '', items: [] }, BLOCK_TYPES: BLOCK_TYPE_LABEL }) %></template>
+        <button type="button" class="btn btn-secondary btn-sm mt-8" data-repeater-add>+ Add block</button>
+      </div>
+    </div>
+  </div>
+  <div class="card mt-24">
+    <div class="card-header"><h2>Options</h2></div>
+    <div class="card-body">
+      <label class="checkbox-row" style="display:block;margin:6px 0"><input type="checkbox" name="important" value="1" <%= values.important ? 'checked' : '' %> /> Important / Featured</label>
+      <label class="checkbox-row" style="display:block;margin:6px 0"><input type="checkbox" name="requiredReading" value="1" <%= values.requiredReading ? 'checked' : '' %> /> Required reading</label>
+      <label class="checkbox-row" style="display:block;margin:6px 0"><input type="checkbox" name="quickReference" value="1" <%= values.quickReference ? 'checked' : '' %> /> Show in Quick Reference</label>
+    </div>
+  </div>
+  <% } %>
+
+  <% if (contentType === 'RESPONSIBILITY') { %>
+  <div class="card mt-24">
+    <div class="card-header row-between"><h2><%= values.title || 'Responsibilities' %></h2><p>One line each. Keep them short and specific.</p></div>
+    <div class="card-body">
+      <div data-repeater="responsibilities">
+        <div data-repeater-list>
+          <% responsibilities.forEach(function (r) { %><%- include('resp-item', { text: r.text }) %><% }); %>
+        </div>
+        <template data-repeater-template><%- include('resp-item', { text: '' }) %></template>
+        <button type="button" class="btn btn-secondary btn-sm mt-8" data-repeater-add>+ Add Responsibility</button>
+      </div>
+    </div>
+  </div>
+  <% } %>
+
+  <% if (contentType === 'WORKFLOW') { %>
+  <div class="card mt-24">
+    <div class="card-header row-between"><h2>Workflow steps</h2><p>Plain numbered steps — no diagram to build.</p></div>
+    <div class="card-body">
+      <div data-repeater="steps">
+        <div data-repeater-list>
+          <% steps.forEach(function (s) { %><%- include('step-item', { s: s, disclosures: disclosures, relatable: relatable }) %><% }); %>
+        </div>
+        <template data-repeater-template><%- include('step-item', { s: { title: '', instruction: '', detail: {} }, disclosures: disclosures, relatable: relatable }) %></template>
+        <button type="button" class="btn btn-secondary btn-sm mt-8" data-repeater-add>+ Add Step</button>
+      </div>
+    </div>
+  </div>
+  <div class="card mt-24">
+    <div class="card-header"><h2>Options</h2></div>
+    <div class="card-body">
+      <label class="checkbox-row" style="display:block;margin:6px 0"><input type="checkbox" name="quickReference" value="1" <%= values.quickReference ? 'checked' : '' %> /> Show in Quick Reference</label>
+    </div>
+  </div>
+  <% } %>
+
+  <% if (contentType === 'DISCLOSURE') { %>
+  <div class="card mt-24">
+    <div class="card-header"><h2>Disclosure</h2></div>
+    <div class="card-body">
+      <div class="field"><label for="disclosureWhenItApplies">When it applies</label><textarea id="disclosureWhenItApplies" name="disclosureWhenItApplies" rows="2" maxlength="500"><%= disclosure.whenItApplies %></textarea></div>
+      <div class="field mt-16"><label for="disclosureApprovedWording">Approved wording <span class="text-muted">(shown to employees exactly as written)</span></label><textarea id="disclosureApprovedWording" name="disclosureApprovedWording" rows="6" maxlength="4000"><%= disclosure.approvedWording %></textarea></div>
+      <div class="field mt-16"><label for="disclosureAdditionalInstructions">Additional instructions <span class="text-muted">(optional)</span></label><textarea id="disclosureAdditionalInstructions" name="disclosureAdditionalInstructions" rows="3" maxlength="2000"><%= disclosure.additionalInstructions %></textarea></div>
+    </div>
+  </div>
+  <% } %>
+
+  <div class="card mt-24">
+    <div class="card-header"><h2>Acknowledgement</h2></div>
+    <div class="card-body">
+      <label class="checkbox-row" style="display:block;margin:6px 0"><input type="checkbox" name="acknowledgementRequired" value="1" <%= values.acknowledgementRequired ? 'checked' : '' %> /> Require employees to acknowledge this</label>
+      <label class="checkbox-row" style="display:block;margin:6px 0"><input type="checkbox" name="requireReacknowledgement" value="1" <%= values.requireReacknowledgement ? 'checked' : '' %> /> When publishing this as a new version, require re-acknowledgement</label>
+    </div>
+  </div>
+
+  <div class="row-between mt-24" style="margin-bottom:40px">
+    <a href="/admin/standards" class="text-sm link-gold">Cancel</a>
+    <div style="display:flex;gap:8px">
+      <button type="submit" name="action" value="draft" class="btn btn-secondary">Save Draft</button>
+      <button type="submit" name="action" value="publish" class="btn btn-gold">Publish</button>
+    </div>
+  </div>
+</form>
+
+<script src="/static/js/standards-editor.js"></script>

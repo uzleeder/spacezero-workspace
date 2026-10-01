@@ -1,0 +1,12 @@
+<% const personalActive = currentPath.endsWith('/setup') ? 'setup' : currentPath.endsWith('/leave') ? 'leave' : typeof personalSection !== 'undefined' && personalSection === 'security' ? 'security' : currentPath === '/profile' ? 'profile' : ''; %>
+<nav class="personal-settings-nav no-print" aria-label="Profile & Settings">
+  <% [['profile', 'Profile', '/profile'], ['setup', 'Setup', '/my/setup'], ['leave', 'Vacation & Leave', '/my/leave'], ['security', 'Account & Security', '/profile?section=security#account-security']].forEach(t => { %>
+  <a class="tab-link<%= personalActive === t[0] ? ' active' : '' %>" <%- personalActive === t[0] ? 'aria-current="page"' : '' %> href="<%= t[2] %>"><%= t[1] %></a>
+  <% }); %>
+</nav>
+<% const extraTabs = personalTabs.filter(t => ['Training', 'Skills', 'Activity', 'Credentials'].includes(t.label)); %>
+<% if (extraTabs.length) { %>
+<details class="mt-16 no-print"><summary class="text-sm link-gold">More profile tools</summary>
+  <div class="personal-settings-nav"><% extraTabs.forEach(t => { %><a class="tab-link" href="<%= t.href %>"><%= t.label %></a><% }); %></div>
+</details>
+<% } %>

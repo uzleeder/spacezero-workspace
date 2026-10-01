@@ -26,6 +26,10 @@ const STATES = {
   APPROVED: { label: 'Approved', step: 4, tone: 'badge-success' },
   SENT: { label: 'Sent to Training', step: 5, tone: 'badge-success' },
   FAILED: { label: 'Failed', step: 2, tone: 'badge-danger' },
+  // Supervisor Training Creation review workflow (only reachable when a Supervisor submitted this
+  // course for Admin approval — see lib/courseVersions.js#submitForApproval).
+  SUBMITTED: { label: 'Awaiting admin approval', step: 4, tone: 'badge-gold' },
+  CHANGES_REQUESTED: { label: 'Changes requested', step: 4, tone: 'badge-danger' },
 };
 
 // The tabs of the AI Practice home. Few on purpose.
@@ -35,6 +39,7 @@ const TABS = [
   { key: 'progress', label: 'In progress', states: ['ANALYZING', 'BUILDING'] },
   { key: 'review', label: 'Ready for review', states: ['ANALYSIS_READY', 'PRACTICE_DRAFT', 'READY_FOR_REVIEW'] },
   { key: 'approved', label: 'Approved', states: ['APPROVED'] },
+  { key: 'approval', label: 'Awaiting approval', states: ['SUBMITTED', 'CHANGES_REQUESTED'] },
   { key: 'sent', label: 'Sent to Training', states: ['SENT'] },
 ];
 
@@ -48,8 +53,13 @@ function stuck(updatedAt, now) { return now - new Date(updatedAt) > STUCK_MS; }
 /**
  * State of a course-based source.
  * `build` = latest practice-build AiTask (or null); `components` = live practice of the version being built.
+ * `isAdmin` (default true, so every internal call that predates Supervisor Training Creation keeps
+ * behaving exactly as before unless it explicitly opts in) decides whether the APPROVED state's
+ * primary action is the real "Send to Training" publish link — a Supervisor, even the course's own
+ * creator, must never be shown that as a clickable action; their real next step is "Submit for
+ * Admin Approval", surfaced separately by the review step itself, not by this generic quick-action.
  */
-function courseState(course, { build = null, components = [], now = new Date() } = {}) {
+function courseState(course, { build = null, components = [], now = new Date(), isAdmin = true } = {}) {
   const analysis = course.analysis || null;
   const make = (key, extra = {}) => ({ key, ...STATES[key], ...extra });
   const id = course.id;
@@ -86,7 +96,15 @@ function courseState(course, { build = null, components = [], now = new Date() }
     if (buildFailed) return withVersion(make('FAILED', { note: 'The practice could not be built. Your analysis is safe.', primary: { label: 'Retry', href: `/ai-practice/${id}/practice/retry`, post: true }, remove: { label: 'Remove', href: `/ai-practice/${id}/delete`, confirm: 'Remove this? If training or skill records depend on it, it will be archived instead.' } }));
     return withVersion(make('ANALYSIS_READY', { note: 'Analysis approved — create the practice.', primary: { label: 'Create Practice', href: `/ai-practice/${id}?step=practice` } }));
   }
-  if (live.every((a) => a.status === 'APPROVED')) return withVersion(make('APPROVED', { note: 'Approved — ready to send to Training.', primary: { label: 'Send to Training', href: `/ai-practice/${id}/send` } }));
+  if (live.every((a) => a.status === 'APPROVED')) {
+    // Supervisor Training Creation: a submitted/sent-back draft shows its own state instead of the
+    // ordinary "ready to send" one. Role-specific actions (Admin: Approve & Send / Request Changes;
+    // Supervisor: resubmit after changes) render on the detail page itself, keyed off reviewStatus.
+    if (course.reviewStatus === 'SUBMITTED') return withVersion(make('SUBMITTED', { note: 'Submitted — waiting for an admin to review it.', primary: { label: 'Review', href: `/ai-practice/${id}?step=review` } }));
+    if (course.reviewStatus === 'CHANGES_REQUESTED') return withVersion(make('CHANGES_REQUESTED', { note: course.reviewNote ? `An admin requested changes: "${course.reviewNote}"` : 'An admin requested changes.', primary: { label: 'Review', href: `/ai-practice/${id}?step=review` } }));
+    if (!isAdmin) return withVersion(make('APPROVED', { note: 'Approved — ready to submit for admin approval.', primary: { label: 'Review', href: `/ai-practice/${id}?step=review` } }));
+    return withVersion(make('APPROVED', { note: 'Approved — ready to send to Training.', primary: { label: 'Send to Training', href: `/ai-practice/${id}/send` } }));
+  }
   if (buildFailed) return withVersion(make('PRACTICE_DRAFT', { note: 'Some practice could not be built. Retry builds only what is missing.', primary: { label: 'Continue Building', href: `/ai-practice/${id}?step=practice` } }));
   return withVersion(make('READY_FOR_REVIEW', { note: 'Check the practice, preview it, then approve.', primary: { label: 'Review', href: `/ai-practice/${id}?step=review` } }));
 }
@@ -124,16 +142,17 @@ function durationSummary(modules) {
 
 const shortDate = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-/** Everything the AI Practice home lists (Admin: the whole organization), newest activity first. */
+/** Everything the AI Practice home lists (Admin: the whole organization; Supervisor: only what they created), newest activity first. */
 async function loadSources(actor, { now = new Date(), archived = false } = {}) {
   const orgId = actor.organizationId;
+  const own = actor.role === 'ADMIN' ? {} : { createdById: actor.id };
   const [courses, batches] = await Promise.all([
     prisma.trainingCourse.findMany({
-      where: { organizationId: orgId, origin: 'AI_PRACTICE', workspaceArchivedAt: archived ? { not: null } : null },
+      where: { organizationId: orgId, origin: 'AI_PRACTICE', workspaceArchivedAt: archived ? { not: null } : null, ...own },
       include: { analysis: true, createdBy: { select: { fullName: true } }, modules: { select: { id: true, title: true, contentType: true, durationMinutes: true, sourceRefJson: true, storagePath: true, addedInVersion: true, removedInVersion: true } }, assessments: { select: { id: true, status: true, version: true, archivedAt: true, type: true, configJson: true } } },
       orderBy: { updatedAt: 'desc' }, take: 400,
     }),
-    prisma.callBatch.findMany({ where: { organizationId: orgId, archivedAt: archived ? { not: null } : null }, include: { recordings: { select: { id: true, status: true, durationSeconds: true } }, uploadedBy: { select: { fullName: true } }, targetAgent: { select: { fullName: true } } }, orderBy: { updatedAt: 'desc' }, take: 300 }),
+    prisma.callBatch.findMany({ where: { organizationId: orgId, archivedAt: archived ? { not: null } : null, ...(actor.role === 'ADMIN' ? {} : { uploadedById: actor.id }) }, include: { recordings: { select: { id: true, status: true, durationSeconds: true } }, uploadedBy: { select: { fullName: true } }, targetAgent: { select: { fullName: true } } }, orderBy: { updatedAt: 'desc' }, take: 300 }),
   ]);
   const tasks = courses.length ? await prisma.aiTask.findMany({ where: { courseId: { in: courses.map((c) => c.id) }, taskType: 'PRACTICE_BUILD' }, orderBy: { createdAt: 'desc' } }) : [];
   const latestBuild = new Map();
@@ -159,7 +178,7 @@ async function loadSources(actor, { now = new Date(), archived = false } = {}) {
   }
   for (const c of courses) {
     const components = c.assessments.filter((a) => !a.archivedAt && a.status !== 'ARCHIVED' && a.version === (c.draftVersion || 1));
-    const state = courseState(c, { build: latestBuild.get(c.id) || null, components, now });
+    const state = courseState(c, { build: latestBuild.get(c.id) || null, components, now, isAdmin: actor.role === 'ADMIN' });
     const build = latestBuild.get(c.id);
     const last = [c.updatedAt, c.analysis && c.analysis.updatedAt, build && build.updatedAt].filter(Boolean).sort((a, b) => b - a)[0];
     items.push({

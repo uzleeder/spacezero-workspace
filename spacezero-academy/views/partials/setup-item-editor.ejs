@@ -1,0 +1,47 @@
+<%
+// Shared "advanced" per-item setup editor — the exceptions/details form (status, note, company
+// number, Telegram-style account type). Reused by the compact checklist's "..." reveal and by the
+// exceptions list for company-controlled/derived/already-special-status rows. Locals: employee, r
+// (requirement), row, isAdmin, STATUSES, STATUS_LABEL, and optionally formId.
+//
+// When formId is given, this editor is rendered INSIDE another <form> (the compact checklist's
+// bulk-save form) — nested <form> elements are invalid HTML and browsers silently merge them,
+// which would make this "Save" button submit to the wrong place. Instead every control here uses
+// the HTML5 form="<id>" attribute to bind to a real <form> that setup.ejs renders OUTSIDE the bulk
+// form, so it submits correctly without ever being a DOM descendant of it. Without formId (the
+// exceptions-list usage, which is not nested in anything), this renders its own <form> as before.
+const done = row.status === 'COMPLETED';
+const formAttr = typeof formId !== 'undefined' && formId ? ` form="${formId}"` : '';
+const Tag = formAttr ? 'div' : 'form';
+%>
+<% if (formAttr && ((row.item && row.item.verifiedAt && done) || (done && row.item && row.item.employeeConfirmedAt) || row.awaitingVerification || row.awaitingCompanyControl)) { %>
+<p class="text-sm text-muted" style="margin:0 0 8px">
+  <% if (row.item && row.item.verifiedAt && done) { %>Verified by <%= row.item.verifiedBy ? row.item.verifiedBy.fullName : 'management' %> on <%= row.item.verifiedAt.toLocaleDateString('en-US') %>.<% } else if (done && row.item && row.item.employeeConfirmedAt) { %>Confirmed by the employee on <%= row.item.employeeConfirmedAt.toLocaleDateString('en-US') %>.<% } %>
+  <% if (row.awaitingVerification) { %> Confirmed by the employee — awaiting verification by a supervisor or administrator.<% } %>
+  <% if (row.awaitingCompanyControl) { %> Waiting for company ownership/recovery confirmation.<% } %>
+</p>
+<% } %>
+<<%- Tag %><% if (!formAttr) { %> method="post" action="/employees/<%= employee.id %>/setup/<%= r.id %>"<% } %> style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+  <select name="status" aria-label="Status for <%= r.label %>"<%- formAttr %>>
+    <% STATUSES.forEach(function (s) {
+         if (row.derived && !['NOT_SET_UP', 'NOT_REQUIRED'].includes(s)) return;
+         if (s === 'NOT_REQUIRED' && !isAdmin) return; %>
+      <option value="<%= s %>" <%= (row.item ? row.item.status : 'NOT_SET_UP') === s ? 'selected' : '' %>><%= row.derived && s === 'NOT_SET_UP' ? 'Required (calculated)' : STATUS_LABEL[s] %></option>
+    <% }); %>
+  </select>
+  <input name="note" value="<%= row.item && row.item.note ? row.item.note : '' %>" placeholder="Optional note" maxlength="500" style="flex:1;min-width:160px"<%- formAttr %> />
+  <% if (r.companyControlled && !row.derived) { %>
+    <input name="companyNumber" value="<%= row.item && row.item.companyNumber ? row.item.companyNumber : '' %>" placeholder="Company number / account" maxlength="40" style="min-width:170px" aria-label="Company number for <%= r.label %>"<%- formAttr %> />
+    <% if (r.allowPersonalAccount) { %>
+      <span class="text-sm" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <label class="checkbox-row"><input type="radio" name="accountType" value="COMPANY" <%= (!row.item || row.item.accountType !== 'PERSONAL_WORK') ? 'checked' : '' %><%- formAttr %> /> Company Number</label>
+        <label class="checkbox-row"><input type="radio" name="accountType" value="PERSONAL_WORK" <%= (row.item && row.item.accountType === 'PERSONAL_WORK') ? 'checked' : '' %><%- formAttr %> /> Personal Number — Used for Work</label>
+      </span>
+    <% } %>
+    <label class="checkbox-row"><input type="checkbox" name="companyControlConfirmed" value="1" <%= row.item && row.item.companyControlConfirmed ? 'checked' : '' %><%- formAttr %> /> Company owns &amp; can recover this</label>
+  <% } %>
+  <button type="submit" class="btn btn-secondary btn-sm"<%- formAttr %>>Save</button>
+  <% if (isAdmin && row.awaitingVerification && !row.derived && !r.companyControlled) { %>
+    <button type="submit" class="btn btn-gold btn-sm" onclick="this.form.elements.namedItem('status').value = 'COMPLETED'"<%- formAttr %>>Verify &amp; complete</button>
+  <% } %>
+</<%- Tag %>>

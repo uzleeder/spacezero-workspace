@@ -5,11 +5,14 @@ const router = express.Router();
 
 const { prisma } = require('../../lib/prisma');
 const { requireAdmin } = require('../../lib/authMiddleware');
+const { requireSystemConfigAccess } = require('../../lib/supervisorCapabilities');
 const { roleLabel } = require('../../lib/roles');
 
 const AUDIT_AREAS = ['credential', 'setup', 'leave', 'employee', 'training', 'policy'];
 
-router.get('/audit-logs', requireAdmin, async (req, res) => {
+// The Audit Log and org-wide Analytics are "Admin Configuration" (Task 3, System & Security) — not
+// day-to-day employee management. Call reviews (below) stay plain Admin-only: routine oversight.
+router.get('/audit-logs', requireAdmin, requireSystemConfigAccess, async (req, res) => {
   const admin = req.profile;
   const logs = await prisma.auditLog.findMany({
     where: { organizationId: admin.organizationId, ...(AUDIT_AREAS.includes(req.query.area) ? { action: { startsWith: req.query.area + '.' } } : {}) },
@@ -22,7 +25,7 @@ router.get('/audit-logs', requireAdmin, async (req, res) => {
 
 const ROLES = ['ADMIN', 'SUPERVISOR', 'TRAVEL_AGENT', 'FLIGHT_EXPERT'];
 
-router.get('/analytics', requireAdmin, async (req, res) => {
+router.get('/analytics', requireAdmin, requireSystemConfigAccess, async (req, res) => {
   const admin = req.profile;
   const orgId = admin.organizationId;
 

@@ -1,15 +1,21 @@
-'use strict';
+﻿'use strict';
 
-// Settings & Security → Employee Setup → Setup Requirements, plus org policies. Admin only, checked
-// on the server for every request. The checklist is configuration, not code: an Admin adds tools,
-// picks who they apply to (all employees, roles, specific people or teams), chooses how completion
-// is verified, reorders, edits and archives — and every configuration change is audited with the
-// old and new values. Archiving never deletes an employee's setup history.
+// Settings → Advanced → Setup Requirements, plus Training Configuration (passing score, call
+// retention, Skill Graph scoring). Requires System Configuration Access, checked on the server for
+// every request. The checklist is configuration, not code: an Admin adds tools, picks who they
+// apply to (all employees, roles, specific people or teams), chooses how completion is verified,
+// reorders, edits and archives — and every configuration change is audited with the old and new
+// values. Archiving never deletes an employee's setup history.
 const express = require('express');
 const router = express.Router();
 
 const { prisma } = require('../../lib/prisma');
 const { requireAdmin } = require('../../lib/authMiddleware');
+const { requireSystemConfigAccess } = require('../../lib/supervisorCapabilities');
+// Setup Requirements and Policies are "Admin Configuration" (Task 3): daily employee management
+// stays Admin-only, but changing these organization-wide rules needs the explicit, Admin-grantable
+// System Configuration Access capability too — checked server-side, not just hidden from the sidebar.
+const advanced = [requireAdmin, requireSystemConfigAccess];
 const { logAudit } = require('../../lib/audit');
 const { roleLabel } = require('../../lib/roles');
 const { excludeOtherAdminsTestProfiles } = require('../../lib/loginAsScope');
@@ -17,7 +23,7 @@ const {
   CATEGORIES, VERIFICATIONS, VERIFICATION_LABEL, VERIFICATION_HELP, AUDIENCES, ROLES,
   ensureDefaultRequirements, rolesList, loadSetupForProfiles,
 } = require('../../lib/employeeSetup');
-const { DEFAULTS, DEFAULT_SCORING, SOURCE_KEYS, TYPE_KEYS, getSetting, setSetting, isValidSetting } = require('../../lib/orgSettings');
+const { DEFAULT_SCORING, SOURCE_KEYS, TYPE_KEYS, getSetting, setSetting, isValidSetting } = require('../../lib/orgSettings');
 const { recomputeOrganization } = require('../../lib/scoring');
 const { purgeExpiredCalls } = require('../../lib/callRetention');
 
@@ -84,6 +90,7 @@ async function readForm(admin, body, existing) {
     required: body.required !== 'optional',
     verification,
     companyControlled: isManual ? body.companyControlled === '1' : existing.companyControlled,
+    allowPersonalAccount: isManual ? body.allowPersonalAccount === '1' : existing.allowPersonalAccount,
     credentialSystem: isManual ? body.credentialSystem === '1' : existing.credentialSystem,
     position,
     profileIds: audience === 'ALL_EMPLOYEES' ? [] : profileIds,
@@ -103,6 +110,7 @@ function valuesFromRow(row) {
     required: row.required,
     verification: row.verification,
     companyControlled: row.companyControlled,
+    allowPersonalAccount: row.allowPersonalAccount,
     credentialSystem: row.credentialSystem,
     position: null,
     profileIds: row.targets.filter((t) => t.profileId).map((t) => t.profileId),
@@ -110,7 +118,7 @@ function valuesFromRow(row) {
   };
 }
 
-const emptyValues = () => ({ ownerRole: null, dueDays: null, dueDate: null, label: '', description: '', category: 'System Access', audience: 'ALL_EMPLOYEES', roles: [], required: true, verification: 'MANAGEMENT_VERIFICATION', companyControlled: false, credentialSystem: false, position: null, profileIds: [], teamIds: [] });
+const emptyValues = () => ({ ownerRole: null, dueDays: null, dueDate: null, label: '', description: '', category: 'System Access', audience: 'ALL_EMPLOYEES', roles: [], required: true, verification: 'MANAGEMENT_VERIFICATION', companyControlled: false, allowPersonalAccount: false, credentialSystem: false, position: null, profileIds: [], teamIds: [] });
 
 async function renderForm(res, admin, { mode, requirement = null, values, errors = [], status = 200 }) {
   const [employees, teams, used] = await Promise.all([
@@ -129,7 +137,7 @@ async function renderForm(res, admin, { mode, requirement = null, values, errors
 // ------------------------------------------------------------------ audit helpers
 const auditDiff = (before, after) => {
   const changes = {};
-  for (const key of ['label', 'category', 'audience', 'required', 'verification', 'companyControlled', 'credentialSystem', 'ownerRole', 'dueDays']) {
+  for (const key of ['label', 'category', 'audience', 'required', 'verification', 'companyControlled', 'allowPersonalAccount', 'credentialSystem', 'ownerRole', 'dueDays']) {
     if (before[key] !== after[key]) changes[key] = { from: before[key], to: after[key] };
   }
   if (String(before.dueDate || '') !== String(after.dueDate || '')) changes.dueDate = { from: before.dueDate, to: after.dueDate };
@@ -174,7 +182,7 @@ async function impactOf(admin, requirementId) {
 }
 
 // ------------------------------------------------------------------ list
-router.get('/setup-requirements', requireAdmin, async (req, res) => {
+router.get('/setup-requirements', advanced, async (req, res) => {
   const admin = req.profile;
   await ensureDefaultRequirements(admin.organizationId);
   const showArchived = req.query.view === 'archived';
@@ -199,9 +207,9 @@ router.get('/setup-requirements', requireAdmin, async (req, res) => {
 });
 
 // ------------------------------------------------------------------ create
-router.get('/setup-requirements/new', requireAdmin, (req, res) => renderForm(res, req.profile, { mode: 'new', values: emptyValues() }));
+router.get('/setup-requirements/new', advanced, (req, res) => renderForm(res, req.profile, { mode: 'new', values: emptyValues() }));
 
-router.post('/setup-requirements', requireAdmin, async (req, res) => {
+router.post('/setup-requirements', advanced, async (req, res) => {
   const admin = req.profile;
   const { values, errors } = await readForm(admin, req.body, null);
   if (errors.length) return renderForm(res, admin, { mode: 'new', values, errors, status: 400 });
@@ -220,6 +228,7 @@ router.post('/setup-requirements', requireAdmin, async (req, res) => {
       required: values.required,
       verification: values.verification,
       companyControlled: values.companyControlled,
+      allowPersonalAccount: values.allowPersonalAccount,
       credentialSystem: values.credentialSystem,
       ownerRole: values.ownerRole, dueDays: values.dueDays, dueDate: values.dueDate,
       displayOrder: (last._max.displayOrder ?? -1) + 1,
@@ -236,13 +245,13 @@ router.post('/setup-requirements', requireAdmin, async (req, res) => {
 });
 
 // ------------------------------------------------------------------ edit
-router.get('/setup-requirements/:id/edit', requireAdmin, async (req, res) => {
+router.get('/setup-requirements/:id/edit', advanced, async (req, res) => {
   const requirement = await loadOwn(req.profile, req.params.id);
   if (!requirement) return notFound(res);
   await renderForm(res, req.profile, { mode: 'edit', requirement, values: valuesFromRow(requirement) });
 });
 
-router.post('/setup-requirements/:id', requireAdmin, async (req, res) => {
+router.post('/setup-requirements/:id', advanced, async (req, res) => {
   const admin = req.profile;
   const existing = await loadOwn(admin, req.params.id);
   if (!existing) return notFound(res);
@@ -261,6 +270,7 @@ router.post('/setup-requirements/:id', requireAdmin, async (req, res) => {
       required: values.required,
       verification: values.verification,
       companyControlled: values.companyControlled,
+      allowPersonalAccount: values.allowPersonalAccount,
       credentialSystem: values.credentialSystem,
       ownerRole: values.ownerRole, dueDays: values.dueDays, dueDate: values.dueDate,
     },
@@ -280,7 +290,7 @@ router.post('/setup-requirements/:id', requireAdmin, async (req, res) => {
 });
 
 // ------------------------------------------------------------------ order / archive / restore
-router.post('/setup-requirements/:id/move', requireAdmin, async (req, res) => {
+router.post('/setup-requirements/:id/move', advanced, async (req, res) => {
   const admin = req.profile;
   const existing = await loadOwn(admin, req.params.id);
   if (!existing) return notFound(res);
@@ -307,45 +317,27 @@ async function setArchived(req, res, archive) {
   await logAudit({ organizationId: admin.organizationId, actorId: admin.id, action: archive ? 'setup.requirement_archived' : 'setup.requirement_restored', targetTable: 'SetupRequirement', targetId: existing.id, metadata: { key: existing.key, label: existing.label } });
   res.redirect(archive ? '/admin/setup-requirements?saved=1' : '/admin/setup-requirements?view=archived&saved=1');
 }
-router.post('/setup-requirements/:id/archive', requireAdmin, (req, res) => setArchived(req, res, true));
-router.post('/setup-requirements/:id/restore', requireAdmin, (req, res) => setArchived(req, res, false));
+router.post('/setup-requirements/:id/archive', advanced, (req, res) => setArchived(req, res, true));
+router.post('/setup-requirements/:id/restore', advanced, (req, res) => setArchived(req, res, false));
 
 // ------------------------------------------------------------------ policies
-const POLICY_META = [
-  { key: 'credentials.ownerCanView', label: 'Employees may reveal their own credentials', help: 'When off, only Admins (and the supervisor of a Travel Agent) can reveal a stored credential. Every reveal is audited either way and needs the viewer to re-enter their password.' },
-  { key: 'leave.supervisorFinalApproval', label: 'Supervisors may make the final vacation decision', help: 'When off, a supervisor can only recommend approval or rejection; an Admin decides. When on, a supervisor may approve or reject requests from their own team.' },
-];
-
-router.get('/policies', requireAdmin, async (req, res) => {
+// The simple on/off access & approval toggles (credentials.ownerCanView, leave.supervisorFinalApproval)
+// moved to Settings → Security (routes/admin/settings.js) — everyday settings, not gated behind
+// System Configuration Access. This page keeps only the deeper Training/Skill-scoring configuration.
+async function renderPolicies(req, res, error = null, values = {}) {
   const admin = req.profile;
-  const policies = [];
-  for (const meta of POLICY_META) policies.push({ ...meta, value: await getSetting(admin.organizationId, meta.key) });
   const [minPassingScore, retentionDays, scoring, statusBands, retentionSchedule, declinePoints, dueSoonDays] = await Promise.all(['training.minPassingScore', 'calls.retentionDays', 'scoring.config', 'skills.statusBands', 'retention.schedule', 'retention.declinePoints', 'dev.dueSoonDays'].map((key) => getSetting(admin.organizationId, key)));
   res.render('admin/policies', {
-    title: 'Policies', policies, saved: req.query.saved === '1', minPassingScore, retentionDays, scoring, DEFAULT_SCORING, SOURCE_KEYS, TYPE_KEYS, statusBands, retentionSchedule, declinePoints, dueSoonDays,
+    title: 'Training Configuration', saved: !error && req.query.saved === '1', values, minPassingScore, retentionDays, scoring, DEFAULT_SCORING, SOURCE_KEYS, TYPE_KEYS, statusBands, retentionSchedule, declinePoints, dueSoonDays,
     purged: /^\d{1,6}$/.test(String(req.query.purged || '')) ? Number(req.query.purged) : null,
-    error: typeof req.query.error === 'string' ? req.query.error.slice(0, 200) : null,
+    error: error || (typeof req.query.error === 'string' ? req.query.error.slice(0, 200) : null),
   });
-});
-
-router.post('/policies', requireAdmin, async (req, res) => {
-  const admin = req.profile;
-  const changed = [];
-  for (const meta of POLICY_META) {
-    if (!(meta.key in DEFAULTS)) continue;
-    const next = req.body[meta.key] === '1';
-    if ((await getSetting(admin.organizationId, meta.key)) !== next) {
-      await setSetting(admin.organizationId, meta.key, next, admin.id);
-      changed.push({ key: meta.key, to: next });
-    }
-  }
-  for (const c of changed) await logAudit({ organizationId: admin.organizationId, actorId: admin.id, action: 'policy.changed', targetTable: 'OrgSetting', targetId: c.key, metadata: c });
-  res.redirect('/admin/policies?saved=1');
-});
+}
+router.get('/policies', advanced, (req, res) => renderPolicies(req, res));
 
 // Training minimum passing score, customer-call retention and the Skill Graph evidence weights.
 // Every value is range-checked by lib/orgSettings; anything out of range is refused, never clamped silently.
-router.post('/policies/ai', requireAdmin, async (req, res) => {
+router.post('/policies/ai', advanced, async (req, res) => {
   const admin = req.profile;
   const org = admin.organizationId;
   const existingScoring = await getSetting(org, 'scoring.config');
@@ -371,7 +363,7 @@ router.post('/policies/ai', requireAdmin, async (req, res) => {
   if (has('declinePoints')) next['retention.declinePoints'] = Number(req.body.declinePoints);
   if (has('dueSoonDays')) next['dev.dueSoonDays'] = Number(req.body.dueSoonDays);
   if (!Object.entries(next).every(([key, value]) => isValidSetting(key, value))) {
-    return res.redirect('/admin/policies?error=' + encodeURIComponent('One of the values is outside its allowed range (passing score 50-100, retention 0-3650 days, weights 0.1-3, half-life 7-730 days, status bands start at 0 and have labels, follow-up days 1-365). Nothing was saved.'));
+    return renderPolicies(req, res.status(400), 'One of the values is outside its allowed range. Please check the limits shown next to each field. Nothing was saved; your entered values are retained.', req.body);
   }
   const changed = [];
   for (const [key, value] of Object.entries(next)) {
@@ -388,7 +380,7 @@ router.post('/policies/ai', requireAdmin, async (req, res) => {
   res.redirect('/admin/policies?saved=1');
 });
 
-router.post('/policies/purge-calls', requireAdmin, async (req, res) => {
+router.post('/policies/purge-calls', advanced, async (req, res) => {
   const count = await purgeExpiredCalls(req.profile.organizationId, { actorId: req.profile.id });
   res.redirect('/admin/policies?purged=' + count);
 });

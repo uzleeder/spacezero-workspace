@@ -1,5 +1,7 @@
-<%- include('partials/page-header', { pageTitle: 'My Profile', pageDescription: 'Everything about your role, training, and progress.' }) %>
-<%- include('partials/management-tabs', { tabs: empTabs }) %>
+<%- include('partials/page-header', { pageTitle: 'Profile & Settings', pageDescription: 'Your profile, setup, leave and personal account security.' }) %>
+<%- include('partials/personal-tabs', { personalTabs: empTabs }) %>
+<% const showSecurity = personalSection === 'security'; %>
+<% if (!showSecurity) { %>
 
 <% if (typeof personalAccounts !== 'undefined' && personalAccounts.length) { %>
 <section class="card mt-24" aria-labelledby="personal-accounts-heading">
@@ -21,9 +23,11 @@
 <% if (photoError) { %><div class="form-alert error mt-16"><%= photoError %></div><% } %>
 
 <%- include('partials/profile-overview', { data: data, canRecordEvidence: canRecordEvidence, isOwnProfile: true }) %>
+<% } %>
 
+<% if (showSecurity) { %>
 <div class="card mt-24">
-  <div class="card-header" id="account-security"><h2>Account / Security — change password</h2><p>Update the password you use to sign in.</p></div>
+  <div class="card-header" id="account-security"><h2>Account &amp; Security</h2><p>Update your own sign-in password. Organization security policies are managed separately in Settings.</p></div>
   <div class="card-body">
     <% if (typeof passwordSaved !== 'undefined' && passwordSaved) { %><div class="form-alert success">Password updated.</div><% } %>
     <% if (typeof passwordError !== 'undefined' && passwordError) { %><div class="form-alert error"><%= passwordError %></div><% } %>
@@ -48,3 +52,4 @@
     </form>
   </div>
 </div>
+<% } %>

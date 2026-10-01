@@ -55,7 +55,7 @@ const actions = '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
               <% }); %>
             </div>
           <% } %>
-          <button type="submit" class="btn btn-secondary mt-16">Save permissions</button>
+          <button type="submit" class="btn btn-secondary mt-16">Save Assign Policy</button>
         </form>
       <% } else { %>
         <p class="text-sm"><strong><%= POLICY_LABEL[course.assignPolicy] %></strong> — <%= canAssign ? 'you may assign this training to your own team.' : 'view only: an administrator controls who can assign it.' %></p>

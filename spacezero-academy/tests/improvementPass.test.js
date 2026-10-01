@@ -118,6 +118,13 @@ test('READINESS: one simple status — Not Activated / Setup Required / Training
   let map = await readinessFor(org.id, [invited, fresh]);
   assert.equal(map.get(invited.id).key, 'NOT_ACTIVATED'); assert.equal(map.get(fresh.id).key, 'SETUP_REQUIRED');
   await prisma.employeeSetupItem.create({ data: { profileId: fresh.id, requirementId: req.id, status: 'COMPLETED', verifiedById: admin.id, verifiedAt: now } });
+  // Passport Details is a second mandatory (derived) requirement in every org — complete it too so
+  // "cockpit" alone still brings this org's whole 2-item checklist to Fully Set Up, as intended.
+  // computeSetup reads passport fields straight off the profile object passed to it (no re-fetch),
+  // so the in-memory `fresh` used below must be updated too, not just the database row.
+  await prisma.profile.update({ where: { id: fresh.id }, data: { passportNumberEnc: 'v1.fake.fake.fake', passportExpiresAt: new Date('2035-01-01T00:00:00.000Z') } });
+  fresh.passportNumberEnc = 'v1.fake.fake.fake';
+  fresh.passportExpiresAt = new Date('2035-01-01T00:00:00.000Z');
   const mand = await course('IP mandatory');
   const { t: attempt } = await assign(mand, fresh, { dueDate: new Date(Date.now() + 7 * DAY) });
   map = await readinessFor(org.id, [fresh]);
@@ -196,7 +203,8 @@ test('ROLE-BASED ONBOARDING: a new employee gets the setup and the onboarding tr
   assert.deepEqual(await applyOnboarding(newcomer), [], 'running it again assigns nothing new');
   assert.equal((await got(newcomer)).length, 2);
   // the setup checklist follows the role automatically too: the employee sees the requirement without any per-person set-up
-  assert.equal((await loadSetupForProfiles(org.id, [newcomer])).get(newcomer.id).rows.length, 1);
+  // (2 rows: this org's own "cockpit" requirement plus the always-present Passport Details requirement)
+  assert.equal((await loadSetupForProfiles(org.id, [newcomer])).get(newcomer.id).rows.length, 2);
   // role change brings the new role's onboarding
   const change = await post(admin, `/admin/employees/${newcomer.id}`, { fullName: newcomer.fullName, role: 'FLIGHT_EXPERT', employmentStartDate: start });
   assert.equal(change.status, 302);

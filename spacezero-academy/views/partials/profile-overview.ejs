@@ -43,6 +43,21 @@ const p = data.profile;
   </div>
 </div>
 
+<%
+  // A quick-glance summary — objective facts only, never a blended "performance score". Each
+  // figure comes straight from the same computation the rest of the app already uses (setup
+  // badge, training summary, Skill Graph, Standards ack, the shared readiness decision), so it
+  // can never disagree with the sections below it.
+  const skillAvg = data.hasSkillGraph && data.skills.length ? Math.round(data.skills.reduce((s, x) => s + x.currentScore, 0) / data.skills.length) : null;
+%>
+<div class="grid grid-4 mt-24">
+  <div class="card stat-card"><p class="label">Setup</p><p class="value"><%= data.setup.notStarted ? '—' : data.setup.percent + '%' %></p></div>
+  <div class="card stat-card"><p class="label">Training</p><p class="value"><%= data.summary.completed %> / <%= data.summary.assigned %></p></div>
+  <% if (skillAvg !== null) { %><div class="card stat-card"><p class="label">Skills</p><p class="value"><%= skillAvg %>%</p></div><% } %>
+  <% if (data.standardsAck && data.standardsAck.required > 0) { %><div class="card stat-card"><p class="label">Standards</p><p class="value"><%= data.standardsAck.pending %> Pending</p></div><% } %>
+  <% if (data.readiness) { %><a href="<%= p.status === 'INVITED' ? '#' : (data.readiness.key === 'READY' ? '#' : '/employees/' + p.id + '/setup') %>" class="card stat-card card-link"><p class="label">Status</p><p class="value" style="font-size:18px"><span class="badge <%= data.readiness.tone %>"><%= data.readiness.label %></span></p></a><% } %>
+</div>
+
 <div class="card mt-24">
   <div class="card-header row-between"><h2>Setup &amp; availability</h2><a href="/employees/<%= p.id %>/setup" class="link-gold text-sm">Open setup</a></div>
   <div class="card-body">
@@ -57,6 +72,22 @@ const p = data.profile;
     </div>
   </div>
 </div>
+
+<% if (data.standardsAck && data.standardsAck.required > 0) { %>
+<div class="card mt-24">
+  <div class="card-header row-between">
+    <h2>Company Standards</h2>
+    <a href="/standards" class="link-gold text-sm">Review</a>
+  </div>
+  <div class="card-body">
+    <% if (data.standardsAck.pending === 0) { %>
+      <p style="font-weight:500;color:var(--navy-950)">✓ All required standards acknowledged</p>
+    <% } else { %>
+      <p style="font-weight:500;color:var(--navy-950)"><%= data.standardsAck.pending %> standard<%= data.standardsAck.pending === 1 ? '' : 's' %> require<%= data.standardsAck.pending === 1 ? 's' : '' %> acknowledgement</p>
+    <% } %>
+  </div>
+</div>
+<% } %>
 
 <% if (p.role === 'TRAVEL_AGENT') { %>
 <div class="card mt-24">
@@ -167,6 +198,37 @@ const p = data.profile;
 </div>
 <% } %>
 
+<%
+  // Call Reviews is its own feature/route, kept fully intact (upload form and all) — this card is
+  // just a contextual doorway to it now that the top-level "Call reviews" tab is gone.
+  var canOpenCallReviews = profile.role === 'ADMIN' || profile.role === 'SUPERVISOR';
+%>
+<% if ((data.callReviews && data.callReviews.length > 0) || canOpenCallReviews) { %>
+<div class="card mt-24">
+  <div class="card-header row-between">
+    <h2>Call Reviews</h2>
+    <% if (profile.role === 'ADMIN') { %><a href="/admin/call-reviews" class="link-gold text-sm">Open Call Reviews</a>
+    <% } else if (profile.role === 'SUPERVISOR') { %><a href="/call-reviews" class="link-gold text-sm">Open Call Reviews</a>
+    <% } %>
+  </div>
+  <div class="card-body">
+    <% if (data.callReviews && data.callReviews.length > 0) { %>
+      <ul class="divide-list">
+        <% data.callReviews.forEach(function (cr) { %>
+          <li>
+            <p style="font-weight:500;color:var(--navy-950)"><%= cr.supervisor.fullName %> · <%= cr.createdAt.toLocaleDateString('en-US') %></p>
+            <% if (cr.feedback) { %><p class="text-sm text-muted" style="margin-top:4px"><%= cr.feedback %></p><% } %>
+          </li>
+        <% }); %>
+      </ul>
+    <% } else { %>
+      <%- include('empty-state', { title: 'No call reviews yet' }) %>
+    <% } %>
+  </div>
+</div>
+<% } %>
+
+<% if (typeof canViewTrainingHistory === 'undefined' || canViewTrainingHistory) { %>
 <div class="card mt-24">
   <div class="card-header"><h2>Training History</h2></div>
   <div class="card-body">
@@ -187,3 +249,4 @@ const p = data.profile;
     <% } %>
   </div>
 </div>
+<% } %>

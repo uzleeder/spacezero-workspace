@@ -23,12 +23,14 @@ async function main() {
         if (model === 'profile') return { ...row, createdById:null, testOwnerAdminId:null };
         if (model === 'libraryCategory') return { ...row, parentId:null };
         if (model === 'practiceSession') return { ...row, busy:false };
+        if (model === 'standardsItem') return { ...row, currentVersionId:null };
         return row;
       });
       if (rows.length) await tx[model].createMany({ data:rows });
     }
     for (const row of snapshot.profile) await tx.profile.update({ where:{id:row.id}, data:{createdById:row.createdById,testOwnerAdminId:row.testOwnerAdminId} });
     for (const row of snapshot.libraryCategory) if(row.parentId) await tx.libraryCategory.update({where:{id:row.id},data:{parentId:row.parentId}});
+    for (const row of snapshot.standardsItem) if(row.currentVersionId) await tx.standardsItem.update({where:{id:row.id},data:{currentVersionId:row.currentVersionId}});
     for (const model of models) if(await tx[model].count() !== snapshot[model].length) throw Error(`Count verification failed: ${model}`);
   }, { timeout:120000 });
   console.log('Import committed. All model counts verified. Sessions and activation/reset tokens were intentionally not transferred; resend pending invitations. Copy private storage separately.');

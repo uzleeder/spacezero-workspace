@@ -1,0 +1,38 @@
+<%- include('partials/page-header', { pageTitle: 'SpaceZero AI', pageDescription: 'Ask about information already inside SpaceZero — setup, training, skills, standards, leave. Read-only, and scoped to what you\'re authorized to see.' }) %>
+
+<div class="card mt-24">
+  <div class="card-body">
+    <form method="post" action="/assistant/ask">
+      <div class="field">
+        <label for="question">Ask SpaceZero AI…</label>
+        <input id="question" name="question" value="<%= question %>" maxlength="500" placeholder="e.g. Who isn't fully set up?" autofocus />
+      </div>
+      <button type="submit" class="btn btn-gold mt-16">Ask</button>
+    </form>
+    <p class="text-sm text-muted mt-16">Try: "Who isn't fully set up?" · "Which employees have unresolved setup issues?" · "Who has overdue training?" · "Who needs a retake?" · "Which employees haven't acknowledged required standards?" · "What requires my attention today?"</p>
+  </div>
+</div>
+
+<% if (error) { %><div class="form-alert error mt-16"><%= error %></div><% } %>
+
+<% if (result && result.confident && result.answer) { %>
+<div class="card mt-24">
+  <div class="card-header"><h2>Answer</h2></div>
+  <div class="card-body">
+    <p style="white-space:pre-wrap;line-height:1.7"><%= result.answer %></p>
+  </div>
+</div>
+<% } else if (result && !error) { %>
+<div class="card mt-24"><div class="card-body">
+  <%- include('partials/empty-state', { title: "I couldn't find enough SpaceZero data to answer that.", description: 'Try asking about setup, training, retakes, skills, standards or leave — or use a quick link below.' }) %>
+</div></div>
+<% } %>
+
+<div class="card mt-24" style="margin-bottom:40px">
+  <div class="card-header"><h2>Quick links</h2></div>
+  <div class="card-body">
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <% quickLinks.forEach(function (l) { %><a class="badge badge-gold" href="<%= l.href %>"><%= l.label %></a><% }); %>
+    </div>
+  </div>
+</div>

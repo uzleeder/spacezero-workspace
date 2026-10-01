@@ -1,0 +1,27 @@
+<%- include('../../partials/advanced-page-header', { sectionLabel: 'Supervisor Permissions', pageTitle: 'Supervisor permissions', pageDescription: 'A Supervisor has no management capability until you grant it, scoped to their own team.', headerAction: '<a href="/admin/employees?role=SUPERVISOR" class="btn btn-secondary">Manage Supervisors</a>' }) %>
+
+<% if (saved) { %><div class="form-alert success mt-16">Changes saved.</div><% } %>
+
+<% if (supervisors.length === 0) { %>
+  <div class="card mt-24"><div class="card-body"><%- include('../../partials/empty-state', { title: 'No supervisors yet' }) %></div></div>
+<% } else { %>
+  <ul class="divide-list mt-24">
+    <% supervisors.forEach(function (s) { %>
+      <% const granted = grantsBySupervisor.get(s.id) || new Set(); %>
+      <li>
+        <a class="row-between" href="/admin/supervisor-permissions/<%= s.id %>" style="align-items:flex-start">
+          <div>
+            <p style="font-weight:500;color:var(--navy-950)"><%= s.fullName %></p>
+            <p class="text-sm text-muted mt-4">@<%= s.username %></p>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:60%">
+            <% if (granted.size === 0) { %><span class="badge">No permissions</span>
+            <% } else { %>
+              <% CAPABILITIES.forEach(function (c) { %><% if (granted.has(c.key)) { %><span class="badge badge-gold"><%= c.label %></span><% } %><% }); %>
+            <% } %>
+          </div>
+        </a>
+      </li>
+    <% }); %>
+  </ul>
+<% } %>

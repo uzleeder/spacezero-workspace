@@ -1,0 +1,98 @@
+<% if (isPreview) { %>
+  <div class="form-alert" style="margin-bottom:16px">Preview — this is how <%= version.status === 'PUBLISHED' ? 'the published version' : 'this draft' %> will look to employees. Nothing here has been saved by viewing it.</div>
+<% } %>
+
+<%- include('../partials/page-header', {
+  pageTitle: item.title,
+  pageDescription: CONTENT_TYPE_LABEL[item.contentType] + (item.category ? ' · ' + item.category : ''),
+  headerAction: '<a href="' + (isPreview ? '/admin/standards' : '/standards/browse/' + item.contentType.toLowerCase()) + '" class="link-gold text-sm">&larr; Back</a>',
+}) %>
+
+<div class="card mt-24" style="padding:32px">
+  <% if (version.important) { %><span class="badge badge-gold" style="margin-bottom:12px">Featured</span><% } %>
+  <% if (version.shortDescription) { %><p class="text-muted" style="font-size:15px;margin-bottom:24px"><%= version.shortDescription %></p><% } %>
+
+  <% if (item.contentType === 'STANDARD') { %>
+    <% blocks.forEach(function (b) { %>
+      <% if (b.type === 'heading') { %><h3 style="margin-top:24px;color:var(--navy-950)"><%- renderInline(b.text) %></h3>
+      <% } else if (b.type === 'paragraph') { %><p style="margin-top:12px;line-height:1.7"><%- renderInline(b.text) %></p>
+      <% } else if (b.type === 'bullets') { %><ul style="margin-top:12px;padding-left:20px;line-height:1.8"><% b.items.forEach(function (i) { %><li><%- renderInline(i) %></li><% }); %></ul>
+      <% } else if (b.type === 'numbered') { %><ol style="margin-top:12px;padding-left:20px;line-height:1.8"><% b.items.forEach(function (i) { %><li><%- renderInline(i) %></li><% }); %></ol>
+      <% } else if (b.type === 'callout_important') { %><div class="callout-important" style="margin-top:16px"><%- renderInline(b.text) %></div>
+      <% } else if (b.type === 'callout_warning') { %><div class="callout-warning" style="margin-top:16px"><%- renderInline(b.text) %></div>
+      <% } %>
+    <% }); %>
+    <% if (!blocks.length) { %><%- include('../partials/empty-state', { title: 'No content added yet' }) %><% } %>
+  <% } %>
+
+  <% if (item.contentType === 'RESPONSIBILITY') { %>
+    <% if (!version.responsibilities || !version.responsibilities.length) { %>
+      <%- include('../partials/empty-state', { title: 'No responsibilities added yet' }) %>
+    <% } else { %>
+      <ol style="padding-left:20px;line-height:2">
+        <% version.responsibilities.forEach(function (r) { %><li><%- renderInline(r.text) %></li><% }); %>
+      </ol>
+    <% } %>
+  <% } %>
+
+  <% if (item.contentType === 'WORKFLOW') { %>
+    <% if (!steps.length) { %>
+      <%- include('../partials/empty-state', { title: 'No steps added yet' }) %>
+    <% } else { %>
+      <div class="mt-24">
+        <% steps.forEach(function (s, i) { %>
+          <div class="workflow-step">
+            <div class="workflow-step-num"><%= i + 1 %></div>
+            <div class="workflow-step-body">
+              <h4><%- renderInline(s.title) %></h4>
+              <p><%- renderInline(s.instruction) %></p>
+              <% if (s.detail && s.detail.explanation) { %><p class="text-sm text-muted mt-4"><%- renderInline(s.detail.explanation) %></p><% } %>
+              <% if (s.detail && s.detail.checklist && s.detail.checklist.length) { %>
+                <ul class="text-sm mt-4" style="padding-left:18px">
+                  <% s.detail.checklist.forEach(function (c) { %><li><%- renderInline(c) %></li><% }); %>
+                </ul>
+              <% } %>
+              <% if (s.detail && s.detail.importantNote) { %><div class="callout-important mt-4"><%- renderInline(s.detail.importantNote) %></div><% } %>
+              <% if (s.detail && s.detail.warning) { %><div class="callout-warning mt-4"><%- renderInline(s.detail.warning) %></div><% } %>
+              <% if (s.disclosureRef) { %><p class="text-sm mt-4"><a class="link-gold" href="/standards/<%= s.disclosureRef.id %>">See disclosure: <%= s.disclosureRef.title %></a></p><% } %>
+              <% if (s.relatedItem) { %><p class="text-sm mt-4"><a class="link-gold" href="/standards/<%= s.relatedItem.id %>">Related: <%= s.relatedItem.title %></a></p><% } %>
+            </div>
+          </div>
+          <% if (i < steps.length - 1) { %><div class="workflow-step-connector"></div><% } %>
+        <% }); %>
+      </div>
+    <% } %>
+  <% } %>
+
+  <% if (item.contentType === 'DISCLOSURE') { %>
+    <% if (version.disclosureWhenItApplies) { %>
+      <h4 style="color:var(--navy-950)">When it applies</h4>
+      <p style="margin-top:8px;line-height:1.7"><%- renderInline(version.disclosureWhenItApplies) %></p>
+    <% } %>
+    <% if (version.disclosureApprovedWording) { %>
+      <h4 style="color:var(--navy-950);margin-top:24px">Approved wording</h4>
+      <div class="disclosure-wording mt-8"><%- renderInline(version.disclosureApprovedWording) %></div>
+    <% } %>
+    <% if (version.disclosureAdditionalInstructions) { %>
+      <h4 style="color:var(--navy-950);margin-top:24px">Additional instructions</h4>
+      <p style="margin-top:8px;line-height:1.7"><%- renderInline(version.disclosureAdditionalInstructions) %></p>
+    <% } %>
+  <% } %>
+</div>
+
+<% if (ackState) { %>
+<div class="card mt-24">
+  <div class="card-header"><h2>Company Standard Acknowledgement</h2></div>
+  <div class="card-body">
+    <% if (typeof acknowledged !== 'undefined' && acknowledged) { %><div class="form-alert success" style="margin-bottom:16px">Acknowledged.</div><% } %>
+    <% if (ackState.needed) { %>
+      <form method="post" action="/standards/<%= item.id %>/acknowledge">
+        <label class="checkbox-row"><input type="checkbox" required /> I confirm that I have read and understood this standard and agree to follow the applicable company requirements.</label>
+        <button type="submit" class="btn btn-gold mt-16">Confirm &amp; Accept</button>
+      </form>
+    <% } else { %>
+      <p class="text-sm text-muted">✓ You acknowledged this on <%= ackState.acceptedAt.toLocaleDateString('en-US') %> (version <%= ackState.version %>).</p>
+    <% } %>
+  </div>
+</div>
+<% } %>

@@ -1,0 +1,37 @@
+<%- include('../../partials/advanced-page-header', { sectionLabel: 'Standards', pageTitle: 'Company Standards & Workflow — Manage', headerAction: '<a href="/admin/standards/new" class="btn btn-gold">+ Create</a>' }) %>
+<%- include('../../partials/management-tabs', { tabs: tabsets.standards }) %>
+
+<% if (saved) { %><div class="form-alert success mt-16">Changes saved.</div><% } %>
+
+<div class="mt-24" style="display:flex;flex-wrap:wrap;gap:8px">
+  <% [['all', 'All'], ['STANDARD', 'Standards'], ['RESPONSIBILITY', 'Responsibilities'], ['WORKFLOW', 'Workflows'], ['DISCLOSURE', 'Disclosures'], ['draft', 'Draft'], ['published', 'Published'], ['archived', 'Archived']].forEach(function (f) { %>
+    <a class="badge <%= filter === f[0] ? 'badge-gold' : '' %>" href="/admin/standards?filter=<%= f[0] %>"><%= f[1] %></a>
+  <% }); %>
+</div>
+
+<% if (rows.length === 0) { %>
+  <div class="card mt-24"><div class="card-body"><%- include('../../partials/empty-state', { title: 'Nothing here yet' }) %></div></div>
+<% } else { %>
+  <ul class="divide-list mt-24">
+    <% rows.forEach(function (r) { %>
+      <li class="row-between">
+        <a href="/admin/standards/<%= r.item.id %>/edit" style="flex:1">
+          <p style="font-weight:500;color:var(--navy-950)"><%= r.item.title %><% if (r.item.quickReference) { %> <span class="badge badge-gold">Quick ref</span><% } %></p>
+          <p class="text-sm text-muted mt-4"><%= CONTENT_TYPE_LABEL[r.item.contentType] %> · <%= r.item.rolesJson ? rolesList(r.item).map(roleLabel).join(', ') : 'Everyone' %> · Updated <%= r.item.updatedAt.toLocaleDateString('en-US') %></p>
+        </a>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="badge <%= r.effectiveStatus === 'PUBLISHED' ? 'badge-success' : r.effectiveStatus === 'ARCHIVED' ? '' : 'badge-warning' %>"><%= STATUS_LABEL[r.effectiveStatus] %></span>
+          <% if (r.effectiveStatus === 'PUBLISHED') { %><a class="text-sm link-gold" href="/admin/standards/<%= r.item.id %>/acknowledgements">Acknowledgements</a><% } %>
+          <% if (r.effectiveStatus === 'DRAFT') { %>
+            <form method="post" action="/admin/standards/<%= r.item.id %>/publish"><button type="submit" class="btn btn-secondary btn-sm">Publish</button></form>
+          <% } %>
+          <% if (r.item.archivedAt) { %>
+            <form method="post" action="/admin/standards/<%= r.item.id %>/restore"><button type="submit" class="btn btn-secondary btn-sm">Restore</button></form>
+          <% } else { %>
+            <form method="post" action="/admin/standards/<%= r.item.id %>/archive" onsubmit="return confirm('Archive this item? It will no longer be visible to employees.')"><button type="submit" class="btn btn-secondary btn-sm">Archive</button></form>
+          <% } %>
+        </div>
+      </li>
+    <% }); %>
+  </ul>
+<% } %>

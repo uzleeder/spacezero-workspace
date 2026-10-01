@@ -1,6 +1,6 @@
 <%- include('../partials/page-header', { pageTitle: data.profile.fullName, pageDescription: 'Agent profile' }) %>
 <%- include('../partials/management-tabs', { tabs: empTabs }) %>
-<%- include('../partials/profile-overview', { data: data, canRecordEvidence: canRecordEvidence }) %>
+<%- include('../partials/profile-overview', { data: data, canRecordEvidence: canRecordEvidence, canViewTrainingHistory: canViewTrainingHistory }) %>
 
 <% if (retakeCandidates.length > 0) { %>
 <div class="card mt-24">

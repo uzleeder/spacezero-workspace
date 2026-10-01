@@ -1,0 +1,24 @@
+<%- include('../../partials/advanced-page-header', { sectionLabel: 'System Access', pageTitle: 'System Configuration Access', pageDescription: 'Which Admins may reach Settings → Advanced. Off by default for a new Admin — grant it individually, the same as any other capability.' }) %>
+
+<% if (saved) { %><div class="form-alert success mt-16">Changes saved.</div><% } %>
+
+<div class="card mt-24">
+  <div class="card-body">
+    <ul class="divide-list">
+      <% admins.forEach(function (a) { %>
+        <% const granted = grantedIds.has(a.id); %>
+        <li class="row-between">
+          <div>
+            <p style="font-weight:500;color:var(--navy-950)"><%= a.fullName %><% if (a.id === selfId) { %> <span class="text-sm text-muted">(you)</span><% } %></p>
+            <p class="text-sm text-muted mt-4">@<%= a.username %></p>
+          </div>
+          <form method="post" action="/admin/configuration/system-access/<%= a.id %>" style="display:flex;align-items:center;gap:10px" onsubmit="return confirm('<%= granted ? 'Revoke access for this admin to Settings \\u2192 Advanced?' : 'Grant this admin access to Settings \\u2192 Advanced? They will be able to change organization-wide configuration.' %>')">
+            <span class="badge <%= granted ? 'badge-gold' : '' %>"><%= granted ? 'Access granted' : 'No access' %></span>
+            <input type="hidden" name="access" value="<%= granted ? '0' : '1' %>" />
+            <button type="submit" class="btn btn-secondary btn-sm"><%= granted ? 'Revoke' : 'Grant' %></button>
+          </form>
+        </li>
+      <% }); %>
+    </ul>
+  </div>
+</div>

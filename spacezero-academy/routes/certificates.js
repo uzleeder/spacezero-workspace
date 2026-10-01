@@ -8,7 +8,7 @@ const { requireSession } = require('../lib/authMiddleware');
 const { canViewProfile } = require('../lib/authz');
 
 const SIGNER_NAME = 'Joe Godwin';
-const SIGNER_TITLE = 'Head of Training · SpaceZero Academy';
+const SIGNER_TITLE = 'Head of Training · SpaceZero Workspace';
 
 router.get('/certificates/:id', requireSession, async (req, res) => {
   const cert = await prisma.certificate.findUnique({

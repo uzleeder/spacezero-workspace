@@ -1,7 +1,8 @@
 'use strict';
 
-// Select the PostgreSQL client when DATABASE_URL points to PostgreSQL.
-const { prisma } = require('../lib/prisma');
+const { PrismaClient } = require('@prisma/client');
+
+const prisma = new PrismaClient();
 
 const AGENT_SKILLS = [
   'Discovery Questions',

@@ -32,6 +32,14 @@ enum TrainingStatus {
   ARCHIVED
 }
 
+// Supervisor Training Creation: NONE (default; nothing awaiting review), SUBMITTED (a Supervisor
+// asked an Admin to review and publish it), CHANGES_REQUESTED (the Admin sent it back with a note).
+enum CourseReviewStatus {
+  NONE
+  SUBMITTED
+  CHANGES_REQUESTED
+}
+
 enum AssignmentScope {
   INDIVIDUAL
   TEAM
@@ -166,6 +174,17 @@ enum PracticeMaterialType {
 }
 
 // ---------------------------------------------------------------------------
+// Company Standards & Workflow
+// ---------------------------------------------------------------------------
+
+enum StandardsContentType {
+  STANDARD
+  RESPONSIBILITY
+  WORKFLOW
+  DISCLOSURE
+}
+
+// ---------------------------------------------------------------------------
 // Organization & Roles
 // ---------------------------------------------------------------------------
 
@@ -192,6 +211,8 @@ model Organization {
   credentials       Credential[]
   leaveRequests     LeaveRequest[]
   orgSettings       OrgSetting[]
+  standardsItems    StandardsItem[]
+  supervisorCapabilities SupervisorCapability[]
 }
 
 // Reference/config table describing each role (labels, descriptions shown in UI).
@@ -265,6 +286,7 @@ model Profile {
   supervisedBy             SupervisorAssignment[]        @relation("AgentAssignments")
   employeeSkills           EmployeeSkill[]
   coursesCreated           TrainingCourse[]              @relation("CourseCreatedBy")
+  coursesSubmitted         TrainingCourse[]              @relation("CourseSubmittedBy")
   assignmentsCreated       TrainingAssignment[]          @relation("AssignmentCreatedBy")
   trainingRecipient        TrainingAssignmentRecipient[]
   trainingAttempts         TrainingAttempt[]
@@ -291,6 +313,8 @@ model Profile {
   mediaProgress            MediaProgress[]
   localPhone               String?
   currentAddressEnc        String?
+  passportNumberEnc        String?
+  passportExpiresAt        DateTime?
   setupItems               EmployeeSetupItem[]
   setupItemsVerified       EmployeeSetupItem[]           @relation("SetupItemVerifiedBy")
   credentialsOwned         Credential[]                  @relation("CredentialOwner")
@@ -299,6 +323,8 @@ model Profile {
   leaveRequests            LeaveRequest[]                @relation("LeaveRequester")
   leaveReviewed            LeaveRequest[]                @relation("LeaveReviewer")
   assignGrants             TrainingAssignGrant[]         @relation("AssignGrantSupervisor")
+  standardsAcknowledgements StandardsAcknowledgement[]
+  supervisorCapabilityGrants SupervisorCapability[]       @relation("SupervisorCapabilityGrant")
 
   @@index([organizationId])
   @@index([role])
@@ -468,6 +494,17 @@ model TrainingCourse {
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
   archivedAt      DateTime?
+
+  // Supervisor Training Creation review workflow (spec: Create & Prepare -> Submit for Admin
+  // Approval -> Admin Request Changes | Approve & Send to Training). A Supervisor with the
+  // 'training.create' capability may prepare a full draft, but only an Admin may publish it — see
+  // lib/courseVersions.js#submitForApproval / requestChanges. sendToTraining() clears reviewStatus
+  // back to NONE on publish; sentById/sentAt (below) already record the approving Admin and when.
+  reviewStatus  CourseReviewStatus @default(NONE)
+  reviewNote    String?
+  submittedAt   DateTime?
+  submittedById String?
+  submittedBy   Profile?           @relation("CourseSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
 
   // AI Practice lifecycle. One row is the source project, its practice package and (once sent) the Training
   // catalog entry, so "Send to Training" can never leave a disconnected copy behind.
@@ -1025,6 +1062,7 @@ enum SetupRequirementKind {
   LOCAL_PHONE
   ADDRESS
   CREDENTIAL_VAULT
+  PASSPORT
 }
 
 // How an item becomes "completed": the employee's own confirmation is enough, management must verify
@@ -1091,6 +1129,7 @@ model SetupRequirement {
   rolesJson         String?
   required          Boolean                  @default(true)
   companyControlled Boolean                  @default(false)
+  allowPersonalAccount Boolean               @default(false)
   credentialSystem  Boolean                  @default(false)
   displayOrder      Int                      @default(0)
   archivedAt        DateTime?
@@ -1115,6 +1154,7 @@ model EmployeeSetupItem {
   requirement             SetupRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
   status                  SetupItemStatus  @default(NOT_SET_UP)
   companyControlConfirmed Boolean          @default(false)
+  accountType             String?
   note                    String?
   verifiedById            String?
   verifiedBy              Profile?         @relation("SetupItemVerifiedBy", fields: [verifiedById], references: [id], onDelete: SetNull)
@@ -1237,6 +1277,147 @@ model TrainingAssignGrant {
   createdAt    DateTime       @default(now())
 
   @@unique([courseId, supervisorId])
+}
+
+// Admin-granted management capability for one Supervisor (e.g. 'setup.manage'). Row exists =
+// granted, same shape as TrainingAssignGrant/CredentialGrant. A Supervisor is never assumed to
+// have any capability by default — see lib/supervisorCapabilities.js's one-time legacy backfill,
+// which preserves what every currently-working Supervisor could already do before this table
+// existed, without ever overwriting a later Admin decision.
+model SupervisorCapability {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  supervisorId   String
+  supervisor     Profile      @relation("SupervisorCapabilityGrant", fields: [supervisorId], references: [id], onDelete: Cascade)
+  key            String
+  grantedById    String
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, supervisorId, key])
+  @@index([supervisorId])
+}
+
+// ---------------------------------------------------------------------------
+// Company Standards & Workflow — admin-managed internal handbook: standards,
+// per-role responsibilities, step-by-step workflows and required disclosures.
+// Content is versioned (a StandardsItem's currentVersionId always points at the
+// live published StandardsVersion; older versions are kept as history, never
+// rewritten) and stored as typed blocks (contentJson — see lib/richContent.js),
+// never raw HTML, so there is no path to uncontrolled markup. Structured this
+// way so a future SpaceZero AI feature could ground itself only in APPROVED
+// published content — no AI consumer is built yet (deliberately out of scope).
+// ---------------------------------------------------------------------------
+
+model StandardsItem {
+  id             String               @id @default(cuid())
+  organizationId String
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contentType    StandardsContentType
+  title          String
+  category       String?
+  // null = everyone; otherwise a JSON array of UserRole values (see lib/richContent.js's isVisibleToRole).
+  rolesJson        String?
+  quickReference   Boolean            @default(false)
+  archivedAt       DateTime?
+  currentVersionId String?            @unique
+  currentVersion   StandardsVersion?  @relation("CurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  createdById      String
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  versions         StandardsVersion[]         @relation("ItemVersions")
+  acknowledgements StandardsAcknowledgement[]
+
+  @@index([organizationId])
+  @@index([contentType])
+}
+
+// One version of a StandardsItem's content. `status` reuses TrainingStatus
+// (DRAFT/PUBLISHED/ARCHIVED) rather than a duplicate enum. Publishing a new
+// version archives the previous one but never deletes it (spec: "do not
+// silently rewrite historical published content" — acknowledgements stay
+// bound to the exact version a person accepted).
+model StandardsVersion {
+  id     String         @id @default(cuid())
+  itemId String
+  item   StandardsItem  @relation("ItemVersions", fields: [itemId], references: [id], onDelete: Cascade)
+  version Int
+  status  TrainingStatus @default(DRAFT)
+
+  shortDescription String?
+  contentJson      String?
+  important        Boolean @default(false)
+  requiredReading  Boolean @default(false)
+
+  // DISCLOSURE-only fields. Approved wording is intentionally plain text (not
+  // blocks) so it can be shown/copied verbatim rather than reformatted.
+  disclosureWhenItApplies          String?
+  disclosureApprovedWording        String?
+  disclosureAdditionalInstructions String?
+
+  acknowledgementRequired  Boolean @default(false)
+  requireReacknowledgement Boolean @default(false)
+
+  createdById   String
+  createdAt     DateTime  @default(now())
+  publishedById String?
+  publishedAt   DateTime?
+  archivedAt    DateTime?
+
+  steps            StandardsStep[]
+  responsibilities StandardsResponsibilityItem[]
+  acknowledgements StandardsAcknowledgement[]
+  currentForItem   StandardsItem?                @relation("CurrentVersion")
+
+  @@unique([itemId, version])
+  @@index([itemId])
+}
+
+// A workflow step. `detailJson` optionally carries {explanation, checklist:[...],
+// importantNote, warning, disclosureRefId, relatedItemId} — related-content
+// references are plain ids (not FKs) resolved and validated at render time,
+// which keeps this a simple ordered list rather than a flowchart/graph editor.
+model StandardsStep {
+  id           String           @id @default(cuid())
+  versionId    String
+  version      StandardsVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  displayOrder Int              @default(0)
+  title        String
+  instruction  String
+  detailJson   String?
+  createdAt    DateTime         @default(now())
+
+  @@index([versionId])
+}
+
+model StandardsResponsibilityItem {
+  id           String           @id @default(cuid())
+  versionId    String
+  version      StandardsVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  displayOrder Int              @default(0)
+  text         String
+  createdAt    DateTime         @default(now())
+
+  @@index([versionId])
+}
+
+// One person's acceptance of one exact version. @@unique on [versionId, profileId]
+// means a new published version always needs its own row — re-acknowledgement
+// of the same version is a no-op, satisfying the spec's exact-version binding.
+model StandardsAcknowledgement {
+  id         String           @id @default(cuid())
+  itemId     String
+  item       StandardsItem    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  versionId  String
+  version    StandardsVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  profileId  String
+  profile    Profile          @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  acceptedAt DateTime         @default(now())
+
+  @@unique([versionId, profileId])
+  @@index([itemId])
+  @@index([profileId])
 }
 
 // ---------------------------------------------------------------------------

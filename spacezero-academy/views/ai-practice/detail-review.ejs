@@ -26,12 +26,45 @@ components.forEach(function (c) {
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:20px">
         <a class="btn btn-secondary" href="/ai-practice/<%= course.id %>/preview">Preview as learner</a>
         <% if (editable && !all) { %><form method="post" action="/ai-practice/<%= course.id %>/approve" data-once><button class="btn btn-gold">Approve Practice</button></form><% } %>
-        <% if (editable && all) { %>
-          <a class="btn btn-gold" href="/ai-practice/<%= course.id %>/send">Send to Training →</a>
+        <% if (editable && all && isAdmin) { %>
+          <a class="btn btn-gold" href="/ai-practice/<%= course.id %>/send"><%= course.reviewStatus === 'SUBMITTED' ? 'Approve & Send to Training →' : 'Send to Training →' %></a>
           <form method="post" action="/ai-practice/<%= course.id %>/approve/revoke" data-once><button class="btn btn-secondary" data-confirm-msg="Withdraw the approval? The practice becomes a draft again.">Withdraw approval</button></form>
         <% } %>
+        <% if (editable && all && !isAdmin && course.reviewStatus !== 'SUBMITTED') { %>
+          <form method="post" action="/ai-practice/<%= course.id %>/submit-for-approval" data-once><button class="btn btn-gold"><%= course.reviewStatus === 'CHANGES_REQUESTED' ? 'Resubmit for Admin Approval' : 'Submit for Admin Approval' %></button></form>
+        <% } %>
       </div>
-      <% if (all && editable) { %><p class="text-sm text-muted mt-16">Approved. Sending it to Training makes it available to assign; nothing is assigned automatically.</p><% } %>
+      <% if (all && editable && isAdmin) { %><p class="text-sm text-muted mt-16">Approved. Sending it to Training makes it available to assign; nothing is assigned automatically.</p><% } %>
+
+      <% if (course.reviewStatus === 'SUBMITTED') { %>
+        <% if (isAdmin) { %>
+          <div class="form-alert info mt-16">
+            <strong>Submitted for your approval<% if (course.submittedBy) { %> by <%= course.submittedBy.fullName %><% } %>.</strong>
+            <form method="post" action="/ai-practice/<%= course.id %>/review/request-changes" class="mt-8">
+              <textarea name="note" rows="2" maxlength="1000" placeholder="What needs to change before this can be approved?" required></textarea>
+              <button class="btn btn-secondary mt-8" type="submit">Request Changes</button>
+            </form>
+          </div>
+        <% } else { %>
+          <div class="form-alert info mt-16">Submitted — waiting for an admin to review it. You can keep this draft as-is; you'll be notified if changes are requested.</div>
+        <% } %>
+      <% } else if (course.reviewStatus === 'CHANGES_REQUESTED' && course.reviewNote) { %>
+        <div class="form-alert error mt-16"><strong>Changes requested:</strong> <%= course.reviewNote %></div>
+      <% } %>
+
+      <% if (reviewHistory && reviewHistory.length) { %>
+        <div class="mt-16">
+          <p class="text-sm text-muted" style="font-weight:600">Submission history</p>
+          <ul class="divide-list">
+            <% reviewHistory.forEach(function (h) { %>
+              <li class="text-sm">
+                <%= { 'training.submitted_for_approval': 'Submitted for approval', 'training.changes_requested': 'Changes requested', 'training.sent_to_training': 'Approved & sent to Training', 'training.version_published': 'New version approved & published' }[h.action] || h.action %>
+                by <%= h.actorName %> — <%= h.at.toLocaleString('en-US') %><% if (h.note) { %>: "<%= h.note %>"<% } %>
+              </li>
+            <% }); %>
+          </ul>
+        </div>
+      <% } %>
     </div>
   </div>
 <% } %>

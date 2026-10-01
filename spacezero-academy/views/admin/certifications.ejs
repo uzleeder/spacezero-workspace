@@ -1,5 +1,6 @@
-<%- include('../partials/page-header', { pageTitle: 'Certifications & achievements', pageDescription: 'Issued only when demonstrated competency requirements are met — completed training and skill levels backed by enough evidence. Watching a video alone never earns one.', headerAction: '<form method="post" action="/admin/certifications/evaluate"><button class="btn btn-gold">Evaluate now</button></form>' }) %>
-<%- include('../partials/management-tabs', { tabs: tabsets.settings }) %>
+<script src="/static/js/settings-forms.js" defer></script>
+<% if (saved) { %><div class="form-alert success mt-16" role="status">Changes saved.</div><% } %>
+<%- include('../partials/advanced-page-header', { sectionLabel: 'Certifications', pageTitle: 'Certifications & achievements', pageDescription: 'Issued only when demonstrated competency requirements are met — completed training and skill levels backed by enough evidence. Watching a video alone never earns one.', headerAction: '<form method="post" action="/admin/certifications/evaluate"><button class="btn btn-gold">Evaluate now</button></form>' }) %>
 
 <% if (ran) { %><div class="form-alert success mt-16">Evaluated: <%= ran %>.</div><% } %>
 <% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>

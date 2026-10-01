@@ -56,6 +56,7 @@ before(async () => {
   for (const [t, members] of [[team, [sup, agent]], [teamB, [supB, agentB]]]) for (const m of members) await prisma.teamMembership.create({ data: { teamId: t.id, profileId: m.id } });
   await prisma.supervisorAssignment.create({ data: { supervisorId: sup.id, agentId: agent.id, teamId: team.id, assignedById: admin.id } });
   await prisma.supervisorAssignment.create({ data: { supervisorId: supB.id, agentId: agentB.id, teamId: teamB.id, assignedById: admin.id } });
+  for (const supervisor of [sup, supB]) await post(admin, '/admin/supervisor-permissions/' + supervisor.id, { capabilities: ['training.assign'] });
 });
 after(async () => { mock.restoreAll(); await prisma.$disconnect(); });
 
@@ -79,7 +80,11 @@ test('the AI/calls/scoring policy form is Admin-only, validates every field befo
   for (const who of [sup, agent]) assert.ok(denied(await post(who, '/admin/policies/ai', body)));
   assert.ok(denied(await post(sup, '/admin/policies/purge-calls')));
   const bad = await post(admin, '/admin/policies/ai', { ...body, minPassingScore: '40', retentionDays: '99999' });
-  assert.equal(bad.status, 302); assert.match(decodeURIComponent(bad.headers.location), /outside its allowed range/);
+  assert.equal(bad.status, 400); assert.match(bad.text, /outside its allowed range/);
+  assert.match(bad.text, /value="40"/);
+  assert.match(bad.text, /value="99999"/);
+  assert.match(bad.text, /value="60"/);
+  assert.doesNotMatch(bad.text, /Changes saved\./);
   assert.equal(await getSetting(org.id, 'training.minPassingScore'), 70); assert.equal(await getSetting(org.id, 'calls.retentionDays'), 0); // nothing was saved
   assert.equal((await post(admin, '/admin/policies/ai', body)).status, 302);
   assert.equal(await getSetting(org.id, 'training.minPassingScore'), 80);

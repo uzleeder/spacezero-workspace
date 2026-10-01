@@ -1,11 +1,12 @@
-<%- include('../partials/page-header', { pageTitle: 'Development automation', pageDescription: 'Onboarding paths, assignment rules and follow-ups. Automation recommends by default; it only assigns approved, published training that you attach to a rule or step, and it never changes scores or permissions.', headerAction: '<form method="post" action="/admin/development/run"><button class="btn btn-gold">Run automation now</button></form>' }) %>
-<%- include('../partials/management-tabs', { tabs: tabsets.settings }) %>
+<script src="/static/js/settings-forms.js" defer></script>
+<% if (saved) { %><div class="form-alert success mt-16" role="status">Changes saved.</div><% } %>
+<%- include('../partials/advanced-page-header', { sectionLabel: 'Development', pageTitle: 'Employee Development Automation', pageDescription: 'Configure onboarding and development rules that recommend approved training based on employee progress. Automation recommends by default; it only assigns approved, published training that you attach to a rule or step, and it never changes scores or permissions.', headerAction: '<div style="display:flex;gap:10px;flex-wrap:wrap"><a href="/admin/training" class="btn btn-secondary">View Training</a><form method="post" action="/admin/development/run"><button class="btn btn-gold">Run automation now</button></form></div>' }) %>
 
 <% if (ran) { %><div class="form-alert success mt-16">Automation ran: <%= ran %>. Running it again never creates duplicates.</div><% } %>
 <% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
 
 <div class="card mt-24">
-  <div class="card-header"><h2>Recommendation queue</h2><p>Suggestions created by rules, paths and retention checks. Assign or dismiss each one; nothing here has been assigned yet.</p></div>
+  <div class="card-header"><h2>Training Recommendations</h2><p>SpaceZero identified these development opportunities. Nothing is assigned until an authorized manager approves or assigns it below.</p></div>
   <% if (recommendations.length === 0) { %>
     <div class="card-body"><%- include('../partials/empty-state', { title: 'Nothing waiting', description: 'New recommendations appear here after the automation runs.' }) %></div>
   <% } else { %>
@@ -29,7 +30,7 @@
 </div>
 
 <div class="card mt-24">
-  <div class="card-header"><h2>Onboarding &amp; development paths</h2><p>Steps fall due a number of days after each employee's start date. A step fires once, within 30 days of falling due.</p></div>
+  <div class="card-header"><h2>Onboarding &amp; Development Paths</h2><p>Create role-based development paths and schedule steps relative to an employee's start date. A step fires once, within 30 days of falling due.</p></div>
   <div class="card-body">
     <% paths.forEach(function (p) { %>
       <div style="border:1px solid var(--border,#e2e8f0);border-radius:10px;padding:14px;margin-bottom:14px">
@@ -62,8 +63,10 @@
   </div>
 </div>
 
+<%- include('../partials/tenure-bands', { bands: bands }) %>
+
 <div class="card mt-24">
-  <div class="card-header"><h2>Assignment rules</h2><p>WHEN the conditions are true for an employee, THEN recommend (default) or assign the chosen training — once per employee.</p></div>
+  <div class="card-header"><h2>Assignment / Recommendation Rules</h2><p>When the configured conditions are met, SpaceZero can recommend (default) or assign the chosen Training — once per employee, according to the existing rule and authorization model.</p></div>
   <div class="card-body">
     <% if (rules.length) { %><div class="table-wrap"><table>
       <thead><tr><th>Rule</th><th>When</th><th>Then</th><th></th></tr></thead>

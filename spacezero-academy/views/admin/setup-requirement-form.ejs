@@ -1,5 +1,4 @@
-<%- include('../partials/page-header', { pageTitle: mode === 'new' ? 'Add tool / requirement' : 'Edit requirement', pageDescription: mode === 'new' ? 'It becomes part of the setup checklist of every employee it applies to as soon as you save.' : 'Changes apply to the affected employees immediately.', headerAction: '<a href="/admin/setup-requirements" class="btn btn-secondary">Back to requirements</a>' }) %>
-<%- include('../partials/management-tabs', { tabs: tabsets.settings }) %>
+<%- include('../partials/advanced-page-header', { sectionLabel: 'Setup Requirements', pageTitle: mode === 'new' ? 'Add tool / requirement' : 'Edit requirement', pageDescription: mode === 'new' ? 'It becomes part of the setup checklist of every employee it applies to as soon as you save.' : 'Changes apply to the affected employees immediately.', headerAction: '<a href="/admin/setup-requirements" class="btn btn-secondary">Back to requirements</a>' }) %>
 
 <% if (errors.length) { %><div class="form-alert error mt-16" role="alert"><% errors.forEach(function (e) { %><p><%= e %></p><% }); %></div><% } %>
 
@@ -98,6 +97,7 @@
       <% if (!requirement || requirement.kind === 'MANUAL') { %>
       <div class="mt-16">
         <label style="display:block;margin:6px 0"><input type="checkbox" name="companyControlled" value="1" <%= values.companyControlled ? 'checked' : '' %> /> Company-controlled account/number — management must confirm the company owns and can recover it (always needs management verification)</label>
+        <label style="display:block;margin:6px 0 6px 24px"><input type="checkbox" name="allowPersonalAccount" value="1" <%= values.allowPersonalAccount ? 'checked' : '' %> /> …but also allow a personal number used for work, instead of requiring company ownership (e.g. Telegram)</label>
         <label style="display:block;margin:6px 0"><input type="checkbox" name="credentialSystem" value="1" <%= values.credentialSystem ? 'checked' : '' %> /> Needs a Credential Vault entry before "Passwords / Credential Vault" counts as complete</label>
       </div>
       <% } else { %>
@@ -128,5 +128,13 @@
   }
   form.querySelectorAll('input[name=audience]').forEach(function (r) { r.addEventListener('change', syncAudience); });
   syncAudience();
+  var impactFields = ['audience', 'roles', 'targetProfileIds', 'targetTeamIds', 'required', 'verification'];
+  function impactSnapshot() {
+    return JSON.stringify(Array.from(new FormData(form)).filter(function (pair) { return impactFields.includes(pair[0]); }));
+  }
+  var originalImpact = impactSnapshot();
+  form.addEventListener('submit', function (event) {
+    if (impactSnapshot() !== originalImpact && !window.confirm('Apply these requirement and audience changes to the affected employees? Their setup readiness may change.')) event.preventDefault();
+  });
 })();
 </script>

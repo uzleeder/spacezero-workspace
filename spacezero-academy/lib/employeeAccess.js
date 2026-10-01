@@ -5,6 +5,7 @@
 const { prisma } = require('./prisma');
 const { canViewProfile, isSupervisorOfAgent } = require('./authz');
 const { getSetting } = require('./orgSettings');
+const { hasCapability } = require('./supervisorCapabilities');
 
 /**
  * Loads an employee the actor is allowed to see (self, admin, or the supervisor assigned to them).
@@ -28,8 +29,11 @@ async function hasCredentialGrant(ownerId, granteeId) {
 }
 
 /**
- * Credential rules (spec section 22):
- *  - Travel Agent's credentials: the agent (if org policy permits), their assigned Supervisor, an Admin.
+ * Credential rules:
+ *  - Travel Agent's credentials: the agent (if org policy permits), an Admin, and their assigned
+ *    Supervisor ONLY if that Supervisor holds the explicit, Admin-granted 'credentials.view_team'
+ *    capability — "Manage Team Setup" never implies this; a Supervisor has no credential access by
+ *    default, matching every other Admin-grantable capability in lib/supervisorCapabilities.js.
  *  - Supervisor's / Flight Expert's credentials: the owner (if permitted) and an Admin only.
  *  - Admin's credentials: that admin, plus other admins ONLY through an explicit CredentialGrant.
  *  - Never while impersonating (the impersonator does not know the target's password).
@@ -56,7 +60,7 @@ async function credentialAccess(actor, owner, { impersonating = false } = {}) {
 
   if (isOwner) return { view: ownerCanView, manage: false };
 
-  if (actor.role === 'SUPERVISOR' && owner.role === 'TRAVEL_AGENT' && await isSupervisorOfAgent(actor.id, owner.id)) {
+  if (actor.role === 'SUPERVISOR' && owner.role === 'TRAVEL_AGENT' && await isSupervisorOfAgent(actor.id, owner.id) && await hasCapability(actor, 'credentials.view_team')) {
     return { view: true, manage: true };
   }
   return none;

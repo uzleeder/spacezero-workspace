@@ -46,6 +46,7 @@ before(async () => {
   }
   admin = await user('ADMIN', 'admin'); admin2 = await user('ADMIN', 'admin2');
   supA = await user('SUPERVISOR', 'supA'); supB = await user('SUPERVISOR', 'supB');
+  for (const supervisor of [supA, supB]) await post(admin, '/admin/supervisor-permissions/' + supervisor.id, { capabilities: ['setup.view', 'setup.manage', 'setup.verify', 'training.assign'] });
   agentA = await user('TRAVEL_AGENT', 'agentA'); agentB = await user('TRAVEL_AGENT', 'agentB'); expertA = await user('FLIGHT_EXPERT', 'expertA');
   outsider = await user('ADMIN', 'outsider', otherOrg.id);
   teamA = await prisma.team.create({ data: { organizationId: org.id, name: 'F1 Team A' } });
@@ -312,9 +313,9 @@ test('the real Above9 directory: 3 admins, 5 supervisors, 3 flight experts, 34 a
   assert.deepEqual([again.created.length, again.emailFixed.length, again.moved.length, again.supervisorFixed.length, again.teamsCreated.length, again.unchanged], [0, 0, 0, 0, 0, 45]);
   assert.equal(await prisma.profile.count({ where: { organizationId: dirOrg.id } }), 45);
 
-  // every employee has a setup checklist with the 18 default requirements; not-yet-activated people are "Setup Not Started"
+  // every employee has a setup checklist with the 19 default requirements (18 + Passport Details); not-yet-activated people are "Setup Not Started"
   const setups = await loadSetupForProfiles(dirOrg.id, people);
-  assert.ok(people.every((p) => setups.get(p.id).rows.length === 18));
+  assert.ok(people.every((p) => setups.get(p.id).rows.length === 19));
   assert.ok(created.every((p) => setups.get(p.id).notStarted && setups.get(p.id).label === 'Setup Not Started'));
   assert.equal(setups.get(joe.id).notStarted, false); assert.equal(setups.get(joe.id).percent, 0); // active, nothing verified yet: unknown stays "not set up"
   assert.match(setups.get(joe.id).label, /Setup Required/);
