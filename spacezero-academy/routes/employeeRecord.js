@@ -199,7 +199,23 @@ router.post('/employees/:id/setup/self-bulk', requireSession, async (req, res) =
 
   const existingItems = await prisma.employeeSetupItem.findMany({ where: { profileId: actor.id, requirementId: { in: applicable.map((r) => r.id) } } });
   const existingByReq = new Map(existingItems.map((i) => [i.requirementId, i]));
-  const choiceFor = (id) => { const v = req.body['choice_' + id]; return v === 'have' || v === 'dontHave' ? v : null; };
+  // Two ways to say the same thing: the checklist's checkboxes (mode=checkbox — ticked means "I have
+  // this", un-ticking withdraws the employee's own confirmation) or the original explicit radio
+  // choice_<id>. "I haven't" is never decided by an un-ticked box — it needs a note, so it has its own
+  // request route (POST .../:requirementId/report-issue) and an unticked box never touches an issue.
+  const checkboxMode = req.body.mode === 'checkbox';
+  const rawChecked = req.body.checked;
+  const checkedIds = new Set((Array.isArray(rawChecked) ? rawChecked : rawChecked ? [rawChecked] : []).map(String));
+  const choiceFor = (id) => {
+    if (checkboxMode) {
+      const existing = existingByReq.get(id) || null;
+      const haveNow = existing && (existing.status === 'COMPLETED' || existing.status === 'IN_PROGRESS');
+      if (checkedIds.has(id)) return haveNow ? null : 'have';
+      return haveNow && existing.employeeConfirmedAt ? 'withdraw' : null;
+    }
+    const v = req.body['choice_' + id];
+    return v === 'have' || v === 'dontHave' ? v : null;
+  };
 
   // Every "I Don't Have" needs a note before ANYTHING in this batch is saved — never a partial,
   // confusing save where some items applied and one silently didn't for lack of a note.
@@ -226,7 +242,10 @@ router.post('/employees/:id/setup/self-bulk', requireSession, async (req, res) =
     if (existing && loadedTs && new Date(loadedTs).getTime() !== existing.updatedAt.getTime()) { conflicts += 1; continue; }
 
     let data; let action;
-    if (wantsDontHave) {
+    if (choice === 'withdraw') {
+      data = { status: 'NOT_SET_UP', note: null, employeeConfirmedAt: null, verifiedById: null, verifiedAt: null };
+      action = 'setup.employee_withdrew';
+    } else if (wantsDontHave) {
       const note = String(req.body['note_' + requirement.id] || '').trim().slice(0, 500);
       if (currentStatus === 'ISSUE' && existing.note === note) continue; // no actual change
       data = { status: 'ISSUE', note, employeeConfirmedAt: null, verifiedById: null, verifiedAt: null };
@@ -255,6 +274,44 @@ router.post('/employees/:id/setup/self-bulk', requireSession, async (req, res) =
   const qs = new URLSearchParams({ saved: '1', changed: String(changes.length) });
   if (conflicts) qs.set('conflicts', String(conflicts));
   res.redirect(`/employees/${actor.id}/setup?${qs.toString()}`);
+});
+
+// "I haven't": the employee tells management they do not have this item yet. A note is required —
+// it is the request. The item becomes an Issue (the same status and the same "Setup access issues"
+// signal management already watches) and every Admin, plus the employee's own Supervisor, is
+// notified. Self only; never for management-only, calculated or company-controlled items.
+router.post('/employees/:id/setup/:requirementId/report-issue', requireSession, async (req, res) => {
+  const actor = req.profile;
+  if (req.params.id !== actor.id || req.impersonation) return res.status(403).render('forbidden');
+  const ctx = await loadEmployeeFor(actor, actor.id);
+  if (!ctx) return notFound(res);
+  if (actor.status !== 'ACTIVE') return res.status(403).render('forbidden');
+  const requirement = await prisma.setupRequirement.findFirst({ where: { id: req.params.requirementId, organizationId: actor.organizationId, archivedAt: null } });
+  if (!requirement || !(await requirementAppliesToProfile(requirement, ctx.employee))) return notFound(res);
+  if (requirement.kind !== 'MANUAL' || requirement.companyControlled || effectiveRule(requirement) === 'MANAGEMENT_ONLY') return res.status(403).render('forbidden');
+
+  const note = String(req.body.note || '').trim().slice(0, 500);
+  if (!note) return renderSetup(req, res, ctx, { error: `Write a short note for “${requirement.label}” — it is sent to your administrator so they know what you are missing.` });
+  const existing = await prisma.employeeSetupItem.findUnique({ where: { profileId_requirementId: { profileId: actor.id, requirementId: requirement.id } } });
+  if (existing?.status === 'NOT_REQUIRED' || (existing?.status === 'COMPLETED' && existing.verifiedById)) return res.redirect(`/employees/${actor.id}/setup`);
+
+  const data = { status: 'ISSUE', note, employeeConfirmedAt: null, verifiedById: null, verifiedAt: null };
+  await prisma.employeeSetupItem.upsert({
+    where: { profileId_requirementId: { profileId: actor.id, requirementId: requirement.id } },
+    update: { ...data, updatedById: actor.id },
+    create: { profileId: actor.id, requirementId: requirement.id, ...data, updatedById: actor.id },
+  });
+  await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'setup.employee_flagged_issue', targetTable: 'Profile', targetId: actor.id, metadata: { requirement: requirement.key, from: existing?.status || 'NOT_SET_UP', to: 'ISSUE', via: 'report-issue' } });
+
+  const admins = await prisma.profile.findMany({ where: { organizationId: actor.organizationId, role: 'ADMIN', status: 'ACTIVE', testOwnerAdminId: null, NOT: { id: actor.id } }, select: { id: true } });
+  const supervisorIds = (ctx.employee.supervisedBy || []).map((s) => s.supervisorId);
+  const { setupLinkFor } = require('../lib/supervisorCapabilities');
+  const title = 'Setup request';
+  const body = `${actor.fullName} does not have “${requirement.label}” yet: ${note.slice(0, 160)}`;
+  for (const recipientId of [...new Set([...admins.map((a) => a.id), ...supervisorIds])]) {
+    await createNotification({ profileId: recipientId, type: 'setup.employee_request', title, body, link: await setupLinkFor(recipientId, actor.id) }).catch(() => undefined);
+  }
+  res.redirect(`/employees/${actor.id}/setup?saved=1&changed=1`);
 });
 
 router.post('/employees/:id/setup/:requirementId', requireSession, async (req, res) => {
@@ -396,6 +453,18 @@ router.post('/employees/:id/passport', requireSession, async (req, res) => {
   const isNew = !ctx.employee.passportNumberEnc;
   const numberRaw = String(req.body.passportNumber || '').trim();
   const data = { passportExpiresAt: expiresAt };
+
+  // First / middle / last name exactly as printed in the passport. A field the form did not send
+  // keeps its stored value; first and last are required once merged, middle is optional.
+  const NAME_RE = /^[\p{L}][\p{L} .'’-]{0,59}$/u;
+  const nameFields = [['passportFirstName', 'First name', true], ['passportMiddleName', 'Middle name', false], ['passportLastName', 'Last name', true]];
+  for (const [field, label, required] of nameFields) {
+    const sent = req.body[field];
+    const value = sent === undefined ? String(ctx.employee[field] || '') : String(sent).trim().replace(/\s+/g, ' ');
+    if (!value && required) return renderSetup(req, res, ctx, { error: `${label} is required — enter it exactly as it appears in the passport.` });
+    if (value && !NAME_RE.test(value)) return renderSetup(req, res, ctx, { error: `${label} may contain only letters, spaces, hyphens and apostrophes (60 characters maximum).` });
+    data[field] = value || null;
+  }
   if (numberRaw) {
     // Same "leave blank to keep the current value" convention as the Credential Vault's update
     // form — the current number is never sent back to this page to be re-typed unchanged.

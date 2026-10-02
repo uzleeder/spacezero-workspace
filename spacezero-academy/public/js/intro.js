@@ -7,7 +7,7 @@
   // window.location.reload() on success (public/js/app.js) — that must not replay this.
   try { if (sessionStorage.getItem(key)) return; } catch (_) { /* Storage is optional. */ }
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var duration = reduced ? 250 : 2400;
+  var duration = reduced ? 250 : 1300; // short on purpose: it plays once per browser session, and nobody should wait on it
   var bar = intro.querySelector('[role="progressbar"]');
   var fill = intro.querySelector('.workspace-intro__fill');
   var label = intro.querySelector('[data-intro-percent]');

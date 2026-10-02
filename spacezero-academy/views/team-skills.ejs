@@ -11,7 +11,7 @@
         <div class="mt-24" style="margin-top:20px">
           <div class="row-between" style="margin-bottom:4px">
             <a href="/team/<%= row.agent.id %>" style="font-weight:500;color:var(--navy-950)"><%= row.agent.fullName %></a>
-            <span class="text-sm text-muted"><%= row.avg %>% average · <a class="link-gold" href="/assignments?personId=<%= row.agent.id %>">Assign practice</a></span>
+            <span class="text-sm text-muted"><%= row.avg %>% average<% if (can('training.assign')) { %> · <a class="link-gold" href="/assignments?personId=<%= row.agent.id %>">Assign practice</a><% } %></span>
           </div>
           <div class="progress-track"><div class="progress-fill navy" style="width:<%= row.avg %>%"></div></div>
           <% if (row.weakest.length > 0) { %>

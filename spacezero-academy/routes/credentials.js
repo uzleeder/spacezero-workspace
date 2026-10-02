@@ -13,6 +13,7 @@ const { isRateLimited, recordAttempt } = require('../lib/rateLimit');
 const { logAudit } = require('../lib/audit');
 const { ensureDefaultRequirements } = require('../lib/employeeSetup');
 const { employeeTabs } = require('../lib/employeeTabs');
+const { canViewSetupTab } = require('../lib/supervisorCapabilities');
 const { roleLabel } = require('../lib/roles');
 
 const REVEAL_LIMIT = { maxAttempts: 10, windowMs: 15 * 60 * 1000 };
@@ -34,7 +35,7 @@ async function pageContext(req, ctx, extra = {}) {
   ]);
   return {
     title: `${ctx.employee.fullName} — Credentials`,
-    tabs: employeeTabs(actor, ctx, { credentials: true }),
+    tabs: employeeTabs(actor, ctx, { credentials: true, canViewSetup: await canViewSetupTab(actor, ctx) }), // no Setup tab that 403s for a Supervisor without setup.view
     employee: ctx.employee,
     isSelf: ctx.isSelf,
     roleLabel,

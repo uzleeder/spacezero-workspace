@@ -13,7 +13,7 @@
           </div>
           <div class="progress-track"><div class="progress-fill navy" style="width:<%= Math.round(s.currentScore) %>%"></div></div>
           <% if (!isSelf && ['ADMIN', 'SUPERVISOR'].includes(profile.role) && s.evidenceCount > 0 && s.currentScore < 70) { %>
-            <p class="text-sm" style="margin-top:4px"><span class="badge badge-danger">Priority improvement</span> <a class="link-gold" href="/assignments?personId=<%= employee.id %>">Assign practice</a></p>
+            <p class="text-sm" style="margin-top:4px"><span class="badge badge-danger">Priority improvement</span><% if (can('training.assign')) { %> <a class="link-gold" href="/assignments?personId=<%= employee.id %>">Assign practice</a><% } %></p>
           <% } %>
           <p class="text-sm text-muted" style="margin-top:4px">Confidence <%= Math.round(s.confidence) %>% · <%= s.evidenceCount %> evidence points · Last assessed: <%= s.lastAssessedAt ? s.lastAssessedAt.toLocaleDateString('en-US') : 'never' %></p>
         </div>

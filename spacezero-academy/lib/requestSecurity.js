@@ -4,7 +4,10 @@ function requestSecurity(req, res, next) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  res.setHeader('Cache-Control', 'no-store');
+  // Pages and data are never cached. The app's own CSS/JS/images (/static, except private uploads) get
+  // their caching header from the static handler in server.js — a blanket no-store here used to make
+  // the browser re-download the whole stylesheet and every script on every single page view.
+  if (!/^\/static\/(?!uploads(\/|$))/.test(req.path)) res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'");
   if (process.env.NODE_ENV === 'production') res.setHeader('Strict-Transport-Security', 'max-age=31536000');
   if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {

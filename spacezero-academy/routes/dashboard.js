@@ -44,26 +44,27 @@ router.get('/dashboard', requireSession, async (req, res) => {
 
   if (profile.role === 'ADMIN') {
     const orgId = profile.organizationId;
-    const [employeeCount, teamCount, courseCount, pendingInvites, me] = await Promise.all([
+    const [employeeCount, teamCount, courseCount, pendingInvites, me, attention] = await Promise.all([
       prisma.profile.count({ where: { organizationId: orgId, status: { not: 'ARCHIVED' } } }),
       prisma.team.count({ where: { organizationId: orgId, archivedAt: null } }),
       prisma.trainingCourse.count({ where: { organizationId: orgId, status: 'PUBLISHED' } }),
       prisma.profile.count({ where: { organizationId: orgId, status: 'INVITED' } }),
       myDevelopment(profile),
+      attentionFor(profile), // independent of the rest, so it runs alongside instead of after
     ]);
-    return res.render('dashboard/admin', { title: 'Dashboard', employeeCount, teamCount, courseCount, pendingInvites, attention: await attentionFor(profile), me });
+    return res.render('dashboard/admin', { title: 'Dashboard', employeeCount, teamCount, courseCount, pendingInvites, attention, me });
   }
 
   if (profile.role === 'SUPERVISOR') {
     const agentIds = await supervisedProfileIds(profile.id);
     const agents = await prisma.profile.findMany({ where: { id: { in: agentIds }, status: { not: 'ARCHIVED' } } });
-    const [intel, me] = await Promise.all([teamIntelligence(profile.organizationId, agentIds, { limit: 5 }), myDevelopment(profile)]);
-    return res.render('dashboard/supervisor', { title: 'Dashboard', agents, retakeCount: intel.summary.retakes, attention: await attentionFor(profile), intel, me });
+    const [intel, me, attention] = await Promise.all([teamIntelligence(profile.organizationId, agentIds, { limit: 5 }), myDevelopment(profile), attentionFor(profile)]);
+    return res.render('dashboard/supervisor', { title: 'Dashboard', agents, retakeCount: intel.summary.retakes, attention, intel, me });
   }
 
-  const [summary, setup, me] = await Promise.all([getMyTrainingSummary(profile.id), loadSetupForProfile(profile.organizationId, profile), myDevelopment(profile)]);
+  const [summary, setup, me, attention] = await Promise.all([getMyTrainingSummary(profile.id), loadSetupForProfile(profile.organizationId, profile), myDevelopment(profile), attentionFor(profile)]);
   const readiness = (await readinessFor(profile.organizationId, [profile], { setupMap: new Map([[profile.id, setup]]) })).get(profile.id) || null;
-  res.render('dashboard/agent', { title: 'Dashboard', summary, setup, me, readiness, attention: await attentionFor(profile) });
+  res.render('dashboard/agent', { title: 'Dashboard', summary, setup, me, readiness, attention });
 });
 
 module.exports = router;

@@ -21,7 +21,7 @@
       <div class="card" style="padding:20px">
         <div class="row-between" style="margin-bottom:12px">
           <span class="badge badge-navy"><%= item.itemType %></span>
-          <button type="button" class="btn btn-ghost btn-sm" data-favorite-toggle="<%= item.id %>" style="<%= favoriteIds.has(item.id) ? 'color:var(--gold-600)' : '' %>">&#9733;</button>
+          <button type="button" class="btn btn-ghost btn-sm<%= favoriteIds.has(item.id) ? ' is-active' : '' %>" data-favorite-toggle="<%= item.id %>" aria-pressed="<%= favoriteIds.has(item.id) ? 'true' : 'false' %>" aria-label="Save to My Library" title="<%= favoriteIds.has(item.id) ? 'Remove from My Library' : 'Save to My Library' %>"><%= favoriteIds.has(item.id) ? '★' : '☆' %></button>
         </div>
         <a href="/library/<%= item.id %>">
           <p style="font-weight:500;color:var(--navy-950)"><%= item.title %></p>

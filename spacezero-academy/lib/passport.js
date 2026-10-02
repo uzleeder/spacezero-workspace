@@ -120,7 +120,7 @@ async function runPassportReminders(organizationId, now = new Date()) {
       const recipients = new Set([...(await supervisorsOf(person.id)), ...admins]);
       for (const recipientId of recipients) {
         if (await notifyOnce(recipientId, `passport:${person.id}:${versionKey}:${m.key}:mgmt`, {
-          type: 'passport.expiring', title: `Passport expiring: ${person.fullName}`, body: `Expires in about ${m.label}.`, link: `/employees/${person.id}/setup`,
+          type: 'passport.expiring', title: `Passport expiring: ${person.fullName}`, body: `Expires in about ${m.label}.`, link: await require('./supervisorCapabilities').setupLinkFor(recipientId, person.id),
         })) sent += 1;
       }
     }

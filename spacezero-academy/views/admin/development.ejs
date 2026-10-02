@@ -1,4 +1,4 @@
-<script src="/static/js/settings-forms.js" defer></script>
+<script src="<%= asset('/static/js/settings-forms.js') %>" defer></script>
 <% if (saved) { %><div class="form-alert success mt-16" role="status">Changes saved.</div><% } %>
 <%- include('../partials/advanced-page-header', { sectionLabel: 'Development', pageTitle: 'Employee Development Automation', pageDescription: 'Configure onboarding and development rules that recommend approved training based on employee progress. Automation recommends by default; it only assigns approved, published training that you attach to a rule or step, and it never changes scores or permissions.', headerAction: '<div style="display:flex;gap:10px;flex-wrap:wrap"><a href="/admin/training" class="btn btn-secondary">View Training</a><form method="post" action="/admin/development/run"><button class="btn btn-gold">Run automation now</button></form></div>' }) %>
 

@@ -300,7 +300,7 @@ async function runSetupReminders(organizationId) {
       const owners = row.ownerRole === 'EMPLOYEE' ? [person.id] : row.ownerRole === 'SUPERVISOR' ? await supervisorsOf(person.id) : row.ownerRole === 'ADMIN' ? admins : [];
       for (const ownerId of owners) {
         const mine = ownerId === person.id;
-        if (await notifyOnce(ownerId, `setup-overdue:${person.id}:${row.requirement.id}`, { type: 'setup.overdue', title: mine ? 'Setup item overdue' : `Setup overdue: ${person.fullName}`, body: `${row.requirement.label} was due ${row.dueAt.toISOString().slice(0, 10)}.`, link: `/employees/${person.id}/setup` })) sent += 1;
+        if (await notifyOnce(ownerId, `setup-overdue:${person.id}:${row.requirement.id}`, { type: 'setup.overdue', title: mine ? 'Setup item overdue' : `Setup overdue: ${person.fullName}`, body: `${row.requirement.label} was due ${row.dueAt.toISOString().slice(0, 10)}.`, link: await require('./supervisorCapabilities').setupLinkFor(ownerId, person.id) })) sent += 1;
       }
     }
   }

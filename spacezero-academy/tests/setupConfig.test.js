@@ -113,12 +113,12 @@ test('verification rules: employee confirmation, management verification and man
   // A. employee confirmation is enough
   assert.equal((await confirm(expert, self)).status, 302);
   assert.equal((await state(self)).status, 'COMPLETED');
-  assert.match((await get(expert, `/employees/${expert.id}/setup`)).text, /Confirmed by the employee/);
+  assert.match((await get(expert, `/employees/${expert.id}/setup`)).text, /Confirmed by you/);
   // B. management verification: the employee's confirmation alone does not count
   assert.equal((await confirm(expert, checked)).status, 302);
   assert.equal((await state(checked)).status, 'IN_PROGRESS');
   let page = await get(expert, `/employees/${expert.id}/setup`);
-  assert.match(page.text, /awaiting verification/); assert.match(page.text, /Withdraw my confirmation/);
+  assert.match(page.text, /awaiting verification/); assert.match(page.text, /Untick and save to withdraw/);
   assert.notEqual((await percentText(expert, expert))[1], '100');
   await confirm(expert, checked, { undo: '1' });
   assert.equal((await state(checked)).status, 'NOT_SET_UP');
@@ -132,7 +132,7 @@ test('verification rules: employee confirmation, management verification and man
   // C. management only: the employee cannot tick it at all
   assert.equal((await confirm(expert, only)).status, 403);
   assert.equal(await state(only), null);
-  assert.match((await get(expert, `/employees/${expert.id}/setup`)).text, /Only your supervisor or an administrator can mark this as completed/);
+  assert.match((await get(expert, `/employees/${expert.id}/setup`)).text, /Only your supervisor or an administrator can complete this/);
   assert.equal((await post(sup, `/employees/${expert.id}/setup/${only.id}`, { status: 'COMPLETED' })).status, 302);
   assert.equal((await percentText(expert, expert))[1], '100');
   // nobody confirms on someone else's behalf; requirements that do not apply are invisible

@@ -23,4 +23,4 @@ const action = st.primary && !sameView ? (st.primary.post
 <% } else if (step === 'review') { %> <%- include('detail-review') %>
 <% } else { %> <%- include('detail-training') %>
 <% } %>
-<script src="/static/js/ai-practice.js" defer></script>
+<script src="<%= asset('/static/js/ai-practice.js') %>" defer></script>

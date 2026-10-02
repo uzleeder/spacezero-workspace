@@ -28,6 +28,7 @@
     "@prisma/client": "^6.19.3",
     "adm-zip": "^0.6.1",
     "bcryptjs": "^3.0.3",
+    "compression": "^1.8.2",
     "cookie-parser": "^1.4.7",
     "ejs": "^6.0.1",
     "express": "^5.2.1",

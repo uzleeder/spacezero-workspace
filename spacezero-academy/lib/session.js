@@ -52,10 +52,18 @@ async function getSessionProfile(req) {
   if (!session || session.expiresAt < new Date()) return null;
   if (session.profile.status !== 'ACTIVE') return null;
 
-  void prisma.session.updateMany({ where: { id: session.id }, data: { lastUsedAt: new Date() } }).catch(() => undefined);
-  void prisma.profile
-    .updateMany({ where: { id: session.profile.id }, data: { lastActivityAt: new Date() } })
-    .catch(() => undefined);
+  // "Last seen" is bookkeeping, not something that has to be exact to the second: write it at most
+  // once a minute per session instead of two database writes on every request (pages, scripts, images).
+  const now = new Date();
+  const STALE_MS = 60 * 1000;
+  if (!session.lastUsedAt || now - session.lastUsedAt > STALE_MS) {
+    void prisma.session.updateMany({ where: { id: session.id }, data: { lastUsedAt: now } }).catch(() => undefined);
+  }
+  if (!session.profile.lastActivityAt || now - session.profile.lastActivityAt > STALE_MS) {
+    void prisma.profile
+      .updateMany({ where: { id: session.profile.id }, data: { lastActivityAt: now } })
+      .catch(() => undefined);
+  }
 
   return session.profile;
 }

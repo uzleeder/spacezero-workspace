@@ -7,6 +7,7 @@ const { prisma } = require('../lib/prisma');
 const { requireSession, requireRole } = require('../lib/authMiddleware');
 const { loadEmployeeFor, credentialAccess } = require('../lib/employeeAccess');
 const { employeeTabs } = require('../lib/employeeTabs');
+const { canViewSetupTab } = require('../lib/supervisorCapabilities');
 const { getSetting } = require('../lib/orgSettings');
 const { createNotification, createNotificationForMany } = require('../lib/notifications');
 const { logAudit } = require('../lib/audit');
@@ -20,10 +21,13 @@ router.get('/my/leave', requireSession, (req, res) => res.redirect(`/employees/$
 
 async function renderEmployeeLeave(req, res, ctx, extra = {}) {
   const requests = await prisma.leaveRequest.findMany({ where: { profileId: ctx.employee.id }, orderBy: { startDate: 'desc' }, include: { reviewedBy: { select: { fullName: true } } } });
-  const access = await credentialAccess(req.profile, ctx.employee, { impersonating: Boolean(req.impersonation) });
+  const [access, canViewSetup] = await Promise.all([
+    credentialAccess(req.profile, ctx.employee, { impersonating: Boolean(req.impersonation) }),
+    canViewSetupTab(req.profile, ctx), // a Supervisor without setup.view must not be offered a Setup tab that 403s
+  ]);
   res.render('employee/leave', {
     title: `${ctx.employee.fullName} — Vacation / Leave`,
-    tabs: employeeTabs(req.profile, ctx, { credentials: access.view || access.manage }),
+    tabs: employeeTabs(req.profile, ctx, { credentials: access.view || access.manage, canViewSetup }),
     employee: ctx.employee,
     isSelf: ctx.isSelf,
     roleLabel,

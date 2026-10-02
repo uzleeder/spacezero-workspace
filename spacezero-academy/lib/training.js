@@ -32,4 +32,31 @@ async function getMyTrainingSummary(profileId) {
   };
 }
 
-module.exports = { getMyTrainingList, getMyTrainingSummary };
+const emptySummary = () => ({ assigned: 0, inProgress: 0, completed: 0, retakeRequired: 0, notStarted: 0 });
+
+/**
+ * getMyTrainingSummary for MANY people in one query (Map: profileId -> summary). Lists of employees
+ * used to call getMyTrainingSummary once per row, which loaded every course, module and attempt of
+ * every person — hundreds of queries for one page. Same numbers, one round trip per 500 people.
+ */
+async function getTrainingSummaries(profileIds) {
+  const summaries = new Map(profileIds.map((id) => [id, emptySummary()]));
+  for (let i = 0; i < profileIds.length; i += 500) {
+    const recipients = await prisma.trainingAssignmentRecipient.findMany({
+      where: { profileId: { in: profileIds.slice(i, i + 500) } },
+      select: { profileId: true, attempts: { select: { status: true, attemptNumber: true } } },
+    });
+    for (const r of recipients) {
+      const s = summaries.get(r.profileId);
+      const status = (latestAttempt(r.attempts) || {}).status || 'NOT_STARTED';
+      s.assigned += 1;
+      if (status === 'IN_PROGRESS') s.inProgress += 1;
+      else if (status === 'COMPLETED') s.completed += 1;
+      else if (status === 'RETAKE_REQUIRED') s.retakeRequired += 1;
+      else if (status === 'NOT_STARTED') s.notStarted += 1;
+    }
+  }
+  return summaries;
+}
+
+module.exports = { getMyTrainingList, getMyTrainingSummary, getTrainingSummaries };

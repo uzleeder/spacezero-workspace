@@ -318,6 +318,9 @@ model Profile {
   // badges, filters and reminders need to read it cheaply across many profiles at once.
   passportNumberEnc        String?
   passportExpiresAt        DateTime?
+  passportFirstName        String?
+  passportMiddleName       String?
+  passportLastName         String?
   setupItems               EmployeeSetupItem[]
   setupItemsVerified       EmployeeSetupItem[]           @relation("SetupItemVerifiedBy")
   credentialsOwned         Credential[]                  @relation("CredentialOwner")

@@ -10,7 +10,7 @@ const { STATUS: PASSPORT_STATUS, STATUS_LABEL: PASSPORT_STATUS_LABEL } = require
 const { readinessFor } = require('../lib/readiness');
 const { requireRole } = require('../lib/authMiddleware');
 const { supervisedProfileIds, isSupervisorOfAgent } = require('../lib/authz');
-const { getMyTrainingSummary, getMyTrainingList } = require('../lib/training');
+const { getTrainingSummaries, getMyTrainingList } = require('../lib/training');
 const { loadProfileOverview } = require('../lib/profileOverview');
 const { tabsForRequest } = require('../lib/employeeTabs');
 const { loadSetupForProfiles } = require('../lib/employeeSetup');
@@ -36,10 +36,9 @@ router.get('/team', requireRole('SUPERVISOR'), async (req, res) => {
   const setupMap = await loadSetupForProfiles(req.profile.organizationId, found);
   const readinessMap = await readinessFor(req.profile.organizationId, found, { setupMap });
   const agents = byPassportStatus(byReadiness(await applyLearningFilters(found, f), readinessMap, f), f);
-  const summaries = [];
-  for (const agent of agents.filter((a) => matchesSetup(setupMap.get(a.id), setupQuery))) {
-    summaries.push({ agent, summary: await getMyTrainingSummary(agent.id), setup: setupMap.get(agent.id), readiness: readinessMap.get(agent.id) });
-  }
+  const shown = agents.filter((a) => matchesSetup(setupMap.get(a.id), setupQuery));
+  const trainingMap = await getTrainingSummaries(shown.map((a) => a.id)); // one query for everyone, not one per row
+  const summaries = shown.map((agent) => ({ agent, summary: trainingMap.get(agent.id), setup: setupMap.get(agent.id), readiness: readinessMap.get(agent.id) }));
   res.render('team/index', {
     title: 'Employees & Teams', summaries, f, filterSkills: await prisma.skill.findMany({ where: { organizationId: req.profile.organizationId, isActive: true }, orderBy: [{ category: 'asc' }, { name: 'asc' }], select: { id: true, name: true } }), SETUP_FILTERS, requirements: await requirementOptions(req.profile.organizationId),
     q: str(req.query.q), status, setup: setupQuery.setup, missing: setupQuery.missing,
