@@ -128,9 +128,19 @@ async function reviewHistory(courseId) {
 // ------------------------------------------------------------------ Send to Training
 /** What sending checks. Returns null when the package may be sent. */
 async function sendBlocker(course) {
-  const analysis = await prisma.trainingAnalysis.findUnique({ where: { courseId: course.id }, select: { status: true } });
+  const analysis = await prisma.trainingAnalysis.findUnique({ where: { courseId: course.id }, select: { status: true, sourceHash: true } });
   if (course.origin === 'AI_PRACTICE' && (!analysis || analysis.status !== 'APPROVED')) return 'Review the AI analysis before sending this to Training.';
   if (analysis && analysis.status !== 'APPROVED') return 'Approve the AI analysis before sending this to Training.';
+  // Material can be added after the analysis was approved (POST .../sources has no analysis-status
+  // restriction) without that re-opening the analysis/practice approval — so without this check, the
+  // published package could silently stop matching the material it claims to be built from. Lazily
+  // required: trainingAnalysis.js requires this module at load time, so a top-level require here
+  // would be circular.
+  if (analysis && analysis.sourceHash) {
+    const { computeSourceHash } = require('./trainingAnalysis');
+    const modules = await prisma.trainingModule.findMany({ where: { courseId: course.id }, select: { id: true, title: true, contentType: true, storagePath: true, externalUrl: true, description: true, addedInVersion: true, removedInVersion: true } });
+    if (analysis.sourceHash !== computeSourceHash(modulesFor(modules, course.draftVersion || 1))) return 'The material changed since this was analyzed. Re-run the analysis before sending this to Training.';
+  }
   const components = await packageComponents(course);
   if (course.origin === 'AI_PRACTICE' && !components.length) return 'Create and approve practice before sending this to Training.';
   if (components.some((a) => a.status !== 'APPROVED')) return 'Approve the practice before sending it — only approved practice can go to Training.';

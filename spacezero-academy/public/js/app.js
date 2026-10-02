@@ -116,6 +116,32 @@
     });
   });
 
+  // ---- Notes "Save" toggle: an optimistic in-place update, not a full page reload ----
+  // (the only thing it visibly changes is this one button, except in the "Saved" filtered view,
+  // where unsaving a note must also remove its row — handled below without reloading either.)
+  document.querySelectorAll('[data-note-save]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      btn.disabled = true;
+      fetch(btn.getAttribute('data-note-save'), { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+        .then(function (res) { if (!res.ok) throw new Error('Request failed'); return res.json(); })
+        .then(function (data) {
+          btn.classList.toggle('btn-gold', data.isSaved);
+          btn.classList.toggle('btn-secondary', !data.isSaved);
+          btn.textContent = data.isSaved ? 'Saved' : 'Save';
+          btn.disabled = false;
+          var list = document.querySelector('[data-showing-saved]');
+          if (list && list.dataset.showingSaved && !data.isSaved) {
+            var row = btn.closest('[data-note-row]');
+            if (row) row.remove();
+          }
+        })
+        .catch(function () {
+          btn.disabled = false;
+          window.alert('Something went wrong. Please try again.');
+        });
+    });
+  });
+
   // ---- Generic dropzone (drag-and-drop file upload) ----
   document.querySelectorAll('[data-dropzone]').forEach(function (dz) {
     var input = dz.querySelector('input[type=file]');
@@ -272,4 +298,36 @@
   if (!menu) return;
   document.addEventListener('click', function (e) { if (menu.open && !menu.contains(e.target)) menu.open = false; });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && menu.open) { menu.open = false; menu.querySelector('summary').focus(); } });
+})();
+
+// Positions each ".more-menu" row-action dropdown (AI Practice) in the viewport rather than
+// relative to its row, since it is position:fixed precisely so an ancestor .card's overflow:hidden
+// cannot clip it (styles.css). Also: only one open at a time, closes on outside click/Escape/scroll.
+(function () {
+  var menus = document.querySelectorAll('.more-menu');
+  if (!menus.length) return;
+  function place(menu) {
+    var summary = menu.querySelector('summary');
+    var list = menu.querySelector('.more-list');
+    var rect = summary.getBoundingClientRect();
+    list.style.top = (rect.bottom + 4) + 'px';
+    list.style.right = (document.documentElement.clientWidth - rect.right) + 'px';
+  }
+  menus.forEach(function (menu) {
+    menu.addEventListener('toggle', function () {
+      if (!menu.open) return;
+      menus.forEach(function (other) { if (other !== menu && other.open) other.open = false; });
+      place(menu);
+    });
+  });
+  document.addEventListener('click', function (e) {
+    menus.forEach(function (menu) { if (menu.open && !menu.contains(e.target)) menu.open = false; });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    menus.forEach(function (menu) { if (menu.open) { menu.open = false; menu.querySelector('summary').focus(); } });
+  });
+  // A fixed-position dropdown would otherwise drift away from its button as the page scrolls.
+  window.addEventListener('scroll', function () { menus.forEach(function (menu) { menu.open = false; }); }, true);
+  window.addEventListener('resize', function () { menus.forEach(function (menu) { if (menu.open) place(menu); }); });
 })();

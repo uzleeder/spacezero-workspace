@@ -65,9 +65,10 @@ router.post('/notes/:id/save', canUseNotes, async (req, res) => {
   const existing = await prisma.note.findFirst({ where: { id: req.params.id, profileId: actor.id } });
   if (!existing) return res.status(404).json({ error: 'Not found' });
 
-  await prisma.note.update({ where: { id: existing.id }, data: { isSaved: !existing.isSaved } });
-  await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: existing.isSaved ? 'note.unsaved' : 'note.saved', targetTable: 'Note', targetId: existing.id });
-  res.json({ ok: true });
+  const isSaved = !existing.isSaved;
+  await prisma.note.update({ where: { id: existing.id }, data: { isSaved } });
+  await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: isSaved ? 'note.saved' : 'note.unsaved', targetTable: 'Note', targetId: existing.id });
+  res.json({ ok: true, isSaved });
 });
 
 router.post('/notes/:id/delete', canUseNotes, async (req, res) => {

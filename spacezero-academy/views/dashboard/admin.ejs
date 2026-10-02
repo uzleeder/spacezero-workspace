@@ -1,5 +1,5 @@
-<%- include('../partials/page-header', { pageTitle: 'Your academy, at a glance.', pageDescription: 'Welcome back, ' + profile.fullName.split(' ')[0] + '. Here’s what’s happening across your organization.', headerAction: '<a href="/admin/employees/new" class="btn btn-primary">+ Add employee</a>' }) %>
-<%- include('../partials/academy-hero') %>
+<%- include('../partials/page-header', { pageTitle: 'Your workspace, at a glance.', pageDescription: 'Welcome back, ' + profile.fullName.split(' ')[0] + '. Here’s what’s happening across your organization.', headerAction: '<a href="/admin/employees/new" class="btn btn-primary">+ Add employee</a>' }) %>
+<%- include('../partials/workspace-hero') %>
 <%- include('../partials/attention', { attention: attention }) %>
 <a class="card card-link mt-24" href="/admin/intelligence" style="display:block"><div class="card-body row-between" style="gap:16px;flex-wrap:wrap"><div><p class="label" style="font-weight:600;color:var(--navy-950)">Organization intelligence</p><p class="text-sm text-muted" style="margin-top:4px">How capable is our workforce? Skill gaps, team comparison, and which training works.</p></div><span class="btn btn-gold btn-sm">Open</span></div></a>
 <%- include('../partials/my-dev-compact', { me: me }) %>

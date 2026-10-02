@@ -36,9 +36,9 @@
       description: showSaved ? 'Save a note to keep it here for quick access.' : 'Write your first note above.',
     }) %></div>
   <% } else { %>
-    <ul class="divide-list" style="padding:0 24px">
+    <ul class="divide-list" style="padding:0 24px" data-showing-saved="<%= showSaved ? '1' : '' %>">
       <% notes.forEach(function (note) { %>
-        <li>
+        <li data-note-row>
           <div class="row-between" style="align-items:flex-start">
             <div style="flex:1;min-width:0">
               <p style="font-weight:500;color:var(--navy-950)"><%= note.title || 'Untitled' %></p>
@@ -47,7 +47,7 @@
             </div>
             <div style="display:flex;gap:8px;flex-shrink:0">
               <a href="#edit-note-<%= note.id %>" class="btn btn-secondary btn-sm">Edit</a>
-              <button type="button" class="btn <%= note.isSaved ? 'btn-gold' : 'btn-secondary' %> btn-sm" data-action="/notes/<%= note.id %>/save"><%= note.isSaved ? 'Saved' : 'Save' %></button>
+              <button type="button" class="btn <%= note.isSaved ? 'btn-gold' : 'btn-secondary' %> btn-sm" data-note-save="/notes/<%= note.id %>/save"><%= note.isSaved ? 'Saved' : 'Save' %></button>
               <button type="button" class="btn btn-danger btn-sm" data-action="/notes/<%= note.id %>/delete" data-confirm="Delete this note? This cannot be undone.">Delete</button>
             </div>
           </div>

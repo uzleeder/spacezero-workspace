@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  var intro = document.getElementById('academy-intro');
+  var intro = document.getElementById('workspace-intro');
   if (!intro) return;
   var key = 'spacezero-intro-seen-v1';
   // Admin actions (resend invite, disable, reset password, ...) reload the page via
@@ -9,7 +9,7 @@
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var duration = reduced ? 250 : 2400;
   var bar = intro.querySelector('[role="progressbar"]');
-  var fill = intro.querySelector('.academy-intro__fill');
+  var fill = intro.querySelector('.workspace-intro__fill');
   var label = intro.querySelector('[data-intro-percent]');
   var previousFocus = document.activeElement;
   var locked = [];
@@ -41,7 +41,7 @@
       fill.style.transform = 'scaleX(' + fraction + ')';
       if (fraction < 1) requestAnimationFrame(frame);
       else setTimeout(function () {
-        intro.classList.add('academy-intro--done');
+        intro.classList.add('workspace-intro--done');
         setTimeout(release, reduced ? 0 : 450);
       }, reduced ? 0 : 300);
     }

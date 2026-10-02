@@ -10,7 +10,10 @@ async function attachProfile(req, res, next) {
   try {
     req.profile = await getSessionProfile(req);
     res.locals.profile = req.profile;
-  } catch {
+  } catch (err) {
+    // Fails safe (treated as logged out), but silently — a real DB outage would look
+    // indistinguishable from "everyone got logged out" with no trace anywhere. Log it.
+    console.error('[attachProfile] failed to load session profile:', err.message || err);
     req.profile = null;
   }
   next();

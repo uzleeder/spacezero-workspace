@@ -385,6 +385,18 @@ router.post('/employees/:id', requireAdmin, async (req, res) => {
     }
   });
 
+  // Reassigning a supervisor mid-flight: leave visibility is always computed live from the current
+  // assignment, so the new supervisor already sees any pending request once they look — but they
+  // were never notified of one filed before the reassignment, since that notification only ever
+  // went to whoever was the supervisor AT THE TIME the employee filed it (lib/leave.js's own
+  // comment on live-scoped visibility only covers who CAN see a request, not who was told about it).
+  if (data.supervisorId && (existing.supervisedBy[0] ? existing.supervisedBy[0].supervisorId : null) !== data.supervisorId) {
+    const pending = await prisma.leaveRequest.findMany({ where: { profileId: existing.id, status: 'PENDING' }, select: { id: true, days: true } });
+    for (const request of pending) {
+      await createNotification({ profileId: data.supervisorId, type: 'leave.requested', title: 'Pending leave request', body: `${existing.fullName} has a pending request for ${request.days} day(s), now on your team.`, link: `/leave/${request.id}` });
+    }
+  }
+
   // A new role can bring new onboarding training (setup requirements already follow the role).
   if (existing.role !== data.role) await applyOnboarding({ ...existing, role: data.role }, { actorId: admin.id }).catch((err) => console.error('[onboarding] failed:', err.message || err));
 

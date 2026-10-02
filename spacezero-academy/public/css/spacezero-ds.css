@@ -1,4 +1,4 @@
-/* SpaceZero Academy — "Design System" (ported from the shared Claude design-system artifact,
+/* SpaceZero Workspace — "Design System" (ported from the shared Claude design-system artifact,
    2caHTzS579UXHFhzzgtUWU, project/tokens.json + project/components/bundle.css, verbatim where possible).
    Everything is scoped under .sz-scope so it cannot collide with or override the app's existing theme;
    pages opt in by wrapping their content in a `.sz-scope` element. This is the flagship first page
