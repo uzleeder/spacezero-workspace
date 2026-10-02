@@ -7,6 +7,7 @@
 // archived like anything else. Adding never touches an existing item unless the Admin asks to replace
 // it, and never acknowledges anything for anyone.
 const { prisma } = require('./prisma');
+const { getSetting, setSetting } = require('./orgSettings');
 const importer = require('../scripts/import-supervisor-standards.cjs');
 
 const SETS = [
@@ -40,4 +41,43 @@ async function applyReady(admin, { key = null, replace = false } = {}) {
   return out;
 }
 
-module.exports = { READY, readyStatus, applyReady, prisma };
+/**
+ * Runs when the app starts (every deploy). Adds each ready-made document that this organization has not been
+ * offered yet - once. A document that already exists (even edited), or that an Admin archived, is left exactly as
+ * it is; nothing is ever replaced and nobody is acknowledged. Afterwards each key is remembered, so later deploys
+ * never bring back something an Admin edited away, archived or deleted (the Settings → Standards card can still
+ * add it again on request).
+ */
+async function provisionOrganization(organizationId) {
+  const done = new Set(await getSetting(organizationId, 'standards.readyProvisioned'));
+  const todo = READY.filter((r) => !done.has(r.key));
+  if (!todo.length) return { added: 0, skipped: false };
+  const admin = await prisma.profile.findFirst({ where: { organizationId, role: 'ADMIN', status: 'ACTIVE', testOwnerAdminId: null }, orderBy: { createdAt: 'asc' } });
+  if (!admin) return { added: 0, skipped: true }; // nobody to record as the author yet - try again at the next start
+  let added = 0;
+  for (const { key, doc } of todo) {
+    const { state } = await importer.inspectDocument(organizationId, doc);
+    if (state === 'missing') {
+      const archived = await prisma.standardsItem.findFirst({ where: { organizationId, contentType: doc.contentType, title: doc.title }, select: { id: true } });
+      if (!archived) { await importer.importDocument(admin, doc, { dry: false }); added += 1; }
+    }
+    done.add(key);
+  }
+  await setSetting(organizationId, 'standards.readyProvisioned', [...done], admin.id);
+  return { added, skipped: false };
+}
+
+let provisioning = null;
+/** Every organization, once per process; never throws (a failure is logged and the app carries on). */
+function provisionAllOrganizations() {
+  if (!provisioning) {
+    provisioning = (async () => {
+      let added = 0;
+      for (const org of await prisma.organization.findMany({ select: { id: true } })) added += (await provisionOrganization(org.id)).added;
+      if (added) console.log(`[standards] added ${added} ready-made Company Standards & Workflow document${added === 1 ? '' : 's'}`);
+    })().catch((err) => console.error('[standards] ready-made documents could not be added at start-up:', err.message));
+  }
+  return provisioning;
+}
+
+module.exports = { READY, readyStatus, applyReady, provisionOrganization, provisionAllOrganizations, prisma };

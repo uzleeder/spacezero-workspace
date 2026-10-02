@@ -19,7 +19,7 @@
 <details class="card mt-24" <%= missingCount ? 'open' : '' %>>
   <summary class="card-header" style="cursor:pointer"><h2 style="display:inline">Ready-made documents</h2> <span class="text-sm text-muted">· Supervisor, Flight Expert, Travel Agent, Management and the General Company Standard<%= missingCount ? ' — ' + missingCount + ' not added yet' : ' — all added' %></span></summary>
   <div class="card-body">
-    <p class="text-sm text-muted" style="margin-bottom:12px">Add a document and it appears in the list below as its own item: open it to read, edit, preview, publish, version or archive it. Adding never changes an existing document unless you press Replace.</p>
+    <p class="text-sm text-muted" style="margin-bottom:12px">These are added automatically the first time the app starts after a deploy, and each appears in the list below as its own item: open it to read, edit, preview, publish, version or archive it. A deploy never changes or brings back a document you edited, archived or deleted. Use Add to put a missing one back, or Replace to return one to the ready-made wording.</p>
     <% if (missingCount) { %>
       <form method="post" action="/admin/standards/ready" style="margin-bottom:12px"><button type="submit" class="btn btn-gold btn-sm">Add all <%= missingCount %> missing document<%= missingCount === 1 ? '' : 's' %></button></form>
     <% } %>
