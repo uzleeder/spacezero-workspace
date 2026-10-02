@@ -1,5 +1,5 @@
-<div class="row-between" style="gap:8px;margin-bottom:8px" data-repeater-item>
-  <input name="respText" value="<%= text %>" maxlength="500" placeholder="e.g. Respond to client messages within 2 business hours" style="flex:1" />
+<div class="row-between" style="gap:8px;margin-bottom:8px;align-items:flex-start" data-repeater-item>
+  <textarea name="respText" rows="<%= Math.min(8, Math.max(2, Math.ceil(String(text || '').length / 90))) %>" maxlength="500" placeholder="**Heading.** Then the paragraph — e.g. **1. Client response.** Respond to client messages within 2 business hours" style="flex:1"><%= text %></textarea>
   <div style="display:flex;gap:4px">
     <button type="button" class="btn btn-secondary btn-sm" data-move-up title="Move up">↑</button>
     <button type="button" class="btn btn-secondary btn-sm" data-move-down title="Move down">↓</button>

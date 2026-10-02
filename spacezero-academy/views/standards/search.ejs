@@ -6,18 +6,26 @@
 </form>
 
 <% if (q && results.length === 0) { %>
-  <div class="card"><div class="card-body"><%- include('../partials/empty-state', { title: 'No matches found', description: 'Try a different search term.' }) %></div></div>
+  <div class="card"><div class="card-body"><%- include('../partials/empty-state', { title: 'No matches found', description: 'Try a different search term. You only see what is published for your role.' }) %></div></div>
 <% } else if (results.length) { %>
-  <ul class="divide-list">
-    <% results.forEach(function (item) { %>
-      <li>
-        <a class="row-between" href="/standards/<%= item.id %>" style="align-items:flex-start">
-          <div>
-            <p style="font-weight:500;color:var(--navy-950)"><%= item.title %></p>
-            <p class="text-sm text-muted mt-4"><%= CONTENT_TYPE_LABEL[item.contentType] %><%= item.category ? ' · ' + item.category : '' %></p>
+  <div class="doc-list">
+    <% results.forEach(function (item) {
+      const v = item.currentVersion;
+      const st = states.get(item.id) || { state: 'NONE' };
+    %>
+      <a class="doc-card" href="/standards/<%= item.id %>">
+        <div class="doc-card-main">
+          <div class="doc-card-badges">
+            <span class="badge"><%= CONTENT_TYPE_LABEL[item.contentType] %></span>
+            <% if (v && v.requiredReading) { %><span class="badge badge-gold">Required reading</span><% } %>
+            <% if (st.state !== 'NONE') { %><span class="badge <%= st.state === 'DONE' ? 'badge-success' : 'badge-warning' %>"><%= STATE_LABEL[st.state] %></span><% } %>
           </div>
-        </a>
-      </li>
+          <h3><%= item.title %></h3>
+          <% if (v && v.shortDescription) { %><p class="doc-card-desc"><%= v.shortDescription %></p><% } %>
+          <% if (item.category) { %><p class="doc-card-meta"><%= item.category %></p><% } %>
+        </div>
+        <span class="btn btn-secondary btn-sm doc-card-action">Open &rarr;</span>
+      </a>
     <% }); %>
-  </ul>
+  </div>
 <% } %>

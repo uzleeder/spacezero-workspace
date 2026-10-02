@@ -13,6 +13,9 @@ const { requireSystemConfigAccess } = require('../../lib/supervisorCapabilities'
 // (Task 3) — it changes what every employee is shown org-wide, not day-to-day employee management.
 const advanced = [requireAdmin, requireSystemConfigAccess];
 const { logAudit } = require('../../lib/audit');
+const { getSetting, setSetting, isValidSetting } = require('../../lib/orgSettings');
+const { buildReaderModel } = require('../../lib/standardsReader');
+const { readyStatus, applyReady } = require('../../lib/readyStandards');
 const { roleLabel } = require('../../lib/roles');
 const { CONTENT_TYPES, CONTENT_TYPE_LABEL, STATUS_LABEL, ROLES, rolesList, acknowledgementRowsForItem, enrichStepRefs } = require('../../lib/standards');
 const { BLOCK_TYPES, BLOCK_TYPE_LABEL, parseBlocksFromForm, parseBlocks, blocksToJson } = require('../../lib/richContent');
@@ -148,6 +151,14 @@ async function persistVersion(admin, item, contentType, coreValues, typeValues, 
 
 // ------------------------------------------------------------------ rendering the form
 async function renderForm(res, admin, { mode, item = null, contentType, values, blocks = [], steps = [], responsibilities = [], disclosure = {}, errors = [], status = 200 }) {
+  // Stored steps carry their extras (explanation, checklist, notes, links) as detailJson; the step editor reads
+  // them from `detail`. Without this every step opened with those boxes empty - and saving cleared them.
+  steps = steps.map((s) => {
+    if (s.detail) return s;
+    let detail;
+    try { detail = s.detailJson ? JSON.parse(s.detailJson) : {}; } catch { detail = {}; }
+    return { ...s, detail };
+  });
   const [disclosures, relatable] = await Promise.all([
     prisma.standardsItem.findMany({ where: { organizationId: admin.organizationId, contentType: 'DISCLOSURE', archivedAt: null }, select: { id: true, title: true } }),
     prisma.standardsItem.findMany({ where: { organizationId: admin.organizationId, archivedAt: null, id: item ? { not: item.id } : undefined }, select: { id: true, title: true, contentType: true } }),
@@ -201,8 +212,33 @@ router.get('/standards', advanced, async (req, res) => {
   res.render('admin/standards/list', {
     title: 'Company Standards & Workflow — Manage',
     rows, filter, CONTENT_TYPES, CONTENT_TYPE_LABEL, STATUS_LABEL, roleLabel, rolesList,
+    pageDescription: await getSetting(admin.organizationId, 'standards.pageDescription'),
+    descriptionError: req.query.descriptionError === '1',
+    ready: await readyStatus(admin.organizationId),
+    readyResult: { added: Number(req.query.added) || 0, replaced: Number(req.query.replaced) || 0, kept: Number(req.query.kept) || 0 },
     saved: req.query.saved === '1',
   });
+});
+
+// The one-line description under the page title of the Company Standards & Workflow page: plain text kept
+// in the existing organization settings (not a Standard — nothing to acknowledge). Registered BEFORE the
+// /standards/:id routes, otherwise Express would take "description" for an item id.
+// Adds the ready-made documents to the list so they can be opened and edited like any other item. Registered
+// BEFORE the /standards/:id routes, otherwise Express would take "ready" for an item id.
+router.post('/standards/ready', advanced, async (req, res) => {
+  const result = await applyReady(req.profile, { key: text(req.body.key, 80) || null, replace: req.body.replace === '1' });
+  if (result.unknown) return notFound(res);
+  res.redirect(`/admin/standards?saved=1&added=${result.added}&replaced=${result.replaced}&kept=${result.kept}`);
+});
+
+router.post('/standards/description', advanced, async (req, res) => {
+  const admin = req.profile;
+  const value = text(req.body.pageDescription, 2000);
+  if (!isValidSetting('standards.pageDescription', value)) return res.redirect('/admin/standards?descriptionError=1');
+  const before = await getSetting(admin.organizationId, 'standards.pageDescription');
+  await setSetting(admin.organizationId, 'standards.pageDescription', value, admin.id);
+  await logAudit({ organizationId: admin.organizationId, actorId: admin.id, action: 'standards.description_updated', targetTable: 'OrgSetting', targetId: 'standards.pageDescription', metadata: { changed: before !== value, hidden: !value } });
+  res.redirect('/admin/standards?saved=1');
 });
 
 // ------------------------------------------------------------------ create chooser + form
@@ -312,9 +348,11 @@ router.get('/standards/:id/preview', advanced, async (req, res) => {
   const latest = await latestVersionFor(item.id);
   if (!latest) return notFound(res);
   const steps = await enrichStepRefs(admin.organizationId, latest.steps || [], admin.role);
+  const blocks = parseBlocks(latest.contentJson);
   res.render('standards/show', {
     title: item.title,
-    item, version: latest, blocks: parseBlocks(latest.contentJson), steps,
+    item, version: latest, blocks, steps,
+    reader: buildReaderModel({ item, version: latest, blocks, steps }), // the preview shows the same reading layout employees get
     isPreview: true, ackState: null, CONTENT_TYPE_LABEL,
   });
 });

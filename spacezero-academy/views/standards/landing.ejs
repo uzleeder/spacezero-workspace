@@ -1,10 +1,21 @@
-<%- include('../partials/page-header', { pageTitle: 'Company Standards & Workflow', pageDescription: 'How we work, serve our clients and represent Above9.' }) %>
+<%- include('../partials/page-header', { pageTitle: 'Company Standards & Workflow', pageDescription: pageDescription }) %>
 <% if (profile.role === 'ADMIN') { %><%- include('../partials/management-tabs', { tabs: tabsets.standards }) %><% } %>
 
 <form class="mt-24" action="/standards/search" style="display:flex;gap:12px;margin-bottom:24px">
   <input type="search" name="q" placeholder="Search standards, responsibilities and workflows…" style="flex:1;max-width:420px" />
   <button type="submit" class="btn btn-secondary">Search</button>
 </form>
+
+<%# Where am I / what next: derived from the existing acknowledgement records. %>
+<% if (progress.required > 0) { %>
+<div class="reading-progress mt-16" role="status">
+  <div>
+    <p class="reading-progress-title"><%= progress.done === progress.required ? 'You have acknowledged all required reading' : 'Required reading: ' + progress.done + ' of ' + progress.required + ' acknowledged' %></p>
+    <div class="reading-progress-track" aria-hidden="true"><div class="reading-progress-fill" style="width:<%= Math.round(progress.done / progress.required * 100) %>%"></div></div>
+  </div>
+  <% if (progress.next) { %><a class="btn btn-gold btn-sm" href="/standards/<%= progress.next.id %>">Continue: <%= progress.next.title %></a><% } %>
+</div>
+<% } %>
 
 <% if (quickRef.length) { %>
 <div class="card mt-16" style="margin-bottom:24px">
@@ -19,37 +30,27 @@
 </div>
 <% } %>
 
+<%
+  const areas = [
+    { type: 'STANDARD', href: '/standards/browse/standard', icon: 'book' },
+    { type: 'RESPONSIBILITY', href: '/standards/browse/responsibility', icon: 'profile' },
+    { type: 'WORKFLOW', href: '/standards/browse/workflow', icon: 'assignments' },
+  ];
+  if (counts.DISCLOSURE > 0) areas.push({ type: 'DISCLOSURE', href: '/standards/browse/disclosure', icon: 'audit' });
+%>
 <div class="grid grid-3 mt-16">
-  <a class="card card-link" href="/standards/browse/standard" style="padding:24px">
-    <%- include('../partials/icon', { name: 'book' }) %>
-    <h3 class="mt-16" style="font-weight:600;color:var(--navy-950)">Company Standards</h3>
-    <p class="text-sm text-muted mt-4">The principles and standards everyone is expected to follow.</p>
-    <p class="text-sm mt-16" style="color:var(--gold-600);font-weight:500"><%= counts.STANDARD %> published</p>
+  <% areas.forEach(function (a) { %>
+  <a class="card card-link area-card" href="<%= a.href %>">
+    <%- include('../partials/icon', { name: a.icon }) %>
+    <h3 class="mt-16"><%= TYPE_INFO[a.type].label %></h3>
+    <p class="text-sm text-muted mt-4"><%= TYPE_INFO[a.type].description %></p>
+    <p class="area-card-foot">
+      <% if (counts[a.type] === 0) { %><span class="text-muted">Nothing published for you yet</span>
+      <% } else { %><span><%= counts[a.type] %> to read</span><% if (todo[a.type] > 0) { %><span class="badge badge-warning"><%= todo[a.type] %> to acknowledge</span><% } %><% } %>
+    </p>
   </a>
-  <a class="card card-link" href="/standards/browse/responsibility" style="padding:24px">
-    <%- include('../partials/icon', { name: 'profile' }) %>
-    <h3 class="mt-16" style="font-weight:600;color:var(--navy-950)">My Responsibilities</h3>
-    <p class="text-sm text-muted mt-4">What is expected from you in your role.</p>
-    <p class="text-sm mt-16" style="color:var(--gold-600);font-weight:500"><%= counts.RESPONSIBILITY %> published</p>
-  </a>
-  <a class="card card-link" href="/standards/browse/workflow" style="padding:24px">
-    <%- include('../partials/icon', { name: 'assignments' }) %>
-    <h3 class="mt-16" style="font-weight:600;color:var(--navy-950)">Workflows</h3>
-    <p class="text-sm text-muted mt-4">Clear step-by-step guidance for doing the job correctly.</p>
-    <p class="text-sm mt-16" style="color:var(--gold-600);font-weight:500"><%= counts.WORKFLOW %> published</p>
-  </a>
+  <% }); %>
 </div>
-
-<% if (counts.DISCLOSURE > 0) { %>
-<div class="grid grid-3 mt-16">
-  <a class="card card-link" href="/standards/browse/disclosure" style="padding:24px">
-    <%- include('../partials/icon', { name: 'audit' }) %>
-    <h3 class="mt-16" style="font-weight:600;color:var(--navy-950)">Required Disclosures</h3>
-    <p class="text-sm text-muted mt-4">Approved wording for what you're required to communicate.</p>
-    <p class="text-sm mt-16" style="color:var(--gold-600);font-weight:500"><%= counts.DISCLOSURE %> published</p>
-  </a>
-</div>
-<% } %>
 
 <% if (profile.role === 'ADMIN' || profile.role === 'SUPERVISOR') { %>
 <div class="card mt-24">

@@ -23,7 +23,11 @@ const PORT = process.env.PORT || 3000;
 
 // Lets a tunnel (ngrok etc.) or a reverse proxy forward the real client IP
 // for rate limiting / audit logging.
-app.set('trust proxy', false);
+// Off by default. Behind exactly one reverse proxy (nginx) that sets X-Forwarded-For, set TRUST_PROXY_HOPS=1 so
+// audit logs and rate limits see each person's real address instead of the proxy's. Never "true": that would
+// let a client forge its own address.
+const proxyHops = Number(process.env.TRUST_PROXY_HOPS);
+app.set('trust proxy', Number.isInteger(proxyHops) && proxyHops >= 1 && proxyHops <= 3 ? proxyHops : false);
 app.get('/healthz', (_req, res) => res.json({ status: 'ok' }));
 // Compress text responses (HTML, CSS, JS, JSON). The reverse proxy only compresses HTML by default,
 // so stylesheets and scripts were being sent raw.
@@ -55,6 +59,7 @@ app.set('layout', 'layout');
 // HTML document inside layout.ejs's <body>).
 const STANDALONE_VIEWS = new Set(['not-found', 'forbidden', 'error']);
 app.use((req, res, next) => {
+  res.locals.currentUrl = req.originalUrl; // the page being viewed (path + query), e.g. for the theme button to come back to
   res.locals.asset = require('./lib/assets').asset; // content-hashed /static/css|js URLs, available to every view (also error pages)
   const render = res.render.bind(res);
   res.render = (view, options, callback) => {

@@ -58,6 +58,7 @@ async function startImpersonation(req, res, targetProfile) {
   await createSession(res, targetProfile.id, {
     userAgent: req.get ? req.get('user-agent') : undefined,
     ipAddress: req.ip,
+    keepParkedAdminSession: true, // the Admin session parked just above must survive this sign-in
   });
 
   await logAudit({

@@ -2,6 +2,51 @@
 <%- include('../../partials/management-tabs', { tabs: tabsets.standards }) %>
 
 <% if (saved) { %><div class="form-alert success mt-16">Changes saved.</div><% } %>
+<% if (descriptionError) { %><div class="form-alert error mt-16">The description was not saved: it may be at most 600 characters.</div><% } %>
+
+<details class="card mt-24" <%= descriptionError ? 'open' : '' %>>
+  <summary class="card-header" style="cursor:pointer"><h2 style="display:inline">Page description</h2> <span class="text-sm text-muted">· the line under the title of Company Standards &amp; Workflow, shown to everyone</span></summary>
+  <div class="card-body">
+    <form method="post" action="/admin/standards/description">
+      <div class="field"><label for="pageDescription">Description</label><textarea id="pageDescription" name="pageDescription" rows="4" maxlength="600"><%= pageDescription %></textarea><p class="hint">Plain text. Informational only — it is not a Standard and needs no acknowledgement. Leave it empty to show no description.</p></div>
+      <button type="submit" class="btn btn-gold mt-16">Save description</button>
+    </form>
+  </div>
+</details>
+
+<% if (readyResult.added || readyResult.replaced) { %><div class="form-alert success mt-16"><%= readyResult.added ? readyResult.added + ' document' + (readyResult.added === 1 ? '' : 's') + ' added to the list below' : '' %><%= readyResult.added && readyResult.replaced ? ' · ' : '' %><%= readyResult.replaced ? readyResult.replaced + ' replaced with the ready-made wording (the earlier version is kept in the history)' : '' %>.</div><% } %>
+<% const missingCount = ready.filter(function (r) { return r.state === 'missing'; }).length; %>
+<details class="card mt-24" <%= missingCount ? 'open' : '' %>>
+  <summary class="card-header" style="cursor:pointer"><h2 style="display:inline">Ready-made documents</h2> <span class="text-sm text-muted">· Supervisor, Flight Expert, Travel Agent, Management and the General Company Standard<%= missingCount ? ' — ' + missingCount + ' not added yet' : ' — all added' %></span></summary>
+  <div class="card-body">
+    <p class="text-sm text-muted" style="margin-bottom:12px">Add a document and it appears in the list below as its own item: open it to read, edit, preview, publish, version or archive it. Adding never changes an existing document unless you press Replace.</p>
+    <% if (missingCount) { %>
+      <form method="post" action="/admin/standards/ready" style="margin-bottom:12px"><button type="submit" class="btn btn-gold btn-sm">Add all <%= missingCount %> missing document<%= missingCount === 1 ? '' : 's' %></button></form>
+    <% } %>
+    <ul class="divide-list">
+      <% ready.forEach(function (r) { %>
+        <li class="row-between" style="gap:12px;flex-wrap:wrap">
+          <div style="min-width:0">
+            <p style="font-weight:500;color:var(--navy-950)"><%= r.doc.title %></p>
+            <p class="text-sm text-muted mt-4"><%= CONTENT_TYPE_LABEL[r.doc.contentType] %> · <%= r.audience === null ? 'Everyone' : r.audience.map(roleLabel).join(', ') %></p>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <% if (r.state === 'missing') { %>
+              <span class="badge badge-warning">Not added yet</span>
+              <form method="post" action="/admin/standards/ready"><input type="hidden" name="key" value="<%= r.key %>" /><button type="submit" class="btn btn-gold btn-sm">Add</button></form>
+            <% } else { %>
+              <span class="badge <%= r.state === 'same' ? 'badge-success' : '' %>"><%= r.state === 'same' ? 'Added' : 'Added — edited' %></span>
+              <a class="btn btn-secondary btn-sm" href="/admin/standards/<%= r.itemId %>/edit">Open &amp; edit</a>
+              <% if (r.state === 'different') { %>
+                <form method="post" action="/admin/standards/ready" onsubmit="return confirm('Replace this document with the ready-made wording? The current version is kept in the history.')"><input type="hidden" name="key" value="<%= r.key %>" /><input type="hidden" name="replace" value="1" /><button type="submit" class="btn btn-secondary btn-sm">Replace with ready-made</button></form>
+              <% } %>
+            <% } %>
+          </div>
+        </li>
+      <% }); %>
+    </ul>
+  </div>
+</details>
 
 <div class="mt-24" style="display:flex;flex-wrap:wrap;gap:8px">
   <% [['all', 'All'], ['STANDARD', 'Standards'], ['RESPONSIBILITY', 'Responsibilities'], ['WORKFLOW', 'Workflows'], ['DISCLOSURE', 'Disclosures'], ['draft', 'Draft'], ['published', 'Published'], ['archived', 'Archived']].forEach(function (f) { %>

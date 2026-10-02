@@ -66,7 +66,16 @@ const schedule = {
   parse: (v) => (Array.isArray(v) && v.length <= 6 && v.every((d) => Number.isInteger(d) && d >= 1 && d <= 365) && new Set(v).size === v.length ? [...v].sort((a, b) => a - b) : undefined),
 };
 
+// The one-line description shown directly under the page title of Company Standards & Workflow
+// (the page header's description). Plain text; an empty text shows no description.
+const DEFAULT_STANDARDS_PAGE_DESCRIPTION = 'SpaceZero Workspace is the company\u2019s internal platform for employee readiness, training and continuous development. It brings company standards, role responsibilities, workflows, AI-powered practice, call review and operational guidance into one place so employees can learn, apply what they learn, improve their skills and perform consistently.';
+const standardsPageDescription = {
+  default: DEFAULT_STANDARDS_PAGE_DESCRIPTION,
+  parse: (v) => (typeof v === 'string' && v.trim().length <= 600 ? v.trim() : undefined),
+};
+
 const SCHEMA = {
+  'standards.pageDescription': standardsPageDescription, // description under the title of the Company Standards & Workflow page
   'credentials.ownerCanView': { ...bool, default: true }, // may a credential's owner reveal their own credentials?
   'leave.supervisorFinalApproval': bool, // may a supervisor approve/reject leave, or only recommend?
   'training.minPassingScore': integer(50, 100, 70), // lowest passing score a mandatory training may use
