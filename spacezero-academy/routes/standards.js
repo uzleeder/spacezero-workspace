@@ -79,7 +79,7 @@ router.get('/standards/:id', requireSession, async (req, res) => {
     const satisfying = exact || carried;
     ackState = { needed: !satisfying, acceptedAt: satisfying ? satisfying.acceptedAt : null, version: satisfying ? satisfying.version.version : null };
   }
-  const steps = await enrichStepRefs(me.organizationId, version.steps || []);
+  const steps = await enrichStepRefs(me.organizationId, version.steps || [], me.role);
   res.render('standards/show', {
     title: item.title,
     item, version, blocks: parseBlocks(version.contentJson), steps,

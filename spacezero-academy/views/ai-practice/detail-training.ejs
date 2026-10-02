@@ -11,7 +11,7 @@
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
       <a class="btn btn-gold" href="/admin/training/<%= course.id %>">View in Training</a>
-      <% if (!newer) { %><form method="post" action="/ai-practice/<%= course.id %>/new-version" data-once><button class="btn btn-secondary">Create version <%= course.publishedVersion + 1 %> to improve it</button></form>
+      <% if (!newer) { %><% if (canCreateNewVersion) { %><form method="post" action="/ai-practice/<%= course.id %>/new-version" data-once><button class="btn btn-secondary">Create version <%= course.publishedVersion + 1 %> to improve it</button></form><% } %>
       <% } else { %>
         <a class="btn btn-secondary" href="/ai-practice/<%= course.id %>?step=practice">Continue editing v<%= course.draftVersion %></a>
         <% if (st.key === 'APPROVED') { %><a class="btn btn-gold" href="/ai-practice/<%= course.id %>/send">Publish v<%= course.draftVersion %></a><% } %>

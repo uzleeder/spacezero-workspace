@@ -34,7 +34,8 @@ async function attachImpersonation(req, res, next) {
       adminSession && req.profile && req.profile.id !== adminSession.profile.id
         ? { adminId: adminSession.profile.id, adminName: adminSession.profile.fullName }
         : null;
-  } catch {
+  } catch (err) {
+    console.error('[attachImpersonation] failed to load admin session:', err.message || err);
     req.impersonation = null;
   }
   next();

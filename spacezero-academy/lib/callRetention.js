@@ -24,7 +24,18 @@ async function purgeExpiredCalls(organizationId, { actorId = null, now = new Dat
   const days = await getSetting(organizationId, 'calls.retentionDays');
   if (!days) return 0;
   const cutoff = new Date(now.getTime() - days * 86400000);
-  const expired = await prisma.callBatch.findMany({ where: { organizationId, status: { in: FINISHED }, createdAt: { lt: cutoff } }, include: { recordings: true } });
+  const candidates = await prisma.callBatch.findMany({ where: { organizationId, status: { in: FINISHED }, createdAt: { lt: cutoff } }, include: { recordings: true } });
+  // A batch whose analysis was approved into Training stays APPROVED forever, so it is otherwise
+  // eligible for purge indefinitely — but deleting it would destroy the customer-call evidence (and
+  // SkillEvidence rows derived from it) behind a still-live, assigned Training course. Skip those,
+  // matching the same guard the manual delete routes already enforce (routes/aiPractice.js#removeBatch,
+  // routes/callIntelligence.js) — training that was approved from a call is a separate record and is
+  // not touched, but the call it came from must survive as long as that course does.
+  const courseIds = candidates.map((b) => b.generatedCourseId).filter(Boolean);
+  const liveCourseIds = courseIds.length
+    ? new Set((await prisma.trainingCourse.findMany({ where: { id: { in: courseIds } }, select: { id: true } })).map((c) => c.id))
+    : new Set();
+  const expired = candidates.filter((b) => !(b.generatedCourseId && liveCourseIds.has(b.generatedCourseId)));
   for (const batch of expired) {
     await deleteBatchFiles(batch);
     await prisma.callBatch.delete({ where: { id: batch.id } });

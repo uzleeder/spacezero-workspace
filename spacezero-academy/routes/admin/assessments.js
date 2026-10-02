@@ -12,6 +12,7 @@ const { logAudit } = require('../../lib/audit');
 const { lockReason } = require('../../lib/courseVersions');
 const tasks = require('../../lib/aiTasks');
 const plan = require('../../lib/practicePlan');
+const { claim, release } = require('../../lib/inFlightLock');
 
 const canManage = requireRole('ADMIN'); // AI Practice review tools are Admin-only
 
@@ -175,11 +176,17 @@ router.post('/assessments/:id/questions/:qid/delete', canManage, async (req, res
 router.post('/assessments/:id/questions/:qid/regenerate', canManage, async (req, res) => {
   const { assessment, question } = await withQuestion(req, res);
   if (!assessment) return;
+  // Same shared lock as the AI Practice builder's component actions (lib/inFlightLock): this edits
+  // the same Assessment row a builder "Adjust"/"Make harder" could be mid-edit on, and a double-click
+  // here alone would otherwise race two Gemini rewrites of the same question.
+  if (!claim(`assessment:${assessment.id}`)) return renderReview(res.status(409), assessment, { error: 'Already working on this — please wait for it to finish.' });
   try {
     await regenerateQuestion({ assessment, question, instruction: clip(req.body.instruction, 500) });
   } catch (err) {
     await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'assessment.regenerate_failed', targetTable: 'Assessment', targetId: assessment.id, metadata: { questionId: question.id, error: err.message } });
     return renderReview(res.status(502), assessment, { error: 'The AI could not rewrite this question right now. Nothing was changed — try again.' });
+  } finally {
+    release(`assessment:${assessment.id}`);
   }
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'assessment.question_regenerated', targetTable: 'Assessment', targetId: assessment.id, metadata: { questionId: question.id, hasInstruction: Boolean(req.body.instruction) } });
   res.redirect(back(assessment, '?notice=revised'));
@@ -191,6 +198,7 @@ router.post('/assessments/:id/revise', canManage, async (req, res) => {
   if (lockReason(assessment)) return renderReview(res.status(409), assessment, { error: lockReason(assessment) });
   const instruction = clip(req.body.instruction, 600);
   if (instruction.length < 5) return renderReview(res.status(400), assessment, { error: 'Tell the AI what to change, for example "Make this role-play harder".' });
+  if (!claim(`assessment:${assessment.id}`)) return renderReview(res.status(409), assessment, { error: 'Already working on this — please wait for it to finish.' });
   let outcome;
   try {
     outcome = await reviseWithPrompt({ assessment, instruction });
@@ -198,6 +206,8 @@ router.post('/assessments/:id/revise', canManage, async (req, res) => {
     if (err.userFacing) return renderReview(res.status(400), assessment, { error: err.message });
     await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'assessment.revise_failed', targetTable: 'Assessment', targetId: assessment.id, metadata: { error: err.message } });
     return renderReview(res.status(502), assessment, { error: 'The AI could not apply that right now. Nothing was changed — try again.' });
+  } finally {
+    release(`assessment:${assessment.id}`);
   }
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'assessment.revised_with_prompt', targetTable: 'Assessment', targetId: assessment.id, metadata: { kind: outcome.kind, changed: outcome.changed } });
   res.redirect(back(assessment, '?notice=revised'));

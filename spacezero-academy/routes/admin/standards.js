@@ -311,7 +311,7 @@ router.get('/standards/:id/preview', advanced, async (req, res) => {
   if (!item) return notFound(res);
   const latest = await latestVersionFor(item.id);
   if (!latest) return notFound(res);
-  const steps = await enrichStepRefs(admin.organizationId, latest.steps || []);
+  const steps = await enrichStepRefs(admin.organizationId, latest.steps || [], admin.role);
   res.render('standards/show', {
     title: item.title,
     item, version: latest, blocks: parseBlocks(latest.contentJson), steps,

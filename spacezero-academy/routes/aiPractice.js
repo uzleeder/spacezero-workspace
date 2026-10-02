@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 // AI Practice = the AI Practice workspace: SOURCE -> ANALYSIS -> PRACTICE -> REVIEW -> TRAINING.
 // Each step is its own action the actor starts; uploading never analyzes, analyzing never generates
@@ -31,6 +31,7 @@ const { reviseWithPrompt } = require('../lib/practiceReview');
 const { safeParse } = require('../lib/practiceEngine');
 const { isRateLimited, AI_RATE_LIMIT } = require('../lib/rateLimit');
 const { hasCapability } = require('../lib/supervisorCapabilities');
+const { claim, release } = require('../lib/inFlightLock');
 
 const redirectToLogin = (req, res) => res.redirect(`/login?next=${encodeURIComponent(req.originalUrl || '/dashboard')}`);
 // Admin: unconditional. Supervisor: only with an explicit, Admin-granted capability — nothing is
@@ -223,6 +224,10 @@ router.get('/ai-practice/:id', creators, async (req, res) => {
   const relevance = ready ? await relevanceFor(actor, { skills: parsed.skills, audienceRoles: parsed.insights.audienceRoles || [] }) : null;
   const stale = Boolean(analysis && analysis.sourceHash && analysis.sourceHash !== analysisLib.computeSourceHash(course.modules));
   const result = build && build.resultJson ? safeParse(build.resultJson, {}) : {};
+  // Mirrors the actual guard on POST .../new-version: an Admin always may; a Supervisor needs
+  // training.revise specifically (training.create alone is not enough to revise existing training).
+  // Shown as a button regardless of this used to just 403 when a create-only Supervisor clicked it.
+  const canCreateNewVersion = actor.role === 'ADMIN' || await hasCapability(actor, 'training.revise');
 
   res.set('Cache-Control', 'private, no-store');
   res.render('ai-practice/detail', {
@@ -231,7 +236,7 @@ router.get('/ai-practice/:id', creators, async (req, res) => {
     PLAN: plan, PURPOSE_LABEL: analysisLib.PURPOSE_LABEL, ACCEPT, roleLabel, TYPE_LABEL: state.TYPE_LABEL,
     notice: typeof req.query.notice === 'string' ? req.query.notice.slice(0, 200) : null, error: typeof req.query.error === 'string' ? req.query.error.slice(0, 300) : null,
     autoRefresh: ['ANALYZING', 'BUILDING'].includes(st.key) && !st.halted,
-    isAdmin: actor.role === 'ADMIN', reviewHistory,
+    isAdmin: actor.role === 'ADMIN', reviewHistory, canCreateNewVersion,
   });
 });
 
@@ -394,6 +399,10 @@ router.post('/ai-practice/:id/components/:aid/regenerate', creators, async (req,
   const { course, component } = await loadComponent(req, res, { needsAnalysis: true });
   if (!component) return;
   if (await aiGate(res, req.profile, course.id)) return;
+  // Not covered by aiGate (a rate limit, not an idempotency guard): without this, a double-click or
+  // a retried request races two concurrent Gemini generations for one click and archives the
+  // original twice, leaving two replacements instead of one.
+  if (!claim(`assessment:${component.id}`)) return back(res, course.id, { step: 'practice', error: 'Already working on this — please wait for it to finish.' });
   try {
     const made = await tasks.generateComponent({ course, analysis: course.analysis, actor: req.profile, type: component.type, level: component.level, count: Math.max(3, component.questions.length || 6) });
     await prisma.assessment.update({ where: { id: component.id }, data: { status: 'ARCHIVED', archivedAt: new Date() } });
@@ -401,6 +410,8 @@ router.post('/ai-practice/:id/components/:aid/regenerate', creators, async (req,
   } catch (err) {
     await logAudit({ organizationId: course.organizationId, actorId: req.profile.id, action: 'practice.regenerate_failed', targetTable: 'Assessment', targetId: component.id, metadata: { error: String(err.message || err).slice(0, 200) } });
     return back(res, course.id, { step: 'practice', error: 'The AI could not rebuild this right now. Nothing was changed — try again.' });
+  } finally {
+    release(`assessment:${component.id}`);
   }
   back(res, course.id, { step: 'practice', notice: 'Rebuilt. Only this practice was regenerated.' });
 });
@@ -409,6 +420,9 @@ router.post('/ai-practice/:id/components/:aid/harder', creators, async (req, res
   const { course, component } = await loadComponent(req, res);
   if (!component) return;
   if (await aiGate(res, req.profile, course.id)) return;
+  // Also closes a lost-update race: two concurrent "make harder" clicks both reading component.level
+  // before either writes would otherwise both set level+1 instead of compounding to level+2.
+  if (!claim(`assessment:${component.id}`)) return back(res, course.id, { step: 'practice', error: 'Already working on this — please wait for it to finish.' });
   try {
     const full = await prisma.assessment.findFirst({ where: { id: component.id }, include: { questions: { orderBy: { displayOrder: 'asc' } }, course: true } });
     await reviseWithPrompt({ assessment: full, instruction: 'Make this more difficult: add complications, a less cooperative customer or trickier edge cases, while staying strictly within the training material.' });
@@ -416,6 +430,8 @@ router.post('/ai-practice/:id/components/:aid/harder', creators, async (req, res
   } catch (err) {
     if (err.userFacing) return back(res, course.id, { step: 'practice', error: err.message });
     return back(res, course.id, { step: 'practice', error: 'The AI could not make this harder right now. Nothing was changed — try again.' });
+  } finally {
+    release(`assessment:${component.id}`);
   }
   await logAudit({ organizationId: course.organizationId, actorId: req.profile.id, action: 'practice.component_made_harder', targetTable: 'Assessment', targetId: component.id });
   back(res, course.id, { step: 'practice', notice: 'Made harder.' });
@@ -427,12 +443,15 @@ router.post('/ai-practice/:id/components/:aid/adjust', creators, async (req, res
   const instruction = clip(req.body.instruction, 600);
   if (instruction.length < 5) return back(res, course.id, { step: 'practice', error: 'Tell the AI what to change, for example "Focus more on closing".' });
   if (await aiGate(res, req.profile, course.id)) return;
+  if (!claim(`assessment:${component.id}`)) return back(res, course.id, { step: 'practice', error: 'Already working on this — please wait for it to finish.' });
   try {
     const full = await prisma.assessment.findFirst({ where: { id: component.id }, include: { questions: { orderBy: { displayOrder: 'asc' } }, course: true } });
     await reviseWithPrompt({ assessment: full, instruction });
   } catch (err) {
     if (err.userFacing) return back(res, course.id, { step: 'practice', error: err.message });
     return back(res, course.id, { step: 'practice', error: 'The AI could not apply that right now. Nothing was changed — try again.' });
+  } finally {
+    release(`assessment:${component.id}`);
   }
   await logAudit({ organizationId: course.organizationId, actorId: req.profile.id, action: 'assessment.revised_with_prompt', targetTable: 'Assessment', targetId: component.id, metadata: { via: 'builder' } });
   back(res, course.id, { step: 'practice', notice: 'Adjusted. Review the change.' });

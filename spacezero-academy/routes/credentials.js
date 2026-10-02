@@ -124,7 +124,18 @@ router.post('/credentials/:credId/update', requireSession, async (req, res) => {
   if (!credential || (!access.view && !access.manage)) return notFound(res); // unauthorized and missing IDs look identical
   if (!access.manage) return forbidden(res);
 
-  const existing = (() => { try { return decryptJson(credential.payloadEnc, aadFor(credential)); } catch { return {}; } })();
+  // A blank box in this form means "keep the current value" (merged below), so the existing payload
+  // MUST decrypt correctly before that merge can mean anything — unlike /reveal, this used to fall
+  // back to {} on a decrypt failure and silently save every blank field as an empty string,
+  // overwriting data the admin believed was untouched, with no error and no audit distinction.
+  let existing;
+  try { existing = decryptJson(credential.payloadEnc, aadFor(credential)); }
+  catch {
+    const ctx = await loadEmployeeFor(actor, credential.ownerId);
+    const page = ctx && await pageContext(req, ctx);
+    if (!page) return res.status(500).json({ error: 'This credential could not be decrypted.' });
+    return res.status(500).render('employee/credentials', { ...page, error: 'This credential could not be decrypted, so nothing was changed. Delete and re-create it instead.' });
+  }
   const fields = readFields(req.body);
   // Existing values are never sent to the browser, so a blank box means "keep the current value".
   const merged = {

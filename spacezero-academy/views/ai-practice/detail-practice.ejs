@@ -14,7 +14,7 @@ const badge = function (a) { return a.status === 'APPROVED' ? '<span class="badg
 
 <% } else { %>
   <% if (!editable) { %>
-    <div class="form-alert info mt-16">Version <%= course.publishedVersion %> is in Training, so this practice is read-only. Assigned and completed training stays exactly as it is. <form method="post" action="/ai-practice/<%= course.id %>/new-version" data-once style="display:inline"><button class="btn btn-secondary btn-sm">Create version <%= course.publishedVersion + 1 %> to improve it</button></form></div>
+    <div class="form-alert info mt-16">Version <%= course.publishedVersion %> is in Training, so this practice is read-only. Assigned and completed training stays exactly as it is. <% if (canCreateNewVersion) { %><form method="post" action="/ai-practice/<%= course.id %>/new-version" data-once style="display:inline"><button class="btn btn-secondary btn-sm">Create version <%= course.publishedVersion + 1 %> to improve it</button></form><% } %></div>
   <% } %>
   <% if (build && build.status === 'FAILED') { %>
     <div class="form-alert error mt-16" role="alert">Some practice could not be built. Your analysis and everything already built are safe.
@@ -58,8 +58,10 @@ const badge = function (a) { return a.status === 'APPROVED' ? '<span class="badg
                   <div class="row-between" style="gap:12px;flex-wrap:wrap">
                     <div style="min-width:0"><p style="font-weight:500"><%= c.title %></p><p class="text-sm text-muted"><%- badge(c) %> Level <%= c.level %> • Pass <%= c.passingScore %>%<%= isQ ? ' • ' + c.questions.length + ' questions' : '' %></p></div>
                     <div style="display:flex;gap:6px;flex-wrap:wrap">
+                      <% if (isAdmin) { %>
                       <a class="btn btn-secondary btn-sm" href="/admin/assessments/<%= c.id %>"><%= isQ ? 'Edit questions' : 'Edit' %></a>
                       <a class="btn btn-secondary btn-sm" href="/admin/assessments/<%= c.id %>/preview">Preview</a>
+                      <% } %>
                       <% if (editable) { %>
                         <% if (c.type !== 'PROCESS_SIM') { %><form method="post" action="/ai-practice/<%= course.id %>/components/<%= c.id %>/harder" data-once><button class="btn btn-secondary btn-sm">Make harder</button></form><% } %>
                         <form method="post" action="/ai-practice/<%= course.id %>/components/<%= c.id %>/regenerate" data-once><button class="btn btn-secondary btn-sm" data-confirm-msg="Replace this practice with a newly generated one? The others are not touched.">Regenerate</button></form>

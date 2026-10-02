@@ -169,12 +169,17 @@ async function acknowledgementRowsForItem(organizationId, item) {
 // FKs). Resolves those ids to titles/links here, server-side, once per page render, so the
 // view never queries the database and a reference to an archived/deleted item just disappears
 // rather than erroring.
-async function enrichStepRefs(organizationId, steps) {
+// `role` is the viewer's — the title/existence of a role-restricted Disclosure/Standard must not
+// leak through a step that merely references it, even though the link itself already 404s for an
+// unauthorized viewer via getItemForReading (that check happens too late: the title and the fact
+// that a referenced item exists were already rendered on the page by then).
+async function enrichStepRefs(organizationId, steps, role) {
   const parsed = steps.map((s) => ({ ...s, detail: s.detailJson ? (() => { try { return JSON.parse(s.detailJson); } catch { return {}; } })() : {} }));
   const ids = new Set();
   for (const s of parsed) { if (s.detail.disclosureRefId) ids.add(s.detail.disclosureRefId); if (s.detail.relatedItemId) ids.add(s.detail.relatedItemId); }
   if (!ids.size) return parsed;
-  const found = await prisma.standardsItem.findMany({ where: { id: { in: [...ids] }, organizationId, archivedAt: null, currentVersionId: { not: null } }, select: { id: true, title: true, contentType: true } });
+  const found = (await prisma.standardsItem.findMany({ where: { id: { in: [...ids] }, organizationId, archivedAt: null, currentVersionId: { not: null } }, select: { id: true, title: true, contentType: true, rolesJson: true } }))
+    .filter((f) => isVisibleToRole(f.rolesJson, role));
   const byId = new Map(found.map((f) => [f.id, f]));
   for (const s of parsed) {
     if (s.detail.disclosureRefId) s.disclosureRef = byId.get(s.detail.disclosureRefId) || null;
