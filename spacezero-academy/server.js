@@ -176,6 +176,10 @@ if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   require('./lib/jobQueue').start();
 }
 
+// Every deploy makes sure the ready-made Company Standards & Workflow documents exist (each added once; see
+// lib/readyStandards.js). Not in tests, which build their own data.
+if (process.env.NODE_ENV !== 'test') setImmediate(() => { require('./lib/readyStandards').provisionAllOrganizations(); });
+
 app.use((req, res) => {
   res.status(404).render('not-found', { layout: false });
 });

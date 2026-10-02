@@ -28,7 +28,7 @@
     <div class="backdrop" data-backdrop></div>
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-brand">
-        <%- include('partials/brand-mark', { brandVariant: 'dark' }) %>
+        <a href="/dashboard" class="sidebar-brand-link" aria-label="SpaceZero Workspace — go to the dashboard" title="Go to the dashboard"><%- include('partials/brand-mark', { brandVariant: 'dark' }) %></a>
         <button type="button" class="sidebar-collapse-btn" data-sidebar-collapse aria-label="Collapse sidebar" title="Collapse sidebar">
           <%- include('partials/icon', { name: 'collapse' }) %>
         </button>

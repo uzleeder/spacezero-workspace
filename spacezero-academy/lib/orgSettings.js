@@ -74,7 +74,16 @@ const standardsPageDescription = {
   parse: (v) => (typeof v === 'string' && v.trim().length <= 600 ? v.trim() : undefined),
 };
 
+// Keys of the ready-made Standards & Workflow documents (lib/readyStandards.js) that were already offered to this
+// organization when the app started - each is added at most ONCE, so an Admin who edits, archives or deletes one
+// is never overruled by a later deploy.
+const readyProvisioned = {
+  default: [],
+  parse: (v) => (Array.isArray(v) && v.length <= 100 && v.every((k) => typeof k === 'string' && k.length <= 80) ? [...new Set(v)] : undefined),
+};
+
 const SCHEMA = {
+  'standards.readyProvisioned': readyProvisioned,
   'standards.pageDescription': standardsPageDescription, // description under the title of the Company Standards & Workflow page
   'credentials.ownerCanView': { ...bool, default: true }, // may a credential's owner reveal their own credentials?
   'leave.supervisorFinalApproval': bool, // may a supervisor approve/reject leave, or only recommend?
