@@ -1,7 +1,7 @@
-/* SpaceZero Academy — design tokens + component styles (plain CSS, no build step). */
+/* SpaceZero Workspace — design tokens + component styles (plain CSS, no build step). */
 
 :root {
-  /* SpaceZero Academy design system — light mode (the default). The dark mode variant lives in
+  /* SpaceZero Workspace design system — light mode (the default). The dark mode variant lives in
      the html[data-theme="dark"] rules further down this file; both share the same brand accent
      (the tan/gold family) and typography (Outfit + Fraunces) so the two themes read as one
      product. Old token NAMES kept (hundreds of call sites across views/*.ejs reference them). */
@@ -338,7 +338,7 @@ html[data-theme="dark"] .icon-circle.error-icon.muted { background: rgba(255,255
 .skeleton { background: linear-gradient(90deg, rgba(20,24,31,.06), rgba(20,24,31,.12), rgba(20,24,31,.06)); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 8px; }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-/* Academy visual system */
+/* Workspace visual system */
 body { -webkit-font-smoothing:antialiased; letter-spacing:-.012em; }
 button,input,select,textarea { font:inherit; }
 :focus-visible { outline:3px solid #dca878; outline-offset:4px; }
@@ -386,7 +386,7 @@ button,input,select,textarea { font:inherit; }
 .stat-card { position:relative; padding:22px 23px; }
 .stat-card .label { font-size:11px; margin:0; }
 .stat-card .value { font-size:34px; font-weight:550; letter-spacing:-1.5px; line-height:1.3; margin:13px 0 0; font-variant-numeric:tabular-nums; }
-.academy-hero { position:relative; display:flex; justify-content:space-between; overflow:hidden; min-height:277px; background:#241f4a; border-radius:14px; margin-bottom:23px; color:#fff; }
+.workspace-hero { position:relative; display:flex; justify-content:space-between; overflow:hidden; min-height:277px; background:#241f4a; border-radius:14px; margin-bottom:23px; color:#fff; }
 .hero-copy { position:relative; z-index:1; padding:32px 36px; }
 .eyebrow { font-size:9px; letter-spacing:1.8px; font-weight:600; color:#84909f; }
 .hero-copy .eyebrow { color:#dca878; display:flex; align-items:center; gap:8px; }
@@ -397,31 +397,14 @@ button,input,select,textarea { font:inherit; }
 .hero-btn:hover { background:#e8bb90; }
 .hero-art { width:44%; position:relative; align-self:stretch; display:flex; flex-direction:column; justify-content:center; padding:0 18px; background:radial-gradient(ellipse at center,#293e513d,transparent 70%); }
 .hero-art svg { display:block; width:100%; max-height:250px; overflow:visible; }
-.hero-art .planet-halo { stroke:#8f89bd; stroke-width:.6; stroke-opacity:.1; }
-.hero-art .planet-grid { stroke-width:.8; }
-.hero-art .planet-meridian { transform-origin:204px 133px; animation:planet-spin 18s linear infinite; }
-.hero-art .planet-meridian-two { animation-delay:-6s; }
-.hero-art .planet-meridian-three { animation-delay:-12s; }
-.hero-art .orbit-plane { offset-path:path('M66 190A155 57-24 1 1 342 76A155 57-24 1 1 66 190Z'); offset-anchor:0px 0px; offset-rotate:auto; animation:planet-flight 16s linear infinite; }
-/* A pure 2D scaleX squish, not a 3D rotateY: an SVG stroke under a real 3D transform (no
-   `perspective` is set anywhere here) renders with a visible seam/kink partway through the
-   animation in some browsers. scaleX gives the same "spinning meridian" illusion — it is exactly
-   what the prefers-reduced-motion fallback below already freezes it to — without that artifact. */
-@keyframes planet-spin { 0% { transform:scaleX(1); } 25% { transform:scaleX(0); } 50% { transform:scaleX(-1); } 75% { transform:scaleX(0); } 100% { transform:scaleX(1); } }
-@keyframes planet-flight { from { offset-distance:0%; } to { offset-distance:100%; } }
-.hero-art .orbit-plane-front { animation:planet-flight 16s linear infinite, planet-depth 16s step-end infinite; }
-@keyframes planet-depth { 0% { visibility:hidden; } 50% { visibility:visible; } }
-@media(prefers-reduced-motion:reduce) {
-  .hero-art .planet-meridian { animation:none; transform:scaleX(.7); }
-  .hero-art .planet-meridian-two { transform:scaleX(.3); }
-  .hero-art .planet-meridian-three { transform:scaleX(.95); }
-  .hero-art .orbit-plane { animation:none; offset-distance:48%; }
-  .hero-art .orbit-plane-front { visibility:hidden; }
-}
-.hero-art .flight-path { stroke:url(#academy-flight); stroke-width:1.35; stroke-dasharray:3 5; stroke-linecap:round; }
-.hero-art .flight-beacon { fill:#dca878; fill-opacity:.08; stroke:#dca878; stroke-opacity:.22; stroke-width:.7; }
-.hero-art .flight-dot { fill:#dca878; stroke:none; }
-.hero-art .plane-mark { fill:#e8bb90; stroke:#f0dcc0; stroke-width:.45; stroke-linejoin:round; filter:drop-shadow(0 3px 5px #05041280); }
+/* The brand mark, large: an open ring (echoing the globe in the real SpaceZero logo) with a paper
+   plane sitting in its gap, in the logo's blue rather than the app's usual gold — this one spot
+   intentionally carries the literal brand mark instead of the app's gold accent. */
+.hero-art .globe-ring { stroke:url(#workspace-mark-blue); stroke-width:7; stroke-linecap:round; filter:drop-shadow(0 0 14px #3f6fd64d); }
+.hero-art .brand-plane { fill:url(#workspace-mark-blue); filter:drop-shadow(0 0 8px #3f6fd680); }
+.hero-art .brand-globe { transform-origin:204px 133px; animation:brand-globe-spin 26s linear infinite; }
+@keyframes brand-globe-spin { to { transform:rotate(360deg); } }
+@media(prefers-reduced-motion:reduce) { .hero-art .brand-globe { animation:none; } }
 .hero-coordinate { text-align:center; font-size:7px; letter-spacing:1.7px; color:#8399ae; padding-bottom:23px; }
 .employee-detail-layout { grid-template-columns:minmax(0,1fr) 360px; align-items:start; }
 .employee-overview { min-width:0; }
@@ -455,9 +438,9 @@ input:not([type=checkbox]):not([type=radio]):not([type=submit]):not([type=button
 .auth-brand { padding-bottom:25px; border-bottom:1px solid #eef0f3; margin-bottom:28px; }
 .auth-box h1 { font-size:25px; letter-spacing:-.8px; }
 .auth-box .subtitle { font-size:12px; line-height:1.8; }
-@media(min-width:1440px) { .main-content { padding-top:42px; } .academy-hero { min-height:300px; } .hero-copy { padding:36px 40px; } }
+@media(min-width:1440px) { .main-content { padding-top:42px; } .workspace-hero { min-height:300px; } .hero-copy { padding:36px 40px; } }
 @media(max-width:1023px) { .main-area { margin-left:0; } .topbar { padding:14px 22px; height:68px; } .breadcrumb { margin-right:auto; margin-left:17px; } .main-content { padding:25px 22px; } }
-@media(max-width:640px) { .main-content { padding:24px 16px; } .topbar { padding:12px 16px; } .breadcrumb { font-size:11px; gap:7px; } .breadcrumb>span,.breadcrumb>strong { display:none; } .topbar-user { gap:10px; } .topbar-user .role { max-width:100px; } .page-header h1 { font-size:24px; } .page-header { gap:14px; } .academy-hero { min-height:270px; } .hero-copy { padding:27px 24px; } .hero-copy h2 { font-size:28px; } .hero-art { position:absolute; right:-120px; top:20px; width:290px; opacity:.22; height:100%; } .hero-coordinate { display:none; } .stat-card { padding:18px; } .stat-card .value { font-size:29px; } .section-heading>.text-sm { display:none; } .action-grid,.grid-2 { grid-template-columns:1fr; } .library-banner { flex-wrap:wrap; padding:20px; } .library-banner>div:nth-child(2) { flex:1; } .library-banner .btn { margin-left:0; width:100%; } .auth-box { padding:28px; } .auth-shell { padding:24px 16px; } .card-header,.card-body { padding:18px; } .filter-bar input,.filter-bar select { max-width:100%; flex:1 1 140px; } }
+@media(max-width:640px) { .main-content { padding:24px 16px; } .topbar { padding:12px 16px; } .breadcrumb { font-size:11px; gap:7px; } .breadcrumb>span,.breadcrumb>strong { display:none; } .topbar-user { gap:10px; } .topbar-user .role { max-width:100px; } .page-header h1 { font-size:24px; } .page-header { gap:14px; } .workspace-hero { min-height:270px; } .hero-copy { padding:27px 24px; } .hero-copy h2 { font-size:28px; } .hero-art { position:absolute; right:-120px; top:20px; width:290px; opacity:.22; height:100%; } .hero-coordinate { display:none; } .stat-card { padding:18px; } .stat-card .value { font-size:29px; } .section-heading>.text-sm { display:none; } .action-grid,.grid-2 { grid-template-columns:1fr; } .library-banner { flex-wrap:wrap; padding:20px; } .library-banner>div:nth-child(2) { flex:1; } .library-banner .btn { margin-left:0; width:100%; } .auth-box { padding:28px; } .auth-shell { padding:24px 16px; } .card-header,.card-body { padding:18px; } .filter-bar input,.filter-bar select { max-width:100%; flex:1 1 140px; } }
 @media(prefers-reduced-motion:reduce) { *,*:before,*:after { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
 
 /* ---------------------------------------------------------------------------
@@ -512,7 +495,6 @@ html[data-theme="dark"] tbody td { border-color: #2e2b52; }
 html[data-theme="dark"] tbody tr:hover { background: #29264b; }
 html[data-theme="dark"] .filter-bar { border-color: #2e2b52; }
 
-html[data-theme="dark"] .divide-list > li { border-color: #2e2b52; }
 html[data-theme="dark"] .empty-state { border-color: #2e2b52; background: #13112a; }
 html[data-theme="dark"] .empty-state .icon { background: #221f40; color: #c6c3de; }
 html[data-theme="dark"] .empty-state .title { color: #f2f0fa; }
@@ -803,51 +785,51 @@ html[data-theme="dark"] .notif-menu-seeall:hover { background: rgba(255,255,255,
 .viewas-menu a { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; font-size: 12.5px; color: rgba(250,246,238,.8); }
 .viewas-menu a:hover, .viewas-menu a:focus-visible { background: rgba(255,255,255,.08); color: #fff; }
 .viewas-menu .pill { font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: #a29fc2; padding: 2px 6px; border-radius: 999px; border: 1px solid rgba(255,255,255,.12); }
-/* Academy introduction: first visit and refresh. Hidden when JavaScript is unavailable. */
+/* Workspace introduction: first visit and refresh. Hidden when JavaScript is unavailable. */
 html.intro-active { overflow: hidden; }
-.academy-intro[hidden] { display: none !important; }
-.academy-intro {
+.workspace-intro[hidden] { display: none !important; }
+.workspace-intro {
   position: fixed; inset: 0; z-index: 10000; overflow: hidden;
   display: grid; place-items: center; min-height: 100svh;
   background: radial-gradient(ellipse at 50% 40%, #2b2456 0%, #1b1935 42%, #0a0818 100%);
   color: #fff; opacity: 1; transition: opacity .45s ease, visibility .45s;
 }
-.academy-intro--done { opacity: 0; visibility: hidden; }
-.academy-intro__halo {
+.workspace-intro--done { opacity: 0; visibility: hidden; }
+.workspace-intro__halo {
   position: absolute; width: min(85vw, 590px); aspect-ratio: 1;
   border: 1px solid rgba(220,168,120,.1); border-radius: 50%; pointer-events: none;
   box-shadow: 0 0 0 65px rgba(220,168,120,.025), 0 0 0 130px rgba(220,168,120,.018);
   animation: intro-orbit 22s linear infinite;
 }
-.academy-intro__halo::before { content: ''; position: absolute; inset: 24px; border: 1px dashed rgba(220,168,120,.14); border-radius: 50%; }
-.academy-intro__halo::after { content: ''; position: absolute; top: 50%; left: -3px; width: 6px; height: 6px; border-radius: 50%; background: #e8bb90; box-shadow: 0 0 22px 5px rgba(220,168,120,.3); }
+.workspace-intro__halo::before { content: ''; position: absolute; inset: 24px; border: 1px dashed rgba(220,168,120,.14); border-radius: 50%; }
+.workspace-intro__halo::after { content: ''; position: absolute; top: 50%; left: -3px; width: 6px; height: 6px; border-radius: 50%; background: #e8bb90; box-shadow: 0 0 22px 5px rgba(220,168,120,.3); }
 @keyframes intro-orbit { to { transform: rotate(360deg); } }
-.academy-intro__center { position: relative; width: min(360px, calc(100vw - 56px)); text-align: center; }
-.academy-intro__eyebrow { margin: 0 0 38px; color: #a29fc2; font-size: 9px; letter-spacing: .25em; }
-.academy-intro .brand-mark { justify-content: center; flex-direction: column; gap: 24px; }
-.academy-intro .brand-mark-text { align-items: center; }
-.academy-intro .brand-mark-box { width: 82px; height: 82px; flex-shrink: 0; border-color: rgba(220,168,120,.5); border-radius: 24px; background: linear-gradient(145deg, rgba(220,168,120,.13), rgba(220,168,120,.02)); box-shadow: 0 16px 45px rgba(0,0,0,.2), inset 0 1px rgba(255,255,255,.12); }
-.academy-intro .brand-mark-box svg { width: 43px; height: 43px; }
-.academy-intro .brand-mark-word { font-size: clamp(21px, 6vw, 29px); letter-spacing: .09em; }
-.academy-intro .brand-mark-rule { margin: 8px 0; background: rgba(220,168,120,.3); }
-.academy-intro .brand-mark-sub { color: #e8bb90; font-size: 12px; letter-spacing: .4em; }
-.academy-intro__loading { margin-top: 40px; padding: 20px 22px; border: 1px solid rgba(255,255,255,.08); border-radius: 14px; background: rgba(10,8,24,.35); }
-.academy-intro__labels { display: flex; justify-content: space-between; margin-bottom: 13px; color: #c6c3de; font-size: 11px; letter-spacing: .03em; }
-.academy-intro__labels [data-intro-percent] { color: #e8bb90; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.academy-intro__track { height: 3px; overflow: hidden; border-radius: 3px; background: rgba(255,255,255,.1); }
-.academy-intro__fill { height: 100%; background: linear-gradient(90deg, #dca878, #e8bb90); transform: scaleX(0); transform-origin: left; }
-.academy-intro__motto { margin-top: 23px; color: #a29fc2; font-size: 8px; letter-spacing: .2em; }
-.academy-intro__credit { position: absolute; bottom: max(28px, env(safe-area-inset-bottom)); margin: 0; color: #fff; font-size: 11px; letter-spacing: .08em; }
-.academy-intro__credit strong { margin-left: 5px; font-weight: 600; letter-spacing: .2em; }
-@media (prefers-reduced-motion: reduce) { .academy-intro { transition: none; } .academy-intro__halo { animation: none; } }
+.workspace-intro__center { position: relative; width: min(360px, calc(100vw - 56px)); text-align: center; }
+.workspace-intro__eyebrow { margin: 0 0 38px; color: #a29fc2; font-size: 9px; letter-spacing: .25em; }
+.workspace-intro .brand-mark { justify-content: center; flex-direction: column; gap: 24px; }
+.workspace-intro .brand-mark-text { align-items: center; }
+.workspace-intro .brand-mark-box { width: 82px; height: 82px; flex-shrink: 0; border-color: rgba(220,168,120,.5); border-radius: 24px; background: linear-gradient(145deg, rgba(220,168,120,.13), rgba(220,168,120,.02)); box-shadow: 0 16px 45px rgba(0,0,0,.2), inset 0 1px rgba(255,255,255,.12); }
+.workspace-intro .brand-mark-box svg { width: 43px; height: 43px; }
+.workspace-intro .brand-mark-word { font-size: clamp(21px, 6vw, 29px); letter-spacing: .09em; }
+.workspace-intro .brand-mark-rule { margin: 8px 0; background: rgba(220,168,120,.3); }
+.workspace-intro .brand-mark-sub { color: #e8bb90; font-size: 12px; letter-spacing: .4em; }
+.workspace-intro__loading { margin-top: 40px; padding: 20px 22px; border: 1px solid rgba(255,255,255,.08); border-radius: 14px; background: rgba(10,8,24,.35); }
+.workspace-intro__labels { display: flex; justify-content: space-between; margin-bottom: 13px; color: #c6c3de; font-size: 11px; letter-spacing: .03em; }
+.workspace-intro__labels [data-intro-percent] { color: #e8bb90; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.workspace-intro__track { height: 3px; overflow: hidden; border-radius: 3px; background: rgba(255,255,255,.1); }
+.workspace-intro__fill { height: 100%; background: linear-gradient(90deg, #dca878, #e8bb90); transform: scaleX(0); transform-origin: left; }
+.workspace-intro__motto { margin-top: 23px; color: #a29fc2; font-size: 8px; letter-spacing: .2em; }
+.workspace-intro__credit { position: absolute; bottom: max(28px, env(safe-area-inset-bottom)); margin: 0; color: #fff; font-size: 11px; letter-spacing: .08em; }
+.workspace-intro__credit strong { margin-left: 5px; font-weight: 600; letter-spacing: .2em; }
+@media (prefers-reduced-motion: reduce) { .workspace-intro { transition: none; } .workspace-intro__halo { animation: none; } }
 @media (max-height: 450px) {
-  .academy-intro__eyebrow { margin-bottom: 15px; }
-  .academy-intro__loading { margin-top: 24px; }
-  .academy-intro__credit { bottom: 12px; }
-  .academy-intro .brand-mark { flex-direction: row; gap: 17px; }
-  .academy-intro .brand-mark-box { width: 54px; height: 54px; border-radius: 15px; }
-  .academy-intro__loading { padding: 12px 18px; margin-top: 18px; }
-  .academy-intro__motto { margin-top: 12px; }
+  .workspace-intro__eyebrow { margin-bottom: 15px; }
+  .workspace-intro__loading { margin-top: 24px; }
+  .workspace-intro__credit { bottom: 12px; }
+  .workspace-intro .brand-mark { flex-direction: row; gap: 17px; }
+  .workspace-intro .brand-mark-box { width: 54px; height: 54px; border-radius: 15px; }
+  .workspace-intro__loading { padding: 12px 18px; margin-top: 18px; }
+  .workspace-intro__motto { margin-top: 12px; }
 }
 
 /* Keep employee search, filters and column labels together during page scrolling. */
@@ -936,7 +918,13 @@ html[data-theme="dark"] .spark polyline, html[data-theme="dark"] .timeline-chart
 .more-menu { position: relative; }
 .more-menu > summary { list-style: none; cursor: pointer; }
 .more-menu > summary::-webkit-details-marker { display: none; }
-.more-list { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 160px; background: var(--surface, #fff); border: 1px solid var(--border-subtle); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 4px; display: flex; flex-direction: column; }
+/* position:fixed (not absolute) and placed by public/js/app.js: the row this sits in lives inside
+   a .card, and .card has overflow:hidden for its own rounded corners — an absolutely-positioned
+   dropdown is clipped at that card's edge the moment it grows past it, silently hiding whichever
+   items run off the bottom (seen in practice: Archive/Delete cut off after Duplicate). Escaping to
+   fixed positioning is the only way out of an ancestor's overflow:hidden short of moving this
+   element elsewhere in the DOM. */
+.more-list { position: fixed; z-index: 1000; min-width: 160px; background: var(--surface, #fff); border: 1px solid var(--border-subtle); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 4px; display: flex; flex-direction: column; }
 .more-list a, .more-list button { text-align: left; padding: 8px 10px; background: none; border: 0; border-radius: 6px; color: inherit; font: inherit; cursor: pointer; text-decoration: none; }
 .more-list a:hover, .more-list button:hover { background: rgba(127,127,127,.15); }
 .ai-steps { display: flex; flex-wrap: wrap; gap: 6px 18px; list-style: none; padding: 0; margin: 16px 0 0; }
@@ -963,12 +951,17 @@ html[data-theme="dark"] .src-row.src-new { background: rgba(220,168,120,.10); }
 .divide-list > li:hover { border-color: rgba(220,168,120,.45); box-shadow: 0 4px 14px -8px rgba(16,24,35,.25); }
 .divide-list > li.src-new { border-color: var(--gold-400); }
 .divide-list > li[style*="border-bottom:0"] { background: none; border: 0; box-shadow: none; padding: 4px 2px 0; } /* date headings inside a list */
-html[data-theme="dark"] .divide-list > li { background: #13112a; border-color: #2e2b52; box-shadow: none; }
-html[data-theme="dark"] .divide-list > li:hover { border-color: #7571aa; }
-html[data-theme="dark"] .divide-list > li[style*="border-bottom:0"] { background: none; border: 0; }
+/* A card nested inside another .card (the common case: card > card-body > divide-list > li) must
+   read as sitting ON TOP of it, not recede into it — it was the exact same shade as the page body
+   (#13112a) while the .card around it was lighter (#1b1935), so the "nested" item looked like a
+   hole punched through the card rather than content raised inside it. Lighter + a visible border +
+   a faint top highlight (an elevation cue, not a real light source) fixes the stacking order. */
+html[data-theme="dark"] .divide-list > li { background: #252145; border-color: #3d3970; box-shadow: 0 1px 0 rgba(255,255,255,.04) inset; }
+html[data-theme="dark"] .divide-list > li:hover { border-color: #7571aa; background: #2a2650; }
+html[data-theme="dark"] .divide-list > li[style*="border-bottom:0"] { background: none; border: 0; box-shadow: none; }
 .upload-row { margin: 12px 24px; padding: 14px 18px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-1); }
 .upload-row:last-child { border-bottom: 1px solid var(--border-subtle); }
-html[data-theme="dark"] .upload-row { background: #13112a; border-color: #2e2b52; }
+html[data-theme="dark"] .upload-row { background: #252145; border-color: #3d3970; }
 @media (max-width: 640px) { .divide-list > li { padding: 14px; } }
 
 /* ---- ...and the cards sit in a responsive grid (several per row on wide screens, one per row on phones) ---- */
