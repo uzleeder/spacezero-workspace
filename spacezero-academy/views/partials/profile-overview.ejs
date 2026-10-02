@@ -55,11 +55,12 @@ const p = data.profile;
   <div class="card stat-card"><p class="label">Training</p><p class="value"><%= data.summary.completed %> / <%= data.summary.assigned %></p></div>
   <% if (skillAvg !== null) { %><div class="card stat-card"><p class="label">Skills</p><p class="value"><%= skillAvg %>%</p></div><% } %>
   <% if (data.standardsAck && data.standardsAck.required > 0) { %><div class="card stat-card"><p class="label">Standards</p><p class="value"><%= data.standardsAck.pending %> Pending</p></div><% } %>
-  <% if (data.readiness) { %><a href="<%= p.status === 'INVITED' ? '#' : (data.readiness.key === 'READY' ? '#' : '/employees/' + p.id + '/setup') %>" class="card stat-card card-link"><p class="label">Status</p><p class="value" style="font-size:18px"><span class="badge <%= data.readiness.tone %>"><%= data.readiness.label %></span></p></a><% } %>
+  <% var canOpenSetup = p.id === profile.id || can('setup.view'); %>
+  <% if (data.readiness) { %><a href="<%= p.status === 'INVITED' || !canOpenSetup ? '#' : (data.readiness.key === 'READY' ? '#' : '/employees/' + p.id + '/setup') %>" class="card stat-card card-link"><p class="label">Status</p><p class="value" style="font-size:18px"><span class="badge <%= data.readiness.tone %>"><%= data.readiness.label %></span></p></a><% } %>
 </div>
 
 <div class="card mt-24">
-  <div class="card-header row-between"><h2>Setup &amp; availability</h2><a href="/employees/<%= p.id %>/setup" class="link-gold text-sm">Open setup</a></div>
+  <div class="card-header row-between"><h2>Setup &amp; availability</h2><% if (canOpenSetup) { %><a href="/employees/<%= p.id %>/setup" class="link-gold text-sm">Open setup</a><% } %></div>
   <div class="card-body">
     <div class="grid grid-4">
       <div><p class="text-sm text-muted">Setup</p><div style="margin-top:4px"><%- include('setup-badge', { setup: data.setup }) %></div></div>

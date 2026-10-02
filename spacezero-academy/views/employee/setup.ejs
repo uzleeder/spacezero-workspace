@@ -115,86 +115,89 @@
     // company-controlled (WhatsApp/Telegram), management-only, already management-verified, or
     // explicitly Not Required — stay in a small read-only/exception list below, unchanged.
     const canSelfBulk = isSelf && !setup.notStarted;
-    const selfBulkEligible = canSelfBulk ? setup.rows.filter((row) => row.requirement.kind === 'MANUAL' && !row.requirement.companyControlled && row.rule !== 'MANAGEMENT_ONLY' && row.status !== 'NOT_REQUIRED' && !(row.status === 'COMPLETED' && row.item && row.item.verifiedById)) : [];
+    const selfBulkEligible = canSelfBulk ? setup.rows.filter((row) => row.requirement.kind === 'MANUAL' && !row.requirement.companyControlled && row.rule !== 'MANAGEMENT_ONLY' && row.status !== 'NOT_REQUIRED') : [];
     const otherSelfRows = canSelfBulk ? setup.rows.filter((row) => !selfBulkEligible.includes(row)) : setup.rows;
   %>
   <% if (selfBulkEligible.length) { %>
   <div class="card mt-24">
     <div class="card-header row-between">
-      <h2>Checklist</h2>
+      <div><h2>Checklist</h2><p>Tick what you have, then Save Changes. Missing something? Press “I haven't”, write a note and it goes to your administrator.</p></div>
       <span class="text-sm text-muted" data-unsaved-count hidden></span>
     </div>
-    <form method="post" action="/employees/<%= employee.id %>/setup/self-bulk" data-self-bulk-form>
+    <form method="post" action="/employees/<%= employee.id %>/setup/self-bulk" data-bulk-setup-form>
+      <input type="hidden" name="mode" value="checkbox" />
       <ul class="divide-list" style="padding:0 24px">
-        <% selfBulkEligible.forEach(function (row) { const r = row.requirement; const haveChecked = row.status === 'COMPLETED' || row.status === 'IN_PROGRESS'; const flagged = row.status === 'ISSUE'; const selfCompleted = row.status === 'COMPLETED' && row.item && row.item.employeeConfirmedAt && !row.item.verifiedById; %>
-        <li style="padding:10px 0" data-self-row>
-          <div class="row-between" style="gap:12px;flex-wrap:wrap">
-            <span style="font-weight:500;color:var(--navy-950)"><%= r.label %><% if (!r.required) { %> <span class="badge" style="margin-left:4px">Optional</span><% } %></span>
-            <span style="display:flex;gap:14px;flex-wrap:wrap">
-              <label class="checkbox-row"><input type="radio" name="choice_<%= r.id %>" value="have" data-have-radio <%= haveChecked ? 'checked' : '' %> data-was="<%= haveChecked ? 'have' : flagged ? 'dontHave' : '' %>" /> I Have</label>
-              <label class="checkbox-row"><input type="radio" name="choice_<%= r.id %>" value="dontHave" data-donthave-radio <%= flagged ? 'checked' : '' %> data-was="<%= haveChecked ? 'have' : flagged ? 'dontHave' : '' %>" /> I Don't Have</label>
+        <% selfBulkEligible.forEach(function (row) { const r = row.requirement; const haveChecked = row.status === 'COMPLETED' || row.status === 'IN_PROGRESS'; const flagged = row.status === 'ISSUE'; const verified = row.status === 'COMPLETED' && row.item && row.item.verifiedById; const selfCompleted = row.status === 'COMPLETED' && row.item && row.item.employeeConfirmedAt && !verified; %>
+        <li style="padding:10px 0">
+          <label class="checkbox-row" style="justify-content:space-between;width:100%;gap:12px">
+            <span style="display:flex;align-items:center;gap:10px;min-width:0">
+              <% if (verified) { %>
+              <input type="checkbox" checked disabled aria-label="Verified by management" />
+              <% } else { %>
+              <input type="checkbox" name="checked" value="<%= r.id %>" <%= haveChecked ? 'checked' : '' %> data-bulk-checkbox data-was="<%= haveChecked ? '1' : '0' %>" />
+              <% } %>
+              <span style="min-width:0"><%= r.label %><% if (!r.required) { %> <span class="badge" style="margin-left:4px">Optional</span><% } %></span>
             </span>
-          </div>
-          <% if (selfCompleted) { %><p class="text-sm text-muted mt-4">Confirmed by the employee on <%= row.item.employeeConfirmedAt.toLocaleDateString('en-US') %>.</p><% } %>
-          <% if (row.awaitingVerification) { %>
-            <p class="text-sm text-muted mt-4">Confirmed by the employee — awaiting verification by a supervisor or administrator.</p>
-            <button type="submit" form="withdraw-form-<%= r.id %>" class="btn btn-secondary btn-sm" style="margin-top:4px">Withdraw my confirmation</button>
+            <% if (flagged) { %><span class="badge badge-danger">Reported to admin</span><% } %>
+          </label>
+          <% if (verified) { %><p class="text-sm text-muted" style="margin:4px 0 0 26px">Verified by <%= row.item.verifiedBy ? row.item.verifiedBy.fullName : 'management' %><%= row.item.verifiedAt ? ' on ' + row.item.verifiedAt.toLocaleDateString('en-US') : '' %>.</p><% } %>
+          <% if (selfCompleted) { %><p class="text-sm text-muted" style="margin:4px 0 0 26px">Confirmed by you on <%= row.item.employeeConfirmedAt.toLocaleDateString('en-US') %>.</p><% } %>
+          <% if (row.awaitingVerification) { %><p class="text-sm text-muted" style="margin:4px 0 0 26px">Confirmed by you — awaiting verification by a supervisor or administrator. Untick and save to withdraw.</p><% } %>
+          <% if (flagged && row.item && row.item.note) { %><p class="text-sm" style="margin:4px 0 0 26px">Your note: <%= row.item.note %></p><% } %>
+          <% if (!haveChecked) { %>
+          <details style="margin:4px 0 0 26px">
+            <summary class="text-sm link-gold" style="cursor:pointer"><%= flagged ? 'Update my note' : "I haven't" %></summary>
+            <div class="mt-8">
+              <textarea name="note" form="issue-form-<%= r.id %>" rows="2" maxlength="500" required placeholder="What is missing or not working? This is sent to your administrator."><%= flagged && row.item ? (row.item.note || '') : '' %></textarea>
+              <button type="submit" form="issue-form-<%= r.id %>" class="btn btn-secondary btn-sm" style="margin-top:6px">Send to administrator</button>
+            </div>
+          </details>
           <% } %>
-          <div class="mt-8" data-note-field <%= flagged ? '' : 'hidden' %>>
-            <textarea name="note_<%= r.id %>" rows="2" maxlength="500" placeholder="Issue / note — required for &quot;I Don't Have&quot;"><%= (row.item && row.item.note) || '' %></textarea>
-          </div>
-          <input type="hidden" name="ts_<%= r.id %>" value="<%= row.item ? row.item.updatedAt.toISOString() : '' %>" />
+          <% if (!verified) { %><input type="hidden" name="ts_<%= r.id %>" value="<%= row.item ? row.item.updatedAt.toISOString() : '' %>" /><% } %>
         </li>
         <% }); %>
       </ul>
       <div class="card-body row-between" style="border-top:1px solid var(--border-subtle)">
         <span class="text-sm text-muted" data-unsaved-hint>No changes yet</span>
-        <button type="submit" class="btn btn-gold" data-self-bulk-save>Save Changes</button>
+        <button type="submit" class="btn btn-gold" data-bulk-save>Save Changes</button>
       </div>
     </form>
     <%
-      // Nested <form> elements are invalid HTML — a <form>...</form> written inside the self-bulk
-      // form above (as this "Withdraw" control used to be) makes the browser close the OUTER form
-      // the instant it hits that inner closing tag, silently detaching every later row (and the Save
-      // Changes button itself) from the real form's DOM subtree, so most of a batch save is dropped
-      // on submit. Each Withdraw control is therefore a real, empty form rendered OUTSIDE the
-      // self-bulk form and bound back to its button via form="withdraw-form-<id>" instead — same
-      // technique as views/partials/setup-item-editor.ejs's formId param.
+      // Each "I haven't" note belongs to its own real, empty form rendered OUTSIDE the checklist form
+      // and bound with form="issue-form-<id>" — nested <form> elements are invalid HTML and would cut
+      // the checklist form short (same technique as the manage checklist's per-item editor).
     %>
-    <% selfBulkEligible.forEach(function (row) { if (!row.awaitingVerification) return; %><form id="withdraw-form-<%= row.requirement.id %>" method="post" action="/employees/<%= employee.id %>/setup/<%= row.requirement.id %>/confirm" hidden><input type="hidden" name="undo" value="1" /></form><% }); %>
+    <% selfBulkEligible.forEach(function (row) { if (row.status === 'COMPLETED' || row.status === 'IN_PROGRESS') return; %><form id="issue-form-<%= row.requirement.id %>" method="post" action="/employees/<%= employee.id %>/setup/<%= row.requirement.id %>/report-issue" hidden></form><% }); %>
   </div>
   <% } %>
 
   <% if (otherSelfRows.length) { %>
   <div class="card mt-24">
-    <div class="card-header"><h2><%= selfBulkEligible.length ? 'Other items' : 'Checklist' %></h2></div>
+    <div class="card-header"><div><h2><%= selfBulkEligible.length ? 'Other items' : 'Checklist' %></h2><% if (selfBulkEligible.length) { %><p>Company accounts (WhatsApp, Telegram), passwords, and details that are calculated automatically or completed by management.</p><% } %></div></div>
     <div class="card-body">
       <div class="grid grid-3">
         <% otherSelfRows.forEach(function (row) { %>
-          <% const r = row.requirement; const done = row.status === 'COMPLETED'; %>
+          <% const r = row.requirement; const done = row.status === 'COMPLETED';
+             const actionHref = r.kind === 'CREDENTIAL_VAULT' ? '/employees/' + employee.id + '/credentials' : (r.kind === 'LOCAL_PHONE' || r.kind === 'ADDRESS') ? '#contact-card' : r.kind === 'PASSPORT' ? '#passport-card' : '';
+             const actionLabel = r.kind === 'CREDENTIAL_VAULT' ? 'Open vault' : (r.kind === 'LOCAL_PHONE' || r.kind === 'ADDRESS') ? 'Add contact details' : r.kind === 'PASSPORT' ? 'Add passport details' : ''; %>
           <div class="card" style="padding:16px">
-            <p style="font-weight:500;color:var(--navy-950)">
+            <p style="font-weight:600;color:var(--navy-950)">
               <span aria-hidden="true"><%= done ? '✓' : row.status === 'NOT_REQUIRED' ? '–' : '✗' %></span>
               <%= r.label %>
               <% if (!r.required) { %><span class="badge" style="margin-left:6px">Optional</span><% } %>
             </p>
-            <p class="text-sm text-muted mt-4"><%= r.category || 'Other' %></p>
+            <p class="text-sm text-muted mt-4"><%= r.category || 'Other' %><% if (!row.derived) { %> · <%= VERIFICATION_LABEL[row.rule] %><% } %></p>
+            <% if (r.description) { %><p class="text-sm text-muted mt-4"><%= r.description %></p><% } %>
+            <p class="text-sm text-muted mt-4">
+              <% if (row.derived) { %>Calculated from real data<% if (r.kind === 'CREDENTIAL_VAULT') { %> — contents of the vault are never shown here<% } %>.<% } else if (r.companyControlled) { %>Company-controlled — set up with the company.<% } else if (isSelf && row.rule === 'MANAGEMENT_ONLY') { %>Only your supervisor or an administrator can complete this.<% } %>
+              <% if (row.item && row.item.verifiedAt && done) { %> Verified by <%= row.item.verifiedBy ? row.item.verifiedBy.fullName : 'management' %> on <%= row.item.verifiedAt.toLocaleDateString('en-US') %>.<% } %>
+              <% if (row.awaitingCompanyControl) { %> Waiting for company ownership/recovery confirmation.<% } %>
+            </p>
+            <% if (r.companyControlled && row.item && row.item.accountType === 'PERSONAL_WORK') { %><p class="text-sm mt-4">Personal number — used for work.</p>
+            <% } else if (r.companyControlled && row.item && row.item.companyNumber) { %><p class="text-sm mt-4">Company number/account: <%= row.item.companyNumber %></p><% } %>
+            <% if (row.item && row.item.note) { %><p class="text-sm mt-4">Note: <%= row.item.note %></p><% } %>
             <p class="mt-8"><span class="badge <%= done ? 'badge-success' : row.status === 'ISSUE' ? 'badge-danger' : row.status === 'NOT_REQUIRED' ? '' : 'badge-warning' %>"><%= STATUS_LABEL[row.status] %></span></p>
-            <details class="mt-8">
-              <summary class="text-sm text-muted" style="cursor:pointer">•••<% if (row.item && row.item.note) { %> · has a note<% } %></summary>
-              <div class="mt-8">
-                <% if (!row.derived) { %><p class="text-sm text-muted"><%= VERIFICATION_LABEL[row.rule] %></p><% } %>
-                <% if (r.description) { %><p class="text-sm text-muted mt-4"><%= r.description %></p><% } %>
-                <p class="text-sm text-muted mt-4">
-                  <% if (row.derived) { %>Calculated from real data<% if (r.kind === 'CREDENTIAL_VAULT') { %> — contents of the vault are never shown here<% } %>.<% } %>
-                  <% if (row.item && row.item.verifiedAt && done) { %> Verified by <%= row.item.verifiedBy ? row.item.verifiedBy.fullName : 'management' %> on <%= row.item.verifiedAt.toLocaleDateString('en-US') %>.<% } %>
-                  <% if (row.item) { %> Last updated <%= row.item.updatedAt.toLocaleDateString('en-US') %>.<% } %>
-                  <% if (row.awaitingCompanyControl) { %> Waiting for company ownership/recovery confirmation.<% } %>
-                </p>
-                <% if (row.item && row.item.note) { %><p class="text-sm mt-4">Note: <%= row.item.note %></p><% } %>
-                <% if (isSelf && row.rule === 'MANAGEMENT_ONLY') { %><p class="text-sm text-muted mt-8">Only your supervisor or an administrator can mark this as completed.</p><% } %>
-              </div>
-            </details>
+            <% if (isSelf && actionHref && !done && (r.kind !== 'CREDENTIAL_VAULT' || tabs.some(function (t) { return /\/credentials$/.test(t.href); }))) { %><p class="mt-8"><a class="link-gold text-sm" href="<%= actionHref %>"><%= actionLabel %> &rarr;</a></p><% } %>
           </div>
         <% }); %>
       </div>
@@ -217,18 +220,20 @@
 </div>
 <% } %>
 <% if (passAccess.statusVisible) { %>
-<div class="card mt-24">
+<div class="card mt-24" id="passport-card">
   <div class="card-header row-between">
     <h2>Passport Details</h2>
     <% if (passStatus) { %><span class="badge <%= PASSPORT_STATUS_TONE[passStatus] %>"><%= PASSPORT_STATUS_LABEL[passStatus] %></span><% } %>
   </div>
   <div class="card-body">
     <% if (!employee.passportNumberEnc) { %>
-      <%- include('../partials/empty-state', { title: 'Passport Details Required', description: 'A passport number and expiration date have not been added yet.' }) %>
+      <%- include('../partials/empty-state', { title: 'Passport Details Required', description: 'The name, passport number and expiration date have not been added yet.' }) %>
     <% } else if (!passAccess.view) { %>
       <p class="text-sm text-muted">Passport on file. Status: <span class="badge <%= PASSPORT_STATUS_TONE[passStatus] %>"><%= PASSPORT_STATUS_LABEL[passStatus] %></span></p>
       <p class="text-sm text-muted mt-4">The Passport Number itself is not visible with your current access.</p>
     <% } else { %>
+      <% const passportName = [employee.passportFirstName, employee.passportMiddleName, employee.passportLastName].filter(Boolean).join(' '); %>
+      <% if (passportName) { %><p class="text-sm text-muted">Name: <strong><%= passportName %></strong></p><% } else { %><p class="text-sm text-muted">Name on passport not added yet.</p><% } %>
       <p class="text-sm text-muted">Number: <strong><%= passportFull || passportMasked %></strong><% if (passportExpiresAt) { %> · Expires <%= new Date(passportExpiresAt).toLocaleDateString('en-US') %><% } %></p>
       <% if (passStatus === 'EXPIRED') { %><p class="text-sm" style="color:var(--red-600);margin-top:6px">This passport has expired.</p><% } %>
       <% if (passportMasked && !passportFull) { %>
@@ -244,7 +249,22 @@
       <details class="mt-16" <%= !employee.passportNumberEnc ? 'open' : '' %>>
         <summary class="text-sm link-gold" style="cursor:pointer"><%= employee.passportNumberEnc ? 'Update passport details' : 'Add passport details' %></summary>
         <form method="post" action="/employees/<%= employee.id %>/passport" class="mt-16" autocomplete="off">
-          <div class="grid grid-2">
+          <div class="grid grid-3">
+            <div class="field">
+              <label for="passportFirstName">First name</label>
+              <input id="passportFirstName" name="passportFirstName" maxlength="60" autocomplete="off" required value="<%= employee.passportFirstName || '' %>" />
+            </div>
+            <div class="field">
+              <label for="passportMiddleName">Middle name <span class="text-muted">(optional)</span></label>
+              <input id="passportMiddleName" name="passportMiddleName" maxlength="60" autocomplete="off" value="<%= employee.passportMiddleName || '' %>" />
+            </div>
+            <div class="field">
+              <label for="passportLastName">Last name</label>
+              <input id="passportLastName" name="passportLastName" maxlength="60" autocomplete="off" required value="<%= employee.passportLastName || '' %>" />
+            </div>
+          </div>
+          <p class="hint">Exactly as printed in the passport.</p>
+          <div class="grid grid-2 mt-16">
             <div class="field">
               <label for="passportNumber">Passport number</label>
               <input id="passportNumber" name="passportNumber" maxlength="20" autocomplete="off" value="<%= isSelf ? (passportFull || '') : '' %>" placeholder="<%= employee.passportNumberEnc && !isSelf ? 'Leave blank to keep the current number' : '' %>" />
@@ -254,7 +274,7 @@
               <input id="passportExpiresAt" name="passportExpiresAt" type="date" value="<%= passportExpiresAt %>" required />
             </div>
           </div>
-          <p class="hint">Only the number and expiration date are stored — never a scan or photo. The number is encrypted at rest and masked from management by default.</p>
+          <p class="hint">Only the name, number and expiration date are stored — never a scan or photo. The number is encrypted at rest and masked from management by default.</p>
           <button type="submit" class="btn btn-gold mt-16"><%= employee.passportNumberEnc ? 'Save changes' : 'Save passport details' %></button>
         </form>
       </details>
@@ -283,7 +303,7 @@
 })();
 </script>
 <% } %>
-<div class="card mt-24" style="margin-bottom:40px">
+<div class="card mt-24" id="contact-card" style="margin-bottom:40px">
   <div class="card-header"><h2>Contact &amp; address</h2><p>Sensitive personal information — shown only on this authorized profile.</p></div>
   <div class="card-body">
     <% if (canEditContact) { %>
@@ -306,4 +326,4 @@
     <% } %>
   </div>
 </div>
-<% if (manage || isSelf) { %><script src="/static/js/setup-bulk.js" defer></script><% } %>
+<% if (manage || isSelf) { %><script src="<%= asset('/static/js/setup-bulk.js') %>" defer></script><% } %>

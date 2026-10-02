@@ -133,7 +133,7 @@ test('REVOKE: removing setup.manage immediately blocks further management, and i
 
   const view = await get(sup2, `/employees/${agent2.id}/setup`);
   assert.equal(view.status, 200); // still allowed to view
-  assert.doesNotMatch(view.text, /data-bulk-setup-form/);
+  assert.doesNotMatch(view.text, /setup\/bulk" data-bulk-setup-form/);
 
   const manage = await post(sup2, `/employees/${agent2.id}/setup/bulk`, { checked: [] });
   assert.ok(denied(manage));

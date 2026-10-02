@@ -9,7 +9,7 @@ const cookieParser = require('cookie-parser');
 const { attachProfile } = require('./lib/authMiddleware');
 const { roleLabel } = require('./lib/roles');
 const { navForRole, LOGIN_AS_ROLES } = require('./lib/nav');
-const { hasSystemConfigAccess, ensureInitialSystemConfigAccess } = require('./lib/supervisorCapabilities');
+const { hasSystemConfigAccess, ensureInitialSystemConfigAccess, capabilitiesFor } = require('./lib/supervisorCapabilities');
 const { unreadCount, recentPreview, formatRelativeTime } = require('./lib/notifications');
 const { attachImpersonation } = require('./lib/impersonation');
 const { router: themeRouter, THEME_COOKIE } = require('./routes/theme');
@@ -25,7 +25,23 @@ const PORT = process.env.PORT || 3000;
 // for rate limiting / audit logging.
 app.set('trust proxy', false);
 app.get('/healthz', (_req, res) => res.json({ status: 'ok' }));
+// Compress text responses (HTML, CSS, JS, JSON). The reverse proxy only compresses HTML by default,
+// so stylesheets and scripts were being sent raw.
+app.use(require('compression')());
 app.use(require('./lib/requestSecurity').requestSecurity);
+
+// The app's own CSS/JS/images are served BEFORE the session lookup, body parsers and per-request
+// view data: they need none of it, and each used to cost a database round trip. URLs built with
+// asset() carry a content hash, so they are cached for a year (immutable); anything requested without
+// the hash is cached briefly. Private uploads (/static/uploads) stay behind the session check below.
+const publicStatic = express.static(path.join(__dirname, 'public'), {
+  dotfiles: 'deny',
+  cacheControl: false,
+  etag: true,
+  // Only called for a file that really is being sent, so a missing file's 404 is never cached.
+  setHeaders: (res) => res.setHeader('Cache-Control', res.req.query.v ? 'public, max-age=31536000, immutable' : 'public, max-age=3600'),
+});
+app.use('/static', (req, res, next) => (/^\/uploads(\/|$)/.test(req.path) ? next() : publicStatic(req, res, next)));
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -39,6 +55,7 @@ app.set('layout', 'layout');
 // HTML document inside layout.ejs's <body>).
 const STANDALONE_VIEWS = new Set(['not-found', 'forbidden', 'error']);
 app.use((req, res, next) => {
+  res.locals.asset = require('./lib/assets').asset; // content-hashed /static/css|js URLs, available to every view (also error pages)
   const render = res.render.bind(res);
   res.render = (view, options, callback) => {
     if (STANDALONE_VIEWS.has(view)) return render(view, { ...options, layout: false }, callback);
@@ -54,10 +71,20 @@ app.use(require('./lib/sensitiveRateLimit').sensitiveRateLimit);
 
 app.use(attachProfile);
 app.use(require('./lib/privateUploads').privateUploads);
-app.use('/static/uploads', express.static(require('./lib/uploadRoot').UPLOAD_ROOT, { dotfiles: 'deny', fallthrough: false, cacheControl: false }));
-app.use('/static', express.static(path.join(__dirname, 'public'), { dotfiles: 'deny' }));
+app.use('/static/uploads', express.static(require('./lib/uploadRoot').UPLOAD_ROOT, { dotfiles: 'deny', fallthrough: false, cacheControl: false, setHeaders: (res) => res.setHeader('Cache-Control', 'private, max-age=600') })); // avatars/thumbnails: the viewer's own browser may reuse them for a few minutes (each fetch costs an authorization query)
 app.use(attachImpersonation);
 app.use(require('./lib/objectAccess').objectAccess);
+
+// The one-time "initial System Configuration Access" seeding only needs to be attempted once per
+// organization per process, not on every Admin request.
+const configAccessSeeded = new Set();
+async function seedThenCheckConfigAccess(admin) {
+  if (!configAccessSeeded.has(admin.organizationId)) {
+    await ensureInitialSystemConfigAccess(admin.organizationId);
+    configAccessSeeded.add(admin.organizationId);
+  }
+  return hasSystemConfigAccess(admin);
+}
 
 // Available to every view without passing it explicitly each time.
 app.use(async (req, res, next) => {
@@ -65,20 +92,29 @@ app.use(async (req, res, next) => {
   res.locals.roleLabel = roleLabel;
   res.locals.renderInline = renderInline;
   res.locals.nav = req.profile ? navForRole(req.profile.role) : [];
-  res.locals.tabsets = req.profile ? require('./lib/navTabs').tabsetsFor(req.profile.role) : {};
-  // Settings → Advanced (routes/admin/settings.js) needs a per-Admin capability check, not just a
-  // role check — cheap query, Admin requests only. Computed once here so any view can read it.
-  if (req.profile && req.profile.role === 'ADMIN') {
-    await ensureInitialSystemConfigAccess(req.profile.organizationId);
-    res.locals.hasSystemConfigAccess = await hasSystemConfigAccess(req.profile);
-  } else {
-    res.locals.hasSystemConfigAccess = false;
-  }
+  // can(key): may THIS viewer use a Supervisor-grantable capability (lib/supervisorCapabilities.js).
+  // Admins always may; a Supervisor only with an explicit grant; everyone else never. Views use it to
+  // not offer a link/button the server would answer with "Access denied" — the server-side check on
+  // every route stays the real gate, this only stops dead ends from being shown.
+  // The four lookups below are independent, so they run together (one database round trip's worth of
+  // waiting instead of four in a row — on every single page view).
+  const person = req.profile;
+  const [grants, hasConfigAccess, unread, preview] = await Promise.all([
+    person && person.role === 'SUPERVISOR' ? capabilitiesFor(person.id) : null,
+    // Settings → Advanced (routes/admin/settings.js) needs a per-Admin capability check, not just a
+    // role check. Computed once here so any view can read it.
+    person && person.role === 'ADMIN' ? seedThenCheckConfigAccess(person) : false,
+    person ? unreadCount(person.id) : 0,
+    person ? recentPreview(person.id) : [],
+  ]);
+  res.locals.can = (key) => Boolean(req.profile) && (req.profile.role === 'ADMIN' || Boolean(grants && grants.has(key)));
+  res.locals.tabsets = req.profile ? require('./lib/navTabs').tabsetsFor(req.profile.role, res.locals.can) : {};
+  res.locals.hasSystemConfigAccess = Boolean(hasConfigAccess);
   res.locals.loginAsRoles = LOGIN_AS_ROLES;
   res.locals.impersonation = req.impersonation || null;
   res.locals.currentPath = req.path;
-  res.locals.unreadNotifications = req.profile ? await unreadCount(req.profile.id) : 0;
-  res.locals.notificationPreview = req.profile ? await recentPreview(req.profile.id) : [];
+  res.locals.unreadNotifications = unread;
+  res.locals.notificationPreview = preview;
   res.locals.formatRelativeTime = formatRelativeTime;
   res.locals.theme = req.cookies[THEME_COOKIE] === 'dark' ? 'dark' : 'light';
   next();

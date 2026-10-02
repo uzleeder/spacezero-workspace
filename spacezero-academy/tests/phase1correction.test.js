@@ -171,7 +171,7 @@ test('ADMIN SELF-SETUP: an Admin may bulk-manage and individually verify their o
 
   // A Supervisor is a different story: still blocked from self-managing, exactly as before.
   const supPage = await get(supA, `/employees/${supA.id}/setup`);
-  assert.doesNotMatch(supPage.text, /data-bulk-setup-form/);
+  assert.doesNotMatch(supPage.text, /setup\/bulk" data-bulk-setup-form/, 'no manage checklist for a Supervisor on their own setup (they see the self checklist)');
   assert.equal((await post(supA, `/employees/${supA.id}/setup/bulk`, { checked: [pc.id] })).status, 403);
 });
 

@@ -1,4 +1,4 @@
-<%- include('../partials/page-header', { pageTitle: item.title, pageDescription: item.category ? item.category.name : 'Uncategorized', headerAction: '<button type="button" class="btn btn-secondary" data-favorite-toggle="' + item.id + '">' + (isFavorite ? '★ In My Library' : '☆ Add to My Library') + '</button>' }) %>
+<%- include('../partials/page-header', { pageTitle: item.title, pageDescription: item.category ? item.category.name : 'Uncategorized', headerAction: '<button type="button" class="btn btn-secondary' + (isFavorite ? ' is-active' : '') + '" data-favorite-toggle="' + item.id + '" data-favorite-label aria-pressed="' + (isFavorite ? 'true' : 'false') + '">' + (isFavorite ? '★ In My Library' : '☆ Add to My Library') + '</button>' }) %>
 
 <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
   <span class="badge badge-navy"><%= item.itemType %></span>

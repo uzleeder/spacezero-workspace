@@ -1,20 +1,19 @@
 <%- include('../partials/page-header', { pageTitle: 'My Library', pageDescription: "Materials you've favorited, plus what you've viewed recently." }) %>
 
 <div class="card">
-  <div class="card-header"><h2>Favorites</h2><span class="badge"><%= favorites.length %></span></div>
+  <div class="card-header"><h2>Favorites</h2><span class="badge" data-favorite-count><%= favorites.length %></span></div>
   <div class="card-body">
-    <% if (favorites.length === 0) { %>
+    <div data-favorite-empty <%= favorites.length === 0 ? '' : 'hidden' %>>
       <%- include('../partials/empty-state', { title: 'No favorites yet', description: 'Tap the star on any library item to save it here.' }) %>
-    <% } else { %>
-      <ul class="divide-list">
-        <% favorites.forEach(function (f) { %>
-          <li class="row-between">
-            <a href="/library/<%= f.libraryItem.id %>" style="font-weight:500;color:var(--navy-950)"><%= f.libraryItem.title %></a>
-            <button type="button" class="btn btn-ghost btn-sm" data-favorite-toggle="<%= f.libraryItem.id %>" style="color:var(--gold-600)">&#9733;</button>
-          </li>
-        <% }); %>
-      </ul>
-    <% } %>
+    </div>
+    <ul class="divide-list" <%= favorites.length === 0 ? 'hidden' : '' %>>
+      <% favorites.forEach(function (f) { %>
+        <li class="row-between" data-favorite-row>
+          <a href="/library/<%= f.libraryItem.id %>" style="font-weight:500;color:var(--navy-950)"><%= f.libraryItem.title %></a>
+          <button type="button" class="btn btn-ghost btn-sm is-active" data-favorite-toggle="<%= f.libraryItem.id %>" aria-pressed="true" aria-label="Remove from My Library" title="Remove from My Library">★</button>
+        </li>
+      <% }); %>
+    </ul>
   </div>
 </div>
 

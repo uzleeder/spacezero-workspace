@@ -17,7 +17,7 @@ const { excludeOtherAdminsTestProfiles } = require('../../lib/loginAsScope');
 const { loadSetupForProfiles } = require('../../lib/employeeSetup');
 const { tabsForRequest } = require('../../lib/employeeTabs');
 const { SETUP_FILTERS, parseSetupQuery, matchesSetup, requirementOptions } = require('../../lib/employeeList');
-const { getMyTrainingSummary } = require('../../lib/training');
+const { getTrainingSummaries } = require('../../lib/training');
 const { employeeWorkbook } = require('../../lib/employeeExport');
 const { roleLabel } = require('../../lib/roles');
 
@@ -100,7 +100,7 @@ router.get('/employees', requireAdmin, async (req, res) => {
   const setupMap = await loadSetupForProfiles(admin.organizationId, found);
   const readinessMap = await readinessFor(admin.organizationId, found, { setupMap });
   const employees = byPassportStatus(byReadiness((await applyLearningFilters(found, f)).filter((e) => matchesSetup(setupMap.get(e.id), setupQuery)), readinessMap, f), f);
-  const trainingMap = new Map(await Promise.all(employees.map(async (e) => [e.id, await getMyTrainingSummary(e.id)])));
+  const trainingMap = await getTrainingSummaries(employees.map((e) => e.id));
   const [teams, supervisors, requirements] = await Promise.all([
     prisma.team.findMany({ where: { organizationId: admin.organizationId, archivedAt: null }, orderBy: { name: 'asc' } }),
     prisma.profile.findMany({ where: { organizationId: admin.organizationId, role: 'SUPERVISOR', status: { not: 'ARCHIVED' }, ...excludeOtherAdminsTestProfiles(admin) }, orderBy: { fullName: 'asc' } }),

@@ -48,6 +48,15 @@ async function hasCapability(actor, key) {
   return Boolean(await prisma.supervisorCapability.findUnique({ where: { organizationId_supervisorId_key: { organizationId: actor.organizationId, supervisorId: actor.id, key } } }));
 }
 
+// Where a notification about someone's Setup should send THIS recipient. A Supervisor without
+// setup.view gets "Access denied" on the Setup page itself, but can always open the person's profile
+// overview (/team/:id) — so a notification must not link them to the page that 403s.
+async function setupLinkFor(recipientId, personId) {
+  const recipient = await prisma.profile.findUnique({ where: { id: recipientId }, select: { id: true, role: true } });
+  if (recipient && recipient.role === 'SUPERVISOR' && recipient.id !== personId && !(await capabilitiesFor(recipient.id)).has('setup.view')) return `/team/${personId}`;
+  return `/employees/${personId}/setup`;
+}
+
 // Convenience for the employee-record tab bar (own setup is always visible; someone else's is
 // gated on setup.view for a Supervisor, always visible to an Admin via hasCapability's own rule).
 async function canViewSetupTab(actor, ctx) {
@@ -99,6 +108,6 @@ function requireSystemConfigAccess(req, res, next) {
 }
 
 module.exports = {
-  CAPABILITIES, CAPABILITY_KEYS, CATEGORIES, capabilitiesFor, hasCapability, canViewSetupTab,
+  CAPABILITIES, CAPABILITY_KEYS, CATEGORIES, capabilitiesFor, hasCapability, canViewSetupTab, setupLinkFor,
   SYSTEM_CONFIG_KEY, hasSystemConfigAccess, ensureInitialSystemConfigAccess, requireSystemConfigAccess,
 };

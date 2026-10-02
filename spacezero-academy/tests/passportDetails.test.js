@@ -109,10 +109,19 @@ test('employee self-service: add, view own full number, update keeps number when
   assert.equal(page.status, 200);
   assert.match(page.text, /Passport Details Required/);
 
-  const add = await post(agentA, `/employees/${agentA.id}/passport`, { passportNumber: 'ab1234567', passportExpiresAt: '2030-01-01' });
+  // The name as printed in the passport is required: first and last (middle is optional).
+  const noName = await post(agentA, `/employees/${agentA.id}/passport`, { passportNumber: 'ab1234567', passportExpiresAt: '2030-01-01' });
+  assert.equal(noName.status, 200);
+  assert.match(noName.text, /First name is required/);
+  assert.equal((await prisma.profile.findUnique({ where: { id: agentA.id } })).passportNumberEnc, null, 'nothing is saved without the name');
+  const badName = await post(agentA, `/employees/${agentA.id}/passport`, { passportFirstName: 'Al1', passportLastName: 'Test', passportNumber: 'ab1234567', passportExpiresAt: '2030-01-01' });
+  assert.match(badName.text, /only letters/);
+
+  const add = await post(agentA, `/employees/${agentA.id}/passport`, { passportFirstName: 'Anna', passportMiddleName: 'Maria', passportLastName: "O'Neil-Smith", passportNumber: 'ab1234567', passportExpiresAt: '2030-01-01' });
   assert.equal(add.status, 302);
   const afterAdd = await prisma.profile.findUnique({ where: { id: agentA.id } });
   assert.ok(afterAdd.passportNumberEnc);
+  assert.deepEqual([afterAdd.passportFirstName, afterAdd.passportMiddleName, afterAdd.passportLastName], ['Anna', 'Maria', "O'Neil-Smith"]);
   assert.equal(afterAdd.passportExpiresAt.toISOString().slice(0, 10), '2030-01-01');
 
   const addedAudits = await audits('passport.details_added', agentA.id);
@@ -134,7 +143,7 @@ test('employee self-service: add, view own full number, update keeps number when
 
 test('masking, reveal and access boundaries for management viewers', async () => {
   // agentB gets a passport of their own for this test.
-  await post(agentB, `/employees/${agentB.id}/passport`, { passportNumber: 'CD9988776', passportExpiresAt: '2029-05-01' });
+  await post(agentB, `/employees/${agentB.id}/passport`, { passportFirstName: 'Bob', passportLastName: 'Test', passportNumber: 'CD9988776', passportExpiresAt: '2029-05-01' });
 
   // Admin sees the page with the number masked by default, never the raw value inline.
   const adminPage = await get(admin, `/employees/${agentB.id}/setup`);

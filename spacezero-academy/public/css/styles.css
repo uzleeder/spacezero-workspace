@@ -210,6 +210,13 @@ html[data-theme="dark"] .topbar-profile-link:hover { background: rgba(255,255,25
 .btn-secondary:hover { background: var(--ivory-100); }
 .btn-ghost { background: none; color: var(--navy-800); padding: 8px 12px; }
 .btn-ghost:hover { background: rgba(10,20,36,.05); }
+/* Library star: outline when not saved, filled gold when saved to My Library. */
+[data-favorite-toggle] { cursor: pointer; line-height: 1; }
+[data-favorite-toggle].btn-ghost { font-size: 20px; color: var(--navy-800); opacity: .55; }
+[data-favorite-toggle].btn-ghost:hover { opacity: 1; }
+[data-favorite-toggle].is-active { color: var(--gold-600); opacity: 1; }
+[data-favorite-toggle].btn-secondary.is-active { border-color: var(--gold-600); color: var(--gold-600); }
+[data-favorite-empty][hidden], ul[hidden] { display: none; }
 .btn-danger { background: #fff; color: var(--red-700); border-color: var(--red-200); }
 .btn-danger:hover { background: var(--red-50); }
 .btn-sm { padding: 6px 12px; font-size: 13px; }
@@ -236,6 +243,16 @@ input:focus, select:focus, textarea:focus {
 }
 .field { margin-bottom: 0; }
 .field + .field { margin-top: 18px; }
+/* Fields placed side by side (grid / flex rows) must sit on one line: the stacked-field top margin
+   above would push every field after the first 18px lower than its neighbour. */
+.grid > .field + .field, [style*="display:grid"] > .field + .field, [style*="display: grid"] > .field + .field,
+[style*="display:flex"] > .field + .field, [style*="display: flex"] > .field + .field { margin-top: 0; }
+.grid > .field { align-self: start; min-width: 0; }
+/* Date / select inputs render a couple of pixels taller than text inputs; make every control the same height. */
+.field input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), .field select { height: 42px; box-sizing: border-box; }
+/* Cards in one row share the row's height, so their borders line up. */
+.grid { align-items: stretch; }
+.grid > .card { height: 100%; }
 .field .hint { margin-top: 6px; font-size: 12px; color: var(--ink-500); }
 .field .error { margin-top: 6px; font-size: 12px; color: var(--red-600); }
 .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-700); }
@@ -397,14 +414,31 @@ button,input,select,textarea { font:inherit; }
 .hero-btn:hover { background:#e8bb90; }
 .hero-art { width:44%; position:relative; align-self:stretch; display:flex; flex-direction:column; justify-content:center; padding:0 18px; background:radial-gradient(ellipse at center,#293e513d,transparent 70%); }
 .hero-art svg { display:block; width:100%; max-height:250px; overflow:visible; }
-/* The brand mark, large: an open ring (echoing the globe in the real SpaceZero logo) with a paper
-   plane sitting in its gap, in the logo's blue rather than the app's usual gold — this one spot
-   intentionally carries the literal brand mark instead of the app's gold accent. */
-.hero-art .globe-ring { stroke:url(#workspace-mark-blue); stroke-width:7; stroke-linecap:round; filter:drop-shadow(0 0 14px #3f6fd64d); }
-.hero-art .brand-plane { fill:url(#workspace-mark-blue); filter:drop-shadow(0 0 8px #3f6fd680); }
-.hero-art .brand-globe { transform-origin:204px 133px; animation:brand-globe-spin 26s linear infinite; }
-@keyframes brand-globe-spin { to { transform:rotate(360deg); } }
-@media(prefers-reduced-motion:reduce) { .hero-art .brand-globe { animation:none; } }
+.hero-art .planet-halo { stroke:#8f89bd; stroke-width:.6; stroke-opacity:.1; }
+.hero-art .planet-grid { stroke-width:.8; }
+.hero-art .planet-meridian { transform-origin:204px 133px; animation:planet-spin 18s linear infinite; }
+.hero-art .planet-meridian-two { animation-delay:-6s; }
+.hero-art .planet-meridian-three { animation-delay:-12s; }
+.hero-art .orbit-plane { offset-path:path('M66 190A155 57-24 1 1 342 76A155 57-24 1 1 66 190Z'); offset-anchor:0px 0px; offset-rotate:auto; animation:planet-flight 16s linear infinite; }
+/* A pure 2D scaleX squish, not a 3D rotateY: an SVG stroke under a real 3D transform (no
+   `perspective` is set anywhere here) renders with a visible seam/kink partway through the
+   animation in some browsers. scaleX gives the same "spinning meridian" illusion — it is exactly
+   what the prefers-reduced-motion fallback below already freezes it to — without that artifact. */
+@keyframes planet-spin { 0% { transform:scaleX(1); } 25% { transform:scaleX(0); } 50% { transform:scaleX(-1); } 75% { transform:scaleX(0); } 100% { transform:scaleX(1); } }
+@keyframes planet-flight { from { offset-distance:0%; } to { offset-distance:100%; } }
+.hero-art .orbit-plane-front { animation:planet-flight 16s linear infinite, planet-depth 16s step-end infinite; }
+@keyframes planet-depth { 0% { visibility:hidden; } 50% { visibility:visible; } }
+@media(prefers-reduced-motion:reduce) {
+  .hero-art .planet-meridian { animation:none; transform:scaleX(.7); }
+  .hero-art .planet-meridian-two { transform:scaleX(.3); }
+  .hero-art .planet-meridian-three { transform:scaleX(.95); }
+  .hero-art .orbit-plane { animation:none; offset-distance:48%; }
+  .hero-art .orbit-plane-front { visibility:hidden; }
+}
+.hero-art .flight-path { stroke:url(#workspace-flight); stroke-width:1.35; stroke-dasharray:3 5; stroke-linecap:round; }
+.hero-art .flight-beacon { fill:#dca878; fill-opacity:.08; stroke:#dca878; stroke-opacity:.22; stroke-width:.7; }
+.hero-art .flight-dot { fill:#dca878; stroke:none; }
+.hero-art .plane-mark { fill:#e8bb90; stroke:#f0dcc0; stroke-width:.45; stroke-linejoin:round; filter:drop-shadow(0 3px 5px #05041280); }
 .hero-coordinate { text-align:center; font-size:7px; letter-spacing:1.7px; color:#8399ae; padding-bottom:23px; }
 .employee-detail-layout { grid-template-columns:minmax(0,1fr) 360px; align-items:start; }
 .employee-overview { min-width:0; }

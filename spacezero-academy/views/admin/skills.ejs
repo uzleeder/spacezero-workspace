@@ -1,4 +1,4 @@
-<script src="/static/js/settings-forms.js" defer></script>
+<script src="<%= asset('/static/js/settings-forms.js') %>" defer></script>
 <% if (saved) { %><div class="form-alert success mt-16" role="status">Changes saved.</div><% } %>
 <%- include('../partials/advanced-page-header', { sectionLabel: 'Skills', pageTitle: 'Skill Catalog', pageDescription: 'The skills the Skill Graph measures, used across employee roles. Nothing is hard-coded: add, rename, regroup or archive them. Archiving keeps all history.', headerAction: '<div style="display:flex;gap:10px;flex-wrap:wrap"><a href="/admin/intelligence" class="btn btn-secondary">View employee skills</a><form method="post" action="/admin/skills/taxonomy"><button class="btn btn-gold">Add recommended skills</button></form></div>' }) %>
 

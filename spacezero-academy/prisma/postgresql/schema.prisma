@@ -315,6 +315,9 @@ model Profile {
   currentAddressEnc        String?
   passportNumberEnc        String?
   passportExpiresAt        DateTime?
+  passportFirstName        String?
+  passportMiddleName       String?
+  passportLastName         String?
   setupItems               EmployeeSetupItem[]
   setupItemsVerified       EmployeeSetupItem[]           @relation("SetupItemVerifiedBy")
   credentialsOwned         Credential[]                  @relation("CredentialOwner")

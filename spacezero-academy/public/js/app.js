@@ -22,6 +22,20 @@
     });
   });
 
+  // A page restored from the back/forward cache (or a save that never navigated, e.g. a dropped
+  // connection) must not keep a Save button stuck on "Please wait…" — that looks exactly like "Save
+  // does nothing". Give every locked button its label back; the page's own script re-derives whether
+  // it should be enabled (setup-bulk.js listens for the same event). No timer: a slow upload must
+  // stay locked.
+  function unlockSubmitButtons() {
+    document.querySelectorAll('button[data-original-text]').forEach(function (btn) {
+      btn.textContent = btn.dataset.originalText;
+      btn.disabled = false;
+      delete btn.dataset.originalText;
+    });
+  }
+  window.addEventListener('pageshow', function (e) { if (e.persisted) { unlockSubmitButtons(); window.dispatchEvent(new Event('sz:unlocked')); } });
+
   // ---- Mobile sidebar toggle ----
   var menuBtn = document.querySelector('[data-menu-toggle]');
   var sidebar = document.querySelector('.sidebar');
@@ -173,15 +187,53 @@
   });
 
   // ---- Favorite toggle (optimistic) ----
+  // The star shows its state through .is-active (CSS: filled gold star vs outline) and the server is
+  // told the state wanted, then its answer is what stays on screen — a failed save puts the star back
+  // and says so instead of pretending it worked. On "My Library" an un-starred row leaves the list.
+  function paintFavorite(btn, on) {
+    btn.classList.toggle('is-active', on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    var label = btn.getAttribute('data-favorite-label');
+    if (label !== null) btn.textContent = on ? '★ In My Library' : '☆ Add to My Library';
+    else btn.textContent = on ? '★' : '☆';
+    btn.title = on ? 'Remove from My Library' : 'Save to My Library';
+  }
   document.querySelectorAll('[data-favorite-toggle]').forEach(function (btn) {
+    var busy = false;
+    paintFavorite(btn, btn.classList.contains('is-active'));
     btn.addEventListener('click', function (e) {
       e.preventDefault();
+      if (busy) return;
+      busy = true;
       var itemId = btn.getAttribute('data-favorite-toggle');
-      var active = btn.classList.contains('is-active');
-      btn.classList.toggle('is-active');
-      fetch('/library/' + itemId + '/favorite', { method: 'POST' }).catch(function () {
-        btn.classList.toggle('is-active', active);
-      });
+      var was = btn.classList.contains('is-active');
+      paintFavorite(btn, !was);
+      fetch('/library/' + encodeURIComponent(itemId) + '/favorite', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+        body: 'favorite=' + (was ? '0' : '1'),
+      }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          if (!res.ok || !data.ok) throw new Error(data.error || 'Could not save');
+          paintFavorite(btn, Boolean(data.favorite));
+          var row = btn.closest('[data-favorite-row]');
+          if (row && !data.favorite) {
+            var list = row.parentNode;
+            row.remove();
+            var badge = document.querySelector('[data-favorite-count]');
+            if (badge) badge.textContent = String(list.querySelectorAll('[data-favorite-row]').length);
+            if (!list.querySelector('[data-favorite-row]')) {
+              var empty = document.querySelector('[data-favorite-empty]');
+              if (empty) empty.hidden = false;
+              list.hidden = true;
+            }
+          }
+        });
+      }).catch(function (err) {
+        paintFavorite(btn, was);
+        window.alert((err && err.message ? err.message : 'Could not save') + ' — please try again.');
+      }).then(function () { busy = false; });
     });
   });
 
@@ -310,7 +362,13 @@
     var summary = menu.querySelector('summary');
     var list = menu.querySelector('.more-list');
     var rect = summary.getBoundingClientRect();
-    list.style.top = (rect.bottom + 4) + 'px';
+    var height = list.offsetHeight;
+    var vh = window.innerHeight;
+    var top = rect.bottom + 4;
+    // Not enough room under the button (a card near the bottom of the screen): open upward instead,
+    // so every item is visible; if neither side fits, keep the whole menu on screen.
+    if (top + height > vh - 8) top = rect.top - 4 - height >= 8 ? rect.top - 4 - height : Math.max(8, vh - height - 8);
+    list.style.top = top + 'px';
     list.style.right = (document.documentElement.clientWidth - rect.right) + 'px';
   }
   menus.forEach(function (menu) {

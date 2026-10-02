@@ -37,19 +37,24 @@ before(async () => {
 });
 after(async () => { await prisma.$disconnect(); });
 
-test('COMPACT: the self setup page shows the I Have / I Don\'t Have bulk form', async () => {
+const SELF_FORM = 'setup/self-bulk" data-bulk-setup-form';
+
+test('COMPACT: the self setup page is a checkbox checklist with an "I haven\'t" request, like the admin one', async () => {
   const page = await get(agent, `/employees/${agent.id}/setup`);
   assert.equal(page.status, 200);
-  assert.match(page.text, /data-self-bulk-form/);
-  assert.match(page.text, /I Have/);
-  assert.match(page.text, /I Don&#39;t Have|I Don't Have/);
+  assert.ok(page.text.includes(SELF_FORM));
+  assert.match(page.text, /name="mode" value="checkbox"/);
+  assert.match(page.text, /type="checkbox" name="checked"/);
+  assert.match(page.text, /I haven&#39;t|I haven't/);
+  assert.doesNotMatch(page.text, /data-have-radio/, 'no more I Have radio buttons');
+  assert.match(page.text, /Other items/);
 });
 
 test('MANAGEMENT_ONLY item never appears in the self bulk form', async () => {
   const page = await get(agent, `/employees/${agent.id}/setup`);
-  const bulkFormSection = page.text.split('data-self-bulk-form')[1].split('</form>')[0];
+  const bulkFormSection = page.text.split(SELF_FORM)[1].split('</form>')[0];
   assert.doesNotMatch(bulkFormSection, /HD Admin Only Tool/);
-  assert.match(page.text, /Only your supervisor or an administrator can mark this as completed/);
+  assert.match(page.text, /Only your supervisor or an administrator can complete this/);
 });
 
 test('I HAVE + EMPLOYEE_CONFIRMATION: completes the item outright, in one batched request', async () => {
@@ -70,7 +75,7 @@ test('I HAVE + MANAGEMENT_VERIFICATION: only requests verification, never comple
   assert.equal(row.verifiedById, null);
   const page = await get(agent, `/employees/${agent.id}/setup`);
   assert.match(page.text, /awaiting verification/);
-  assert.match(page.text, /Withdraw my confirmation/);
+  assert.match(page.text, /Untick and save to withdraw/);
 });
 
 // Regression test for a real bug: the "Withdraw my confirmation" control used to be rendered as a
@@ -83,7 +88,7 @@ test('I HAVE + MANAGEMENT_VERIFICATION: only requests verification, never comple
 // (previous test), so its row renders the "Withdraw" control that used to break this.
 test('HTML STRUCTURE: no <form> is nested inside the self-bulk form (would silently break Save)', async () => {
   const page = await get(agent, `/employees/${agent.id}/setup`);
-  const start = page.text.indexOf('data-self-bulk-form');
+  const start = page.text.indexOf(SELF_FORM);
   assert.ok(start >= 0, 'self-bulk form must be present');
   const rest = page.text.slice(start);
   const body = rest.slice(rest.indexOf('>') + 1); // past the opening <form ...> tag itself
@@ -100,7 +105,7 @@ test('HTML STRUCTURE: no <form> is nested inside the self-bulk form (would silen
   assert.equal(depth, 0);
   const formSection = body.slice(0, closeIndex);
   assert.doesNotMatch(formSection, /<form\b/, 'no nested <form> may appear inside the self-bulk form');
-  assert.match(formSection, /data-self-bulk-save/, 'the Save Changes button must be inside the real form');
+  assert.match(formSection, /data-bulk-save/,'the Save Changes button must be inside the real form');
 });
 
 test('I DON\'T HAVE without a note: the ENTIRE batch is rejected, nothing is saved', async () => {
@@ -147,15 +152,65 @@ test('CANNOT SELF-BULK ANOTHER EMPLOYEE, and impersonation is blocked', async ()
   assert.equal(res.status, 403);
 });
 
-test('MANAGEMENT-VERIFIED items are excluded from the self bulk form and cannot be touched via it', async () => {
+test('CHECKBOX MODE: ticking confirms, un-ticking withdraws your own confirmation, an unticked box never touches an issue', async () => {
+  const other = await makeUser('TRAVEL_AGENT', 'boxes');
+  const rowOf = (id) => prisma.employeeSetupItem.findFirst({ where: { profileId: other.id, requirementId: id } });
+  const bulk = (body) => post(other, `/employees/${other.id}/setup/self-bulk`, { mode: 'checkbox', ...body });
+
+  assert.equal((await bulk({ checked: [selfTool.id, checkedTool.id] })).status, 302);
+  assert.equal((await rowOf(selfTool.id)).status, 'COMPLETED');
+  assert.equal((await rowOf(checkedTool.id)).status, 'IN_PROGRESS', 'verification-rule items still only request verification');
+
+  await bulk({ checked: [checkedTool.id] }); // selfTool un-ticked -> withdrawn; checkedTool unchanged
+  const withdrawn = await rowOf(selfTool.id);
+  assert.equal(withdrawn.status, 'NOT_SET_UP');
+  assert.equal(withdrawn.employeeConfirmedAt, null);
+  assert.equal((await rowOf(checkedTool.id)).status, 'IN_PROGRESS');
+
+  // An "I haven't" request is an ISSUE; saving the checklist with that box unticked must leave it alone.
+  await post(other, `/employees/${other.id}/setup/${selfTool.id}/report-issue`, { note: 'No licence yet' });
+  await bulk({ checked: [checkedTool.id] });
+  const issue = await rowOf(selfTool.id);
+  assert.equal(issue.status, 'ISSUE');
+  assert.equal(issue.note, 'No licence yet');
+});
+
+test('"I HAVEN\'T": needs a note, flags an Issue and notifies every administrator (and only self may send it)', async () => {
+  const other = await makeUser('TRAVEL_AGENT', 'request');
+  const url = `/employees/${other.id}/setup/${selfTool.id}/report-issue`;
+
+  const blank = await post(other, url, { note: '   ' });
+  assert.equal(blank.status, 200);
+  assert.match(blank.text, /Write a short note/);
+  assert.equal(await prisma.employeeSetupItem.count({ where: { profileId: other.id, requirementId: selfTool.id } }), 0, 'nothing saved without a note');
+
+  const sent = await post(other, url, { note: 'Waiting for my GDS login' });
+  assert.equal(sent.status, 302);
+  const row = await prisma.employeeSetupItem.findFirst({ where: { profileId: other.id, requirementId: selfTool.id } });
+  assert.equal(row.status, 'ISSUE');
+  assert.equal(row.note, 'Waiting for my GDS login');
+
+  const note = await prisma.notification.findFirst({ where: { profileId: admin.id, type: 'setup.employee_request' }, orderBy: { createdAt: 'desc' } });
+  assert.ok(note, 'the administrator is notified');
+  assert.match(note.body, /Waiting for my GDS login/);
+  assert.equal(note.link, `/employees/${other.id}/setup`);
+
+  assert.equal((await post(agent, url, { note: 'sneaky' })).status, 403, 'nobody reports on someone else\'s behalf');
+});
+
+test('MANAGEMENT-VERIFIED items show as locked ticks in the checklist (never submitted) and cannot be touched via it', async () => {
   await post(admin, `/employees/${agent.id}/setup/${checkedTool.id}`, { status: 'COMPLETED', note: 'verified by admin' });
   const verified = await state(checkedTool.id);
   assert.equal(verified.status, 'COMPLETED');
   assert.ok(verified.verifiedById);
 
   const page = await get(agent, `/employees/${agent.id}/setup`);
-  const bulkFormSection = page.text.split('data-self-bulk-form')[1].split('</form>')[0];
-  assert.doesNotMatch(bulkFormSection, /HD Checked Tool/);
+  const bulkFormSection = page.text.split(SELF_FORM)[1].split('</form>')[0];
+  const verifiedRow = bulkFormSection.split('<li').find((li) => li.includes('HD Checked Tool'));
+  assert.ok(verifiedRow, 'the verified item is still listed in the checklist');
+  assert.match(verifiedRow, /checked disabled/);
+  assert.doesNotMatch(verifiedRow, /name="checked"/, 'a locked tick is never submitted');
+  assert.match(verifiedRow, /Verified by/);
 
   await post(agent, `/employees/${agent.id}/setup/self-bulk`, { [`choice_${checkedTool.id}`]: 'dontHave', [`note_${checkedTool.id}`]: 'trying to undo' });
   const stillVerified = await state(checkedTool.id);

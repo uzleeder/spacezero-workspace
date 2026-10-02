@@ -18,9 +18,12 @@ function employeeManagementTabs(role) {
   ];
 }
 
-const trainingTabs = () => [
+// `can` (server.js: res.locals.can) answers "may this viewer use capability X" — a Supervisor holds
+// none by default, and /assignments needs training.assign, so offering the tab to everyone made
+// every Training page show a tab that ends on "Access denied" for a Supervisor without the grant.
+const trainingTabs = (can) => [
   { label: 'Catalog', href: '/admin/training' },
-  { label: 'Assignments', href: '/assignments' },
+  ...(!can || can('training.assign') ? [{ label: 'Assignments', href: '/assignments' }] : []),
 ];
 
 function learnerTabs(role) {
@@ -43,10 +46,10 @@ function standardsTabs(role) {
     : [{ label: 'Company Standards & Workflow', href: '/standards' }];
 }
 
-function tabsetsFor(role) {
+function tabsetsFor(role, can) {
   return {
     employees: employeeManagementTabs(role),
-    training: trainingTabs(),
+    training: trainingTabs(can),
     learner: learnerTabs(role),
     library: libraryTabs(role),
     standards: standardsTabs(role),

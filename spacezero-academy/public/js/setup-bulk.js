@@ -17,6 +17,7 @@
     }
 
     boxes.forEach(function (b) { b.addEventListener('change', refresh); });
+    window.addEventListener('sz:unlocked', refresh);
     refresh();
   }
 
@@ -61,6 +62,7 @@
       });
       syncRow(row);
     });
+    window.addEventListener('sz:unlocked', refresh);
     refresh();
   }
 

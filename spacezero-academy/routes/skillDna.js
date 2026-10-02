@@ -8,6 +8,7 @@ const { prisma } = require('../lib/prisma');
 const { requireSession } = require('../lib/authMiddleware');
 const { loadEmployeeFor, credentialAccess } = require('../lib/employeeAccess');
 const { employeeTabs } = require('../lib/employeeTabs');
+const { canViewSetupTab } = require('../lib/supervisorCapabilities');
 const { roleLabel } = require('../lib/roles');
 const { getSkillRows, classifySkills, categorySummary, loadConfig } = require('../lib/skillIntel');
 const { nextActions } = require('../lib/development');
@@ -21,8 +22,11 @@ const notFound = (res) => res.status(404).render('not-found', { layout: false })
 const isManager = (actor, ctx) => !ctx.isSelf && (actor.role === 'ADMIN' || actor.role === 'SUPERVISOR');
 
 async function frameFor(req, ctx) {
-  const access = await credentialAccess(req.profile, ctx.employee, { impersonating: Boolean(req.impersonation) });
-  return { tabs: employeeTabs(req.profile, ctx, { credentials: access.view || access.manage }), employee: ctx.employee, isSelf: ctx.isSelf, roleLabel };
+  const [access, canViewSetup] = await Promise.all([
+    credentialAccess(req.profile, ctx.employee, { impersonating: Boolean(req.impersonation) }),
+    canViewSetupTab(req.profile, ctx), // a Supervisor without setup.view must not be offered a Setup tab that 403s
+  ]);
+  return { tabs: employeeTabs(req.profile, ctx, { credentials: access.view || access.manage, canViewSetup }), employee: ctx.employee, isSelf: ctx.isSelf, roleLabel };
 }
 
 function overallOf(rows) {

@@ -63,7 +63,17 @@ const DEFAULT_REQUIREMENTS = [
 ];
 const DEFAULT_CATEGORY = new Map(DEFAULT_REQUIREMENTS.map((r) => [r.key, r.category]));
 
+// The seed/migrate pass below costs several queries and is called many times per page view (every
+// setup calculation starts with it). Everything it does is a one-time step per organization, so once
+// it has completed in this process it is not repeated.
+const ensuredOrganizations = new Set();
 async function ensureDefaultRequirements(organizationId) {
+  if (ensuredOrganizations.has(organizationId)) return;
+  await seedOrMigrateRequirements(organizationId);
+  ensuredOrganizations.add(organizationId);
+}
+
+async function seedOrMigrateRequirements(organizationId) {
   // Only seed an organization with NO requirement rows at all, so an Admin who archives or
   // deletes a default is never surprised by it coming back.
   if (!(await prisma.setupRequirement.count({ where: { organizationId } }))) {

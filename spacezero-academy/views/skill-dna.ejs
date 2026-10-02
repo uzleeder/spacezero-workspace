@@ -95,7 +95,7 @@
 <% if (manager && coaching) { %>
   <div class="card mt-24">
     <div class="card-header row-between"><h2>Coaching</h2>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-gold btn-sm" href="/assignments?personId=<%= employee.id %>">Assign practice</a><a class="btn btn-secondary btn-sm" href="/employees/<%= employee.id %>/training">Training &amp; retakes</a></div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><% if (can('training.assign')) { %><a class="btn btn-gold btn-sm" href="/assignments?personId=<%= employee.id %>">Assign practice</a><% } %><a class="btn btn-secondary btn-sm" href="/employees/<%= employee.id %>/training">Training &amp; retakes</a></div></div>
     <div class="card-body">
       <h3 class="text-sm text-muted" style="margin-bottom:8px">Add a coaching note</h3>
       <form method="post" action="/employees/<%= employee.id %>/coaching-notes">

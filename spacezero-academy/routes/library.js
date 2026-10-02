@@ -76,18 +76,19 @@ router.get('/library/:id', requireSession, async (req, res) => {
 
 router.post('/library/:id/favorite', requireSession, async (req, res) => {
   const me = req.profile;
+  res.set('Cache-Control', 'no-store');
   const item = await prisma.libraryItem.findUnique({ where: { id: req.params.id } });
-  if (item && isVisible(item.visibleRolesJson, me.role)) {
-    const existing = await prisma.libraryFavorite.findUnique({
-      where: { profileId_libraryItemId: { profileId: me.id, libraryItemId: item.id } },
-    });
-    if (existing) {
-      await prisma.libraryFavorite.delete({ where: { id: existing.id } });
-    } else {
-      await prisma.libraryFavorite.create({ data: { profileId: me.id, libraryItemId: item.id } });
-    }
+  if (!item || item.organizationId !== me.organizationId || item.archivedAt || !isVisible(item.visibleRolesJson, me.role)) {
+    return res.status(404).json({ ok: false, error: 'This material is no longer available.' });
   }
-  res.json({ ok: true });
+  const where = { profileId_libraryItemId: { profileId: me.id, libraryItemId: item.id } };
+  // The browser says which state it wants ("favorite" = 1 / 0) so a double tap or a slow connection
+  // can never flip the star the wrong way; without it the call toggles, as before.
+  const existing = await prisma.libraryFavorite.findUnique({ where });
+  const want = req.body && (req.body.favorite === '1' || req.body.favorite === '0') ? req.body.favorite === '1' : !existing;
+  if (want && !existing) await prisma.libraryFavorite.create({ data: { profileId: me.id, libraryItemId: item.id } }).catch(() => undefined); // a concurrent tap already saved it
+  if (!want && existing) await prisma.libraryFavorite.deleteMany({ where: { profileId: me.id, libraryItemId: item.id } });
+  res.json({ ok: true, favorite: want });
 });
 
 // Authenticated, role-gated file streaming. Only Admins may ever receive a
