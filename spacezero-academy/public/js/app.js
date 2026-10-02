@@ -36,6 +36,32 @@
   }
   window.addEventListener('pageshow', function (e) { if (e.persisted) { unlockSubmitButtons(); window.dispatchEvent(new Event('sz:unlocked')); } });
 
+  // ---- Light / dark button: switch right here, stay on the page (falls back to a normal form post) ----
+  document.querySelectorAll('form[action="/theme"]').forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+      var input = form.querySelector('input[name="theme"]');
+      var button = form.querySelector('button[type="submit"]');
+      if (!input || !window.fetch) return;
+      event.preventDefault();
+      var wanted = input.value;
+      fetch('/theme', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'fetch' }, body: 'theme=' + encodeURIComponent(wanted) })
+        .then(function (res) {
+          if (!res.ok) throw new Error('theme not saved');
+          document.documentElement.setAttribute('data-theme', wanted);
+          var other = wanted === 'dark' ? 'light' : 'dark';
+          input.value = other;
+          if (button) {
+            var label = other === 'dark' ? 'Switch to dark mode' : 'Switch to light mode';
+            button.setAttribute('aria-label', label);
+            button.title = label;
+            button.disabled = false;
+            if (button.dataset.originalText) { button.textContent = button.dataset.originalText; delete button.dataset.originalText; }
+          }
+        })
+        .catch(function () { form.submit(); });
+    });
+  });
+
   // ---- Mobile sidebar toggle ----
   var menuBtn = document.querySelector('[data-menu-toggle]');
   var sidebar = document.querySelector('.sidebar');

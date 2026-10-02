@@ -1,20 +1,28 @@
-<%- include('../partials/page-header', { pageTitle: CONTENT_TYPE_LABEL[type], pageDescription: type === 'RESPONSIBILITY' ? 'What is expected from you in your role.' : undefined, headerAction: '<a href="/standards" class="link-gold text-sm">&larr; Company Standards &amp; Workflow</a>' }) %>
+<%- include('../partials/page-header', { pageTitle: TYPE_INFO[type].label, pageDescription: TYPE_INFO[type].description, headerAction: '<a href="/standards" class="link-gold text-sm">&larr; Company Standards &amp; Workflow</a>' }) %>
 
 <% if (items.length === 0) { %>
-  <div class="card mt-24"><div class="card-body"><%- include('../partials/empty-state', { title: 'Nothing published here yet' }) %></div></div>
+  <div class="card mt-24"><div class="card-body"><%- include('../partials/empty-state', { title: TYPE_INFO[type].empty, description: 'When something is published for you it will appear here.' }) %></div></div>
 <% } else { %>
-  <ul class="divide-list mt-24">
-    <% items.forEach(function (item) { %>
-      <li>
-        <a class="row-between" href="/standards/<%= item.id %>" style="align-items:flex-start">
-          <div>
-            <p style="font-weight:500;color:var(--navy-950)"><%= item.title %><% if (item.quickReference) { %> <span class="badge badge-gold">Quick ref</span><% } %></p>
-            <% if (item.currentVersion.shortDescription) { %><p class="text-sm text-muted mt-4"><%= item.currentVersion.shortDescription %></p><% } %>
-            <% if (item.category) { %><p class="text-sm text-muted mt-4"><%= item.category %></p><% } %>
+  <div class="doc-list mt-24">
+    <% items.forEach(function (item) {
+      const v = item.currentVersion;
+      const st = states.get(item.id) || { state: 'NONE' };
+      const roles = rolesList(item);
+    %>
+      <a class="doc-card" href="/standards/<%= item.id %>">
+        <div class="doc-card-main">
+          <div class="doc-card-badges">
+            <span class="badge"><%= CONTENT_TYPE_LABEL[item.contentType] %></span>
+            <% if (v.requiredReading) { %><span class="badge badge-gold">Required reading</span><% } %>
+            <% if (item.quickReference) { %><span class="badge badge-gold">Quick ref</span><% } %>
+            <% if (st.state !== 'NONE') { %><span class="badge <%= st.state === 'DONE' ? 'badge-success' : 'badge-warning' %>"><%= STATE_LABEL[st.state] %></span><% } %>
           </div>
-          <% if (item.currentVersion.acknowledgementRequired) { %><span class="badge badge-warning">Acknowledgement required</span><% } %>
-        </a>
-      </li>
+          <h3><%= item.title %></h3>
+          <% if (v.shortDescription) { %><p class="doc-card-desc"><%= v.shortDescription %></p><% } %>
+          <p class="doc-card-meta"><% if (roles.length) { %>For <%= roles.map(roleLabel).join(', ') %> · <% } %>Updated <%= (v.publishedAt || item.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) %></p>
+        </div>
+        <span class="btn <%= st.state === 'TODO' || st.state === 'UPDATED' ? 'btn-gold' : 'btn-secondary' %> btn-sm doc-card-action"><%= STATE_ACTION[st.state] %> &rarr;</span>
+      </a>
     <% }); %>
-  </ul>
+  </div>
 <% } %>

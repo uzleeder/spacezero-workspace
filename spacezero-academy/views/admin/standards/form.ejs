@@ -63,7 +63,7 @@ const typeNote = { STANDARD: 'A principle or policy.', RESPONSIBILITY: 'A short 
 
   <% if (contentType === 'RESPONSIBILITY') { %>
   <div class="card mt-24">
-    <div class="card-header row-between"><h2><%= values.title || 'Responsibilities' %></h2><p>One line each. Keep them short and specific.</p></div>
+    <div class="card-header row-between"><h2><%= values.title || 'Responsibilities' %></h2><p>One entry each. Start an entry with a **heading** in double asterisks, then its paragraph — readers see a heading with the paragraph under it.</p></div>
     <div class="card-body">
       <div data-repeater="responsibilities">
         <div data-repeater-list>
@@ -78,7 +78,7 @@ const typeNote = { STANDARD: 'A principle or policy.', RESPONSIBILITY: 'A short 
 
   <% if (contentType === 'WORKFLOW') { %>
   <div class="card mt-24">
-    <div class="card-header row-between"><h2>Workflow steps</h2><p>Plain numbered steps — no diagram to build.</p></div>
+    <div class="card-header row-between"><h2>Workflow steps</h2><p>Numbered steps. Each has a title and an instruction; open “Explanation, checklist &amp; notes” inside a step to edit its list, notes and warning.</p></div>
     <div class="card-body">
       <div data-repeater="steps">
         <div data-repeater-list>

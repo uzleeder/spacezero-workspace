@@ -18,7 +18,7 @@ PostgreSQL migration generation/schema validation is separate from actually appl
 
 Use `.env.production.example` as a template. Supply environment variables through the service manager (or Node `--env-file`); never commit secrets. The SMTP provider must authorize ali@above9.travel as sender. STARTTLS/SMTPS is required outside isolated tests. No reset or invitation URL is returned in an HTTP response. Email failures are visible to administrators and recorded without token values; failed invitation tokens are revoked.
 
-Run `npm run validate:production` and `npm start` with the production environment loaded. Startup refuses missing HTTPS origin, SMTP settings, PostgreSQL URL or private-storage configuration. A TLS reverse proxy should forward to the loopback Express listener. Trust proxy is disabled; configure a specific trusted proxy only after infrastructure is known. Never enable unrestricted trust proxy. Rate limits are persisted in the database.
+Run `npm run validate:production` and `npm start` with the production environment loaded. Startup refuses missing HTTPS origin, SMTP settings, PostgreSQL URL or private-storage configuration. A TLS reverse proxy should forward to the loopback Express listener. Trust proxy is disabled by default. Behind exactly one reverse proxy that sets `X-Forwarded-For` (nginx: `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`), set `TRUST_PROXY_HOPS=1` so audit logs and rate limits see each person's real address instead of the proxy's. Never enable unrestricted trust proxy. The sign-in / password rate limit counts per account (not per address), so colleagues behind the same proxy never lock each other out. Rate limits are persisted in the database.
 
 ## Private files
 

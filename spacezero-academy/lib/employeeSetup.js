@@ -67,17 +67,25 @@ const DEFAULT_CATEGORY = new Map(DEFAULT_REQUIREMENTS.map((r) => [r.key, r.categ
 // setup calculation starts with it). Everything it does is a one-time step per organization, so once
 // it has completed in this process it is not repeated.
 const ensuredOrganizations = new Set();
-async function ensureDefaultRequirements(organizationId) {
-  if (ensuredOrganizations.has(organizationId)) return;
-  await seedOrMigrateRequirements(organizationId);
-  ensuredOrganizations.add(organizationId);
+const ensuringOrganizations = new Map(); // organizationId -> the run already in flight
+function ensureDefaultRequirements(organizationId) {
+  if (ensuredOrganizations.has(organizationId)) return Promise.resolve();
+  // Page queries run side by side: concurrent callers for the same organization share ONE run
+  // instead of each trying to seed the same rows at the same time.
+  if (!ensuringOrganizations.has(organizationId)) {
+    ensuringOrganizations.set(organizationId, seedOrMigrateRequirements(organizationId)
+      .then(() => { ensuredOrganizations.add(organizationId); })
+      .finally(() => { ensuringOrganizations.delete(organizationId); }));
+  }
+  return ensuringOrganizations.get(organizationId);
 }
 
 async function seedOrMigrateRequirements(organizationId) {
   // Only seed an organization with NO requirement rows at all, so an Admin who archives or
   // deletes a default is never surprised by it coming back.
   if (!(await prisma.setupRequirement.count({ where: { organizationId } }))) {
-    await prisma.setupRequirement.createMany({
+    try {
+      await prisma.setupRequirement.createMany({
       data: DEFAULT_REQUIREMENTS.map((r, i) => ({
         organizationId,
         key: r.key,
@@ -92,7 +100,11 @@ async function seedOrMigrateRequirements(organizationId) {
         verification: r.verification || 'MANAGEMENT_VERIFICATION',
         displayOrder: i,
       })),
-    });
+      });
+    } catch (err) {
+      // Another request (or app instance) seeded the same organization a moment earlier: nothing left to do.
+      if (!(err && err.code === 'P2002')) throw err;
+    }
     return;
   }
   // Requirements created before categories existed: label the built-in ones once, never overwrite an Admin's choice.

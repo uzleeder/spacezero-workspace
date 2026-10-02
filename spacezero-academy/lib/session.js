@@ -6,6 +6,9 @@ const { generateToken, hashToken } = require('./tokens');
 const SESSION_COOKIE = 'sz_session';
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 
+// The cookie that parks an Admin's own session while they are "viewing as" someone (lib/impersonation.js).
+const PARKED_ADMIN_COOKIE = 'sz_admin_session';
+
 async function createSession(res, profileId, meta) {
   const { raw, hash } = generateToken();
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
@@ -20,6 +23,9 @@ async function createSession(res, profileId, meta) {
     },
   });
 
+  // A fresh sign-in starts clean: a parked Admin session left behind by an earlier "view as" would otherwise
+  // make this normal account look like it is being viewed by that Admin (every Setup Save then refused).
+  // Starting a "view as" itself parks the Admin session on purpose and asks to keep it.
   res.cookie(SESSION_COOKIE, raw, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -27,6 +33,7 @@ async function createSession(res, profileId, meta) {
     expires: expiresAt,
     path: '/',
   });
+  if (!(meta && meta.keepParkedAdminSession)) res.clearCookie(PARKED_ADMIN_COOKIE, { path: '/' });
 }
 
 async function destroySession(req, res) {
@@ -35,6 +42,7 @@ async function destroySession(req, res) {
     await prisma.session.deleteMany({ where: { tokenHash: hashToken(raw) } }).catch(() => undefined);
   }
   res.clearCookie(SESSION_COOKIE, { path: '/' });
+  res.clearCookie(PARKED_ADMIN_COOKIE, { path: '/' }); // signing out ends any "view as" for good
 }
 
 // Reads + validates the session against the database (secure check, not

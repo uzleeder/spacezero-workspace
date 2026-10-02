@@ -115,9 +115,18 @@
     // company-controlled (WhatsApp/Telegram), management-only, already management-verified, or
     // explicitly Not Required — stay in a small read-only/exception list below, unchanged.
     const canSelfBulk = isSelf && !setup.notStarted;
+    // An Admin using "View as" sees this person's checklist exactly as they do, but nobody confirms on
+    // someone else's behalf — so it is shown read-only, with a way to manage the Setup as an Admin.
+    const viewOnly = Boolean(isSelf && typeof impersonation !== 'undefined' && impersonation);
     const selfBulkEligible = canSelfBulk ? setup.rows.filter((row) => row.requirement.kind === 'MANUAL' && !row.requirement.companyControlled && row.rule !== 'MANAGEMENT_ONLY' && row.status !== 'NOT_REQUIRED') : [];
     const otherSelfRows = canSelfBulk ? setup.rows.filter((row) => !selfBulkEligible.includes(row)) : setup.rows;
   %>
+  <% if (viewOnly) { %>
+  <div class="form-alert mt-16" role="status" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px">
+    <span>You are viewing <strong><%= employee.fullName %></strong>'s Setup as <%= impersonation.adminName %>. Only <%= employee.fullName %> can confirm their own items here, so this checklist is read-only.</span>
+    <form method="post" action="/end-impersonation"><input type="hidden" name="next" value="/employees/<%= employee.id %>/setup" /><button type="submit" class="btn btn-gold btn-sm">Return to admin and manage this Setup</button></form>
+  </div>
+  <% } %>
   <% if (selfBulkEligible.length) { %>
   <div class="card mt-24">
     <div class="card-header row-between">
@@ -134,7 +143,7 @@
               <% if (verified) { %>
               <input type="checkbox" checked disabled aria-label="Verified by management" />
               <% } else { %>
-              <input type="checkbox" name="checked" value="<%= r.id %>" <%= haveChecked ? 'checked' : '' %> data-bulk-checkbox data-was="<%= haveChecked ? '1' : '0' %>" />
+              <input type="checkbox" name="checked" value="<%= r.id %>" <%= haveChecked ? 'checked' : '' %> <%= viewOnly ? 'disabled' : '' %> data-bulk-checkbox data-was="<%= haveChecked ? '1' : '0' %>" />
               <% } %>
               <span style="min-width:0"><%= r.label %><% if (!r.required) { %> <span class="badge" style="margin-left:4px">Optional</span><% } %></span>
             </span>
@@ -148,8 +157,8 @@
           <details style="margin:4px 0 0 26px">
             <summary class="text-sm link-gold" style="cursor:pointer"><%= flagged ? 'Update my note' : "I haven't" %></summary>
             <div class="mt-8">
-              <textarea name="note" form="issue-form-<%= r.id %>" rows="2" maxlength="500" required placeholder="What is missing or not working? This is sent to your administrator."><%= flagged && row.item ? (row.item.note || '') : '' %></textarea>
-              <button type="submit" form="issue-form-<%= r.id %>" class="btn btn-secondary btn-sm" style="margin-top:6px">Send to administrator</button>
+              <textarea name="note" form="issue-form-<%= r.id %>" <%= viewOnly ? 'disabled' : '' %> rows="2" maxlength="500" required placeholder="What is missing or not working? This is sent to your administrator."><%= flagged && row.item ? (row.item.note || '') : '' %></textarea>
+              <button type="submit" form="issue-form-<%= r.id %>" <%= viewOnly ? 'disabled' : '' %> class="btn btn-secondary btn-sm" style="margin-top:6px">Send to administrator</button>
             </div>
           </details>
           <% } %>
@@ -159,7 +168,7 @@
       </ul>
       <div class="card-body row-between" style="border-top:1px solid var(--border-subtle)">
         <span class="text-sm text-muted" data-unsaved-hint>No changes yet</span>
-        <button type="submit" class="btn btn-gold" data-bulk-save>Save Changes</button>
+        <button type="submit" class="btn btn-gold" <%= viewOnly ? 'disabled' : '' %> data-bulk-save>Save Changes</button>
       </div>
     </form>
     <%

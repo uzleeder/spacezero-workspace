@@ -315,15 +315,89 @@ html[data-theme="dark"] .divider-top { border-color: #2e2b52; }
 .progress-fill.navy { background: var(--navy-800); }
 
 /* ---- Company Standards & Workflow: callouts, workflow steps, disclosure wording ---- */
-.callout-important { padding: 14px 16px; border-radius: 10px; background: rgba(220,168,120,.12); border: 1px solid rgba(220,168,120,.35); color: var(--navy-950); line-height: 1.6; }
-.callout-warning { padding: 14px 16px; border-radius: 10px; background: var(--amber-50); border: 1px solid rgba(180,83,9,.25); color: var(--amber-700); line-height: 1.6; }
+/* Important notes: a calm tinted panel with a small label; warnings stay clearly different but are not alarming. */
+.callout-important { position: relative; margin: 18px 0; padding: 14px 16px 14px 18px; border-radius: 10px; background: rgba(220,168,120,.1); border: 1px solid rgba(220,168,120,.28); border-left: 3px solid var(--gold-500); color: var(--navy-950); line-height: 1.7; }
+.callout-important::before { content: 'Important'; display: block; margin-bottom: 4px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--gold-600); }
+.callout-warning { position: relative; margin: 18px 0; padding: 14px 16px 14px 18px; border-radius: 10px; background: var(--amber-50); border: 1px solid rgba(180,83,9,.2); border-left: 3px solid rgba(180,83,9,.55); color: var(--amber-700); line-height: 1.7; }
+.callout-warning::before { content: 'Please note'; display: block; margin-bottom: 4px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+/* ---- Company Standards & Workflow: landing, document list and reading experience ---- */
+.area-card { display: flex; flex-direction: column; padding: 24px; }
+.area-card h3 { font-weight: 600; color: var(--navy-950); }
+.area-card-foot { margin: auto 0 0; padding-top: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--gold-600); }
+.reading-progress { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 14px 18px; border: 1px solid var(--border-subtle); border-radius: 12px; background: rgba(220,168,120,.06); }
+.reading-progress > div { flex: 1; min-width: 220px; }
+.reading-progress-title { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--navy-950); }
+.reading-progress-track { height: 6px; border-radius: 99px; background: rgba(127,127,127,.2); overflow: hidden; }
+.reading-progress-fill { height: 100%; border-radius: 99px; background: var(--gold-500); }
+.doc-list { display: grid; gap: 12px; }
+.doc-card { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 20px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-1, #fff); color: inherit; text-decoration: none; transition: border-color .15s, box-shadow .15s; }
+.doc-card:hover { border-color: var(--gold-500); box-shadow: 0 6px 18px -10px rgba(15,28,49,.25); }
+.doc-card-main { flex: 1; min-width: 0; }
+.doc-card-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.doc-card h3 { margin: 0; font-size: 17px; font-weight: 600; color: var(--navy-950); }
+.doc-card-desc { margin: 6px 0 0; max-width: 70ch; font-size: 14px; line-height: 1.6; color: var(--ink-500); }
+.doc-card-meta { margin: 8px 0 0; font-size: 12px; color: var(--ink-500); }
+.doc-card-action { flex: none; white-space: nowrap; }
+.reader-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.reader { display: grid; gap: 16px; align-items: start; }
+.reader-article { max-width: 760px; padding: 32px; font-size: 15.5px; line-height: 1.8; }
+.reader-article > :first-child { margin-top: 0; }
+.reader-lead { margin: 0 0 8px; font-size: 16px; line-height: 1.7; color: var(--ink-500); }
+.reader-article h3 { margin: 36px 0 0; font-size: 19px; font-weight: 600; line-height: 1.35; color: var(--navy-950); scroll-margin-top: 84px; }
+.reader-article p { margin: 12px 0 0; }
+.reader-article ul, .reader-article ol { margin: 12px 0 0; padding-left: 22px; line-height: 1.8; }
+.reader-subhead { margin: 28px 0 4px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-500); }
+.reader-toc summary { cursor: pointer; padding: 12px 16px; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--surface-1, #fff); font-size: 14px; font-weight: 600; color: var(--navy-950); list-style: none; }
+.reader-toc summary::-webkit-details-marker { display: none; }
+.reader-toc ol { margin: 8px 0 0; padding: 4px 4px 4px 0; list-style: none; max-height: 60vh; overflow: auto; }
+.reader-toc li a { display: block; padding: 6px 12px; border-radius: 8px; font-size: 13px; line-height: 1.45; color: var(--ink-500); text-decoration: none; }
+.reader-toc li a:hover { background: rgba(220,168,120,.14); color: var(--navy-950); }
+@media (min-width: 1100px) {
+  .reader.has-toc { grid-template-columns: minmax(0, 760px) 250px; gap: 32px; }
+  .reader.has-toc .reader-article { grid-column: 1; grid-row: 1; }
+  .reader.has-toc .reader-toc { grid-column: 2; grid-row: 1; position: sticky; top: 84px; }
+  .reader-toc summary { pointer-events: none; cursor: default; border: 0; background: none; padding: 0 12px 4px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-500); }
+  .reader-toc summary span { display: none; }
+}
+.principle-strip, .flow-strip { margin: 0 0 8px; padding: 16px 18px; border-radius: 12px; border: 1px solid rgba(220,168,120,.3); background: rgba(220,168,120,.08); }
+.principle-label { margin: 0 0 10px !important; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--gold-600); }
+.principle-steps, .flow-steps { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 4px; margin: 0 !important; padding: 0 !important; list-style: none; line-height: 1.4 !important; }
+.principle-steps li, .flow-steps li { padding: 5px 12px; border-radius: 999px; background: var(--surface-1, #fff); border: 1px solid var(--border-subtle); font-size: 13.5px; font-weight: 500; color: var(--navy-950); }
+.principle-steps li + li::before, .flow-steps li + li::before { content: '→'; margin-right: 8px; color: var(--gold-600); }
+.principle-steps li + li, .flow-steps li + li { position: relative; margin-left: 10px; }
+.principle-steps li + li::before, .flow-steps li + li::before { position: absolute; left: -15px; margin: 0; }
+.principle-intro { margin: 0 0 10px !important; font-size: 14px; line-height: 1.6 !important; color: var(--ink-500); }
+.workflow-steps { margin-top: 12px; }
+.reader-ack .reader-ack-note { margin: 0 0 14px; padding: 10px 14px; border-radius: 8px; background: rgba(220,168,120,.12); font-size: 14px; }
+@media (max-width: 640px) {
+  .doc-card { flex-direction: column; align-items: stretch; gap: 14px; }
+  .doc-card-action { align-self: flex-start; }
+  .reader-article { padding: 22px 18px; font-size: 15px; }
+  .reader-article h3 { font-size: 18px; }
+}
 .disclosure-wording { padding: 18px 20px; border-radius: 10px; background: rgba(220,168,120,.08); border: 1px solid rgba(220,168,120,.3); color: var(--navy-950); line-height: 1.7; white-space: pre-wrap; }
-.workflow-step { display: flex; gap: 16px; align-items: flex-start; }
+/* Pages that put a main column next to a fixed-width side panel (inline `minmax(0,1fr) 380px`: Training
+   assignments, Manage library, Team detail, Call reviews) must stack on tablets and phones - otherwise the
+   main column shrinks to nothing and the panel runs off the screen. Same for the fixed-column
+   "table-like" rows on the Team / Organization intelligence pages. */
+@media (max-width: 900px) {
+  .grid[style*="minmax(0,1fr) "] { grid-template-columns: minmax(0, 1fr) !important; }
+}
+@media (max-width: 700px) {
+  [style*="grid-template-columns:minmax(160px,1.3fr)"] { grid-template-columns: minmax(0, 1fr) !important; row-gap: 4px; }
+}
+/* A longer page description stays at a comfortable reading width. */
+.page-header p { max-width: 80ch; }
+.workflow-step { display: flex; gap: 16px; align-items: flex-start; position: relative; padding-bottom: 24px; }
+/* One continuous line from each step number down to the next, however tall the step is. */
+.workflow-step::before { content: ''; position: absolute; left: 15px; top: 32px; bottom: 0; width: 2px; background: rgba(220,168,120,.45); }
+.workflow-step:last-child { padding-bottom: 0; }
+.workflow-step:last-child::before { display: none; }
 .workflow-step-num { flex: none; width: 32px; height: 32px; border-radius: 999px; background: var(--gold-500); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; }
 .workflow-step-body { flex: 1; padding-bottom: 4px; }
-.workflow-step-body h4 { color: var(--navy-950); font-weight: 600; margin: 0; }
-.workflow-step-body p { margin-top: 6px; line-height: 1.6; }
-.workflow-step-connector { width: 2px; height: 20px; margin-left: 15px; background: rgba(220,168,120,.4); }
+.workflow-step-body h4 { color: var(--navy-950); font-weight: 600; font-size: 17px; margin: 4px 0 0; }
+.workflow-step-body p { margin-top: 10px; line-height: 1.7; }
+.workflow-step-connector { display: none; } /* superseded by the continuous .workflow-step::before line */
 
 /* ---- Auth pages ---- */
 .auth-shell { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 64px 24px; background: var(--ivory-50); }
@@ -546,6 +620,11 @@ html[data-theme="dark"] .form-alert.success { background: rgba(86,212,148,.1); b
 html[data-theme="dark"] .form-alert.info { background: rgba(220,168,120,.1); border-color: rgba(220,168,120,.35); color: #e8bb90; }
 
 html[data-theme="dark"] .progress-track { background: #221f40; }
+html[data-theme="dark"] .doc-card, html[data-theme="dark"] .reader-toc summary, html[data-theme="dark"] .principle-steps li, html[data-theme="dark"] .flow-steps li { background: #1b1935; border-color: #2e2b52; }
+html[data-theme="dark"] .doc-card:hover { border-color: rgba(220,168,120,.6); }
+html[data-theme="dark"] .reader-article h3, html[data-theme="dark"] .doc-card h3, html[data-theme="dark"] .area-card h3, html[data-theme="dark"] .reading-progress-title, html[data-theme="dark"] .reader-toc summary, html[data-theme="dark"] .principle-steps li, html[data-theme="dark"] .flow-steps li, html[data-theme="dark"] .reader-toc li a:hover { color: #f2f0fa; }
+html[data-theme="dark"] .doc-card-desc, html[data-theme="dark"] .doc-card-meta, html[data-theme="dark"] .reader-lead, html[data-theme="dark"] .reader-subhead, html[data-theme="dark"] .reader-toc li a, html[data-theme="dark"] .principle-intro { color: #a29fc2; }
+html[data-theme="dark"] .reading-progress, html[data-theme="dark"] .principle-strip, html[data-theme="dark"] .flow-strip { border-color: #2e2b52; }
 html[data-theme="dark"] .callout-important { background: rgba(220,168,120,.12); border-color: rgba(220,168,120,.35); color: #f2f0fa; }
 html[data-theme="dark"] .callout-warning { background: rgba(245,196,81,.1); border-color: rgba(245,196,81,.3); color: #f5c451; }
 html[data-theme="dark"] .disclosure-wording { background: rgba(220,168,120,.08); border-color: rgba(220,168,120,.3); color: #f2f0fa; }

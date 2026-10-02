@@ -8,91 +8,133 @@
   headerAction: '<a href="' + (isPreview ? '/admin/standards' : '/standards/browse/' + item.contentType.toLowerCase()) + '" class="link-gold text-sm">&larr; Back</a>',
 }) %>
 
-<div class="card mt-24" style="padding:32px">
-  <% if (version.important) { %><span class="badge badge-gold" style="margin-bottom:12px">Featured</span><% } %>
-  <% if (version.shortDescription) { %><p class="text-muted" style="font-size:15px;margin-bottom:24px"><%= version.shortDescription %></p><% } %>
+<%
+  const stateBadge = ackState ? (!ackState.needed ? ['badge-success', '✓ Acknowledged'] : ackState.stale ? ['badge-warning', 'Updated version — please review'] : ['badge-warning', 'Acknowledgement needed']) : null;
+  const when = version.publishedAt || item.updatedAt;
+%>
+<div class="reader-meta mt-16">
+  <span class="badge"><%= CONTENT_TYPE_LABEL[item.contentType] %></span>
+  <% if (version.requiredReading) { %><span class="badge badge-gold">Required reading</span><% } %>
+  <% if (version.important) { %><span class="badge badge-gold">Featured</span><% } %>
+  <% if (stateBadge) { %><span class="badge <%= stateBadge[0] %>"><%= stateBadge[1] %></span><% } %>
+  <span class="text-sm text-muted">Updated <%= when.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) %></span>
+</div>
 
-  <% if (item.contentType === 'STANDARD') { %>
-    <% blocks.forEach(function (b) { %>
-      <% if (b.type === 'heading') { %><h3 style="margin-top:24px;color:var(--navy-950)"><%- renderInline(b.text) %></h3>
-      <% } else if (b.type === 'paragraph') { %><p style="margin-top:12px;line-height:1.7"><%- renderInline(b.text) %></p>
-      <% } else if (b.type === 'bullets') { %><ul style="margin-top:12px;padding-left:20px;line-height:1.8"><% b.items.forEach(function (i) { %><li><%- renderInline(i) %></li><% }); %></ul>
-      <% } else if (b.type === 'numbered') { %><ol style="margin-top:12px;padding-left:20px;line-height:1.8"><% b.items.forEach(function (i) { %><li><%- renderInline(i) %></li><% }); %></ol>
-      <% } else if (b.type === 'callout_important') { %><div class="callout-important" style="margin-top:16px"><%- renderInline(b.text) %></div>
-      <% } else if (b.type === 'callout_warning') { %><div class="callout-warning" style="margin-top:16px"><%- renderInline(b.text) %></div>
-      <% } %>
-    <% }); %>
-    <% if (!blocks.length) { %><%- include('../partials/empty-state', { title: 'No content added yet' }) %><% } %>
-  <% } %>
-
-  <% if (item.contentType === 'RESPONSIBILITY') { %>
-    <% if (!version.responsibilities || !version.responsibilities.length) { %>
-      <%- include('../partials/empty-state', { title: 'No responsibilities added yet' }) %>
-    <% } else { %>
-      <ol style="padding-left:20px;line-height:2">
-        <% version.responsibilities.forEach(function (r) { %><li><%- renderInline(r.text) %></li><% }); %>
+<div class="reader mt-16<%= reader.toc.length ? ' has-toc' : '' %>">
+  <% if (reader.toc.length) { %>
+  <%# Generated from the document's own headings — there is no separate list to keep up to date. %>
+  <nav class="reader-toc" aria-label="On this page">
+    <details data-reader-toc>
+      <summary>On this page <span aria-hidden="true">▾</span></summary>
+      <ol>
+        <% reader.toc.forEach(function (t) { %><li><a href="#<%= t.id %>"><%= t.label %></a></li><% }); %>
       </ol>
-    <% } %>
+    </details>
+  </nav>
   <% } %>
 
-  <% if (item.contentType === 'WORKFLOW') { %>
-    <% if (!steps.length) { %>
-      <%- include('../partials/empty-state', { title: 'No steps added yet' }) %>
-    <% } else { %>
-      <div class="mt-24">
-        <% steps.forEach(function (s, i) { %>
-          <div class="workflow-step">
-            <div class="workflow-step-num"><%= i + 1 %></div>
-            <div class="workflow-step-body">
-              <h4><%- renderInline(s.title) %></h4>
-              <p><%- renderInline(s.instruction) %></p>
-              <% if (s.detail && s.detail.explanation) { %><p class="text-sm text-muted mt-4"><%- renderInline(s.detail.explanation) %></p><% } %>
-              <% if (s.detail && s.detail.checklist && s.detail.checklist.length) { %>
-                <ul class="text-sm mt-4" style="padding-left:18px">
-                  <% s.detail.checklist.forEach(function (c) { %><li><%- renderInline(c) %></li><% }); %>
-                </ul>
-              <% } %>
-              <% if (s.detail && s.detail.importantNote) { %><div class="callout-important mt-4"><%- renderInline(s.detail.importantNote) %></div><% } %>
-              <% if (s.detail && s.detail.warning) { %><div class="callout-warning mt-4"><%- renderInline(s.detail.warning) %></div><% } %>
-              <% if (s.disclosureRef) { %><p class="text-sm mt-4"><a class="link-gold" href="/standards/<%= s.disclosureRef.id %>">See disclosure: <%= s.disclosureRef.title %></a></p><% } %>
-              <% if (s.relatedItem) { %><p class="text-sm mt-4"><a class="link-gold" href="/standards/<%= s.relatedItem.id %>">Related: <%= s.relatedItem.title %></a></p><% } %>
-            </div>
+  <article class="card reader-article">
+    <% if (version.shortDescription) { %><p class="reader-lead"><%= version.shortDescription %></p><% } %>
+
+    <% if (item.contentType === 'STANDARD') { %>
+      <% blocks.forEach(function (b, i) { var sid = reader.blockIds.get(i); %>
+        <% if (b.type === 'heading') { %><h3 id="<%= sid %>"><%- renderInline(b.text) %></h3>
+        <% } else if (b.type === 'paragraph') { %><p><%- renderInline(b.text) %></p>
+        <% } else if (b.type === 'bullets') { %><ul><% b.items.forEach(function (it) { %><li><%- renderInline(it) %></li><% }); %></ul>
+        <% } else if (b.type === 'numbered') { %><ol><% b.items.forEach(function (it) { %><li><%- renderInline(it) %></li><% }); %></ol>
+        <% } else if (b.type === 'callout_important') { %><div class="callout-important"><%- renderInline(b.text) %></div>
+        <% } else if (b.type === 'callout_warning') { %><div class="callout-warning"><%- renderInline(b.text) %></div>
+        <% } %>
+      <% }); %>
+      <% if (!blocks.length) { %><%- include('../partials/empty-state', { title: 'No content added yet' }) %><% } %>
+    <% } %>
+
+    <% if (item.contentType === 'RESPONSIBILITY') { %>
+      <% if (!reader.entries.length) { %>
+        <%- include('../partials/empty-state', { title: 'No responsibilities added yet' }) %>
+      <% } else { %>
+        <% if (reader.principle) { %>
+          <%# What am I accountable for, in one line: the core principle as a small strip. %>
+          <div class="principle-strip">
+            <p class="principle-label"><%= reader.principle.label %></p>
+            <% if (reader.principle.intro) { %><p class="principle-intro"><%= reader.principle.intro %></p><% } %>
+            <ol class="principle-steps"><% reader.principle.steps.forEach(function (s) { %><li><%= s %></li><% }); %></ol>
           </div>
-          <% if (i < steps.length - 1) { %><div class="workflow-step-connector"></div><% } %>
+        <% } %>
+        <% reader.entries.forEach(function (e) { if (e.asPrinciple) return; %>
+          <% if (e.head) { %><h3 id="<%= e.id %>"><%- renderInline(e.head) %></h3><% } %>
+          <% if (e.body) { %><p><%- renderInline(e.body) %></p><% } %>
         <% }); %>
-      </div>
+      <% } %>
     <% } %>
-  <% } %>
 
-  <% if (item.contentType === 'DISCLOSURE') { %>
-    <% if (version.disclosureWhenItApplies) { %>
-      <h4 style="color:var(--navy-950)">When it applies</h4>
-      <p style="margin-top:8px;line-height:1.7"><%- renderInline(version.disclosureWhenItApplies) %></p>
+    <% if (item.contentType === 'WORKFLOW') { %>
+      <% if (!reader.steps.length) { %>
+        <%- include('../partials/empty-state', { title: 'No steps added yet' }) %>
+      <% } else { %>
+        <% if (reader.flow) { %>
+          <div class="flow-strip">
+            <p class="principle-label">The workflow at a glance</p>
+            <ol class="flow-steps"><% reader.flow.steps.forEach(function (s) { %><li><%= s %></li><% }); %></ol>
+          </div>
+          <p class="reader-subhead">Step by step</p>
+        <% } %>
+        <div class="workflow-steps">
+          <% reader.steps.forEach(function (s, i) { %>
+            <div class="workflow-step" id="<%= s.id %>">
+              <div class="workflow-step-num"><%= s.number %></div>
+              <div class="workflow-step-body">
+                <h4><%- renderInline(s.title) %></h4>
+                <p><%- renderInline(s.instruction) %></p>
+                <% if (s.detail && s.detail.explanation) { %><p class="text-sm text-muted"><%- renderInline(s.detail.explanation) %></p><% } %>
+                <% if (s.detail && s.detail.checklist && s.detail.checklist.length) { %>
+                  <ul class="text-sm" style="padding-left:18px">
+                    <% s.detail.checklist.forEach(function (c) { %><li><%- renderInline(c) %></li><% }); %>
+                  </ul>
+                <% } %>
+                <% if (s.detail && s.detail.importantNote) { %><div class="callout-important"><%- renderInline(s.detail.importantNote) %></div><% } %>
+                <% if (s.detail && s.detail.warning) { %><div class="callout-warning"><%- renderInline(s.detail.warning) %></div><% } %>
+                <% if (s.disclosureRef) { %><p class="text-sm"><a class="link-gold" href="/standards/<%= s.disclosureRef.id %>">See disclosure: <%= s.disclosureRef.title %></a></p><% } %>
+                <% if (s.relatedItem) { %><p class="text-sm"><a class="link-gold" href="/standards/<%= s.relatedItem.id %>">Related: <%= s.relatedItem.title %></a></p><% } %>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      <% } %>
     <% } %>
-    <% if (version.disclosureApprovedWording) { %>
-      <h4 style="color:var(--navy-950);margin-top:24px">Approved wording</h4>
-      <div class="disclosure-wording mt-8"><%- renderInline(version.disclosureApprovedWording) %></div>
+
+    <% if (item.contentType === 'DISCLOSURE') { %>
+      <% if (version.disclosureWhenItApplies) { %>
+        <h3>When it applies</h3>
+        <p><%- renderInline(version.disclosureWhenItApplies) %></p>
+      <% } %>
+      <% if (version.disclosureApprovedWording) { %>
+        <h3>Approved wording</h3>
+        <div class="disclosure-wording"><%- renderInline(version.disclosureApprovedWording) %></div>
+      <% } %>
+      <% if (version.disclosureAdditionalInstructions) { %>
+        <h3>Additional instructions</h3>
+        <p><%- renderInline(version.disclosureAdditionalInstructions) %></p>
+      <% } %>
     <% } %>
-    <% if (version.disclosureAdditionalInstructions) { %>
-      <h4 style="color:var(--navy-950);margin-top:24px">Additional instructions</h4>
-      <p style="margin-top:8px;line-height:1.7"><%- renderInline(version.disclosureAdditionalInstructions) %></p>
-    <% } %>
-  <% } %>
+  </article>
 </div>
 
 <% if (ackState) { %>
-<div class="card mt-24">
-  <div class="card-header"><h2>Company Standard Acknowledgement</h2></div>
+<div class="card mt-24 reader-ack">
+  <div class="card-header"><h2>Acknowledgement</h2></div>
   <div class="card-body">
-    <% if (typeof acknowledged !== 'undefined' && acknowledged) { %><div class="form-alert success" style="margin-bottom:16px">Acknowledged.</div><% } %>
+    <% if (typeof acknowledged !== 'undefined' && acknowledged) { %><div class="form-alert success" style="margin-bottom:16px">Thank you — your acknowledgement has been recorded.</div><% } %>
     <% if (ackState.needed) { %>
+      <% if (ackState.stale) { %><p class="reader-ack-note">An updated version is available. Please review it, then acknowledge again.</p><% } %>
       <form method="post" action="/standards/<%= item.id %>/acknowledge">
-        <label class="checkbox-row"><input type="checkbox" required /> I confirm that I have read and understood this standard and agree to follow the applicable company requirements.</label>
+        <label class="checkbox-row"><input type="checkbox" required /> I have read and understood this <%= CONTENT_TYPE_LABEL[item.contentType].toLowerCase() %> and agree to follow the applicable company requirements.</label>
         <button type="submit" class="btn btn-gold mt-16">Confirm &amp; Accept</button>
       </form>
     <% } else { %>
-      <p class="text-sm text-muted">✓ You acknowledged this on <%= ackState.acceptedAt.toLocaleDateString('en-US') %> (version <%= ackState.version %>).</p>
+      <p class="text-sm text-muted">✓ Acknowledged on <%= ackState.acceptedAt.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) %><% if (ackState.version && ackState.version !== version.version) { %> (version <%= ackState.version %>) — this update does not need a new acknowledgement<% } %>.</p>
     <% } %>
   </div>
 </div>
 <% } %>
+<script src="<%= asset('/static/js/reader.js') %>" defer></script>

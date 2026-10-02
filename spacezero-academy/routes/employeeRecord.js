@@ -32,6 +32,13 @@ async function canManageSetup(actor, ctx) {
   if (actor.role !== 'SUPERVISOR' || ctx.isSelf) return false;
   return hasCapability(actor, 'setup.manage');
 }
+
+// A Save that cannot be allowed ends on the Setup page itself, with the reason in plain words, instead of
+// a bare "Access denied" dead end (the status stays 403, so nothing is saved and nothing changes).
+function denySetup(req, res, ctx, message) { res.status(403); return renderSetup(req, res, ctx, { error: message }); }
+const NO_MANAGE_MESSAGE = 'You do not have permission to change this person\u2019s Setup. Ask an administrator to enable \u201cManage Team Setup\u201d for you under Settings \u2192 Supervisor Permissions.';
+const NOT_ACTIVE_MESSAGE = 'Setup can only be saved once the account is active.';
+const impersonatingMessage = (req, ctx) => `You are viewing ${ctx.employee.fullName}\u2019s account as ${req.impersonation.adminName}. Only ${ctx.employee.fullName} can confirm their own items here \u2014 use \u201cReturn to admin and manage this Setup\u201d to change it yourself.`;
 async function frame(req, ctx) {
   const [access, readinessMap, canViewSetup] = await Promise.all([
     credentialAccess(req.profile, ctx.employee, { impersonating: Boolean(req.impersonation) }),
@@ -113,7 +120,7 @@ router.post('/employees/:id/setup/bulk', requireSession, async (req, res) => {
   const actor = req.profile;
   const ctx = await loadEmployeeFor(actor, req.params.id);
   if (!ctx) return notFound(res);
-  if (!(await canManageSetup(actor, ctx))) return res.status(403).render('forbidden');
+  if (!(await canManageSetup(actor, ctx))) return actor.role === 'SUPERVISOR' ? denySetup(req, res, ctx, NO_MANAGE_MESSAGE) : res.status(403).render('forbidden');
   if (ctx.employee.status === 'INVITED') return renderSetup(req, res, ctx, { error: 'Setup starts once the employee has activated their account.' });
 
   const allRequirements = await prisma.setupRequirement.findMany({ where: { organizationId: actor.organizationId, archivedAt: null } });
@@ -183,10 +190,11 @@ router.post('/employees/:id/setup/bulk', requireSession, async (req, res) => {
 // otherwise Express would match "self-bulk" as an id.
 router.post('/employees/:id/setup/self-bulk', requireSession, async (req, res) => {
   const actor = req.profile;
-  if (req.params.id !== actor.id || req.impersonation) return res.status(403).render('forbidden');
+  if (req.params.id !== actor.id) return res.status(403).render('forbidden');
   const ctx = await loadEmployeeFor(actor, actor.id);
   if (!ctx) return notFound(res);
-  if (actor.status !== 'ACTIVE') return res.status(403).render('forbidden');
+  if (req.impersonation) return denySetup(req, res, ctx, impersonatingMessage(req, ctx));
+  if (actor.status !== 'ACTIVE') return denySetup(req, res, ctx, NOT_ACTIVE_MESSAGE);
 
   const allRequirements = await prisma.setupRequirement.findMany({ where: { organizationId: actor.organizationId, archivedAt: null } });
   const applicable = [];
@@ -282,10 +290,11 @@ router.post('/employees/:id/setup/self-bulk', requireSession, async (req, res) =
 // notified. Self only; never for management-only, calculated or company-controlled items.
 router.post('/employees/:id/setup/:requirementId/report-issue', requireSession, async (req, res) => {
   const actor = req.profile;
-  if (req.params.id !== actor.id || req.impersonation) return res.status(403).render('forbidden');
+  if (req.params.id !== actor.id) return res.status(403).render('forbidden');
   const ctx = await loadEmployeeFor(actor, actor.id);
   if (!ctx) return notFound(res);
-  if (actor.status !== 'ACTIVE') return res.status(403).render('forbidden');
+  if (req.impersonation) return denySetup(req, res, ctx, impersonatingMessage(req, ctx));
+  if (actor.status !== 'ACTIVE') return denySetup(req, res, ctx, NOT_ACTIVE_MESSAGE);
   const requirement = await prisma.setupRequirement.findFirst({ where: { id: req.params.requirementId, organizationId: actor.organizationId, archivedAt: null } });
   if (!requirement || !(await requirementAppliesToProfile(requirement, ctx.employee))) return notFound(res);
   if (requirement.kind !== 'MANUAL' || requirement.companyControlled || effectiveRule(requirement) === 'MANAGEMENT_ONLY') return res.status(403).render('forbidden');
@@ -318,7 +327,7 @@ router.post('/employees/:id/setup/:requirementId', requireSession, async (req, r
   const actor = req.profile;
   const ctx = await loadEmployeeFor(actor, req.params.id);
   if (!ctx) return notFound(res);
-  if (!(await canManageSetup(actor, ctx))) return res.status(403).render('forbidden');
+  if (!(await canManageSetup(actor, ctx))) return actor.role === 'SUPERVISOR' ? denySetup(req, res, ctx, NO_MANAGE_MESSAGE) : res.status(403).render('forbidden');
 
   const requirement = await prisma.setupRequirement.findFirst({ where: { id: req.params.requirementId, organizationId: actor.organizationId, archivedAt: null } });
   if (!requirement || !(await requirementAppliesToProfile(requirement, ctx.employee))) return notFound(res);
@@ -327,7 +336,7 @@ router.post('/employees/:id/setup/:requirementId', requireSession, async (req, r
   const status = String(req.body.status || '');
   const fail = (message) => renderSetup(req, res, ctx, { error: message });
   if (!STATUSES.includes(status)) return fail('Choose a valid status.');
-  if (status === 'NOT_REQUIRED' && actor.role !== 'ADMIN') return res.status(403).render('forbidden');
+  if (status === 'NOT_REQUIRED' && actor.role !== 'ADMIN') return denySetup(req, res, ctx, 'Only an administrator can mark an item as Not required.');
   if (requirement.kind !== 'MANUAL' && !['NOT_SET_UP', 'NOT_REQUIRED'].includes(status)) {
     return fail(`${requirement.label} is calculated automatically from the employee's real data and cannot be ticked by hand.`);
   }
@@ -380,14 +389,15 @@ router.post('/employees/:id/setup/:requirementId', requireSession, async (req, r
 // verification only moves it to "awaiting verification", management-only items cannot be ticked here.
 router.post('/employees/:id/setup/:requirementId/confirm', requireSession, async (req, res) => {
   const actor = req.profile;
-  if (req.params.id !== actor.id || req.impersonation) return res.status(403).render('forbidden'); // nobody confirms on someone else's behalf
+  if (req.params.id !== actor.id) return res.status(403).render('forbidden'); // nobody confirms on someone else's behalf
   const ctx = await loadEmployeeFor(actor, actor.id);
   if (!ctx) return notFound(res);
+  if (req.impersonation) return denySetup(req, res, ctx, impersonatingMessage(req, ctx));
   const requirement = await prisma.setupRequirement.findFirst({ where: { id: req.params.requirementId, organizationId: actor.organizationId, archivedAt: null } });
   if (!requirement || !(await requirementAppliesToProfile(requirement, ctx.employee))) return notFound(res);
   const rule = effectiveRule(requirement);
   if (requirement.kind !== 'MANUAL' || rule === 'MANAGEMENT_ONLY') return res.status(403).render('forbidden');
-  if (actor.status !== 'ACTIVE') return res.status(403).render('forbidden');
+  if (actor.status !== 'ACTIVE') return denySetup(req, res, ctx, NOT_ACTIVE_MESSAGE);
 
   const existing = await prisma.employeeSetupItem.findUnique({ where: { profileId_requirementId: { profileId: actor.id, requirementId: requirement.id } } });
   if (existing?.status === 'NOT_REQUIRED') return res.status(409).render('error', { layout: false, message: 'Management marked this item as not required for you.' });
@@ -413,7 +423,7 @@ router.post('/employees/:id/contact', requireSession, async (req, res) => {
   const actor = req.profile;
   const ctx = await loadEmployeeFor(actor, req.params.id);
   if (!ctx) return notFound(res);
-  if (!ctx.isSelf && !(await canManageSetup(actor, ctx))) return res.status(403).render('forbidden');
+  if (!ctx.isSelf && !(await canManageSetup(actor, ctx))) return actor.role === 'SUPERVISOR' ? denySetup(req, res, ctx, NO_MANAGE_MESSAGE) : res.status(403).render('forbidden');
 
   const phone = String(req.body.localPhone || '').trim();
   const address = String(req.body.currentAddress || '').trim();
@@ -445,7 +455,7 @@ router.post('/employees/:id/passport', requireSession, async (req, res) => {
   const ctx = await loadEmployeeFor(actor, req.params.id);
   if (!ctx) return notFound(res);
   const access = await passportAccess(actor, ctx.employee);
-  if (!access.manage) return res.status(403).render('forbidden');
+  if (!access.manage) return denySetup(req, res, ctx, 'Only the employee or an administrator can change passport details.');
 
   const { date: expiresAt, error: dateError } = parseExpirationDate(req.body.passportExpiresAt);
   if (dateError) return renderSetup(req, res, ctx, { error: dateError });
