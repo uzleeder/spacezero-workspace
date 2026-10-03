@@ -84,6 +84,7 @@ const readyProvisioned = {
 
 const SCHEMA = {
   'standards.readyProvisioned': readyProvisioned,
+  'setup.selfServiceRelaxed': bool, // internal marker: the one-time "employees confirm their own default Setup items" migration has run
   'standards.pageDescription': standardsPageDescription, // description under the title of the Company Standards & Workflow page
   'credentials.ownerCanView': { ...bool, default: true }, // may a credential's owner reveal their own credentials?
   'leave.supervisorFinalApproval': bool, // may a supervisor approve/reject leave, or only recommend?

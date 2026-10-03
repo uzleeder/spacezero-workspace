@@ -33,8 +33,14 @@ async function pageContext(req, ctx, extra = {}) {
     ctx.employee.role === 'ADMIN' && ctx.employee.id === actor.id ? prisma.credentialGrant.findMany({ where: { ownerId: actor.id }, include: { grantee: true } }) : [],
     ctx.employee.role === 'ADMIN' && ctx.employee.id === actor.id ? prisma.profile.findMany({ where: { organizationId: actor.organizationId, role: 'ADMIN', status: 'ACTIVE', id: { not: actor.id }, testOwnerAdminId: null }, orderBy: { fullName: 'asc' } }) : [],
   ]);
+  // One row per required work system, with whether an entry is already saved for it (an "Other" entry
+  // typed with the system's own name counts too - same rule as the Setup calculation).
+  const savedFor = (s) => credentials.find((c) => c.systemKey === s.key || (!c.systemKey && c.system.trim().toLowerCase() === s.label.trim().toLowerCase())) || null;
+  const systemRows = systems.map((s) => ({ key: s.key, label: s.label, required: s.required, saved: Boolean(savedFor(s)) }));
   return {
     title: `${ctx.employee.fullName} — Credentials`,
+    systemRows,
+    savedFor,
     tabs: employeeTabs(actor, ctx, { credentials: true, canViewSetup: await canViewSetupTab(actor, ctx) }), // no Setup tab that 403s for a Supervisor without setup.view
     employee: ctx.employee,
     isSelf: ctx.isSelf,
@@ -46,6 +52,7 @@ async function pageContext(req, ctx, extra = {}) {
     otherAdmins,
     error: null,
     saved: false,
+    savedSummary: null,
     ...extra,
   };
 }
@@ -53,7 +60,8 @@ async function pageContext(req, ctx, extra = {}) {
 router.get('/employees/:id/credentials', requireSession, async (req, res) => {
   const ctx = await loadEmployeeFor(req.profile, req.params.id);
   if (!ctx) return notFound(res);
-  const page = await pageContext(req, ctx, { saved: req.query.saved === '1' });
+  const count = (v) => (/^\d{1,3}$/.test(String(v || '')) ? Number(v) : 0);
+  const page = await pageContext(req, ctx, { saved: req.query.saved === '1', savedSummary: req.query.created || req.query.updated ? { created: count(req.query.created), updated: count(req.query.updated) } : null });
   if (!page) return forbidden(res);
   res.set('Cache-Control', 'private, no-store');
   res.render('employee/credentials', page);
@@ -78,8 +86,10 @@ router.post('/employees/:id/credentials', requireSession, async (req, res) => {
 
   const fields = readFields(req.body);
   const selected = clip(req.body.system, 80);
-  const systemRow = page.systems.find((s) => s.key === selected);
-  const system = systemRow ? systemRow.label : clip(req.body.customSystem, 80);
+  const customName = clip(req.body.customSystem, 80);
+  // A custom name that is exactly one of the required systems ("gmail") is that system.
+  const systemRow = page.systems.find((s) => s.key === selected) || (selected ? null : page.systems.find((s) => s.label.trim().toLowerCase() === customName.toLowerCase())) || null;
+  const system = systemRow ? systemRow.label : customName;
   if (!system) return res.render('employee/credentials', { ...page, error: 'Choose a system or enter a system name.' });
   if (!fields.password && !fields.username) return res.render('employee/credentials', { ...page, error: 'Enter a login and/or password.' });
 
@@ -95,6 +105,46 @@ router.post('/employees/:id/credentials', requireSession, async (req, res) => {
   });
   await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'credential.created', targetTable: 'Credential', targetId: credential.id, metadata: { system, ownerId: ctx.employee.id } });
   res.redirect(`/employees/${ctx.employee.id}/credentials?saved=1`);
+});
+
+// "Save all": one form with a login + password box per required work system. Every row that has
+// something typed in is saved (a system with an entry already gets it updated - blank boxes keep the
+// current value), so filling in the whole list and pressing Save completes the Setup item at once.
+router.post('/employees/:id/credentials/bulk', requireSession, async (req, res) => {
+  const actor = req.profile;
+  const ctx = await loadEmployeeFor(actor, req.params.id);
+  if (!ctx) return notFound(res);
+  const page = await pageContext(req, ctx);
+  if (!page || !page.access.manage) return forbidden(res);
+
+  const aad = `cred:${actor.organizationId}:${ctx.employee.id}`;
+  const work = [];
+  for (const system of page.systems) {
+    const fields = { username: clip(req.body[`login_${system.key}`], 200), password: clip(req.body[`secret_${system.key}`], 500), accountId: '', note: '' };
+    if (fields.username || fields.password) work.push({ system, fields });
+  }
+  if (!work.length) return res.render('employee/credentials', { ...page, error: 'Type a login and/or password for at least one system, then press Save.' });
+
+  let created = 0; let updated = 0;
+  for (const { system, fields } of work) {
+    const existingRow = page.savedFor(system);
+    if (existingRow) {
+      const credential = await prisma.credential.findUnique({ where: { id: existingRow.id } });
+      let merged = fields;
+      try {
+        const existing = decryptJson(credential.payloadEnc, aadFor(credential));
+        merged = { username: fields.username || existing.username || '', password: fields.password || existing.password || '', accountId: existing.accountId || '', note: existing.note || '' };
+      } catch { /* undecryptable: the new values replace it */ }
+      await prisma.credential.update({ where: { id: credential.id }, data: { payloadEnc: encryptJson(merged, aadFor(credential)), systemKey: system.key, updatedById: actor.id } });
+      await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'credential.updated', targetTable: 'Credential', targetId: credential.id, metadata: { system: system.label, ownerId: ctx.employee.id, secretChanged: Boolean(fields.password), via: 'bulk' } });
+      updated += 1;
+    } else {
+      const credential = await prisma.credential.create({ data: { organizationId: actor.organizationId, ownerId: ctx.employee.id, system: system.label, systemKey: system.key, payloadEnc: encryptJson(fields, aad), createdById: actor.id } });
+      await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'credential.created', targetTable: 'Credential', targetId: credential.id, metadata: { system: system.label, ownerId: ctx.employee.id, via: 'bulk' } });
+      created += 1;
+    }
+  }
+  res.redirect(`/employees/${ctx.employee.id}/credentials?saved=1&created=${created}&updated=${updated}`);
 });
 
 router.post('/credentials/:credId/reveal', requireSession, async (req, res) => {
