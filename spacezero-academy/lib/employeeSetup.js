@@ -105,6 +105,7 @@ async function seedOrMigrateRequirements(organizationId) {
       // Another request (or app instance) seeded the same organization a moment earlier: nothing left to do.
       if (!(err && err.code === 'P2002')) throw err;
     }
+    await require('./orgSettings').setSetting(organizationId, 'setup.selfServiceRelaxed', true, null); // seeded already in the self-service shape
     return;
   }
   // Requirements created before categories existed: label the built-in ones once, never overwrite an Admin's choice.
@@ -121,13 +122,18 @@ async function seedOrMigrateRequirements(organizationId) {
     where: { organizationId, key: 'telegram', required: true, companyControlled: true, allowPersonalAccount: false },
     data: { required: false, allowPersonalAccount: true },
   });
-  // NOTE: the self-attestable default items (PC, tool/account access, extensions) moved from
-  // MANAGEMENT_VERIFICATION to EMPLOYEE_CONFIRMATION above in DEFAULT_REQUIREMENTS — that only
-  // affects organizations seeded from now on. An existing organization's already-seeded rows are
-  // migrated once via scripts/relax-self-service-setup.cjs (run manually, not here): unlike the
-  // Telegram/Passport Details migrations below, "is this row still at MANAGEMENT_VERIFICATION" is not
-  // a safe signal to re-check on every request — that is the exact value an Admin might deliberately
-  // choose again later, and re-running this on every call would silently overwrite that choice.
+  // The self-attestable default items (PC, tool/account access, extensions) moved from
+  // MANAGEMENT_VERIFICATION to EMPLOYEE_CONFIRMATION in DEFAULT_REQUIREMENTS, which only affects
+  // organizations seeded from then on. An existing organization's rows are relaxed ONCE here (the
+  // marker below), so everyone completes these items for themselves without waiting for an Admin or
+  // Supervisor - it used to need a manual script that was easy to forget. It is a one-time step on
+  // purpose: "still MANAGEMENT_VERIFICATION" is not a safe signal to re-check forever, since that is
+  // the value an Admin might deliberately choose again later.
+  const { getSetting, setSetting } = require('./orgSettings');
+  if (!(await getSetting(organizationId, 'setup.selfServiceRelaxed'))) {
+    await relaxSelfServiceItems(organizationId);
+    await setSetting(organizationId, 'setup.selfServiceRelaxed', true, null);
+  }
   // One-time addition of Passport Details as a new mandatory Setup requirement: every organization
   // gets it added once if missing, regardless of when its other requirements were first seeded, so
   // existing accounts pick it up without resetting any other Setup progress. An organization that
@@ -139,6 +145,16 @@ async function seedOrMigrateRequirements(organizationId) {
       data: { organizationId, key: seed.key, label: seed.label, category: seed.category, description: seed.description, kind: seed.kind, required: true, displayOrder: (maxOrder._max.displayOrder ?? -1) + 1 },
     });
   }
+}
+
+/** Default self-attestable items -> EMPLOYEE_CONFIRMATION, and anyone already waiting on a verification that no longer applies -> Completed. */
+async function relaxSelfServiceItems(organizationId) {
+  const keys = DEFAULT_REQUIREMENTS.filter((r) => r.verification === 'EMPLOYEE_CONFIRMATION').map((r) => r.key);
+  await prisma.setupRequirement.updateMany({ where: { organizationId, key: { in: keys }, verification: 'MANAGEMENT_VERIFICATION' }, data: { verification: 'EMPLOYEE_CONFIRMATION' } });
+  await prisma.employeeSetupItem.updateMany({
+    where: { status: 'IN_PROGRESS', employeeConfirmedAt: { not: null }, requirement: { organizationId, key: { in: keys }, verification: 'EMPLOYEE_CONFIRMATION' } },
+    data: { status: 'COMPLETED' },
+  });
 }
 
 function rolesList(requirement) {
@@ -170,10 +186,13 @@ function isValidLocalPhone(value) {
   return digits >= 7 && digits <= 15;
 }
 
-/** Percentage shown to people: rounded, but 100 is reserved for "everything completed". */
-function percentOf(completed, counted, awaiting = 0) {
-  if (!counted || completed === counted) return 100;
-  return Math.min(99, Math.round(((completed + awaiting) / counted) * 100));
+/**
+ * A company-controlled account (WhatsApp, Telegram) the employee has entered and saved themselves in
+ * their Setup (POST /employees/:id/setup/:requirementId/account): their confirmation plus the number
+ * is enough, so saving completes the item automatically without a separate management verification.
+ */
+function selfSupplied(requirement, item) {
+  return Boolean(requirement.companyControlled && item && item.companyNumber && item.employeeConfirmedAt);
 }
 
 /**
@@ -196,6 +215,7 @@ function computeSetup({ profile, requirements, items, vaultSystemKeys, hasAddres
     let status = item?.status || 'NOT_SET_UP';
     let derived = false;
     let awaitingVerification = false;
+    let vault = null; // Credential Vault only: how many of the required systems have a saved entry, and which are missing
 
     if (requirement.kind === 'LOCAL_PHONE') {
       derived = true;
@@ -215,6 +235,7 @@ function computeSetup({ profile, requirements, items, vaultSystemKeys, hasAddres
       else {
         const needed = applicable.filter((r) => r.credentialSystem && r.required && byRequirement.get(r.id)?.status !== 'NOT_REQUIRED');
         const present = needed.filter((r) => vaultKeys.has(r.key));
+        vault = { total: needed.length, saved: present.length, missing: needed.filter((r) => !vaultKeys.has(r.key)).map((r) => r.label) };
         status = needed.length && present.length === needed.length ? 'COMPLETED' : present.length ? 'IN_PROGRESS' : 'NOT_SET_UP';
         if (!needed.length) status = 'COMPLETED';
       }
@@ -226,8 +247,8 @@ function computeSetup({ profile, requirements, items, vaultSystemKeys, hasAddres
       // A company-controlled item normally needs company ownership confirmed. When the requirement
       // allows a personal account too, recording that choice (accountType) satisfies it instead.
       const personalAccountOk = requirement.allowPersonalAccount && item.accountType === 'PERSONAL_WORK';
-      if (!proven) status = 'IN_PROGRESS';
-      else if (requirement.companyControlled && !item.companyControlConfirmed && !personalAccountOk) status = 'IN_PROGRESS'; // ticked, but neither company ownership nor a personal-account choice is on record yet
+      if (!proven && !selfSupplied(requirement, item)) status = 'IN_PROGRESS';
+      else if (requirement.companyControlled && !item.companyControlConfirmed && !personalAccountOk && !selfSupplied(requirement, item)) status = 'IN_PROGRESS'; // ticked, but neither company ownership nor a personal-account choice is on record yet
     }
     if (!derived && status === 'IN_PROGRESS' && item?.employeeConfirmedAt) awaitingVerification = true;
 
@@ -246,7 +267,8 @@ function computeSetup({ profile, requirements, items, vaultSystemKeys, hasAddres
       derived,
       rule,
       awaitingVerification,
-      awaitingCompanyControl: Boolean(requirement.companyControlled && item?.status === 'COMPLETED' && !item.companyControlConfirmed && !(requirement.allowPersonalAccount && item.accountType === 'PERSONAL_WORK')),
+      vault,
+      awaitingCompanyControl: Boolean(requirement.companyControlled && item?.status === 'COMPLETED' && !item.companyControlConfirmed && !(requirement.allowPersonalAccount && item.accountType === 'PERSONAL_WORK') && !selfSupplied(requirement, item)),
       counts: requirement.required && status !== 'NOT_REQUIRED',
     };
   });
@@ -265,7 +287,18 @@ function computeSetup({ profile, requirements, items, vaultSystemKeys, hasAddres
   // towards the percentage (so ticking and saving visibly moves the bar), but never reach 100 and
   // never count as completed - "Fully Set Up" still needs every item verified.
   const awaiting = counted.filter((r) => r.awaitingVerification && r.status !== 'COMPLETED');
-  const percent = notStarted ? 0 : percentOf(completed.length, counted.length, awaiting.length);
+  // The percentage is weighted so that every password saved visibly moves the bar: the Credential
+  // Vault item is worth one unit per required work system (7 systems = 7 units, each one counting as
+  // soon as it is saved) while every other item is one unit.
+  const weight = (r) => (r.vault && r.vault.total ? r.vault.total : 1);
+  const earned = (r) => {
+    if (r.status === 'COMPLETED' || r.awaitingVerification) return weight(r);
+    return r.vault && r.status === 'IN_PROGRESS' ? r.vault.saved : 0;
+  };
+  const totalUnits = counted.reduce((sum, r) => sum + weight(r), 0);
+  const earnedUnits = counted.reduce((sum, r) => sum + earned(r), 0);
+  // 100 is reserved for "everything completed" (nothing left awaiting verification either).
+  const percent = notStarted ? 0 : completed.length === counted.length ? 100 : Math.min(99, Math.round((earnedUnits / totalUnits) * 100));
   const fullySetUp = !notStarted && completed.length === counted.length;
   return {
     rows,
@@ -293,17 +326,20 @@ async function loadSetupForProfiles(organizationId, profiles) {
   const [requirements, items, credentials, memberships, targets] = await Promise.all([
     prisma.setupRequirement.findMany({ where: { organizationId }, orderBy: { displayOrder: 'asc' } }),
     prisma.employeeSetupItem.findMany({ where: { profileId: { in: ids } }, include: { verifiedBy: { select: { fullName: true } } } }),
-    prisma.credential.findMany({ where: { ownerId: { in: ids } }, select: { ownerId: true, systemKey: true } }),
+    prisma.credential.findMany({ where: { ownerId: { in: ids } }, select: { ownerId: true, systemKey: true, system: true } }),
     prisma.teamMembership.findMany({ where: { profileId: { in: ids } }, select: { profileId: true, teamId: true } }),
     prisma.setupRequirementTarget.findMany({ where: { requirement: { organizationId } } }),
   ]);
   const result = new Map();
+  // An entry typed in as "Other" with a system's own name (e.g. "Gmail") counts for that system too.
+  const keyByName = new Map(requirements.filter((r) => r.credentialSystem).map((r) => [r.label.trim().toLowerCase(), r.key]));
+  const keyOf = (c) => c.systemKey || keyByName.get(String(c.system || '').trim().toLowerCase()) || null;
   for (const profile of profiles) {
     result.set(profile.id, computeSetup({
       profile,
       requirements,
       items: items.filter((i) => i.profileId === profile.id),
-      vaultSystemKeys: credentials.filter((c) => c.ownerId === profile.id && c.systemKey).map((c) => c.systemKey),
+      vaultSystemKeys: credentials.filter((c) => c.ownerId === profile.id).map(keyOf).filter(Boolean),
       hasAddress: Boolean(profile.currentAddressEnc),
       targets,
       teamIds: memberships.filter((m) => m.profileId === profile.id).map((m) => m.teamId),

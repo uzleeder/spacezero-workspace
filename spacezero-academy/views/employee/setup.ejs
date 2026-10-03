@@ -88,6 +88,7 @@
               <% if (row.ownerLabel || row.dueAt) { %><p class="text-sm" style="margin-top:2px"><%= row.ownerLabel ? 'Owner: ' + row.ownerLabel : '' %><%= row.ownerLabel && row.dueAt ? ' · ' : '' %><% if (row.dueAt) { %><span class="<%= row.overdue ? 'trend-declining' : '' %>">Due: <%= row.dueAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) %><%= row.overdue ? ' — overdue' : '' %></span><% } %></p><% } %>
               <p class="text-sm text-muted" style="margin-top:2px">
                 <% if (row.derived) { %>Calculated from real data<% if (r.kind === 'CREDENTIAL_VAULT') { %> — contents of the vault are never shown here<% } %>.<% } %>
+                <% if (row.vault) { %> Saved <%= row.vault.saved %> of <%= row.vault.total %> required systems<%= row.vault.missing.length ? ' - still needed: ' + row.vault.missing.join(', ') : '' %>.<% } %>
                 <% if (row.item && row.item.verifiedAt && done) { %> Verified by <%= row.item.verifiedBy ? row.item.verifiedBy.fullName : 'management' %> on <%= row.item.verifiedAt.toLocaleDateString('en-US') %>.<% } else if (done && row.item && row.item.employeeConfirmedAt) { %> Confirmed by the employee on <%= row.item.employeeConfirmedAt.toLocaleDateString('en-US') %>.<% } %>
                 <% if (row.awaitingVerification) { %> Confirmed by the employee — awaiting verification by a supervisor or administrator.<% } %>
                 <% if (row.item) { %> Last updated <%= row.item.updatedAt.toLocaleDateString('en-US') %>.<% } %>
@@ -198,13 +199,19 @@
             <p class="text-sm text-muted mt-4"><%= r.category || 'Other' %><% if (!row.derived) { %> · <%= VERIFICATION_LABEL[row.rule] %><% } %></p>
             <% if (r.description) { %><p class="text-sm text-muted mt-4"><%= r.description %></p><% } %>
             <p class="text-sm text-muted mt-4">
-              <% if (row.derived) { %>Calculated from real data<% if (r.kind === 'CREDENTIAL_VAULT') { %> — contents of the vault are never shown here<% } %>.<% } else if (r.companyControlled) { %>Company-controlled — set up with the company.<% } else if (isSelf && row.rule === 'MANAGEMENT_ONLY') { %>Only your supervisor or an administrator can complete this.<% } %>
+              <% if (row.derived) { %>Calculated from real data<% if (r.kind === 'CREDENTIAL_VAULT') { %> — contents of the vault are never shown here<% } %>.<% if (row.vault) { %> Saved <%= row.vault.saved %> of <%= row.vault.total %> required systems<%= row.vault.missing.length ? ' - still needed: ' + row.vault.missing.join(', ') : '' %>.<% } %><% } else if (r.companyControlled) { %>Company-controlled — set up with the company.<% } else if (isSelf && row.rule === 'MANAGEMENT_ONLY') { %>Only your supervisor or an administrator can complete this.<% } %>
               <% if (row.item && row.item.verifiedAt && done) { %> Verified by <%= row.item.verifiedBy ? row.item.verifiedBy.fullName : 'management' %> on <%= row.item.verifiedAt.toLocaleDateString('en-US') %>.<% } %>
               <% if (row.awaitingCompanyControl) { %> Waiting for company ownership/recovery confirmation.<% } %>
             </p>
             <% if (r.companyControlled && row.item && row.item.accountType === 'PERSONAL_WORK') { %><p class="text-sm mt-4">Personal number — used for work.</p>
             <% } else if (r.companyControlled && row.item && row.item.companyNumber) { %><p class="text-sm mt-4">Company number/account: <%= row.item.companyNumber %></p><% } %>
             <% if (row.item && row.item.note) { %><p class="text-sm mt-4">Note: <%= row.item.note %></p><% } %>
+            <% if (isSelf && !viewOnly && !setup.notStarted && r.kind === 'MANUAL' && r.companyControlled && row.status !== 'NOT_REQUIRED' && !(done && row.item && row.item.verifiedById)) { %>
+            <form method="post" action="/employees/<%= employee.id %>/setup/<%= r.id %>/account" class="mt-8" autocomplete="off" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+              <input name="companyNumber" maxlength="40" required value="<%= row.item && row.item.companyNumber ? row.item.companyNumber : '' %>" placeholder="<%= r.key === 'telegram' ? 'Your Telegram number or @username' : 'Your ' + r.label + ' number, e.g. +998 90 123 45 67' %>" aria-label="Your <%= r.label %> number" style="flex:1;min-width:150px" />
+              <button type="submit" class="btn btn-secondary btn-sm"><%= done ? 'Update' : 'Save' %></button>
+            </form>
+            <% } %>
             <p class="mt-8"><span class="badge <%= done ? 'badge-success' : row.status === 'ISSUE' ? 'badge-danger' : row.status === 'NOT_REQUIRED' ? '' : 'badge-warning' %>"><%= STATUS_LABEL[row.status] %></span></p>
             <% if (isSelf && actionHref && !done && (r.kind !== 'CREDENTIAL_VAULT' || tabs.some(function (t) { return /\/credentials$/.test(t.href); }))) { %><p class="mt-8"><a class="link-gold text-sm" href="<%= actionHref %>"><%= actionLabel %> &rarr;</a></p><% } %>
           </div>

@@ -325,6 +325,40 @@ router.post('/employees/:id/setup/:requirementId/report-issue', requireSession, 
   res.redirect(`/employees/${actor.id}/setup?saved=1&changed=1`);
 });
 
+// The employee enters their own WhatsApp / Telegram number (or @handle) and saves: that completes the
+// item automatically (lib/employeeSetup.js#selfSupplied) — no separate management verification.
+// Self only; an item management already verified is not theirs to change here.
+router.post('/employees/:id/setup/:requirementId/account', requireSession, async (req, res) => {
+  const actor = req.profile;
+  if (req.params.id !== actor.id) return res.status(403).render('forbidden');
+  const ctx = await loadEmployeeFor(actor, actor.id);
+  if (!ctx) return notFound(res);
+  if (req.impersonation) return denySetup(req, res, ctx, impersonatingMessage(req, ctx));
+  if (actor.status !== 'ACTIVE') return denySetup(req, res, ctx, NOT_ACTIVE_MESSAGE);
+  const requirement = await prisma.setupRequirement.findFirst({ where: { id: req.params.requirementId, organizationId: actor.organizationId, archivedAt: null } });
+  if (!requirement || !(await requirementAppliesToProfile(requirement, ctx.employee))) return notFound(res);
+  if (requirement.kind !== 'MANUAL' || !requirement.companyControlled) return res.status(403).render('forbidden');
+
+  const value = String(req.body.companyNumber || '').trim().slice(0, 40);
+  if (!value) return renderSetup(req, res, ctx, { error: `Enter your ${requirement.label} number first.` });
+  if (!/^[+@\w][\w+@ ().-]{2,39}$/.test(value)) return renderSetup(req, res, ctx, { error: `Enter your ${requirement.label} number or @username without extra characters.` });
+  const existing = await prisma.employeeSetupItem.findUnique({ where: { profileId_requirementId: { profileId: actor.id, requirementId: requirement.id } } });
+  if (existing?.status === 'NOT_REQUIRED') return res.redirect(`/employees/${actor.id}/setup`);
+  if (existing?.status === 'COMPLETED' && existing.verifiedById) return renderSetup(req, res, ctx, { error: `${requirement.label} was already verified by management. Ask an administrator if it needs to change.` });
+
+  const data = {
+    status: 'COMPLETED', note: null, companyNumber: value, employeeConfirmedAt: new Date(), verifiedById: null, verifiedAt: null,
+    ...(requirement.allowPersonalAccount ? { accountType: 'PERSONAL_WORK' } : {}),
+  };
+  await prisma.employeeSetupItem.upsert({
+    where: { profileId_requirementId: { profileId: actor.id, requirementId: requirement.id } },
+    update: { ...data, updatedById: actor.id },
+    create: { profileId: actor.id, requirementId: requirement.id, ...data, updatedById: actor.id },
+  });
+  await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'setup.employee_saved_account', targetTable: 'Profile', targetId: actor.id, metadata: { requirement: requirement.key, from: existing?.status || 'NOT_SET_UP', to: 'COMPLETED', via: 'account' } });
+  res.redirect(`/employees/${actor.id}/setup?saved=1&changed=1`);
+});
+
 router.post('/employees/:id/setup/:requirementId', requireSession, async (req, res) => {
   const actor = req.profile;
   const ctx = await loadEmployeeFor(actor, req.params.id);
