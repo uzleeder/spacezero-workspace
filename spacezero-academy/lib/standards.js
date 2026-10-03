@@ -6,6 +6,7 @@
 // the client, so a direct URL/role-manipulation attempt can never see or act on content that
 // does not apply to the requester.
 const { prisma } = require('./prisma');
+const { containsText } = require('./textSearch');
 
 const CONTENT_TYPES = ['STANDARD', 'RESPONSIBILITY', 'WORKFLOW', 'DISCLOSURE'];
 const CONTENT_TYPE_LABEL = { STANDARD: 'Standard', RESPONSIBILITY: 'Responsibility', WORKFLOW: 'Workflow', DISCLOSURE: 'Required Disclosure' };
@@ -35,7 +36,7 @@ async function visibleStandardsItems(organizationId, role, filters = {}) {
       archivedAt: null,
       currentVersionId: { not: null },
       contentType: filters.contentType && CONTENT_TYPES.includes(filters.contentType) ? filters.contentType : undefined,
-      title: filters.q ? { contains: filters.q } : undefined,
+      title: typeof filters.q === 'string' && filters.q.trim() ? containsText(filters.q) : undefined,
     },
     include: { currentVersion: true },
     orderBy: { title: 'asc' },
@@ -54,9 +55,9 @@ async function searchStandards(organizationId, role, q) {
       archivedAt: null,
       currentVersionId: { not: null },
       OR: [
-        { title: { contains: text } },
-        { category: { contains: text } },
-        { currentVersion: { shortDescription: { contains: text } } },
+        { title: containsText(text) },
+        { category: containsText(text) },
+        { currentVersion: { shortDescription: containsText(text) } },
       ],
     },
     include: { currentVersion: true },

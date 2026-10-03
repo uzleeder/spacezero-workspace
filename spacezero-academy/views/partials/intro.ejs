@@ -13,7 +13,9 @@
     </div>
     <p class="workspace-intro__motto">KNOWLEDGE · CONFIDENCE · EXCELLENCE</p>
   </div>
-  <uzleeder-crafted class="workspace-intro__credit" theme="dark" size="sm"></uzleeder-crafted>
+  <%# The UzLeeder signature is shown to Admins only (never on the login page or to other roles). %>
+  <% const showCredit = typeof profile !== 'undefined' && profile && profile.role === 'ADMIN'; %>
+  <% if (showCredit) { %><uzleeder-crafted class="workspace-intro__credit" theme="dark" size="sm"></uzleeder-crafted><% } %>
 </div>
 <script src="<%= asset('/static/js/intro.js') %>"></script>
-<script src="<%= asset('/static/js/uzleeder-crafted.js') %>" defer></script>
+<% if (showCredit) { %><script src="<%= asset('/static/js/uzleeder-crafted.js') %>" defer></script><% } %>

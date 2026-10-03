@@ -1,6 +1,7 @@
 'use strict';
 
 const { prisma } = require('./prisma');
+const { containsText } = require('./textSearch');
 
 async function getVisibleLibraryItems(organizationId, role, filters) {
   filters = filters || {};
@@ -9,7 +10,7 @@ async function getVisibleLibraryItems(organizationId, role, filters) {
       organizationId,
       archivedAt: null,
       categoryId: filters.categoryId || undefined,
-      title: filters.q ? { contains: filters.q } : undefined,
+      title: typeof filters.q === 'string' && filters.q.trim() ? containsText(filters.q) : undefined,
     },
     include: { category: true },
     orderBy: { createdAt: 'desc' },

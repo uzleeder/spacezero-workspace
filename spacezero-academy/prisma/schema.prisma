@@ -321,6 +321,7 @@ model Profile {
   passportFirstName        String?
   passportMiddleName       String?
   passportLastName         String?
+  dateOfBirth              DateTime?
   setupItems               EmployeeSetupItem[]
   setupItemsVerified       EmployeeSetupItem[]           @relation("SetupItemVerifiedBy")
   credentialsOwned         Credential[]                  @relation("CredentialOwner")

@@ -20,6 +20,7 @@ const { SETUP_FILTERS, parseSetupQuery, matchesSetup, requirementOptions } = req
 const { getTrainingSummaries } = require('../../lib/training');
 const { employeeWorkbook } = require('../../lib/employeeExport');
 const { roleLabel } = require('../../lib/roles');
+const { containsText } = require('../../lib/textSearch');
 
 const { sendAccountEmail, isEmailConfigured } = require('../../lib/mailer');
 const { sendReset } = require('../../lib/accountEmail');
@@ -85,7 +86,9 @@ router.get('/employees', requireAdmin, async (req, res) => {
       organizationId: admin.organizationId,
       role: str(req.query.role) || undefined,
       status: str(req.query.status) || undefined,
-      ...(req.query.q ? { OR: [{ fullName: { contains: str(req.query.q) } }, { email: { contains: str(req.query.q) } }] } : {}),
+      // In AND so it does not replace the OR that excludeOtherAdminsTestProfiles() spreads in below
+      // (a top-level OR here was silently overwritten, so the search box matched everyone).
+      ...(str(req.query.q).trim() ? { AND: [{ OR: [{ fullName: containsText(req.query.q) }, { email: containsText(req.query.q) }, { username: containsText(req.query.q) }] }] } : {}),
       teamMemberships: teamId ? { some: { teamId } } : undefined,
       supervisedBy: supervisorId ? { some: { supervisorId, unassignedAt: null } } : undefined,
       ...excludeOtherAdminsTestProfiles(admin),

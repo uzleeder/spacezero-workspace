@@ -1101,3 +1101,13 @@ html[data-theme="dark"] .upload-row { background: #252145; border-color: #3d3970
 .avatar-hue-sky { background: rgba(143,184,255,.2); color: #8fb8ff; border-color: transparent; }
 .avatar-hue-lilac { background: rgba(185,162,255,.2); color: #b9a2ff; border-color: transparent; }
 .avatar-hue-orchid { background: rgba(231,160,224,.2); color: #e7a0e0; border-color: transparent; }
+
+/* Birthday greeting card (letter shown to the employee on their birthday; Admin preview) */
+.birthday-card { max-width: 640px; border-top: 4px solid var(--gold-500); }
+.birthday-card .card-body { padding: 28px 32px; }
+.birthday-card__headline { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 600; color: var(--navy-950); margin-bottom: 18px; }
+.birthday-card__greeting { font-weight: 600; margin-bottom: 12px; }
+.birthday-card__text { line-height: 1.7; margin-bottom: 14px; }
+.birthday-card__closing { margin-top: 22px; line-height: 1.7; }
+html[data-theme="dark"] .birthday-card__headline { color: #f4f1ff; }
+@media (max-width: 600px) { .birthday-card .card-body { padding: 22px 20px; } }

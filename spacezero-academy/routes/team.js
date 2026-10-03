@@ -5,6 +5,7 @@ const router = express.Router();
 const multer = require('multer');
 
 const { prisma } = require('../lib/prisma');
+const { containsText } = require('../lib/textSearch');
 const { parseFilters, whereFor, applyLearningFilters, byReadiness, byPassportStatus } = require('../lib/employeeFilters');
 const { STATUS: PASSPORT_STATUS, STATUS_LABEL: PASSPORT_STATUS_LABEL } = require('../lib/passport');
 const { readinessFor } = require('../lib/readiness');
@@ -29,7 +30,7 @@ router.get('/team', requireRole('SUPERVISOR'), async (req, res) => {
   const status = str(req.query.status);
   const f = parseFilters(req.query);
   const found = await prisma.profile.findMany({
-    where: { id: { in: agentIds }, status: status || undefined, ...(req.query.q ? { OR: [{ fullName: { contains: str(req.query.q) } }, { email: { contains: str(req.query.q) } }] } : {}), ...(await whereFor(req.profile.organizationId, f)) },
+    where: { id: { in: agentIds }, status: status || undefined, ...(str(req.query.q).trim() ? { OR: [{ fullName: containsText(req.query.q) }, { email: containsText(req.query.q) }, { username: containsText(req.query.q) }] } : {}), ...(await whereFor(req.profile.organizationId, f)) },
     include: { teamMemberships: { include: { team: true } } },
     orderBy: { fullName: 'asc' },
   });
