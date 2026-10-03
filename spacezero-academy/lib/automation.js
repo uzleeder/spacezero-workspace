@@ -316,6 +316,7 @@ async function runAutomation(organizationId, { now = new Date(), actorId = null 
   summary.onboarding = await runOnboarding(organizationId, { now });
   summary.setupReminders = await runSetupReminders(organizationId);
   summary.passportReminders = await runPassportReminders(organizationId, now);
+  summary.birthdays = await require('./birthdays').runBirthdayGreetings(organizationId, now);
   summary.rules = await runRules(organizationId, now);
   summary.notifications = await runNotifications(organizationId, now);
   summary.certifications = await evaluateOrganization(organizationId, { now });

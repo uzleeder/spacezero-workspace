@@ -2,5 +2,5 @@
 <% if (setup.notStarted) { %>
 <span class="badge" title="This employee has not been activated yet"><%= '○' %> Setup Not Started</span>
 <% } else { %>
-<span class="badge <%= setup.fullySetUp ? 'badge-success' : setup.hasIssue ? 'badge-danger' : 'badge-warning' %>" title="<%= setup.completed %> of <%= setup.required %> required items completed"><%= setup.fullySetUp ? '●' : setup.hasIssue ? '▲' : '○' %> <%= setup.percent %>% — <%= setup.hasIssue && !setup.fullySetUp ? 'Setup Issue' : setup.label %></span>
+<span class="badge <%= setup.fullySetUp ? 'badge-success' : setup.hasIssue ? 'badge-danger' : 'badge-warning' %>" title="<%= setup.completed %> of <%= setup.required %> required items completed<%= setup.awaitingVerification ? ', ' + setup.awaitingVerification + ' awaiting verification' : '' %>"><%= setup.fullySetUp ? '●' : setup.hasIssue ? '▲' : '○' %> <%= setup.percent %>% — <%= setup.hasIssue && !setup.fullySetUp ? 'Setup Issue' : setup.label %></span>
 <% } %>

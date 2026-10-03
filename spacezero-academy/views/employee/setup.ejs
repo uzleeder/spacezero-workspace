@@ -14,7 +14,7 @@
       <%- include('../partials/setup-badge', { setup: setup }) %>
     </div>
     <div class="progress-track mt-16"><div class="progress-fill navy" style="width:<%= setup.percent %>%"></div></div>
-    <p class="text-sm text-muted mt-16"><%= setup.completed %> of <%= setup.required %> required items completed.
+    <p class="text-sm text-muted mt-16"><%= setup.completed %> of <%= setup.required %> required items completed<%= setup.awaitingVerification ? ', ' + setup.awaitingVerification + ' more confirmed and awaiting verification' : '' %>.
       <% if (setup.notStarted) { %>Setup starts once this account has been activated.<% } else if (isSelf && !manage) { %>Some items you can confirm yourself; the rest are verified by your supervisor or an administrator.<% } %></p>
   </div>
 </div>
@@ -188,7 +188,7 @@
         <% otherSelfRows.forEach(function (row) { %>
           <% const r = row.requirement; const done = row.status === 'COMPLETED';
              const actionHref = r.kind === 'CREDENTIAL_VAULT' ? '/employees/' + employee.id + '/credentials' : (r.kind === 'LOCAL_PHONE' || r.kind === 'ADDRESS') ? '#contact-card' : r.kind === 'PASSPORT' ? '#passport-card' : '';
-             const actionLabel = r.kind === 'CREDENTIAL_VAULT' ? 'Open vault' : (r.kind === 'LOCAL_PHONE' || r.kind === 'ADDRESS') ? 'Add contact details' : r.kind === 'PASSPORT' ? 'Add passport details' : ''; %>
+             const actionLabel = r.kind === 'CREDENTIAL_VAULT' ? (isSelf ? 'Add my logins & passwords' : 'Open vault') : (r.kind === 'LOCAL_PHONE' || r.kind === 'ADDRESS') ? 'Add contact details' : r.kind === 'PASSPORT' ? 'Add passport details' : ''; %>
           <div class="card" style="padding:16px">
             <p style="font-weight:600;color:var(--navy-950)">
               <span aria-hidden="true"><%= done ? '✓' : row.status === 'NOT_REQUIRED' ? '–' : '✗' %></span>
@@ -243,6 +243,7 @@
     <% } else { %>
       <% const passportName = [employee.passportFirstName, employee.passportMiddleName, employee.passportLastName].filter(Boolean).join(' '); %>
       <% if (passportName) { %><p class="text-sm text-muted">Name: <strong><%= passportName %></strong></p><% } else { %><p class="text-sm text-muted">Name on passport not added yet.</p><% } %>
+      <p class="text-sm text-muted">Date of birth: <% if (dateOfBirth) { %><strong><%= new Date(dateOfBirth + 'T00:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'long', day: 'numeric' }) %></strong><% } else { %>not added yet<% } %></p>
       <p class="text-sm text-muted">Number: <strong><%= passportFull || passportMasked %></strong><% if (passportExpiresAt) { %> · Expires <%= new Date(passportExpiresAt).toLocaleDateString('en-US') %><% } %></p>
       <% if (passStatus === 'EXPIRED') { %><p class="text-sm" style="color:var(--red-600);margin-top:6px">This passport has expired.</p><% } %>
       <% if (passportMasked && !passportFull) { %>
@@ -273,7 +274,7 @@
             </div>
           </div>
           <p class="hint">Exactly as printed in the passport.</p>
-          <div class="grid grid-2 mt-16">
+          <div class="grid grid-3 mt-16">
             <div class="field">
               <label for="passportNumber">Passport number</label>
               <input id="passportNumber" name="passportNumber" maxlength="20" autocomplete="off" value="<%= isSelf ? (passportFull || '') : '' %>" placeholder="<%= employee.passportNumberEnc && !isSelf ? 'Leave blank to keep the current number' : '' %>" />
@@ -282,8 +283,12 @@
               <label for="passportExpiresAt">Expiration date</label>
               <input id="passportExpiresAt" name="passportExpiresAt" type="date" value="<%= passportExpiresAt %>" required />
             </div>
+            <div class="field">
+              <label for="dateOfBirth">Date of birth</label>
+              <input id="dateOfBirth" name="dateOfBirth" type="date" min="1900-01-01" max="<%= new Date().toISOString().slice(0, 10) %>" value="<%= dateOfBirth %>" required />
+            </div>
           </div>
-          <p class="hint">Only the name, number and expiration date are stored — never a scan or photo. The number is encrypted at rest and masked from management by default.</p>
+          <p class="hint">Only the name, number, expiration date and date of birth are stored — never a scan or photo. The number is encrypted at rest and masked from management by default. We use the date of birth to send a birthday greeting.</p>
           <button type="submit" class="btn btn-gold mt-16"><%= employee.passportNumberEnc ? 'Save changes' : 'Save passport details' %></button>
         </form>
       </details>

@@ -63,7 +63,7 @@
       </nav>
       <div class="sidebar-footer">
         <div class="sidebar-note">EXCELLENCE, EVERY DAY.<br><span>Built for a higher standard.</span></div>
-        <uzleeder-crafted theme="dark" size="sm"></uzleeder-crafted>
+        <% if (profile.role === 'ADMIN') { %><uzleeder-crafted theme="dark" size="sm"></uzleeder-crafted><% } %>
       </div>
     </aside>
 

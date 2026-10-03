@@ -5,7 +5,7 @@
 
 <a class="card card-link" href="/my/setup" style="display:block;margin-bottom:24px">
   <div class="card-body row-between" style="gap:16px;flex-wrap:wrap">
-    <div><p class="label" style="font-weight:600;color:var(--navy-950)">My setup</p><p class="text-sm text-muted" style="margin-top:4px"><%= setup.completed %> of <%= setup.required %> required items completed<% if (!setup.fullySetUp && !setup.notStarted) { %> — see what is still missing<% } %></p></div>
+    <div><p class="label" style="font-weight:600;color:var(--navy-950)">My setup</p><p class="text-sm text-muted" style="margin-top:4px"><%= setup.completed %> of <%= setup.required %> required items completed<%= setup.awaitingVerification ? ' (' + setup.awaitingVerification + ' awaiting verification)' : '' %><% if (!setup.fullySetUp && !setup.notStarted) { %> — see what is still missing<% } %></p></div>
     <%- include('../partials/setup-badge', { setup: setup }) %>
   </div>
 </a>

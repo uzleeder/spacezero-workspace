@@ -148,6 +148,7 @@ app.use('/', require('./routes/team'));
 app.use('/', require('./routes/assignments'));
 app.use('/', require('./routes/skills'));
 app.use('/', require('./routes/notifications'));
+app.use('/', require('./routes/birthday'));
 app.use('/', require('./routes/certificates'));
 app.use('/', require('./routes/impersonation'));
 app.use('/', require('./routes/legacyRedirects'));

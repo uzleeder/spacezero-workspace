@@ -37,6 +37,7 @@ async function hasCredentialGrant(ownerId, granteeId) {
  *  - Supervisor's / Flight Expert's credentials: the owner (if permitted) and an Admin only.
  *  - Admin's credentials: that admin, plus other admins ONLY through an explicit CredentialGrant.
  *  - Never while impersonating (the impersonator does not know the target's password).
+ * An owner (Travel Agent, Flight Expert, Supervisor) can always add/change/delete their own entries.
  * `view` = may reveal (after re-authentication); `manage` = may create/update/delete.
  */
 async function credentialAccess(actor, owner, { impersonating = false } = {}) {
@@ -58,7 +59,9 @@ async function credentialAccess(actor, owner, { impersonating = false } = {}) {
     return (await canViewProfile(actor, owner.id)) ? { view: true, manage: true } : none;
   }
 
-  if (isOwner) return { view: ownerCanView, manage: false };
+  // The owner always has a place to write their own work-system logins (add / change / delete);
+  // whether they can read them back afterwards is the org policy.
+  if (isOwner) return { view: ownerCanView, manage: true };
 
   if (actor.role === 'SUPERVISOR' && owner.role === 'TRAVEL_AGENT' && await isSupervisorOfAgent(actor.id, owner.id) && await hasCapability(actor, 'credentials.view_team')) {
     return { view: true, manage: true };

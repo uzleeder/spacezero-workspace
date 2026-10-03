@@ -109,6 +109,12 @@ test('setup percentage is computed from stored facts: derived items, verificatio
   // A NOT_REQUIRED exemption removes an item from the denominator.
   r = calc([verified('r1'), { requirementId: 'r2', status: 'NOT_REQUIRED' }]);
   assert.equal(r.required, 2); assert.equal(r.percent, 100);
+  // Items the employee confirmed themselves (awaiting verification) move the percentage, but are
+  // never "completed" and never reach 100 until a supervisor/admin verifies them.
+  r = calc([{ requirementId: 'r1', status: 'IN_PROGRESS', employeeConfirmedAt: new Date() }, { requirementId: 'r2', status: 'IN_PROGRESS', employeeConfirmedAt: new Date() }]);
+  assert.equal(r.completed, 1); assert.equal(r.awaitingVerification, 2); assert.equal(r.percent, 99); assert.equal(r.fullySetUp, false);
+  r = calc([{ requirementId: 'r1', status: 'IN_PROGRESS', employeeConfirmedAt: new Date() }]);
+  assert.equal(r.percent, 67); assert.equal(r.completed, 1);
   // The role-specific item does count for a supervisor.
   r = calc([], { role: 'SUPERVISOR', status: 'ACTIVE', localPhone: '' });
   assert.ok(r.missingKeys.includes('sup_only')); assert.ok(r.missingKeys.includes('local_phone'));
@@ -253,8 +259,10 @@ test('credential access matrix: owner and admin yes; the agent\'s own supervisor
   }
   assert.equal((await post(supB, '/credentials/does-not-exist/update', { password: 'x' })).status, 404);
   assert.equal((await prisma.credential.findUnique({ where: { id: cred.id } })).payloadEnc, before);
-  // the owner can view but cannot change what management stored
-  assert.equal((await post(agentA, `/credentials/${cred.id}/update`, { password: 'mine' })).status, 403);
+  // the owner can write to (add / change / delete) their own vault; strangers still see a missing record
+  assert.equal((await post(agentA, `/credentials/${cred.id}/update`, { password: 'mine' })).status, 302);
+  assert.equal((await post(agentA, `/credentials/${cred.id}/reveal`, { password: PASSWORD })).body.password, 'mine');
+  assert.equal((await post(admin, `/credentials/${cred.id}/update`, { password: SECRET })).status, 302); // restore the value later tests expect
   assert.ok(await prisma.auditLog.findFirst({ where: { organizationId: org.id, action: 'credential.access_denied' } }));
   // vault pages: unauthorized viewers get nothing
   for (const who of [supA, supB, agentB, outsider]) assert.ok(denied(await get(who, `/employees/${agentA.id}/credentials`)));

@@ -1,0 +1,34 @@
+<%- include('partials/page-header', { pageTitle: preview ? 'Birthday greeting' : 'Birthday card', pageDescription: preview ? 'On each employee\'s birthday the system sends them this letter automatically (as a notification with a link to the card). This is how it looks, shown with your own name.' : '' }) %>
+
+<% if (letter) { %>
+<div class="card birthday-card">
+  <div class="card-body">
+    <p class="birthday-card__headline"><%= letter.headline %></p>
+    <p class="birthday-card__greeting"><%= letter.greeting %></p>
+    <% letter.paragraphs.forEach(function (p) { %><p class="birthday-card__text"><%= p %></p><% }); %>
+    <p class="birthday-card__closing"><%= letter.closing %><br><strong><%= letter.signature %></strong><br><span class="text-muted"><%= letter.company %></span></p>
+  </div>
+</div>
+<% } else { %>
+<div class="card"><div class="card-body">
+  <%- include('partials/empty-state', { title: 'Your birthday card appears on your birthday', description: hasBirthday ? 'We will send you a greeting on the day.' : 'Add your date of birth in My Setup → Passport Details and we will send you a greeting on your birthday.' }) %>
+</div></div>
+<% } %>
+
+<% if (preview) { %>
+<div class="card mt-24">
+  <div class="card-header"><h2>Upcoming birthdays</h2></div>
+  <% if (upcoming.length === 0) { %>
+    <div class="card-body"><p class="text-sm text-muted">No date of birth has been added yet. People add it under My Setup → Passport Details (an Admin can add it for them too).</p></div>
+  <% } else { %>
+    <ul class="divide-list">
+      <% upcoming.forEach(function (u) { %>
+        <li style="display:flex;justify-content:space-between;gap:12px">
+          <span><a href="/admin/employees/<%= u.id %>"><%= u.fullName %></a> <span class="text-sm text-muted">· <%= roleLabel(u.role) %></span></span>
+          <span class="text-sm text-muted"><%= ['January','February','March','April','May','June','July','August','September','October','November','December'][u.month - 1] %> <%= u.day %> · <%= u.today ? 'today 🎂' : u.inDays === 1 ? 'tomorrow' : 'in ' + u.inDays + ' days' %></span>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+</div>
+<% } %>

@@ -18,7 +18,8 @@ const { employeeTimeline } = require('../lib/timeline');
 const { createNotification } = require('../lib/notifications');
 const { safeRedirect } = require('../lib/requestSecurity');
 const { hasCapability, canViewSetupTab } = require('../lib/supervisorCapabilities');
-const { passportAccess, passportStatus, maskPassportNumber, validatePassportNumber, parseExpirationDate, decryptPassportNumber, encryptPassportNumber, STATUS_LABEL: PASSPORT_STATUS_LABEL, STATUS_TONE: PASSPORT_STATUS_TONE } = require('../lib/passport');
+const { parseDateOfBirth } = require('../lib/birthdays');
+const { passportAccess,passportStatus, maskPassportNumber, validatePassportNumber, parseExpirationDate, decryptPassportNumber, encryptPassportNumber, STATUS_LABEL: PASSPORT_STATUS_LABEL, STATUS_TONE: PASSPORT_STATUS_TONE } = require('../lib/passport');
 const { verifyPassword } = require('../lib/password');
 const { isRateLimited, recordAttempt } = require('../lib/rateLimit');
 
@@ -89,6 +90,7 @@ async function renderSetup(req, res, ctx, extra = {}) {
     passportFull,
     passportMasked,
     passportExpiresAt: ctx.employee.passportExpiresAt ? ctx.employee.passportExpiresAt.toISOString().slice(0, 10) : '',
+    dateOfBirth: ctx.employee.dateOfBirth ? ctx.employee.dateOfBirth.toISOString().slice(0, 10) : '',
     error: null,
     saved: false,
     changed: null,
@@ -463,6 +465,14 @@ router.post('/employees/:id/passport', requireSession, async (req, res) => {
   const isNew = !ctx.employee.passportNumberEnc;
   const numberRaw = String(req.body.passportNumber || '').trim();
   const data = { passportExpiresAt: expiresAt };
+
+  // Date of birth (used for the automatic birthday greeting). A form that does not send the field
+  // keeps the stored value; one that sends it must send a real, past date.
+  if (req.body.dateOfBirth !== undefined) {
+    const { date: dateOfBirth, error: dobError } = parseDateOfBirth(req.body.dateOfBirth);
+    if (dobError) return renderSetup(req, res, ctx, { error: dobError });
+    data.dateOfBirth = dateOfBirth;
+  }
 
   // First / middle / last name exactly as printed in the passport. A field the form did not send
   // keeps its stored value; first and last are required once merged, middle is optional.

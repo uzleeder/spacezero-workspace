@@ -171,9 +171,9 @@ function isValidLocalPhone(value) {
 }
 
 /** Percentage shown to people: rounded, but 100 is reserved for "everything completed". */
-function percentOf(completed, counted) {
+function percentOf(completed, counted, awaiting = 0) {
   if (!counted || completed === counted) return 100;
-  return Math.min(99, Math.round((completed / counted) * 100));
+  return Math.min(99, Math.round(((completed + awaiting) / counted) * 100));
 }
 
 /**
@@ -261,13 +261,18 @@ function computeSetup({ profile, requirements, items, vaultSystemKeys, hasAddres
   const notStarted = profile.status === 'INVITED';
   const hasIssue = !notStarted && counted.some((r) => r.status === 'ISSUE');
   const overdueRows = notStarted ? [] : counted.filter((r) => r.overdue);
-  const percent = notStarted ? 0 : percentOf(completed.length, counted.length);
-  const fullySetUp = !notStarted && percent === 100;
+  // Items the employee has confirmed and that only wait for a supervisor/admin to verify count
+  // towards the percentage (so ticking and saving visibly moves the bar), but never reach 100 and
+  // never count as completed - "Fully Set Up" still needs every item verified.
+  const awaiting = counted.filter((r) => r.awaitingVerification && r.status !== 'COMPLETED');
+  const percent = notStarted ? 0 : percentOf(completed.length, counted.length, awaiting.length);
+  const fullySetUp = !notStarted && completed.length === counted.length;
   return {
     rows,
     history,
     required: counted.length,
     completed: completed.length,
+    awaitingVerification: awaiting.length,
     percent,
     hasIssue,
     overdueRows,
