@@ -34,7 +34,9 @@
         <div class="field"><label for="requiredAttempts">Required attempts</label><input id="requiredAttempts" name="requiredAttempts" type="number" min="1" max="20" value="1" /></div>
       </div>
       <div class="field mt-16"><label for="note">Note to the employees (optional)</label><textarea id="note" name="note" rows="2" maxlength="500"></textarea></div>
-      <button type="submit" class="btn btn-gold mt-16">Assign</button>
+      <div class="field mt-16"><label for="dueTime">Due time (Tashkent, UTC+05:00)</label><input id="dueTime" name="dueTime" type="time" value="23:59" /></div>
+      <p class="text-sm text-muted">Recipients get an email. Unfinished training receives a reminder every 3 hours after the deadline.</p>
+      <button type="submit" class="btn btn-gold mt-16">Assign &amp; send email</button>
     </div>
   </div>
 </form>

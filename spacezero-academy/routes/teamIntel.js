@@ -57,7 +57,7 @@ router.post('/bulk-assign', manage, async (req, res) => {
   try {
     const result = await bulkAssign(actor, await allowedIdsFor(actor), {
       kind: req.body.kind, employeeIds: req.body.employeeIds, courseId: req.body.courseId, assessmentId: req.body.assessmentId,
-      skillId: req.body.skillId, dueDate: req.body.dueDate, minimumScore: req.body.minimumScore, requiredAttempts: req.body.requiredAttempts, note: req.body.note,
+      skillId: req.body.skillId, dueDate: req.body.dueDate, dueTime: req.body.dueTime, minimumScore: req.body.minimumScore, requiredAttempts: req.body.requiredAttempts, note: req.body.note,
     });
     return res.redirect(back({ done: `${result.created}:${result.skipped}` }));
   } catch (err) {

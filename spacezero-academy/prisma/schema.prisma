@@ -600,10 +600,30 @@ model TrainingAssignmentRecipient {
   profile      Profile            @relation(fields: [profileId], references: [id], onDelete: Cascade)
   createdAt    DateTime           @default(now())
 
+  emailSchedule TrainingEmailSchedule?
   attempts TrainingAttempt[]
 
   @@unique([assignmentId, profileId])
   @@index([profileId])
+}
+
+model TrainingEmailSchedule {
+  recipientId      String @id
+  recipient        TrainingAssignmentRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  kind             String @default("ASSIGNED")
+  sequence         Int @default(0)
+  nextSendAt       DateTime?
+  lastSentAt       DateTime?
+  assignmentSentAt DateTime?
+  claimToken       String?
+  claimedAt        DateTime?
+  payloadJson      String?
+  retryCount       Int @default(0)
+  lastError        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([nextSendAt])
 }
 
 model TrainingAttempt {

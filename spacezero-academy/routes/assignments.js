@@ -15,6 +15,8 @@ const { describeAudience } = require('../lib/courseAudience');
 const { assignableCoursesWhere, canAssignCourse } = require('../lib/trainingPermissions');
 const { liveVersion } = require('../lib/courseVersions');
 const { hasCapability } = require('../lib/supervisorCapabilities');
+const trainingEmails = require('../lib/trainingEmails');
+const { trainingDeadline, formatDeadline } = require('../lib/trainingDeadline');
 
 // A Supervisor has no assign access at all until an Admin grants 'training.assign' — separate from,
 // and in addition to, the per-course assignPolicy/TrainingAssignGrant check further down (which
@@ -37,14 +39,14 @@ async function loadFormData(actor) {
   if (actor.role === 'ADMIN') {
     teams = await prisma.team.findMany({ where: { organizationId: actor.organizationId, archivedAt: null }, orderBy: { name: 'asc' } });
     people = await prisma.profile.findMany({
-      where: { organizationId: actor.organizationId, status: { not: 'ARCHIVED' }, ...excludeOtherAdminsTestProfiles(actor) },
+      where: { organizationId: actor.organizationId, status: { in: ['ACTIVE', 'INVITED'] }, archivedAt: null, ...excludeOtherAdminsTestProfiles(actor) },
       orderBy: { fullName: 'asc' },
     });
   } else {
     const teamIds = await teamIdsForSupervisor(actor.id);
     teams = await prisma.team.findMany({ where: { id: { in: teamIds } } });
     const agentIds = await supervisedProfileIds(actor.id);
-    people = await prisma.profile.findMany({ where: { id: { in: agentIds }, status: { not: 'ARCHIVED' } }, orderBy: { fullName: 'asc' } });
+    people = await prisma.profile.findMany({ where: { id: { in: agentIds }, status: { in: ['ACTIVE', 'INVITED'] }, archivedAt: null }, orderBy: { fullName: 'asc' } });
   }
   return { courses, teams, people };
 }
@@ -62,6 +64,7 @@ async function formHints(actor, courses, people, query) {
     defaultDueDate: course && course.defaultDueDate ? course.defaultDueDate.toISOString().slice(0, 10) : '',
     defaultMinimumScore: Math.max(minimumScoreFloor, course ? course.passingScore : 0),
     minimumScoreFloor,
+    formatDeadline,
   };
 }
 
@@ -70,7 +73,7 @@ router.get('/assignments', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm,
   const { courses, teams, people } = await loadFormData(actor);
   const assignments = await prisma.trainingAssignment.findMany({
     where: actor.role === 'ADMIN' ? { organizationId: actor.organizationId } : { assignedById: actor.id },
-    include: { course: true, _count: { select: { recipients: true } } },
+    include: { course: true, recipients: { select: { emailSchedule: true } }, _count: { select: { recipients: true } } },
     orderBy: { createdAt: 'desc' },
     take: 20,
   });
@@ -83,6 +86,7 @@ router.get('/assignments', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm,
     assignments,
     allowCompany: actor.role === 'ADMIN',
     error: null,
+    emailNotice: req.query.email === 'queued' ? 'Assignment emails queued. Incomplete training receives reminders every 3 hours after the deadline.' : null,
   });
 });
 
@@ -109,15 +113,18 @@ router.post('/assignments', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm
     const { courses, teams, people } = await loadFormData(actor);
     const assignments = await prisma.trainingAssignment.findMany({
       where: actor.role === 'ADMIN' ? { organizationId: actor.organizationId } : { assignedById: actor.id },
-      include: { course: true, _count: { select: { recipients: true } } },
+      include: { course: true, recipients: { select: { emailSchedule: true } }, _count: { select: { recipients: true } } },
       orderBy: { createdAt: 'desc' },
       take: 20,
     });
-    res.render('assignments', { title: 'Training', courses, teams, people, assignments, allowCompany: actor.role === 'ADMIN', error });
+    res.render('assignments', { title: 'Training', courses, teams, people, assignments, allowCompany: actor.role === 'ADMIN', error, formatDeadline, emailNotice: null });
   };
 
   if (!parsed.success) return rerenderError('Please complete the assignment form correctly.');
   const data = parsed.data;
+  let dueDate;
+  try { dueDate = trainingDeadline(data.dueDate, req.body.dueTime || '23:59'); }
+  catch (err) { return rerenderError(err.message); }
   const assessmentId = req.body.assessmentId || null;
   const requiredAttempts = Number(req.body.requiredAttempts || 1);
   const minimumScoreFloor = await getSetting(actor.organizationId, 'training.minPassingScore');
@@ -153,22 +160,27 @@ router.post('/assignments', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm
     for (const teamId of teamIds) {
       const members = await prisma.teamMembership.findMany({ where: { teamId, team: { organizationId: actor.organizationId } }, select: { profileId: true } });
       const authorized = req.authorizedTeamRecipients && req.authorizedTeamRecipients.get(teamId);
-      groups.push({ scope: 'TEAM', targetTeamId: teamId, recipients: authorized || members.map((m) => m.profileId) });
+      const eligibleMembers = await prisma.profile.findMany({ where: { id: { in: authorized || members.map((m) => m.profileId) }, organizationId: actor.organizationId, status: { in: ['ACTIVE', 'INVITED'] }, archivedAt: null, ...excludeOtherAdminsTestProfiles(actor) }, select: { id: true } });
+      groups.push({ scope: 'TEAM', targetTeamId: teamId, recipients: eligibleMembers.map(p => p.id) });
     }
   } else if (data.scope === 'ROLE') {
     if (actor.role !== 'ADMIN') return rerenderError('Only administrators can assign training to a role group.');
     if (!data.targetRole) return rerenderError('Choose a role group.');
-    const people = await prisma.profile.findMany({ where: { organizationId: actor.organizationId, role: data.targetRole, status: { not: 'ARCHIVED' }, ...excludeOtherAdminsTestProfiles(actor) }, select: { id: true } });
+    const people = await prisma.profile.findMany({ where: { organizationId: actor.organizationId, role: data.targetRole, status: { in: ['ACTIVE', 'INVITED'] }, archivedAt: null, ...excludeOtherAdminsTestProfiles(actor) }, select: { id: true } });
     groups.push({ scope: 'ROLE', targetRole: data.targetRole, recipients: people.map((p) => p.id) });
   } else {
     const everyone = await prisma.profile.findMany({
-      where: { organizationId: actor.organizationId, status: { not: 'ARCHIVED' }, ...excludeOtherAdminsTestProfiles(actor) },
+      where: { organizationId: actor.organizationId, status: { in: ['ACTIVE', 'INVITED'] }, archivedAt: null, ...excludeOtherAdminsTestProfiles(actor) },
       select: { id: true },
     });
     groups.push({ scope: 'COMPANY', recipients: everyone.map((p) => p.id) });
   }
   const populated = groups.filter((g) => g.recipients.length > 0);
   if (populated.length === 0) return rerenderError('No recipients matched this assignment.');
+  // Never enqueue mail or create assignments for IDs outside this organization/access scope.
+  const requestedIds = [...new Set(populated.flatMap(g => g.recipients))];
+  const allowedPeople = await prisma.profile.findMany({ where: { id: { in: requestedIds }, organizationId: actor.organizationId, status: { in: ['ACTIVE', 'INVITED'] }, archivedAt: null, ...excludeOtherAdminsTestProfiles(actor) }, select: { id: true } });
+  if (allowedPeople.length !== requestedIds.length) return rerenderError('Choose active or invited employees you are allowed to manage.');
 
   const course = await prisma.trainingCourse.findUnique({ where: { id: data.courseId } });
   if (!course) return rerenderError('Course not found.');
@@ -185,7 +197,7 @@ router.post('/assignments', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm
           scope: group.scope,
           targetTeamId: group.targetTeamId,
           targetRole: group.targetRole,
-          dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+          dueDate,
           notes: data.notes,
           assessmentId,
           requiredAttempts,
@@ -195,6 +207,7 @@ router.post('/assignments', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm
       for (const profileId of group.recipients) {
         const recipient = await tx.trainingAssignmentRecipient.create({ data: { assignmentId: assignment.id, profileId } });
         await tx.trainingAttempt.create({ data: { recipientId: recipient.id, profileId, status: 'NOT_STARTED', attemptNumber: 1 } });
+        await trainingEmails.enqueueAssignment(tx, recipient.id);
       }
     }
   });
@@ -216,7 +229,25 @@ router.post('/assignments', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm
     link: '/training',
   });
 
-  res.redirect('/assignments');
+  trainingEmails.kick();
+  res.redirect('/assignments?email=queued');
+});
+
+router.post('/assignments/:id/email', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm, async (req, res) => {
+  const actor = req.profile;
+  const assignment = await prisma.trainingAssignment.findFirst({ where: { id: req.params.id, organizationId: actor.organizationId, ...(actor.role === 'SUPERVISOR' ? { assignedById: actor.id } : {}) }, include: { course: true, recipients: { include: { profile: true } } } });
+  if (!assignment) return res.status(404).render('not-found');
+  if (!await canAssignCourse(actor, assignment.course)) return res.status(403).render('forbidden');
+  const recipients = [];
+  for (const r of assignment.recipients) {
+    if (r.profile.organizationId !== actor.organizationId || r.profile.testOwnerAdminId || !['ACTIVE', 'INVITED'].includes(r.profile.status) || r.profile.archivedAt) continue;
+    if (actor.role === 'SUPERVISOR' && !await isSupervisorOfAgent(actor.id, r.profileId)) continue;
+    recipients.push(r.id);
+  }
+  const queued = await trainingEmails.queueAgain(recipients);
+  await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'training.email_requested', targetTable: 'TrainingAssignment', targetId: assignment.id, metadata: { queued } });
+  trainingEmails.kick();
+  res.redirect('/assignments?email=queued');
 });
 
 module.exports = router;

@@ -8,6 +8,7 @@
 //   * the training must be one the actor may assign (published, and permitted by the Admin's policy);
 //   * a practice must be an APPROVED assessment of that training; drafts can never be assigned.
 const { prisma } = require('./prisma');
+const trainingEmails = require('./trainingEmails');
 const { canAssignCourse } = require('./trainingPermissions');
 const { getSetting } = require('./orgSettings');
 const { logAudit } = require('./audit');
@@ -41,7 +42,7 @@ async function bulkAssign(actor, allowedIds, input) {
   if (!Number.isInteger(requiredAttempts) || requiredAttempts < 1 || requiredAttempts > 20) throw new BulkError('Required attempts must be 1–20.');
   let dueDate = null;
   if (input.dueDate) {
-    dueDate = new Date(`${String(input.dueDate)}T00:00:00.000Z`);
+    try { dueDate = require('./trainingDeadline').trainingDeadline(String(input.dueDate), input.dueTime || '23:59'); } catch (err) { throw new BulkError(err.message); }
     if (Number.isNaN(dueDate.getTime()) || dueDate < new Date(Date.now() - 86400000)) throw new BulkError('Enter a due date that is not in the past.');
   }
   const note = String(input.note || '').trim().slice(0, 500) || null;
@@ -66,6 +67,8 @@ async function bulkAssign(actor, allowedIds, input) {
     const recipients = await prisma.trainingAssignmentRecipient.findMany({ where: { profileId: { in: targetIds }, assignment: { courseId: course.id } }, include: { attempts: { orderBy: { attemptNumber: 'desc' }, take: 1 } } });
     const ready = recipients.filter((r) => r.attempts[0]);
     for (const r of ready) await prisma.trainingAttempt.update({ where: { id: r.attempts[0].id }, data: { status: 'RETAKE_REQUIRED', retakeRequestedById: actor.id, retakeRequestedAt: new Date() } });
+    await trainingEmails.queueAgain(ready.map(r => r.id));
+    trainingEmails.kick();
     await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'training.bulk_retake', targetTable: 'TrainingCourse', targetId: course.id, metadata: { requested: targetIds.length, retakes: ready.length } });
     await createNotificationForMany(ready.map((r) => r.profileId), { type: 'training.retake_requested', title: 'Retake requested', body: `A retake of "${course.title}" was requested.`, link: '/training' });
     return { kind, created: ready.length, skipped: targetIds.length - ready.length, assignmentId: null, course };
@@ -85,11 +88,13 @@ async function bulkAssign(actor, allowedIds, input) {
     for (const profileId of recipients) {
       const recipient = await tx.trainingAssignmentRecipient.create({ data: { assignmentId: created.id, profileId } });
       await tx.trainingAttempt.create({ data: { recipientId: recipient.id, profileId, status: 'NOT_STARTED', attemptNumber: 1 } });
+      await trainingEmails.enqueueAssignment(tx, recipient.id);
     }
     return created;
   });
   await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'training.bulk_assigned', targetTable: 'TrainingCourse', targetId: course.id, metadata: { kind, recipients: recipients.length, skipped: targetIds.length - recipients.length, assessmentId: assessment ? assessment.id : null, skillId: kind === 'REMEDIATION' ? String(input.skillId) : null, assignmentId: assignment.id } });
   await createNotificationForMany(recipients, { type: 'training.assigned', title: kind === 'COURSE' ? 'New training assigned' : 'Practice assigned', body: assessment ? `"${assessment.title}" was assigned to you${dueDate ? ` (due ${dueDate.toISOString().slice(0, 10)})` : ''}.` : `"${course.title}" was assigned to you.`, link: '/training' });
+  trainingEmails.kick();
   return { kind, created: recipients.length, skipped: targetIds.length - recipients.length, assignmentId: assignment.id, course };
 }
 

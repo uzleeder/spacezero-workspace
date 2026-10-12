@@ -70,7 +70,7 @@ router.get('/team/:id', requireRole('SUPERVISOR'), async (req, res) => {
 router.post('/training/:recipientId/retake', requireRole('ADMIN', 'SUPERVISOR'), async (req, res) => {
   const actor = req.profile;
   if (actor.role === 'SUPERVISOR' && !(await hasCapability(actor, 'training.viewHistory'))) return res.status(403).render('forbidden');
-  const recipient = await prisma.trainingAssignmentRecipient.findUnique({ where: { id: req.params.recipientId } });
+  const recipient = await prisma.trainingAssignmentRecipient.findFirst({ where: { id: req.params.recipientId, assignment: { organizationId: actor.organizationId }, profile: { organizationId: actor.organizationId } } });
   if (recipient) {
     if (actor.role === 'SUPERVISOR' && !(await isSupervisorOfAgent(actor.id, recipient.profileId))) {
       return res.status(403).render('forbidden');
@@ -91,6 +91,8 @@ router.post('/training/:recipientId/retake', requireRole('ADMIN', 'SUPERVISOR'),
         targetTable: 'TrainingAssignmentRecipient',
         targetId: recipient.id,
       });
+      await require('../lib/trainingEmails').queueAgain([recipient.id]);
+      require('../lib/trainingEmails').kick();
       await createNotification({
         profileId: recipient.profileId,
         type: 'training.retake_requested',
