@@ -1,6 +1,7 @@
 <%- include('partials/page-header', { pageTitle: 'Training', pageDescription: 'Assign published training to individuals, a team, or the whole company.' }) %>
 
 <%- include('partials/management-tabs', { tabs: tabsets.training }) %>
+<% if (typeof emailNotice !== 'undefined' && emailNotice) { %><div class="form-alert success mt-16" role="status"><%= emailNotice %></div><% } %>
 
 <div class="grid mt-24" style="grid-template-columns: minmax(0,1fr) 400px">
   <div class="card">
@@ -12,7 +13,10 @@
         <% assignments.forEach(function (a) { %>
           <li>
             <p style="font-weight:500;color:var(--navy-950)"><%= a.course.title %></p>
-            <p class="text-sm text-muted"><%= a.scope === 'ROLE' && a.targetRole ? 'ROLE · ' + a.targetRole.replace('_', ' ').toLowerCase() : a.scope %> · <%= a._count.recipients %> recipient<%= a._count.recipients === 1 ? '' : 's' %><% if (a.dueDate) { %> · due <%= a.dueDate.toLocaleDateString('en-US') %><% } %></p>
+            <p class="text-sm text-muted"><%= a.scope === 'ROLE' && a.targetRole ? 'ROLE · ' + a.targetRole.replace('_', ' ').toLowerCase() : a.scope %> · <%= a._count.recipients %> recipient<%= a._count.recipients === 1 ? '' : 's' %><% if (a.dueDate) { %> · due <%= formatDeadline(a.dueDate) %><% } %></p>
+            <% const emails = (a.recipients || []).map(r => r.emailSchedule).filter(Boolean); %>
+            <p class="text-sm text-muted mt-4">Email: <%= emails.filter(e => e.assignmentSentAt).length %> accepted for sending<% if (emails.some(e => e.lastError)) { %> · Some emails need attention; temporary failures retry automatically.<% } %></p>
+            <form method="post" action="/assignments/<%= a.id %>/email" data-once class="mt-8"><button type="submit" class="btn btn-secondary btn-sm">Send email</button></form>
           </li>
         <% }); %>
       </ul>
@@ -26,7 +30,7 @@
       <% if (courses.length === 0) { %>
         <%- include('partials/empty-state', { title: 'No published courses', description: 'Publish a course under Training Management first.' }) %>
       <% } else { %>
-        <form method="post" action="/assignments">
+        <form method="post" action="/assignments" data-once>
           <div class="field">
             <label for="courseId">Course</label>
             <select id="courseId" name="courseId" required>
@@ -80,6 +84,7 @@
             <label for="dueDate">Due date</label>
             <input id="dueDate" type="date" name="dueDate" value="<%= typeof defaultDueDate !== 'undefined' ? defaultDueDate : '' %>" />
           </div>
+          <div class="field"><label for="dueTime">Due time (Tashkent, UTC+05:00)</label><input id="dueTime" type="time" name="dueTime" value="23:59" /><p class="text-sm text-muted">Choose a due date to enable overdue reminders.</p></div>
           <div class="field"><label for="assessmentId">Specific practice (optional)</label><select id="assessmentId" name="assessmentId"><option value="">Complete training</option><% courses.forEach(c => { (c.assessments || []).filter(a => !JSON.parse(a.configJson || '{}').targetedRetake).forEach(a => { %><option value="<%= a.id %>"><%= c.title %> — <%= a.type %>: <%= a.title %></option><% }) }) %></select></div>
           <div class="field"><label for="requiredAttempts">Required attempts</label><input id="requiredAttempts" name="requiredAttempts" type="number" min="1" max="20" value="1"></div>
           <div class="field"><label for="minimumScore">Minimum score (%)</label><input id="minimumScore" name="minimumScore" type="number" min="<%= typeof minimumScoreFloor !== 'undefined' ? minimumScoreFloor : 70 %>" max="100" value="<%= typeof defaultMinimumScore !== 'undefined' ? defaultMinimumScore : 70 %>"></div>
@@ -87,7 +92,8 @@
             <label for="notes">Notes</label>
             <textarea id="notes" name="notes" rows="2"></textarea>
           </div>
-          <button type="submit" class="btn btn-gold mt-16">Assign training</button>
+          <p class="text-sm text-muted">Each recipient gets an assignment email. If unfinished, reminders start 3 hours after the deadline and repeat every 3 hours until completion.</p>
+          <button type="submit" class="btn btn-gold mt-16">Assign &amp; send email</button>
         </form>
       <% } %>
     </div>

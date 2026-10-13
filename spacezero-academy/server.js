@@ -175,6 +175,7 @@ if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   // Every background job type must be registered at boot, or queued work would wait for the first request that happens to load it.
   for (const lib of ['callRetention', 'trainingAnalysis', 'callIntelligence', 'aiTasks', 'automation']) require(`./lib/${lib}`);
   require('./lib/jobQueue').start();
+  require('./lib/trainingEmails').start();
 }
 
 // Every deploy makes sure the ready-made Company Standards & Workflow documents exist (each added once; see

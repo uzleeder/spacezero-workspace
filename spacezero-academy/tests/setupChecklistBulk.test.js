@@ -45,6 +45,11 @@ before(async () => {
     prisma.setupRequirement.findFirst({ where: { organizationId: org.id, key: 'whatsapp' } }),
     prisma.setupRequirement.findFirst({ where: { organizationId: org.id, key: 'telegram' } }),
   ]);
+  // pc/egf default to EMPLOYEE_CONFIRMATION (self-attestable tool access) so an admin "Verify &
+  // complete" step never applies to them out of the box. This file tests that generic management-
+  // verification mechanism, which any Admin can still configure on any requirement — simulate that
+  // configuration explicitly rather than relying on a default that no longer models it.
+  await prisma.setupRequirement.updateMany({ where: { id: { in: [pc.id, egf.id] } }, data: { verification: 'MANAGEMENT_VERIFICATION' } });
 });
 after(async () => { mock.restoreAll(); await prisma.$disconnect(); });
 

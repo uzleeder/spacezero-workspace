@@ -7,6 +7,7 @@
 // Nothing is configured per person. Idempotent: someone who already has that training is skipped, so running
 // it again (the daily automation does, as a safety net) never duplicates an assignment.
 const { prisma } = require('./prisma');
+const trainingEmails = require('./trainingEmails');
 const { getSetting } = require('./orgSettings');
 const { logAudit } = require('./audit');
 const { notifyOnce } = require('./notifications');
@@ -32,12 +33,14 @@ async function applyOnboarding(profile, { actorId = null } = {}) {
       const a = await tx.trainingAssignment.create({ data: { organizationId: profile.organizationId, courseId: course.id, courseVersion: liveVersion(course), assignedById: actorId || course.createdById, scope: 'INDIVIDUAL', dueDate, notes: 'Onboarding for the role', minimumScore: Math.max(floor, course.passingScore) } });
       const r = await tx.trainingAssignmentRecipient.create({ data: { assignmentId: a.id, profileId: profile.id } });
       await tx.trainingAttempt.create({ data: { recipientId: r.id, profileId: profile.id, status: 'NOT_STARTED', attemptNumber: 1 } });
+      await trainingEmails.enqueueAssignment(tx, r.id);
       return a;
     });
     assigned.push(course.title);
     await notifyOnce(profile.id, `onboarding:${course.id}`, { type: 'training.assigned', title: 'Onboarding training assigned', body: `"${course.title}" is part of your onboarding (due ${dueDate.toISOString().slice(0, 10)}).`, link: '/training' });
     await logAudit({ organizationId: profile.organizationId, actorId, action: 'onboarding.training_assigned', targetTable: 'TrainingAssignment', targetId: assignment.id, metadata: { employeeId: profile.id, courseId: course.id, role: profile.role } });
   }
+  trainingEmails.kick();
   return assigned;
 }
 

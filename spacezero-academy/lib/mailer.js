@@ -33,14 +33,20 @@ async function sendAccountEmail(email, rawToken, kind) {
     subject: invitation ? 'Activate your SpaceZero Workspace account' : 'Reset your SpaceZero Workspace password',
     text: `${invitation ? 'Your administrator invited you to SpaceZero Workspace. Create your own password to activate your account.' : 'A password reset was requested for your SpaceZero Workspace account.'}\n\n${url}\n\nThis single-use link expires in ${invitation ? '24 hours' : '1 hour'}. If you did not expect this email, ignore it. Never share this link.`,
   };
+  return sendEmailMessage(message);
+}
+
+async function sendEmailMessage(message, { idempotencyKey } = {}) {
+  if (!isEmailConfigured()) throw new Error('Email delivery is not configured');
+  message = { from: process.env.RESEND_FROM || process.env.SMTP_FROM, ...message };
   const key = process.env.RESEND_API_KEY || process.env.RESEND_API;
   if (key) {
     let response;
     try {
       response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...message, to: [email] }),
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}) },
+        body: JSON.stringify({ ...message, to: [message.to] }),
         signal: AbortSignal.timeout(15000),
       });
     } catch { throw new Error('Resend email request failed'); }
@@ -48,11 +54,12 @@ async function sendAccountEmail(email, rawToken, kind) {
     if (!response.ok) throw new Error(`Resend rejected email (HTTP ${response.status})`);
     const result = await response.json().catch(() => null);
     if (!result?.id) throw new Error('Resend did not confirm email acceptance');
-    return;
+    return { id: result.id };
   }
   const transport = nodemailer.createTransport(mailConfig());
   const info = await transport.sendMail({ ...message, disableFileAccess: true, disableUrlAccess: true });
   if (!info.accepted?.length || info.rejected?.length) throw new Error('Email was not accepted by the mail server');
+  return { id: info.messageId };
 }
 
-module.exports = { sendAccountEmail, mailConfig, isEmailConfigured };
+module.exports = { sendAccountEmail, sendEmailMessage, mailConfig, isEmailConfigured };

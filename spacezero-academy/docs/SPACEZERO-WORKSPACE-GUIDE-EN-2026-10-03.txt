@@ -1,0 +1,276 @@
+SPACEZERO WORKSPACE
+Complete user guide for Above9 Travel
+Travel Agents • Flight Experts • Supervisors • Administrators
+Updated 3 October 2026
+
+Hello Ali,
+
+Here is the updated English guide to SpaceZero Workspace: what the platform does, how each role uses it, and how onboarding, standards, training, practice and management fit together. This replaces the earlier September guide, including its outdated description of Supervisor training permissions.
+
+Open the platform: https://workspace.spacezero.uz
+
+This guide was checked against the current application code and the latest GitLab main release. Available actions depend on the employee's role, team assignments, granted permissions and the organization's configuration. The public health endpoint and sign-in page responded successfully during this review. That confirms reachability; it does not establish that every authenticated feature on the live server has been tested or that its deployed version matches every latest change.
+
+1. WHAT THE PLATFORM DOES
+
+SpaceZero brings employee readiness, company guidance, learning and performance evidence into one workspace.
+
+The practical cycle is: complete setup → read the relevant standards → learn the assigned material → practise → demonstrate understanding → review the evidence → improve weak areas.
+
+Keep these measures separate:
+• Setup shows whether an employee has the tools, access and information required to work.
+• Training shows learning assignments, progress, assessments and retakes.
+• Skill Graph / Skill DNA shows skill evidence, scores, confidence and development over time.
+• Standards acknowledgements record that someone confirmed reading required guidance. They do not by themselves prove practical competence.
+
+2. FIRST SIGN-IN AND ACCOUNT ACTIVATION
+
+An Admin creates the employee record and assigns the correct role, team and supervisor. The invitation email lets the employee activate the account and set a password. Invitation links are single-use and expire after 24 hours; ask an Admin to resend an expired invitation.
+
+For an activated account:
+1) Open https://workspace.spacezero.uz/login.
+2) Enter your username or email and password.
+3) Enter the Above9 company code provided by your Admin; the current application accepts above9.
+4) Sign in and check Dashboard and notifications.
+
+Passwords must be at least six characters. If you forget yours, use Forgot your password? and follow the emailed reset link. Reset links are single-use and expire after one hour. Use the latest valid email. Invited accounts still require activation; disabled or archived accounts require administrative attention.
+
+Do not use localhost links when sharing access with employees. Those point to the sender's own computer, not the public workspace.
+
+3. FINDING YOUR WAY AROUND
+
+• Dashboard: your overview and items needing attention. Clicking the SpaceZero logo returns here.
+• My Training: the learning assigned to you, including progress and retakes.
+• Library: reference material you are allowed to read; it is separate from mandatory assignments.
+• Company Standards & Workflow: published rules, responsibilities, processes and relevant disclosures.
+• SpaceZero AI: questions about information you are authorized to access.
+• Employees & Teams / My Team, Training and AI Practice: management or creation tools, according to role and permission.
+• Settings: organization settings for Admins; Advanced requires additional System Configuration Access.
+
+Open your name/avatar → Profile & Settings for Profile, Setup, Vacation & Leave, and Account & Security. More profile tools contains other permitted personal views, such as Training, Skills, Activity and Credentials. Account & Security changes your own password; organization Security settings govern the wider platform.
+
+The bell opens notifications. Light/dark mode preserves the current page. The introductory loading animation is a visual introduction, not a training or readiness score.
+
+4. GUIDE FOR TRAVEL AGENTS
+
+Your goal is to become operationally ready, follow the company's sales and service process, and improve through assigned learning and feedback.
+
+First-day checklist:
+1) Activate your account and check your profile details.
+2) Open Profile & Settings → Setup and review every requirement shown for you.
+3) Confirm the equipment and systems you genuinely have. Explain missing items instead of marking them complete.
+4) Read the general company guidance and the Travel Agent standards, responsibilities and workflows published for your role. Acknowledge required documents after reading them.
+5) Open My Training and start the assigned courses.
+
+Daily routine:
+• Check Dashboard, notifications, overdue training and retake requests.
+• Study each required material, complete the practice, and review the result and feedback.
+• Open My Training → Skill Graph to identify skills that need more evidence or improvement. Sales examples may include discovery questions, call control, engagement, objection handling and closing; your actual catalog is configured by the company.
+• Use Library for reference and Notes for personal reminders. Notes are not official policy documents.
+• Read your supervisor's coaching feedback and complete the next assigned practice.
+• Keep personal setup information current and submit your own leave requests when needed.
+
+Travel Agents do not gain access to other employees' private records, global configuration, or training publication tools merely by being enrolled in training.
+
+5. GUIDE FOR FLIGHT EXPERTS
+
+Flight Experts use the same personal account, setup, standards and learning flow, with content and skill evidence relevant to their role.
+
+1) Complete your own Setup requirements and confirm required operational access.
+2) Read the Flight Expert standards, responsibilities and workflows visible to you, plus applicable general company guidance.
+3) Complete assigned training and practical exercises in My Training.
+4) Use Skill Graph to review your technical strengths and gaps. Relevant training may cover routing, fare rules, aircraft or product knowledge; actual subjects depend on published company material.
+5) Use Library and your personal Notes to revisit reference information, and respond to coaching or retake requests.
+
+Flight Expert is not an Admin role. It does not automatically grant employee-management, global publishing or organization-settings access. Role-specific skills should be interpreted within the expert's responsibilities rather than against an unrelated sales catalog.
+
+6. GUIDE FOR SUPERVISORS
+
+Your management scope is your assigned team. Becoming a Supervisor does not automatically assign employees to you or grant every management action. Ask an Admin to verify both the team assignment and the required permissions.
+
+Daily team workflow:
+1) Open Employees & Teams / My Team and review the people in your scope.
+2) Use Team Intelligence and employee Skills views to find weak areas, insufficient evidence and coaching needs.
+3) Add factual coaching notes or skill observations where permitted. Observations become evidence; they do not simply overwrite a skill score.
+4) Review team standards acknowledgements and follow up on unread required documents.
+5) Review setup issues, training history, retakes and leave requests according to your granted access.
+
+Supervisor permissions are independent:
+• View Team Setup: open your team's setup records.
+• Manage Team Setup: update applicable checklist statuses and details.
+• Verify Team Setup: verify items requiring management approval.
+• Create & Prepare Training: create your own material, analyze it, build a draft and submit it to an Admin.
+• Revise Training Drafts: propose a new version of your own published training for Admin review.
+• Assign Approved Training: assign published training to your own team.
+• View Team Training History & Reassign: review history and perform permitted reassignment/retake actions.
+• View Team Credentials: separately granted access to work credentials for Travel Agents in your team.
+• View Team Passport Numbers: separately granted viewing of passport numbers for eligible team members, with password re-verification. It does not grant editing.
+
+Setup access does not imply credential-vault or passport-number access. Creation does not imply assignment, revision, final approval or global editing. A Supervisor cannot approve and publish their own training submission: final publication stays with an Admin. Other creators' AI Practice material is outside a Supervisor's ownership scope.
+
+For leave, Supervisors normally recommend a decision; final approval depends on the company's configured policy. Team overlap is information to consider, not an automatic decision. Where the team call-review workflow is available, submit the authorized recording for review and track it within the team scope.
+
+7. GUIDE FOR ADMINS: PEOPLE AND ONBOARDING
+
+Use Employees & Teams to create and maintain employees, teams and supervisor assignments.
+
+Recommended onboarding sequence:
+1) Add the employee with the correct name, username, email, role and employment details.
+2) Assign the right team and supervisor. Confirm who is responsible for follow-up.
+3) Send the invitation and monitor activation. Resend it if needed; invitation/reset actions display confirmation or an error.
+4) Check that the applicable Setup requirements and published standards are appropriate for the role.
+5) Assign the required published training and follow setup, standards and learning progress.
+
+Search and filters help narrow employees by name and other supported fields, role, status, team, supervisor and setup conditions. The directory header/filter area stays available while scrolling. Employee records bring together Overview, Setup, Training, Skills, Leave, Activity and authorized Credentials views.
+
+Use disable/reactivate/archive controls deliberately. Changing a role, team or supervisor changes what the person can see or manage; it does not substitute for explicit capability grants.
+
+Download Excel exports the employee list visible to the Admin, independently of the current filters. It includes names, usernames and roles, with a separate Admins worksheet and export-password values when separately stored. This is not a way to recover arbitrary account passwords from their login hashes. Stored export values can become outdated after a later password change; blank means no available export value. Treat the workbook as a sensitive administrative file.
+
+8. HOW SETUP WORKS
+
+Setup is driven by the organization's configured requirements and their audience. It can cover equipment, system access, email/communications, extensions, the credential vault, local phone, living address and passport details.
+
+For employees:
+• Select I Have for an item you have, or I Don't Have and explain what is missing.
+• Save Changes after editing the applicable items.
+• Employee-confirmation items can complete immediately. PC and ordinary tool-access requirements now default to this mode; existing organization rules may differ.
+• Management-verification items stay pending until an authorized manager verifies them.
+
+For managers:
+• Use the compact checklist for routine changes and the additional-detail controls for notes or exception statuses.
+• Verify an employee's pending confirmation only after checking it. Saving unrelated items does not approve every pending item.
+• Company-controlled communication accounts need the appropriate company ownership/access details and verification. They do not become complete merely through a simple self-confirmation.
+• Derived requirements, such as required vault entries or personal information, depend on the underlying data. A checkbox cannot replace missing data.
+
+Passport Details supports the name on the passport, passport number and expiration date. Where applicable, enter the real document details accurately. The platform displays valid/expiring/expired status; viewing a full number is more restricted than seeing that status. Employees and authorized Admins manage these details; a Supervisor's reveal permission does not permit editing. Do not put passwords or document numbers in ordinary setup notes.
+
+9. MY TRAINING: LEARN, PRACTISE, COMPLETE
+
+My Training is where every recipient, including a Supervisor or Admin assigned a course, completes learning.
+
+1) Open an assigned course and review its materials and requirements.
+2) Play required video/audio through to the end in the allowed sequence. Opening a player or skipping forward does not count as completion.
+3) Open and read required documents, notes or other resources, then use the confirmation control when offered.
+4) Once all required material is complete, start the available practice or assessment.
+5) Submit answers or complete the exercise, then review the result and feedback.
+6) If a retake is required, revisit the weak material and follow the next allowed attempt.
+
+The current media rule requires playback through to completion, not a general 70% threshold. Practice unlocks after the required material is completed. Completion/pass status also depends on the course's assessment and scoring rules; watching everything alone is not necessarily a pass.
+
+10. AI PRACTICE AND TRAINING PUBLICATION
+
+AI Practice is the creation workspace; My Training is the recipient's learning workspace.
+
+Creation sequence for an Admin, or an appropriately permitted Supervisor working on their own material:
+1) Upload Material: add supported documents, recordings or other sources. Uploading saves the material; it does not automatically approve or publish anything.
+2) Analyze: initiate analysis and wait for the job to finish.
+3) Review: check the findings, references and skill mapping against the source.
+4) Build practice: generate suitable questions, scenarios, role-play or process exercises.
+5) Refine: edit, regenerate, adjust or increase difficulty using the actions permitted to you.
+6) Review the package. Supervisors submit their draft for Admin review; they do not self-publish it.
+7) The Admin reviews/approves the required content and uses Send to Training.
+8) An authorized manager assigns the published course from the Training catalog.
+
+AI generation needs the configured provider and background processing. Review the output; generation is not a guarantee of accuracy. If the source changes after analysis, re-analyze it before publication. If a generation action is already running, wait instead of repeatedly submitting it.
+
+Published versions are protected. Create a new draft version to improve a published course; existing assignments and their results remain tied to their assigned version. Do not assume editing a draft changes work already completed by employees.
+
+Call recordings are private source material, not automatically shared Library documents. Follow the upload authorization controls and use recordings the company is permitted to process. Call-retention cleanup preserves sources referenced by an existing generated training course.
+
+11. SKILL GRAPH, COACHING AND INTELLIGENCE
+
+Skill Graph combines available evidence with confidence and history. A single high score with little evidence is not the same as sustained mastery. Low or absent evidence should not automatically be interpreted as poor performance.
+
+Employees review their own relevant skills and feedback. Supervisors review their team's skills, record justified observations and choose suitable follow-up. Admins can review organization-level gaps and training effectiveness.
+
+Practical coaching cycle: find the gap → inspect the supporting evidence → discuss an observable behavior → assign relevant published practice → review the new result → track progress over time.
+
+Development paths, recommendations and Certifications depend on the rules and evidence configured for the organization. Completing one course or scoring highly once does not automatically satisfy every certification. Use the displayed requirements and evidence.
+
+12. COMPANY STANDARDS & WORKFLOW
+
+This is the company's published guidance area, separate from personal Notes and from the training catalog.
+
+• Standards explain expectations and rules.
+• Responsibilities explain what each role is accountable for.
+• Workflows explain the steps of a process.
+• Required Disclosures appear where published and relevant.
+
+Open the documents for your role, use Search and Quick Reference, and use the reading page's section navigation for longer guidance. The landing page shows required-reading progress and the next document needing attention. Acknowledge only after reading. An updated document may require a new acknowledgement if the publisher selected that requirement.
+
+General company and role-specific ready-made documents are supported for Travel Agents, Flight Experts, Supervisors and management. Authorized Admins can add/manage these documents, edit explanations and checklists, select the audience and publish versions. Readers see published content appropriate to their role; private references must not expose restricted document titles.
+
+Supervisors track acknowledgement status for their own team; Admins have the wider authorized view. Acknowledging on someone else's behalf is not the employee reading flow.
+
+13. LIBRARY, NOTES AND SPACEZERO AI
+
+Library: search and browse reference content, open permitted items and use favorites for useful material. Role visibility still applies. Reading a Library item does not automatically finish an assigned course.
+
+Notes: Travel Agents and Flight Experts can keep and edit personal notes. Save/unsave updates the note's saved state; removing it from Saved does not mean deleting the underlying note. Delete is a separate action. Use official Standards for company policy.
+
+SpaceZero AI: ask questions such as “What needs my attention?”, “Who in my team has incomplete setup?”, or “Which training needs a retake?” Answers are limited to authorized platform information and available evidence. It is an operational information assistant, not a way to bypass permissions or automatically change records. Use the relevant management page to make changes. AI Practice, by contrast, creates learning material.
+
+14. LEAVE, CREDENTIALS AND SENSITIVE INFORMATION
+
+Vacation & Leave: submit your own request with the requested details and follow its status. Managers review within their scope. Follow the configured approval policy; a recommendation is not necessarily final approval.
+
+Credentials: stores work-system credentials separately from SpaceZero login passwords. Use it only for the appropriate employee/work system. Viewing a record and revealing a secret can require different checks. Setup management alone does not grant secret access. If an existing encrypted entry cannot be read, the application rejects an update rather than silently overwriting retained values.
+
+Notifications and Activity: use these to follow assignments, setup issues, feedback and relevant events. Audit gives authorized Admins a history of important actions. Neither ordinary notes nor audit descriptions should be used as a password store.
+
+View as: authorized Admins can use the role/account viewing workflow to inspect an employee experience. The impersonation banner identifies this mode; Return to admin exits it. Sensitive-data restrictions still apply.
+
+15. ADMIN SETTINGS AND GOVERNANCE
+
+Settings has General, Security and Advanced. Advanced is available only to an Admin with System Configuration Access; holding the Admin role alone does not guarantee this additional access.
+
+Advanced groups existing controls:
+• People & Access: Setup Requirements, Supervisor Permissions, System Access.
+• Training & Development: Training Configuration, Skills, Development and Certifications.
+• Company Governance: Standards, Audit and Analytics.
+
+Use Skills to maintain the real skill catalog, categories and role applicability. Use Development for configured paths, recommendations and tenure bands. These are no longer duplicate editing areas under General. Adjust rules deliberately and check their effects on future work; do not treat configuration changes as a substitute for completing an employee's actual records.
+
+16. RECENT UPDATES REVIEWED FOR THIS GUIDE
+
+• Workspace naming and dashboard branding, a logo link back to Dashboard, improved mobile layouts and clearer dark-mode cards.
+• Cleaner Profile & Settings navigation and consolidated organization Settings.
+• Clearer Setup saving and self-confirmation behavior, management verification, and passport-name fields.
+• Independent Supervisor training/setup/sensitive-data permissions and fewer links to actions the viewer cannot use.
+• Training media completion/unlocking fixes, draft/publication checks and protection against overlapping AI edit requests within the application's running process.
+• Improved Standards reading, ready-made role documents and editing of workflow explanations/checklists.
+• Library/favorites and Notes usability improvements; sign-in and sensitive-action rate-limit handling.
+• Safeguards against restricted Standards references, accidental credential overwrites and a single damaged export-password entry breaking the entire export.
+
+17. IF SOMETHING DOES NOT WORK
+
+Cannot sign in: check username/email, company code and account status. Use password reset where appropriate. After repeated failed attempts, wait for the displayed retry interval.
+
+No invitation/reset email: check Spam, confirm the employee email address with an Admin and request a resend if the link expired. A provider accepting a message and a person reading it are different events.
+
+Access denied or a missing action: ask the Admin to check role, team scope and the specific capability. For Advanced, check System Configuration Access.
+
+Setup still pending: check whether the item needs management verification, company details or underlying personal/vault data. Read the status message rather than repeatedly clicking Save.
+
+Practice still locked: finish every required material and its confirmation steps, then check the course again. Report the course and material title if completion did not save.
+
+AI analysis failed or is taking time: review the visible job/error status, source material and service availability. Avoid repeated overlapping requests. An Admin should investigate persistent failures.
+
+Wrong or missing company guidance: check the role audience and publication state with an authorized Admin. Different roles intentionally see different content.
+
+When reporting a problem, include the page address, action taken, visible message and approximate time. Do not include passwords or passport numbers.
+
+18. RECOMMENDED DAILY OPERATING ROUTINE
+
+Travel Agent / Flight Expert: Dashboard → required standards → assigned training/practice → feedback/Skill Graph → resolve your own setup issues.
+
+Supervisor: My Team → readiness and acknowledgements → training progress/retakes → coaching and skill gaps → permitted assignments and leave review → escalate issues requiring Admin action.
+
+Admin: employee activation and team scope → incomplete setup → review training submissions and publish/assign → overdue work/retakes → leave decisions → organization intelligence and configuration/audit where authorized.
+
+Use the status and evidence on each record to decide the next action. The goal is a ready team that follows the right process and can demonstrate the required skills, not simply a dashboard full of completed checkboxes.
+
+Best regards,
+SpaceZero Workspace
+Crafted by UZLEEDER

@@ -3,7 +3,8 @@
 ## Prepared topology
 
 Browser → Vercel gateway → persistent Express/EJS backend → PostgreSQL.
-The backend also owns private disk storage and the in-process AI worker. This is
+The backend also owns private disk storage, the in-process AI worker and the
+[training email/reminder worker](TRAINING-EMAILS.md). This is
 not a Vercel-only deployment. Deploying the repository root directly as a Vercel
 Function is rejected: its filesystem uploads and polling jobs need a persistent
 runtime. The gateway has no database password, Gemini key or uploaded files.

@@ -9,6 +9,7 @@
 // training that an Admin explicitly attached to a rule/step with action ASSIGN. It never changes
 // scores, permissions or roles, never publishes anything, and never assigns AI-generated draft material.
 const { prisma } = require('./prisma');
+const trainingEmails = require('./trainingEmails');
 const { getSetting } = require('./orgSettings');
 const engine = require('./skillEngine');
 const { notifyOnce } = require('./notifications');
@@ -63,12 +64,15 @@ async function autoAssign({ organizationId, courseId, assessmentId, profileId, a
   const existing = await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId, assignment: { courseId, assessmentId: assessmentId || null } }, include: { attempts: { select: { status: true }, orderBy: { attemptNumber: 'desc' }, take: 1 } } });
   if (existing && (!existing.attempts[0] || existing.attempts[0].status !== 'COMPLETED')) return null; // already open
   const floor = await getSetting(organizationId, 'training.minPassingScore');
-  return prisma.$transaction(async (tx) => {
+  const assigned = await prisma.$transaction(async (tx) => {
     const assignment = await tx.trainingAssignment.create({ data: { organizationId, courseId, assessmentId: assessmentId || null, assignedById, scope: 'INDIVIDUAL', notes: note, courseVersion: liveVersion(course), minimumScore: Math.max(floor, course.passingScore) } });
     const recipient = await tx.trainingAssignmentRecipient.create({ data: { assignmentId: assignment.id, profileId } });
     await tx.trainingAttempt.create({ data: { recipientId: recipient.id, profileId, status: 'NOT_STARTED', attemptNumber: 1 } });
+    await trainingEmails.enqueueAssignment(tx, recipient.id);
     return assignment;
   });
+  trainingEmails.kick();
+  return assigned;
 }
 
 // ------------------------------------------------------------------ retention
