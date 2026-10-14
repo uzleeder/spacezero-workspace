@@ -178,7 +178,10 @@ router.get('/call-reviews/:id/recording', requireRole('ADMIN', 'SUPERVISOR'), as
   if (!fs.existsSync(filePath)) return res.status(404).send('Not found');
   res.setHeader('Content-Type', review.mimeType || 'application/octet-stream');
   res.setHeader('Content-Disposition', req.profile.role === 'ADMIN' ? 'attachment' : 'inline');
-  fs.createReadStream(filePath).pipe(res);
+  // sendFile supports Range requests (seeking / resuming a recording) and sends Content-Length.
+  res.sendFile(filePath, { cacheControl: false, dotfiles: 'allow' }, (err) => {
+    if (err && !res.headersSent) res.status(err.status || 500).send('Not available');
+  });
 });
 
 module.exports = router;
