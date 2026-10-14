@@ -8,6 +8,7 @@ const { z } = require('zod');
 const { Type } = require('@google/genai');
 const { prisma } = require('./prisma');
 const { generateStructured } = require('./gemini');
+const { shuffleOptions } = require('./shuffleOptions');
 
 const QUESTION_TYPES = ['MCQ', 'MULTI_SELECT', 'ORDERING', 'MATCHING', 'SCENARIO', 'SHORT_ANSWER', 'TRUE_FALSE'];
 
@@ -109,7 +110,8 @@ async function generateQuestionAssessment({ course, analysis, actor, type, level
           assessmentId: assessment.id,
           type: q.type,
           prompt: q.prompt,
-          optionsJson: q.options ? JSON.stringify(q.options) : null,
+          // The AI writes the correct answer first; stir the choices so it is not always "A".
+          optionsJson: q.options ? JSON.stringify(shuffleOptions(q.type, q.options)) : null,
           correctAnswerJson: JSON.stringify(q.correctAnswer),
           explanation: q.explanation || null,
           skillIdsJson: JSON.stringify(q.skillNames || []),

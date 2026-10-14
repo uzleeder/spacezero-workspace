@@ -115,7 +115,11 @@ router.get('/library-file/:id', requireSession, async (req, res) => {
   );
   res.setHeader('Cache-Control', 'private, no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  fs.createReadStream(filePath).pipe(res);
+  // sendFile answers "Range" requests (206 Partial Content) and sends Content-Length, which browsers
+  // need to start a video, seek in it and resume it; a plain stream of the whole file did none of that.
+  res.sendFile(filePath, { cacheControl: false, dotfiles: 'allow' }, (err) => {
+    if (err && !res.headersSent) res.status(err.status || 500).send('Not available');
+  });
 });
 
 module.exports = router;
