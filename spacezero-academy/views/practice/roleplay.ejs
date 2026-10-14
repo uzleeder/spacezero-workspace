@@ -11,12 +11,17 @@
 
 <div class="card mt-16">
   <div class="card-body">
+    <p class="text-sm text-muted" data-rp-resumed hidden style="margin-bottom:8px">Welcome back — your conversation was saved. Carry on where you left off.</p>
     <div id="rp-messages" style="display:flex;flex-direction:column;gap:12px;max-height:420px;overflow-y:auto;padding:4px"></div>
+    <div id="rp-notice" class="form-alert mt-16" role="status" aria-live="polite" hidden>
+      <span id="rp-notice-text"></span>
+      <button type="button" id="rp-retry" class="btn btn-gold btn-sm" style="margin-left:8px" hidden>Try again</button>
+    </div>
     <div class="mt-16" style="display:flex;gap:8px">
-      <input id="rp-input" type="text" placeholder="Type your response to the customer..." style="flex:1" />
+      <input id="rp-input" type="text" placeholder="Type your response to the customer..." style="flex:1" autocomplete="off" />
       <button type="button" id="rp-send" class="btn btn-gold">Send</button>
     </div>
-    <form method="post" action="/assessments/<%= assessment.id %>/roleplay/finish" id="rp-finish-form" class="mt-16">
+    <form method="post" action="/assessments/<%= assessment.id %>/roleplay/finish" id="rp-finish-form" class="mt-16" data-once>
       <input type="hidden" name="sessionId" value="<%= session.id %>" />
       <input type="hidden" name="transcript" id="rp-transcript-field" value="[]" />
       <button type="submit" class="btn btn-secondary">Finish & get feedback</button>
@@ -26,11 +31,24 @@
 
 <script>
 (function () {
-  var transcript = <%- JSON.stringify(JSON.parse(session.dataJson).transcript).replace(/</g, '\u003c') %>;
+  // The conversation lives on the server, so closing or refreshing this page never loses it: what is
+  // shown here is always what was saved there, plus whatever was typed but not sent (kept in this browser).
+  var base = '/assessments/<%= assessment.id %>/roleplay';
+  var sessionId = '<%= session.id %>';
+  var transcript = <%- JSON.stringify(JSON.parse(session.dataJson).transcript || []).replace(/</g, '<') %>;
+  var draftKey = 'rp-draft-' + sessionId;
   var messagesEl = document.getElementById('rp-messages');
   var inputEl = document.getElementById('rp-input');
   var sendBtn = document.getElementById('rp-send');
+  var retryBtn = document.getElementById('rp-retry');
+  var noticeEl = document.getElementById('rp-notice');
+  var noticeText = document.getElementById('rp-notice-text');
   var transcriptField = document.getElementById('rp-transcript-field');
+  var sending = false;
+  var polling = null;
+
+  function store(fn) { try { return fn(window.localStorage); } catch (e) { return null; } }
+  function lastIsAgent() { var l = transcript[transcript.length - 1]; return Boolean(l && l.role === 'agent'); }
 
   function render() {
     messagesEl.innerHTML = '';
@@ -53,32 +71,92 @@
     transcriptField.value = JSON.stringify(transcript);
   }
 
-  function send() {
-    var message = inputEl.value.trim();
-    if (!message) return;
-    inputEl.value = '';
-    transcript.push({ role: 'agent', text: message });
-    render();
-    sendBtn.disabled = true;
-    fetch('/assessments/<%= assessment.id %>/roleplay/message', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'sessionId=<%= session.id %>&transcript=' + encodeURIComponent(JSON.stringify(transcript.slice(0, -1))) + '&message=' + encodeURIComponent(message),
-    })
-      .then(function (res) { if (!res.ok) throw new Error('Request failed'); return res.json(); })
-      .then(function (data) {
-        transcript = data.transcript;
-        render();
-      })
-      .catch(function () {
-        transcript.push({ role: 'customer', text: '(The customer seems to have gone quiet — try again.)' });
-        render();
-      })
-      .finally(function () { sendBtn.disabled = false; });
+  function notice(text, withRetry) {
+    noticeEl.hidden = !text;
+    noticeText.textContent = text || '';
+    retryBtn.hidden = !withRetry;
   }
 
-  sendBtn.addEventListener('click', send);
-  inputEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); send(); } });
+  function setSending(on) { sending = on; sendBtn.disabled = on; retryBtn.disabled = on; }
+
+  function post(body) {
+    return fetch(base + '/message', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'sessionId=' + encodeURIComponent(sessionId) + body })
+      .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { status: res.status, data: data }; }); });
+  }
+
+  // After a refresh, a reconnect or a "busy" answer: ask the server where the practice really stands.
+  function sync() {
+    return fetch(base + '/state?sessionId=' + encodeURIComponent(sessionId), { cache: 'no-store' })
+      .then(function (res) { if (!res.ok) throw new Error('state'); return res.json(); })
+      .then(function (state) {
+        if (state.completed) { window.location.href = state.resultUrl; return state; }
+        if (!sending) { transcript = state.transcript; render(); }
+        if (state.busy) { notice('The customer is replying…', false); waitForIdle(); }
+        else if (lastIsAgent()) notice('The customer has not answered your last message yet. Your message is saved.', true);
+        else notice('', false);
+        return state;
+      });
+  }
+
+  function waitForIdle() {
+    if (polling) return;
+    polling = setInterval(function () {
+      sync().then(function (state) { if (!state.busy) { clearInterval(polling); polling = null; } }).catch(function () { clearInterval(polling); polling = null; });
+    }, 2500);
+  }
+
+  function handle(result, restoreText) {
+    var data = result.data || {};
+    if (result.status === 200) { transcript = data.transcript; render(); notice('', false); return; }
+    if (data.completed) { window.location.href = data.resultUrl; return; }
+    if (data.busy) { notice(data.error, false); waitForIdle(); return; }
+    if (data.transcript) { transcript = data.transcript; render(); }
+    // The message itself is saved on the server whenever a transcript comes back; the customer's answer is what is missing.
+    notice(data.error || 'Something went wrong.', Boolean(data.pending));
+    if (!data.transcript && restoreText) { inputEl.value = restoreText; }
+  }
+
+  function send(retry) {
+    if (sending) return;
+    var message = '';
+    if (!retry) {
+      message = inputEl.value.trim();
+      if (!message) return;
+      transcript.push({ role: 'agent', text: message });
+      inputEl.value = '';
+      store(function (s) { s.removeItem(draftKey); });
+      render();
+    }
+    setSending(true);
+    notice('The customer is replying…', false);
+    post(retry ? '&retry=1' : '&message=' + encodeURIComponent(message))
+      .then(function (result) { handle(result, message); })
+      .catch(function () {
+        // No answer at all (offline, dropped): ask the server what it has, and give a text it never got back to the writer.
+        return sync().then(function (state) {
+          var saved = state.transcript.length && state.transcript[state.transcript.length - 1].role === 'agent' && state.transcript[state.transcript.length - 1].text === message;
+          if (message && !saved && !state.transcript.some(function (t) { return t.role === 'agent' && t.text === message; })) { inputEl.value = message; notice('Your message did not go through - it is back in the box. Tap Send to try again.', false); }
+        }).catch(function () {
+          if (message) { inputEl.value = message; transcript.pop(); render(); }
+          notice('You seem to be offline. Your message is back in the box - tap Send when you are connected again.', false);
+        });
+      })
+      .then(function () { setSending(false); });
+  }
+
+  sendBtn.addEventListener('click', function () { send(false); });
+  retryBtn.addEventListener('click', function () { send(true); });
+  inputEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); send(false); } });
+  inputEl.addEventListener('input', function () { store(function (s) { if (inputEl.value) s.setItem(draftKey, inputEl.value); else s.removeItem(draftKey); }); });
+
+  // Coming back to this page (reopened, refreshed, or switched back to the tab): pick up where it was left.
+  var draft = store(function (s) { return s.getItem(draftKey); });
+  if (draft) inputEl.value = draft;
   render();
+  if (transcript.filter(function (t) { return t.role === 'agent'; }).length) document.querySelector('[data-rp-resumed]').hidden = false;
+  if (lastIsAgent()) notice('The customer has not answered your last message yet. Your message is saved.', true);
+  window.addEventListener('pageshow', function (e) { if (e.persisted) sync().catch(function () {}); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && !sending) sync().catch(function () {}); });
 })();
 </script>
+<script src="<%= asset('/static/js/ai-practice.js') %>" defer></script>

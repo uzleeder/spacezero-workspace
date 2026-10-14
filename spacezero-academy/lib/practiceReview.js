@@ -7,6 +7,7 @@
 const { z } = require('zod');
 const { prisma } = require('./prisma');
 const { generateStructured } = require('./gemini');
+const { shuffleOptions } = require('./shuffleOptions');
 const { QUESTION_TYPES, LEVEL_GUIDANCE, TYPE_GUIDANCE, questionZodSchema, questionGeminiSchema, roleplayZodSchema, roleplayGeminiSchema, safeParse } = require('./practiceEngine');
 
 const QUESTION_ASSESSMENTS = ['QUIZ', 'TECHNICAL', 'PROCESS_SIM', 'PRODUCT_KNOWLEDGE'];
@@ -84,12 +85,15 @@ async function courseContext(assessment) {
 const persistQuestionData = (q) => ({
   type: q.type,
   prompt: q.prompt,
-  optionsJson: q.options ? JSON.stringify(q.options) : null,
+  // The AI writes the correct answer first; stir the choices so it is not always "A".
+  optionsJson: q.options ? JSON.stringify(shuffleOptions(q.type, q.options)) : null,
   correctAnswerJson: JSON.stringify(q.correctAnswer),
   explanation: q.explanation || null,
   skillIdsJson: JSON.stringify(q.skillNames || []),
   sourceRefJson: q.sourceTitle ? JSON.stringify({ title: q.sourceTitle, location: q.sourceLocation || '' }) : null,
 });
+
+const sameChoices = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && [...a].sort().join('\u0000') === [...b].sort().join('\u0000');
 
 /** Regenerates ONE question, following an optional Admin instruction; every other question is left untouched. */
 async function regenerateQuestion({ assessment, question, instruction }) {
@@ -145,6 +149,8 @@ async function reviseWithPrompt({ assessment, instruction }) {
     for (const [i, q] of next.entries()) {
       const existing = assessment.questions[i];
       const data = { ...persistQuestionData(q), displayOrder: i };
+      // A question the AI left as it was keeps the order it already has (otherwise every revision would "change" every question).
+      if (existing && sameChoices(safeParse(existing.optionsJson, null), q.options)) data.optionsJson = existing.optionsJson;
       if (existing) {
         const same = existing.prompt === data.prompt && existing.optionsJson === data.optionsJson && existing.correctAnswerJson === data.correctAnswerJson && existing.type === data.type && (existing.explanation || null) === data.explanation;
         if (!same) { await tx.question.update({ where: { id: existing.id }, data }); changed += 1; }
