@@ -8,6 +8,7 @@ const { safeParse } = require('../lib/practiceEngine');
 const { logAudit } = require('../lib/audit');
 const { mediaGate, MEDIA_TYPES, DOC_TYPES, MIN_READ_MS, durationOf, advanceProgress } = require('../lib/mediaProgress');
 const { probeMedia } = require('../lib/mediaProbe');
+const { completionState } = require('../lib/trainingCompletion');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 300 * 1024 * 1024, files: 1, fields: 10 } });
 
 async function allowedCourse(actor, id) {
@@ -69,9 +70,13 @@ router.get('/training-course/:id', requireSession, async (req, res) => {
   const doneIds = new Set(progressRows.filter((p) => p.completedAt).map((p) => p.trainingModuleId));
   const requiredIds = new Set(gate.modules.map((m) => m.id));
   // Training without practice is finished from the training page itself (the list only ever says Start).
-  const mineRecipient = req.profile.role === 'ADMIN' ? null : await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId: req.profile.id, assignment: { courseId: course.id } }, orderBy: { createdAt: 'desc' }, include: { attempts: { orderBy: { attemptNumber: 'desc' }, take: 1 } } });
-  const canFinish = Boolean(gate.unlocked && mineRecipient && mineRecipient.attempts[0] && mineRecipient.attempts[0].status === 'IN_PROGRESS' && !assessments.filter((a) => safeParse(a.configJson, {})?.targetedRetake !== true).length);
-  res.render('training-content', { title: course.title, canFinish, finishId: mineRecipient ? mineRecipient.id : null, isLearner, doneIds, requiredIds, DOC_TYPES, minReadSeconds: Math.round(MIN_READ_MS / 1000), material: typeof req.query.material === 'string' ? req.query.material : '', course: { ...course, modules: shownModules }, gate, assessments: assessments.filter(a => safeParse(a.configJson, {})?.targetedRetake !== true || a.createdById === req.profile.id) });
+  const mineRecipient = req.profile.role === 'ADMIN' ? null : await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId: req.profile.id, assignment: { courseId: course.id } }, orderBy: { createdAt: 'desc' }, include: { assignment: true, attempts: true } });
+  // Where the learner stands on submitting this training: every practice/quiz passed -> "Submit training".
+  const completion = mineRecipient ? await completionState(mineRecipient) : null;
+  const canFinish = Boolean(gate.unlocked && completion && !completion.submitted && completion.total === 0);
+  const canSubmit = Boolean(gate.unlocked && completion && !completion.submitted && completion.total > 0 && completion.passedAll);
+  const passedIds = new Set(completion ? completion.rows.filter((r) => r.passed).map((r) => r.assessment.id) : []);
+  res.render('training-content', { title: course.title, canFinish, canSubmit, completion, passedIds, finishId: mineRecipient ? mineRecipient.id : null, isLearner, doneIds, requiredIds, DOC_TYPES, minReadSeconds: Math.round(MIN_READ_MS / 1000), material: typeof req.query.material === 'string' ? req.query.material : '', course: { ...course, modules: shownModules }, gate, assessments: assessments.filter(a => safeParse(a.configJson, {})?.targetedRetake !== true || a.createdById === req.profile.id) });
 });
 
 // Training sources belong to AI Practice, which is Admin-only.

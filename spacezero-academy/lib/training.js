@@ -4,7 +4,8 @@ const { prisma } = require('./prisma');
 
 function latestAttempt(attempts) {
   if (!attempts || attempts.length === 0) return undefined;
-  return [...attempts].sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
+  // Highest attempt number wins; on a tie (practice attempts are numbered per practice) the newer one does.
+  return [...attempts].sort((a, b) => b.attemptNumber - a.attemptNumber || new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0];
 }
 
 async function getMyTrainingList(profileId) {

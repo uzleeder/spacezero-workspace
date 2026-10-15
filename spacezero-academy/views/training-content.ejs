@@ -68,12 +68,25 @@ const notices = { 'open-first': 'Open the material first, then confirm.', 'too-f
       <section class="card mt-16"><div class="card-body row-between">
         <div>
           <p style="font-weight:500;color:var(--navy-950)"><%= a.title %></p>
-          <p class="text-sm text-muted">Level <%= a.level %> · Passing score <%= a.passingScore %>%</p>
+          <p class="text-sm text-muted">Level <%= a.level %> · Passing score <%= a.passingScore %>%<% if (passedIds.has(a.id)) { %> · <span class="badge badge-success">✓ Passed</span><% } %></p>
         </div>
-        <a class="btn btn-gold" href="<%= a.type === 'ROLEPLAY' ? '/assessments/' + a.id + '/roleplay' : '/assessments/' + a.id + '/take' %>">Start</a>
+        <a class="btn <%= passedIds.has(a.id) ? 'btn-secondary' : 'btn-gold' %>" href="<%= a.type === 'ROLEPLAY' ? '/assessments/' + a.id + '/roleplay' : '/assessments/' + a.id + '/take' %>"><%= passedIds.has(a.id) ? 'Practice again' : 'Start' %></a>
       </div></section>
     <% }); %>
   <% } %>
+<% } %>
+
+<% if (isLearner && completion && completion.total > 0 && allDone) { %>
+  <section class="card mt-24" style="margin-bottom:40px" data-submit-training><div class="card-body row-between" style="gap:12px;flex-wrap:wrap">
+    <% if (completion.submitted) { %>
+      <div><p style="font-weight:500;color:var(--navy-950)">✓ Training submitted</p><p class="text-sm text-muted">You finished this training. You can still practise again from the list above.</p></div>
+    <% } else if (canSubmit) { %>
+      <div><p style="font-weight:500;color:var(--navy-950)">All practice and quizzes passed</p><p class="text-sm text-muted">Submit the training to finish it. It then shows as completed for you and your supervisor.</p></div>
+      <form method="post" action="/training/<%= finishId %>/complete" data-once><button type="submit" class="btn btn-gold">Submit training</button></form>
+    <% } else { %>
+      <div><p style="font-weight:500;color:var(--navy-950)">Submit training</p><p class="text-sm text-muted"><%= completion.passedCount %> of <%= completion.total %> practice<%= completion.total === 1 ? '' : 's' %> passed. Still to pass: <%= completion.missing.join(', ') %>. When all are passed, the Submit button appears here.</p></div>
+    <% } %>
+  </div></section>
 <% } %>
 
 <% if (canFinish) { %>
