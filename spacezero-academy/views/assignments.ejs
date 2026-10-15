@@ -1,6 +1,7 @@
 <%- include('partials/page-header', { pageTitle: 'Training', pageDescription: 'Assign published training to individuals, a team, or the whole company.' }) %>
 
 <%- include('partials/management-tabs', { tabs: tabsets.training }) %>
+<% if (typeof deletedNotice !== 'undefined' && deletedNotice) { %><div class="form-alert success mt-16" role="status"><%= deletedNotice %></div><% } %>
 <% if (typeof emailNotice !== 'undefined' && emailNotice) { %><div class="form-alert success mt-16" role="status"><%= emailNotice %></div><% } %>
 
 <div class="grid mt-24" style="grid-template-columns: minmax(0,1fr) 400px">
@@ -16,7 +17,12 @@
             <p class="text-sm text-muted"><%= a.scope === 'ROLE' && a.targetRole ? 'ROLE · ' + a.targetRole.replace('_', ' ').toLowerCase() : a.scope %> · <%= a._count.recipients %> recipient<%= a._count.recipients === 1 ? '' : 's' %><% if (a.dueDate) { %> · due <%= formatDeadline(a.dueDate) %><% } %></p>
             <% const emails = (a.recipients || []).map(r => r.emailSchedule).filter(Boolean); %>
             <p class="text-sm text-muted mt-4">Email: <%= emails.filter(e => e.assignmentSentAt).length %> accepted for sending<% if (emails.some(e => e.lastError)) { %> · Some emails need attention; temporary failures retry automatically.<% } %></p>
-            <form method="post" action="/assignments/<%= a.id %>/email" data-once class="mt-8"><button type="submit" class="btn btn-secondary btn-sm">Send email</button></form>
+            <div class="mt-8" style="display:flex;gap:8px;flex-wrap:wrap">
+              <form method="post" action="/assignments/<%= a.id %>/email" data-once><button type="submit" class="btn btn-secondary btn-sm">Send email</button></form>
+              <% if (allowCompany) { %>
+              <form method="post" action="/assignments/<%= a.id %>/delete" onsubmit="return confirm('Delete this assigned training (<%= a.course.title.replace(/["'\\]/g, '') %>) for <%= a._count.recipients %> <%= a._count.recipients === 1 ? 'person' : 'people' %>?\n\nIt disappears from their My Training and their attempts on it are removed. Certificates and skill scores already earned stay. This cannot be undone.')"><button type="submit" class="btn btn-danger btn-sm">Delete</button></form>
+              <% } %>
+            </div>
           </li>
         <% }); %>
       </ul>

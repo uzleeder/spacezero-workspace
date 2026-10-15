@@ -86,6 +86,7 @@ router.get('/assignments', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm,
     assignments,
     allowCompany: actor.role === 'ADMIN',
     error: null,
+    deletedNotice: req.query.deleted === '1' ? 'The assigned training was deleted. It is gone from everyone\'s My Training.' : null,
     emailNotice: req.query.email === 'queued' ? 'Assignment emails queued. Incomplete training receives reminders every 3 hours after the deadline.' : null,
   });
 });
@@ -248,6 +249,22 @@ router.post('/assignments/:id/email', requireRole('ADMIN', 'SUPERVISOR'), mayUse
   await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'training.email_requested', targetTable: 'TrainingAssignment', targetId: assignment.id, metadata: { queued } });
   trainingEmails.kick();
   res.redirect('/assignments?email=queued');
+});
+
+// Admin only: delete an assigned training for everyone it was assigned to. It disappears from each
+// person's My Training and their attempts on it go with it; certificates and skill scores already
+// earned stay, and the course itself is untouched. Queued assignment/reminder emails go with it.
+router.post('/assignments/:id/delete', requireRole('ADMIN'), async (req, res) => {
+  const actor = req.profile;
+  const assignment = await prisma.trainingAssignment.findFirst({
+    where: { id: req.params.id, organizationId: actor.organizationId },
+    include: { course: { select: { title: true } }, _count: { select: { recipients: true } } },
+  });
+  if (!assignment) return res.status(404).render('not-found');
+  const attempts = await prisma.trainingAttempt.count({ where: { recipient: { assignmentId: assignment.id } } });
+  await prisma.trainingAssignment.delete({ where: { id: assignment.id } });
+  await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'training.assignment_deleted', targetTable: 'TrainingAssignment', targetId: assignment.id, metadata: { course: assignment.course.title, courseId: assignment.courseId, recipients: assignment._count.recipients, attempts } });
+  res.redirect('/assignments?deleted=1');
 });
 
 module.exports = router;
