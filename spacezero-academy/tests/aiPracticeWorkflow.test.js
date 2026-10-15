@@ -293,17 +293,30 @@ test('PRACTICE: "Create Recommended Practice" confirms the analysis, queues ONE 
   assert.equal(calls.questions + calls.roleplay, 0);
   assert.equal(state.courseState({ ...(await reload(src.id)), analysis: { status: 'APPROVED' } }, { build: await tasks.latestBuild(src.id) }).key, 'BUILDING');
   const done = await tasks.runQueuedBuild(src.id);
-  assert.equal(done.status, 'DONE'); assert.equal(done.promptVersion, 'practice.generate@3'); assert.ok(done.model);
+  assert.equal(done.status, 'DONE'); assert.equal(done.promptVersion, 'practice.generate@4'); assert.ok(done.model);
   comps = await prisma.assessment.findMany({ where: { courseId: src.id, archivedAt: null }, include: { questions: true }, orderBy: { createdAt: 'asc' } });
-  assert.deepEqual(comps.map((c) => c.type).sort(), ['QUIZ', 'ROLEPLAY', 'ROLEPLAY']);
-  assert.ok(comps.every((c) => c.status === 'AI_GENERATED' && c.version === 1 && c.promptVersion === 'practice.generate@3'), 'drafts, versioned, never auto-approved');
+  // Master generation rules: ONE short practice by default (the best fit for the kind of source), at Level 2.
+  assert.deepEqual(comps.map((c) => c.type), ['QUIZ']);
+  assert.equal(comps[0].level, 2);
+  assert.ok(comps.every((c) => c.status === 'AI_GENERATED' && c.version === 1 && c.promptVersion === 'practice.generate@4'), 'drafts, versioned, never auto-approved');
   const course = await reload(src.id);
   assert.equal(course.status, 'DRAFT'); assert.equal(course.publishedVersion, 0);
   assert.equal(await prisma.trainingAssignment.count({ where: { courseId: src.id } }), 0, 'the AI assigned nothing');
   assert.equal((await audits('practice.generated')).filter((x) => x.targetId === src.id).length, 1);
   const builder = await get(admin, `/ai-practice/${src.id}?step=practice`);
-  assert.match(builder.text, /Practice Builder/); assert.match(builder.text, /AI Client Role-play/); assert.match(builder.text, /2 scenarios/); assert.match(builder.text, /Applied Quiz/);
+  assert.match(builder.text, /Practice Builder/); assert.match(builder.text, /Applied Quiz/); assert.doesNotMatch(builder.text, /AI Client Role-play —/);
   assert.equal((await state.loadSources(admin)).find((i) => i.id === src.id).state.key, 'READY_FOR_REVIEW');
+});
+
+test('PRACTICE: a second practice is added only on request (+ Add practice) - here 2 role-play scenarios', async () => {
+  resetCalls();
+  assert.equal((await post(admin, `/ai-practice/${src.id}/practice/add`, { type: 'ROLEPLAY', count: '2', level: '3' })).status, 302);
+  const added = await tasks.runQueuedBuild(src.id);
+  assert.equal(added.status, 'DONE');
+  comps = await prisma.assessment.findMany({ where: { courseId: src.id, archivedAt: null }, include: { questions: true }, orderBy: { createdAt: 'asc' } });
+  assert.deepEqual(comps.map((c) => c.type).sort(), ['QUIZ', 'ROLEPLAY', 'ROLEPLAY']);
+  const builder = await get(admin, `/ai-practice/${src.id}?step=practice`);
+  assert.match(builder.text, /AI Client Role-play/); assert.match(builder.text, /2 scenarios/);
 });
 
 test('PRACTICE: change ONE question, regenerate ONE question, make ONE role-play harder — only that piece is touched', async () => {
@@ -577,7 +590,7 @@ test('SECURITY: Gemini has no authority — after the whole flow nobody was assi
 
 test('OBSERVABILITY: every AI task records what ran, on which source, with which model and prompt version', async () => {
   const task = await prisma.aiTask.findFirst({ where: { courseId: src.id, taskType: 'PRACTICE_BUILD' }, orderBy: { createdAt: 'asc' } });
-  assert.equal(task.organizationId, org.id); assert.equal(task.requestedById, admin.id); assert.equal(task.model, 'test-model'); assert.equal(task.promptVersion, 'practice.generate@3');
+  assert.equal(task.organizationId, org.id); assert.equal(task.requestedById, admin.id); assert.equal(task.model, 'test-model'); assert.equal(task.promptVersion, 'practice.generate@4');
   assert.ok(task.startedAt && task.finishedAt); assert.equal(task.activeKey, null, 'a finished task no longer blocks a new one');
   assert.match(task.resultJson, /"built"/);
   const failed = await prisma.aiTask.findFirst({ where: { courseId: src.id, status: 'FAILED' } });

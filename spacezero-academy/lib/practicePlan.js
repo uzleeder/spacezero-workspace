@@ -11,22 +11,30 @@ const LABEL = {
 };
 // What one unit is called for each kind of practice.
 const UNIT = { QUIZ: 'question', ROLEPLAY: 'scenario', VOICE: 'scenario', TECHNICAL: 'question', PROCESS_SIM: 'simulation', PRODUCT_KNOWLEDGE: 'question' };
-const DEFAULT_COUNT = { QUIZ: 8, ROLEPLAY: 2, VOICE: 1, TECHNICAL: 6, PROCESS_SIM: 1, PRODUCT_KNOWLEDGE: 6 };
+// One short practice (10-15 minutes) per training: sizes and the default difficulty come from the master generation rules.
+const rules = require('./practiceRules');
+const DEFAULT_COUNT = rules.DEFAULT_COUNT;
+const DEFAULT_LEVEL = rules.DEFAULT_LEVEL; // Level 2 unless the creator picks another
 const MAX_COUNT = { QUIZ: 20, ROLEPLAY: 5, VOICE: 3, TECHNICAL: 20, PROCESS_SIM: 3, PRODUCT_KNOWLEDGE: 20 };
 const QUESTION_TYPES = ['QUIZ', 'TECHNICAL', 'PRODUCT_KNOWLEDGE'];
 
 const clampCount = (type, n) => Math.max(1, Math.min(MAX_COUNT[type] || 1, Math.round(Number(n)) || DEFAULT_COUNT[type] || 1));
 const clampLevel = (n, fallback = 3) => Math.max(1, Math.min(5, Math.round(Number(n)) || fallback));
 
-/** Turns the analysis recommendation into a concrete plan: [{ type, count, level, label, unit }]. */
-function recommendedPlan(analysis) {
-  const parse = (v, f) => { try { return v ? JSON.parse(v) : f; } catch { return f; } };
-  const methods = parse(analysis && analysis.recommendedMethodsJson, []).filter((m) => COMPONENT_TYPES.includes(m));
-  const level = clampLevel(parse(analysis && analysis.recommendedIntensityJson, 3));
-  const chosen = methods.length ? methods : ['QUIZ'];
-  // Knowledge check first, then practical practice: the order the learner will meet them.
-  const order = ['QUIZ', 'PRODUCT_KNOWLEDGE', 'TECHNICAL', 'PROCESS_SIM', 'ROLEPLAY', 'VOICE'];
-  return [...new Set(chosen)].sort((a, b) => order.indexOf(a) - order.indexOf(b)).map((type) => describe(type, DEFAULT_COUNT[type], level));
+/**
+ * Turns the analysis into a concrete plan: [{ type, count, level, label, unit }]. Following the master generation
+ * rules it is normally ONE practice (the best fit for the kind of source), at Level 2, sized for 10-15 minutes; a
+ * second practice appears only when the source clearly teaches two different skills. The creator can always
+ * customize it. `options` ({ callMode, callOutcome }) tells the rules the source was a call.
+ */
+function recommendedPlan(analysis, options = {}) {
+  return rules.planFor(analysis, options).map((item) => describe(item.type, item.count, item.level));
+}
+
+/** The kind of source this is and why that practice was chosen - shown above the recommendation. */
+function sourceSummary(analysis, options = {}) {
+  const kind = rules.sourceKindOf(analysis, options);
+  return kind ? { kind, label: rules.KINDS[kind].label, guidance: rules.KINDS[kind].guidance } : null;
 }
 
 function describe(type, count, level) {
@@ -57,4 +65,4 @@ function groupComponents(components) {
   return groups;
 }
 
-module.exports = { COMPONENT_TYPES, LABEL, UNIT, DEFAULT_COUNT, MAX_COUNT, QUESTION_TYPES, recommendedPlan, readCustomPlan, describe, groupComponents, clampLevel };
+module.exports = { COMPONENT_TYPES, LABEL, UNIT, DEFAULT_COUNT, DEFAULT_LEVEL, MAX_COUNT, QUESTION_TYPES, recommendedPlan, sourceSummary, readCustomPlan, describe, groupComponents, clampLevel };

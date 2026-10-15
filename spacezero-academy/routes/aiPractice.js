@@ -232,7 +232,7 @@ router.get('/ai-practice/:id', creators, async (req, res) => {
   res.set('Cache-Control', 'private, no-store');
   res.render('ai-practice/detail', {
     title: course.title, course, st, step: stepKey, steps: state.STEPS, analysis, parsed, relevance, stale, components: live, groups: plan.groupComponents(live),
-    build, buildResult: result, history, callBatch: batch, editable: editable(course), recommended: analysis ? plan.recommendedPlan(analysis) : [],
+    build, buildResult: result, history, callBatch: batch, editable: editable(course), recommended: analysis ? plan.recommendedPlan(analysis) : [], sourceKind: analysis ? plan.sourceSummary(analysis) : null,
     PLAN: plan, PURPOSE_LABEL: analysisLib.PURPOSE_LABEL, ACCEPT, roleLabel, TYPE_LABEL: state.TYPE_LABEL,
     notice: typeof req.query.notice === 'string' ? req.query.notice.slice(0, 200) : null, error: typeof req.query.error === 'string' ? req.query.error.slice(0, 300) : null,
     autoRefresh: ['ANALYZING', 'BUILDING'].includes(st.key) && !st.halted,

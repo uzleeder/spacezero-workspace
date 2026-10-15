@@ -6,6 +6,7 @@
   <div class="card-body">
     <p class="text-sm text-muted">Scenario</p>
     <p style="margin-bottom:8px"><%= config.scenarioBrief %></p>
+    <% if ((config.rubricSkills || []).length) { %><p class="text-sm text-muted">Skill areas: <%= config.rubricSkills.join(', ') %></p><% } %>
   </div>
 </div>
 

@@ -26,6 +26,7 @@ const badge = function (a) { return a.status === 'APPROVED' ? '<span class="badg
     <div class="card mt-24 next-card"><div class="card-body">
       <p class="label">Practice</p>
       <h2 style="margin:6px 0">Turn the analysis into practice</h2>
+      <% if (sourceKind) { %><p class="text-sm"><strong>This looks like:</strong> <%= sourceKind.label %>. <span class="text-muted">Normally one short practice (about 10–15 minutes) is enough; you can add another below.</span></p><% } %>
       <p class="text-muted">The AI recommends:</p>
       <ul style="list-style:none;padding:0;margin:8px 0"><% recommended.forEach(function (r) { %><li>✓ <%= r.label %> — <%= r.summary %></li><% }); %></ul>
       <% if (editable) { %><form method="post" action="/ai-practice/<%= course.id %>/practice/build" data-once><input type="hidden" name="mode" value="recommended" /><button class="btn btn-gold">Create Recommended Practice</button></form><% } %>
@@ -40,7 +41,7 @@ const badge = function (a) { return a.status === 'APPROVED' ? '<span class="badg
             <label class="text-sm text-muted">How many <%= PLAN.UNIT[t] %>s <input type="number" name="count_<%= t %>" min="1" max="<%= PLAN.MAX_COUNT[t] %>" value="<%= PLAN.DEFAULT_COUNT[t] %>" style="width:72px" /></label>
           </div>
         <% }); %>
-        <div class="field mt-16" style="max-width:200px"><label for="level">Difficulty (1–5)</label><input id="level" name="level" type="number" min="1" max="5" value="<%= parsed.intensity || 3 %>" /></div>
+        <div class="field mt-16" style="max-width:200px"><label for="level">Difficulty (1–5)</label><input id="level" name="level" type="number" min="1" max="5" value="<%= PLAN.DEFAULT_LEVEL || 2 %>" /></div>
         <button class="btn btn-secondary mt-16">Create this practice</button>
       </form>
     </div></div>
@@ -85,7 +86,7 @@ const badge = function (a) { return a.status === 'APPROVED' ? '<span class="badg
           <form method="post" action="/ai-practice/<%= course.id %>/practice/add" data-once style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:12px">
             <div class="field" style="margin:0"><label for="add-type">Type</label><select id="add-type" name="type"><% PLAN.COMPONENT_TYPES.forEach(function (t) { %><option value="<%= t %>"><%= PLAN.LABEL[t] %></option><% }); %><option value="SCENARIO">Difficult scenario (hardest role-play)</option><option value="CALL_COACHING">Call coaching (speak the call, get coached)</option></select></div>
             <div class="field" style="margin:0"><label for="add-count">How many</label><input id="add-count" name="count" type="number" min="1" max="20" value="1" style="width:80px" /></div>
-            <div class="field" style="margin:0"><label for="add-level">Difficulty</label><input id="add-level" name="level" type="number" min="1" max="5" value="<%= parsed.intensity || 3 %>" style="width:80px" /></div>
+            <div class="field" style="margin:0"><label for="add-level">Difficulty</label><input id="add-level" name="level" type="number" min="1" max="5" value="<%= PLAN.DEFAULT_LEVEL || 2 %>" style="width:80px" /></div>
             <button class="btn btn-secondary">Add</button>
           </form>
         </details>
