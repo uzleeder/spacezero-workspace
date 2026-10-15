@@ -18,7 +18,15 @@
 <div class="card mt-16"><div class="card-header"><h2>Training details</h2><p>Sensible defaults are filled in. Assigning still happens in Training.</p></div>
   <div class="card-body">
     <form method="post" action="/ai-practice/<%= course.id %>/send" data-once>
-      <div class="grid grid-2">
+      <div class="field" style="max-width:420px">
+        <label for="trainingCategory">Training category <span class="text-muted">(required)</span></label>
+        <select id="trainingCategory" name="trainingCategory" required>
+          <option value="" disabled <%= suggestedCategory ? '' : 'selected' %>>Choose a category</option>
+          <% CATEGORIES.forEach(function (c) { %><option value="<%= c.key %>" <%= suggestedCategory === c.key ? 'selected' : '' %>><%= c.label %></option><% }); %>
+        </select>
+        <p class="hint">This is how employees and managers find it: in the Training catalog, Assignments and My Training.<%= !course.trainingCategory && suggestedCategory ? ' Suggested from the analysis — change it if it is not right.' : '' %></p>
+      </div>
+      <div class="grid grid-2 mt-16">
         <div class="field"><label for="title">Title</label><input id="title" name="title" value="<%= course.title %>" maxlength="160" required /></div>
         <div class="field"><label for="durationMinutes">Estimated duration (minutes)</label><input id="durationMinutes" name="durationMinutes" type="number" min="1" max="999" value="<%= minutes %>" /></div>
       </div>

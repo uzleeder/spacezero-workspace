@@ -7,13 +7,19 @@
 <div class="grid mt-24" style="grid-template-columns: minmax(0,1fr) 400px">
   <div class="card">
     <div class="card-header"><h2>Recent assignments</h2></div>
+  <div class="card-body" style="padding-bottom:0">
+    <nav class="category-tabs" aria-label="Filter by training category">
+      <a href="/assignments" class="category-tab<%= category ? '' : ' active' %>" <%- category ? '' : 'aria-current="page"' %>>All</a>
+      <% CATEGORIES.forEach(function (c) { %><a href="/assignments?category=<%= c.key %>" class="category-tab<%= category === c.key ? ' active' : '' %>" <%- category === c.key ? 'aria-current="page"' : '' %>><%= c.short %></a><% }); %>
+    </nav>
+  </div>
     <% if (assignments.length === 0) { %>
-      <div class="card-body"><%- include('partials/empty-state', { title: 'No assignments yet', description: 'Use the form to assign a published course.' }) %></div>
+      <div class="card-body"><%- include('partials/empty-state', { title: category ? 'No assignments in this category' : 'No assignments yet', description: 'Use the form to assign a published course.' }) %></div>
     <% } else { %>
       <ul class="divide-list" style="padding:0 24px">
         <% assignments.forEach(function (a) { %>
           <li>
-            <p style="font-weight:500;color:var(--navy-950)"><%= a.course.title %></p>
+            <p style="font-weight:500;color:var(--navy-950)"><%= a.course.title %> <span class="badge <%= a.course.trainingCategory ? 'badge-navy' : 'badge-warning' %>" data-category-badge><%= categoryLabel(a.course.trainingCategory) %></span></p>
             <p class="text-sm text-muted"><%= a.scope === 'ROLE' && a.targetRole ? 'ROLE · ' + a.targetRole.replace('_', ' ').toLowerCase() : a.scope %> · <%= a._count.recipients %> recipient<%= a._count.recipients === 1 ? '' : 's' %><% if (a.dueDate) { %> · due <%= formatDeadline(a.dueDate) %><% } %></p>
             <% const emails = (a.recipients || []).map(r => r.emailSchedule).filter(Boolean); %>
             <p class="text-sm text-muted mt-4">Email: <%= emails.filter(e => e.assignmentSentAt).length %> accepted for sending<% if (emails.some(e => e.lastError)) { %> · Some emails need attention; temporary failures retry automatically.<% } %></p>
@@ -42,7 +48,7 @@
             <select id="courseId" name="courseId" required>
               <% var pre = typeof selectedCourseId !== 'undefined' ? selectedCourseId : ''; %>
               <option value="" disabled <%= courses.some(function (c) { return c.id === pre; }) ? '' : 'selected' %>>Select a course</option>
-              <% courses.forEach(function (c) { %><option value="<%= c.id %>" <%= c.id === pre ? 'selected' : '' %>><%= c.title %></option><% }); %>
+              <% courses.forEach(function (c) { %><option value="<%= c.id %>" <%= c.id === pre ? 'selected' : '' %>><%= c.title %><%= c.trainingCategory ? ' (' + categoryLabel(c.trainingCategory).replace(' Training', '') + ')' : '' %></option><% }); %>
             </select>
           </div>
           <% if (typeof audienceHint !== 'undefined' && audienceHint && !audienceHint.isEmpty) { %>

@@ -86,7 +86,7 @@ async function makeUser(role, name, organizationId = org.id) {
 }
 /** A saved source made of notes only (so the analysis can run against the mocked AI). */
 async function noteSource(title = 'Sabre guide', text = 'Reprice after any segment change. Verify the cabin on every segment.') {
-  const res = await request(app).post('/ai-practice/new').set('Cookie', cookies[admin.id]).field('kind', 'material').field('title', title).field('noteText', text);
+  const res = await request(app).post('/ai-practice/new').set('Cookie', cookies[admin.id]).field('kind', 'material').field('trainingCategory', 'SYSTEM_WORKFLOW').field('title', title).field('noteText', text);
   assert.equal(res.status, 302, res.text);
   const course = await prisma.trainingCourse.findUnique({ where: { id: savedId(res) }, include: { modules: true } });
   await prisma.trainingModule.updateMany({ where: { courseId: course.id }, data: { title } }); // the source map refers to modules by title
@@ -119,7 +119,7 @@ after(async () => { mock.restoreAll(); await prisma.$disconnect(); });
 // ================================================================== SOURCE
 test('SOURCE: upload only SAVES — no analysis, no AI call, listed as Saved, and it is still there after logging in again', async () => {
   resetCalls();
-  const res = await request(app).post('/ai-practice/new').set('Cookie', cookies[admin.id]).field('kind', 'material').field('title', 'Objection Handling Masterclass').attach('files', pdf(), { filename: 'guide.pdf', contentType: 'application/pdf' });
+  const res = await request(app).post('/ai-practice/new').set('Cookie', cookies[admin.id]).field('kind', 'material').field('trainingCategory', 'SYSTEM_WORKFLOW').field('title', 'Objection Handling Masterclass').attach('files', pdf(), { filename: 'guide.pdf', contentType: 'application/pdf' });
   assert.equal(res.status, 302);
   const course = await prisma.trainingCourse.findUnique({ where: { id: savedId(res) }, include: { modules: true, analysis: true } });
   assert.equal(course.origin, 'AI_PRACTICE'); assert.equal(course.status, 'DRAFT'); assert.equal(course.analysis, null);
@@ -137,7 +137,7 @@ test('SOURCE: upload only SAVES — no analysis, no AI call, listed as Saved, an
 });
 
 test('SOURCE: several related files and notes make ONE source; more material can be added later', async () => {
-  const res = await request(app).post('/ai-practice/new').set('Cookie', cookies[admin.id]).field('kind', 'material').field('title', 'Sabre ticketing').field('noteText', 'Trainer notes.')
+  const res = await request(app).post('/ai-practice/new').set('Cookie', cookies[admin.id]).field('kind', 'material').field('trainingCategory', 'SYSTEM_WORKFLOW').field('title', 'Sabre ticketing').field('noteText', 'Trainer notes.')
     .attach('files', pdf(), { filename: 'sabre-guide.pdf', contentType: 'application/pdf' }).attach('files', wav(), { filename: 'walkthrough.wav', contentType: 'audio/wav' });
   assert.equal(res.status, 302, res.text);
   const course = await prisma.trainingCourse.findUnique({ where: { id: savedId(res) }, include: { modules: true } });
@@ -152,12 +152,12 @@ test('SOURCE: several related files and notes make ONE source; more material can
 
 test('SOURCE: forged files, unsupported types and oversized batches are refused; nothing half-created; private files need authorization', async () => {
   const before = await prisma.trainingCourse.count({ where: { organizationId: org.id } });
-  const up = (buf, name, type) => request(app).post('/ai-practice/new').set('Cookie', cookies[admin.id]).field('kind', 'material').attach('files', buf, { filename: name, contentType: type });
+  const up = (buf, name, type) => request(app).post('/ai-practice/new').set('Cookie', cookies[admin.id]).field('kind', 'material').field('trainingCategory', 'SYSTEM_WORKFLOW').attach('files', buf, { filename: name, contentType: type });
   assert.equal((await up(Buffer.from('this is not a pdf at all'), 'fake.pdf', 'application/pdf')).status, 400);   // forged content
   assert.equal((await up(Buffer.from('MZ\x90\x00'), 'run.exe', 'application/octet-stream')).status, 400);          // unsupported type
   assert.equal((await up(pdf(), 'renamed.mp4', 'video/mp4')).status, 400);                                          // a PDF renamed to video
   assert.equal(await prisma.trainingCourse.count({ where: { organizationId: org.id } }), before);
-  for (const who of [sup, agent, expert]) assert.ok(blocked(await request(app).post('/ai-practice/new').set('Cookie', cookies[who.id]).field('kind', 'material').field('noteText', 'x')));
+  for (const who of [sup, agent, expert]) assert.ok(blocked(await request(app).post('/ai-practice/new').set('Cookie', cookies[who.id]).field('kind', 'material').field('trainingCategory', 'SYSTEM_WORKFLOW').field('noteText', 'x')));
   // private storage: a source file is only served to someone allowed to see that training
   const withFile = await prisma.trainingModule.findFirst({ where: { course: { organizationId: org.id }, contentType: 'PDF' } });
   assert.equal((await get(admin, `/training-file/${withFile.id}`)).status, 200);

@@ -30,7 +30,7 @@ async function makeUser(role, name) {
 
 /** A course whose package is fully ready to submit/send — mirrors what the real AI Practice pipeline produces. */
 async function readyCourse(createdBy) {
-  const course = await prisma.trainingCourse.create({ data: { organizationId: org.id, title: `STC course ${course_seq++}`, createdById: createdBy.id, origin: 'AI_PRACTICE', status: 'DRAFT' } });
+  const course = await prisma.trainingCourse.create({ data: { organizationId: org.id, title: `STC course ${course_seq++}`, createdById: createdBy.id, origin: 'AI_PRACTICE', trainingCategory: 'SALES', status: 'DRAFT' } });
   await prisma.trainingModule.create({ data: { courseId: course.id, title: 'Source', contentType: 'NOTE', description: 'x' } });
   await prisma.trainingAnalysis.create({ data: { courseId: course.id, status: 'APPROVED', criticalKnowledgeJson: '[]', practicalBehaviorsJson: '[]', commonMistakesJson: '[]', extractedSkillsJson: '["Discovery"]' } });
   await prisma.assessment.create({ data: { organizationId: org.id, courseId: course.id, createdVia: 'AI_TRAINING_ANALYSIS', type: 'ROLEPLAY', title: 'Role-play', level: 3, passingScore: 70, status: 'APPROVED', createdById: createdBy.id, configJson: JSON.stringify({ customerPersonality: 'busy', scenarioBrief: 'b', openingLine: 'o', rubricSkills: ['Discovery'] }) } });
@@ -58,7 +58,7 @@ test('CAPABILITY REQUIRED: a Supervisor without training.create cannot reach AI 
 });
 
 test('AUTHORIZED SUPERVISOR: can create material, and it is scoped to only what they created', async () => {
-  const res = await post(supA, '/ai-practice/new', { kind: 'material', title: 'STC upload', noteText: 'Some notes about the process.' });
+  const res = await post(supA, '/ai-practice/new', { kind: 'material', trainingCategory: 'SALES', title: 'STC upload', noteText: 'Some notes about the process.' });
   assert.equal(res.status, 302);
   const course = await prisma.trainingCourse.findFirst({ where: { organizationId: org.id, title: 'STC upload' } });
   assert.equal(course.createdById, supA.id);

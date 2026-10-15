@@ -9,7 +9,7 @@
       <% list.forEach(function (r) { %>
         <li class="row-between" style="gap:12px;flex-wrap:wrap">
           <div>
-            <p style="font-weight:500;color:var(--navy-950)"><%= r.assignment.course.title %></p>
+            <p style="font-weight:500;color:var(--navy-950)"><%= r.assignment.course.title %> <span class="badge" data-category-badge><%= categoryLabel(r.assignment.course.trainingCategory) %></span></p>
             <p class="text-sm text-muted"><%= r.assignment.course.modules.length %> modules<% if (r.assignment.dueDate) { %> · due <%= r.assignment.dueDate.toLocaleDateString('en-US') %><% } %><% if (r.latestAttempt && r.latestAttempt.score != null) { %> · last score <%= Math.round(r.latestAttempt.score) %>%<% } %></p>
           </div>
           <div style="display:flex;align-items:center;gap:8px">

@@ -564,7 +564,7 @@ router.get('/employees/:id/training', requireSession, async (req, res) => {
   const ctx = await loadEmployeeFor(req.profile, req.params.id);
   if (!ctx) return notFound(res);
   const list = await getMyTrainingList(ctx.employee.id);
-  res.render('employee/training', { title: `${ctx.employee.fullName} — Training`, ...(await frame(req, ctx)), list, canRemove: req.profile.role === 'ADMIN' && !req.impersonation, removed: req.query.removed === '1' });
+  res.render('employee/training', { title: `${ctx.employee.fullName} — Training`, ...(await frame(req, ctx)), list, categoryLabel: require('../lib/trainingCategories').categoryLabel, canRemove: req.profile.role === 'ADMIN' && !req.impersonation, removed: req.query.removed === '1' });
 });
 
 // Admin only: take ONE assigned training away from this employee (the assignment stays for everyone else;

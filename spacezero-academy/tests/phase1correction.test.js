@@ -374,7 +374,7 @@ test('team overlap is informational: it is shown but never blocks a request', as
 
 // ---------------------------------------------------------------- training permissions
 test('drafts are never assignable; assigning follows the per-training policy and stays inside the supervisor scope', async () => {
-  const course = await prisma.trainingCourse.create({ data: { organizationId: org.id, title: 'P1C course', createdById: admin.id, status: 'DRAFT' } });
+  const course = await prisma.trainingCourse.create({ data: { organizationId: org.id, title: 'P1C course', createdById: admin.id, status: 'DRAFT', trainingCategory: 'PRODUCT' } });
   const assign = (who, ids) => post(who, '/assignments', { courseId: course.id, scope: 'INDIVIDUAL', targetProfileIds: ids });
   const count = () => prisma.trainingAssignment.count({ where: { courseId: course.id } });
 

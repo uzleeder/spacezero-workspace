@@ -32,7 +32,12 @@
     };
     var sync = function () {
       var kind = upload.querySelector('[data-kind]:checked').value;
-      upload.querySelectorAll('[data-only]').forEach(function (n) { n.style.display = n.getAttribute('data-only') === kind ? '' : 'none'; });
+      upload.querySelectorAll('[data-only]').forEach(function (n) {
+        var show = n.getAttribute('data-only') === kind;
+        n.style.display = show ? '' : 'none';
+        // a hidden field must not block the form (a required field that cannot be seen cannot be filled in)
+        n.querySelectorAll('select, input, textarea').forEach(function (el) { el.disabled = !show; });
+      });
       input.accept = kind === 'call' ? '.mp3,.wav,.ogg,.mp4,.webm' : originalAccept;
     };
     input.addEventListener('change', render);

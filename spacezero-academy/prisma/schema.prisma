@@ -482,6 +482,9 @@ model SkillEvidence {
 model TrainingCourse {
   // Guided creation (spec section 1): who the training is meant for, and an optional due date the
   // Assign form starts from. Intended audience is guidance for the assigner; it never assigns by itself.
+  // The one shared Training Category (PRODUCT / SALES / SYSTEM_WORKFLOW - see lib/trainingCategories.js). Null only for
+  // trainings that existed before categories: they are kept as they are until an Admin picks the right one.
+  trainingCategory String?
   audienceJson    String?
   defaultDueDate  DateTime?
   id              String               @id @default(cuid())

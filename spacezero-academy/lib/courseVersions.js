@@ -127,7 +127,9 @@ async function reviewHistory(courseId) {
 
 // ------------------------------------------------------------------ Send to Training
 /** What sending checks. Returns null when the package may be sent. */
-async function sendBlocker(course) {
+async function sendBlocker(course, fields = {}) {
+  // Every training that goes into Training has a Training Category (chosen on the send screen, or already set on it).
+  if (!require('./trainingCategories').isCategory(fields.trainingCategory !== undefined ? fields.trainingCategory : course.trainingCategory)) return 'Choose a Training Category (Product, Sales or System & Workflow) before sending this to Training.';
   const analysis = await prisma.trainingAnalysis.findUnique({ where: { courseId: course.id }, select: { status: true, sourceHash: true } });
   if (course.origin === 'AI_PRACTICE' && (!analysis || analysis.status !== 'APPROVED')) return 'Review the AI analysis before sending this to Training.';
   if (analysis && analysis.status !== 'APPROVED') return 'Approve the AI analysis before sending this to Training.';
@@ -154,7 +156,7 @@ async function sendBlocker(course) {
  */
 async function sendToTraining(actor, course, fields = {}) {
   if ((course.publishedVersion || 0) >= (course.draftVersion || 1) && course.status === 'PUBLISHED') return { ok: true, alreadySent: true, version: course.publishedVersion };
-  const blocker = await sendBlocker(course);
+  const blocker = await sendBlocker(course, fields);
   if (blocker) return { ok: false, error: blocker };
 
   const version = course.draftVersion || 1;
@@ -166,7 +168,7 @@ async function sendToTraining(actor, course, fields = {}) {
   // course went through that workflow or not — sentById/sentAt above already record the approving
   // Admin and when, satisfying "Approve & Send to Training records the approving Admin and timestamp".
   const data = { status: 'PUBLISHED', archivedAt: null, publishedVersion: version, sentAt: now, sentById: actor.id, reviewStatus: 'NONE', reviewNote: null };
-  for (const key of ['title', 'description', 'mandatory', 'onboardingForNewHires', 'passingScore', 'durationMinutes', 'roleKey']) if (fields[key] !== undefined) data[key] = fields[key];
+  for (const key of ['title', 'description', 'mandatory', 'onboardingForNewHires', 'passingScore', 'durationMinutes', 'roleKey', 'trainingCategory']) if (fields[key] !== undefined) data[key] = fields[key];
   const claimed = await prisma.$transaction(async (tx) => {
     // The guard makes the transition atomic: only one request can move publishedVersion forward.
     const moved = await tx.trainingCourse.updateMany({ where: { id: course.id, publishedVersion: course.publishedVersion || 0 }, data });
