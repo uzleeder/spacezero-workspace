@@ -91,7 +91,7 @@ router.get('/assignments', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm,
     error: null,
     category, CATEGORIES: trainingCategories.CATEGORIES, categoryLabel: trainingCategories.categoryLabel,
     deletedNotice: req.query.deleted === '1' ? 'The assigned training was deleted. It is gone from everyone\'s My Training.' : null,
-    emailNotice: req.query.email === 'queued' ? 'Assignment emails queued. Incomplete training gets a reminder every 6 hours until it is completed.' : null,
+    emailNotice: req.query.email === 'queued' ? 'Assignment emails queued. Incomplete training gets one reminder a day until it is completed.' : null,
   });
 });
 

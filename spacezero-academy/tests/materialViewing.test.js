@@ -88,7 +88,7 @@ test('viewerKind picks the right viewer', () => {
 test('Library: an employee watches a video with a working player and cannot download or copy it', async () => {
   const page = await get(agent, `/library/${items.video.id}`);
   assert.equal(page.status, 200);
-  assert.match(page.text, /<video src="\/library-file\/[^"]+" controls playsinline preload="metadata" controlsList="nodownload noremoteplayback" disablePictureInPicture/);
+  assert.match(page.text, /<video data-skin src="\/library-file\/[^"]+" controls playsinline preload="metadata" controlsList="nodownload noremoteplayback" disablePictureInPicture/);
   assert.match(page.text, /class="card-body no-copy" data-protect/);
   assert.match(page.text, /protect-materials\.js/);
   assert.doesNotMatch(page.text, /download=1/);
@@ -156,4 +156,18 @@ test('Training material: documents open on a reading page inside the app (Word a
   const stranger = await prisma.profile.create({ data: { organizationId: org.id, fullName: 'Stranger', username: `mv_x_${org.id}`, email: `mv_x_${org.id}@example.invalid`, role: 'TRAVEL_AGENT', status: 'ACTIVE', employmentStartDate: new Date() } });
   const t = generateToken(); await prisma.session.create({ data: { profileId: stranger.id, tokenHash: t.hash, expiresAt: new Date(Date.now() + 3600000) } });
   assert.equal((await request(app).get(`/training-read/${modules.docx.id}`).set('Cookie', `sz_session=${t.raw}`)).status, 404);
+});
+
+test('the player skin: video and audio carry data-skin, the script is loaded and valid, the styles keep the site look', async () => {
+  const vm = require('node:vm');
+  const library = await get(agent, `/library/${items.video.id}`);
+  assert.match(library.text, /<video data-skin src="\/library-file\/[^"]+" controls playsinline/); // native controls stay as the fallback
+  assert.match(library.text, /player-skin\.js/);
+  const js = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'player-skin.js'), 'utf8');
+  assert.doesNotThrow(() => new vm.Script(js));
+  assert.match(js, /error', function \(\) \{ el\.setAttribute\('controls'/); // a file that fails gives the native controls back
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'styles.css'), 'utf8');
+  for (const rule of ['.sz-player', '.sz-seek', '.sz-big', 'input.sz-seek']) assert.ok(css.includes(rule), rule);
+  assert.match(css, /--gold-500/);
+  assert.doesNotMatch((await get(agent, `/library/${items.pdf.id}`)).text, /player-skin\.js/); // a PDF page does not load the player
 });

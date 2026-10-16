@@ -4,9 +4,9 @@
 %>
 <% const isProtected = typeof protect !== 'undefined' && protect; const viewerTitle = typeof title !== 'undefined' ? title : 'Material'; %>
 <% if (kind === 'video') { %>
-  <video src="<%= fileUrl %>" controls playsinline preload="metadata" <%- isProtected ? 'controlsList="nodownload noremoteplayback" disablePictureInPicture' : '' %> class="material-media" aria-label="<%= viewerTitle %>"></video>
+  <video data-skin src="<%= fileUrl %>" controls playsinline preload="metadata" <%- isProtected ? 'controlsList="nodownload noremoteplayback" disablePictureInPicture' : '' %> class="material-media" aria-label="<%= viewerTitle %>"></video>
 <% } else if (kind === 'audio') { %>
-  <audio src="<%= fileUrl %>" controls preload="metadata" <%- isProtected ? 'controlsList="nodownload noremoteplayback"' : '' %> class="material-media" aria-label="<%= viewerTitle %>"></audio>
+  <audio data-skin src="<%= fileUrl %>" controls preload="metadata" <%- isProtected ? 'controlsList="nodownload noremoteplayback"' : '' %> class="material-media" aria-label="<%= viewerTitle %>"></audio>
 <% } else if (kind === 'image') { %>
   <img src="<%= fileUrl %>" alt="<%= viewerTitle %>" draggable="false" class="material-image" />
 <% } else if (kind === 'pdf') { %>
@@ -23,3 +23,4 @@
 <% } else { %>
   <p class="text-muted">Nothing has been uploaded for this item yet.</p>
 <% } %>
+<% if (kind === 'video' || kind === 'audio') { %><script src="<%= asset('/static/js/player-skin.js') %>" defer></script><% } %>
