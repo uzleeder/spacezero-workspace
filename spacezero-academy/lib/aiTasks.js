@@ -17,9 +17,9 @@ const PROMPTS = {
   'analysis.extract': 'analysis.extract@2',
   'analysis.map': 'analysis.map@2',
   'analysis.validate': 'analysis.validate@2',
-  'practice.generate': 'practice.generate@3',
-  'practice.revise': 'practice.revise@1',
-  'practice.evaluate': 'practice.evaluate@1',
+  'practice.generate': 'practice.generate@4', // @4: master generation rules (one practice, Level 2, role-play hidden context, quality check)
+  'practice.revise': 'practice.revise@2',
+  'practice.evaluate': 'practice.evaluate@2',
   'call.transcribe': 'call.transcribe@1',
   'call.analyze': 'call.analyze@1',
 };

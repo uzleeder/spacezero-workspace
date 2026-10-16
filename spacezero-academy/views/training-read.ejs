@@ -1,0 +1,16 @@
+<%- include('partials/page-header', { pageTitle: module.title, pageDescription: course.title }) %>
+<div style="margin-bottom:12px"><a href="/training-course/<%= course.id %>" class="text-sm link-gold">← Back to the training</a></div>
+
+<div class="card">
+  <div class="card-body<%= protect ? ' no-copy' : '' %>" <%- protect ? 'data-protect' : '' %>>
+    <% if (module.description) { %><p class="text-sm" style="margin-bottom:16px"><%= module.description %></p><% } %>
+    <%- include('partials/material-viewer', { kind: kind, fileUrl: '/training-file/' + module.id, text: text, protect: protect, title: module.title }) %>
+    <% if (protect) { %>
+      <p class="text-sm text-muted mt-24">Viewing in-browser only. Downloading and copying material is restricted to administrators.</p>
+    <% } else { %>
+      <p class="text-sm mt-24"><a class="link-gold" href="/training-file/<%= module.id %>?download=1">Download (administrators only)</a></p>
+    <% } %>
+  </div>
+</div>
+<p class="text-sm text-muted mt-16" style="margin-bottom:40px">When you have finished reading, go back to the training and press “I have read this”.</p>
+<% if (protect) { %><script src="<%= asset('/static/js/protect-materials.js') %>" defer></script><% } %>

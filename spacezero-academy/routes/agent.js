@@ -6,11 +6,16 @@ const router = express.Router();
 const { prisma } = require('../lib/prisma');
 const { requireSession, requireRole } = require('../lib/authMiddleware');
 const { getMyTrainingList } = require('../lib/training');
+const { buildMyTraining } = require('../lib/myTraining');
+const trainingCategories = require('../lib/trainingCategories');
 const { createNotification } = require('../lib/notifications');
 
+// One page: choose a STATUS (Overdue / To Do / In Progress / Completed) and a CATEGORY (All / Product / Sales /
+// System & Workflow) - no separate pages for every combination.
 router.get('/training', requireSession, async (req, res) => {
   const list = await getMyTrainingList(req.profile.id);
-  res.render('training', { title: 'My Training', list });
+  const view = buildMyTraining(list, { status: typeof req.query.status === 'string' ? req.query.status : '', category: typeof req.query.category === 'string' ? req.query.category : '' });
+  res.render('training', { title: 'My Training', list, view, categoryLabel: trainingCategories.categoryLabel });
 });
 
 async function latestAttemptFor(recipientId) {
@@ -36,20 +41,16 @@ router.post('/training/:recipientId/start', requireSession, async (req, res) => 
 router.post('/training/:recipientId/complete', requireSession, async (req, res) => {
   const recipient = await prisma.trainingAssignmentRecipient.findUnique({
     where: { id: req.params.recipientId },
-    include: { assignment: { include: { course: true } } },
+    include: { assignment: { include: { course: true } }, attempts: true },
   });
   if (recipient && recipient.profileId === req.profile.id) {
     if (!(await require('../lib/mediaProgress').mediaGate(req.profile.id, recipient.assignment.courseId, recipient.assignment.courseVersion)).unlocked) return res.status(403).send('Complete all required training material first.');
-    const assessments = await prisma.assessment.findMany({ where: { courseId: recipient.assignment.courseId, status: 'APPROVED', version: recipient.assignment.courseVersion, ...(recipient.assignment.assessmentId ? { id: recipient.assignment.assessmentId } : {}) } });
-    for (const assessment of assessments) {
-      if (JSON.parse(assessment.configJson || '{}').targetedRetake) continue;
-      const attempts = await prisma.trainingAttempt.count({ where: { recipientId: recipient.id, assessmentId: assessment.id, completedAt: { not: null } } });
-      const passed = attempts >= recipient.assignment.requiredAttempts && await prisma.trainingAttempt.findFirst({ where: { recipientId: recipient.id, assessmentId: assessment.id, status: 'COMPLETED', score: { gte: Math.max(assessment.passingScore, recipient.assignment.minimumScore) } } });
-      if (!passed) return res.status(403).send('Pass all required assessments before completing this training.');
-    }
-    const latest = await latestAttemptFor(recipient.id);
-    if (latest && latest.status === 'IN_PROGRESS') {
-      await prisma.trainingAttempt.update({ where: { id: latest.id }, data: { status: 'COMPLETED', completedAt: new Date() } });
+    const { completionState, submitTraining } = require('../lib/trainingCompletion');
+    const state = await completionState(recipient);
+    if (!state.passedAll) return res.status(403).send('Pass all required assessments before completing this training.');
+    // Submitting twice (a double tap, a stale page) changes nothing and sends no second certificate or notice.
+    if (!state.submitted) {
+      await submitTraining(recipient);
 
       await prisma.certificate
         .create({

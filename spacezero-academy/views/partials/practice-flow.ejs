@@ -1,0 +1,40 @@
+<%#
+  Practice progress flow. Shown on a practice result page when the practice was completed (passed):
+  - more practices to do:  "Practice completed. Continue to the next practice."  + the next one, started automatically
+  - that was the last one: "Practice completed." + submit the training
+  A single-practice training keeps the normal training completion flow (the button below the result).
+%>
+<% if (typeof flow !== 'undefined' && flow && flow.completed) { %>
+  <% if (flow.next) { %>
+    <div class="form-alert success mt-24" role="status" data-practice-flow data-next-url="<%= flow.next.url %>">
+      <p style="font-weight:600;margin:0">Practice completed. Continue to the next practice.</p>
+      <p class="text-sm" style="margin:6px 0 0">Practice <%= flow.position %> of <%= flow.total %> is completed. Up next: <strong><%= flow.next.title %></strong>.</p>
+      <p style="margin:12px 0 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <a class="btn btn-gold" href="<%= flow.next.url %>" data-flow-continue>Continue to the next practice</a>
+        <span class="text-sm" data-flow-countdown hidden>Continuing automatically in <span data-flow-seconds>10</span> seconds · <a href="#" data-flow-stay class="link-gold">Stay on this page</a></span>
+      </p>
+    </div>
+    <script>
+    (function () {
+      var box = document.querySelector('[data-practice-flow]');
+      if (!box) return;
+      var note = box.querySelector('[data-flow-countdown]'), secs = box.querySelector('[data-flow-seconds]');
+      var left = 10, timer = null;
+      note.hidden = false;
+      function stop() { if (timer) { clearInterval(timer); timer = null; } note.hidden = true; }
+      timer = setInterval(function () {
+        left -= 1; secs.textContent = String(left);
+        if (left <= 0) { stop(); window.location.href = box.getAttribute('data-next-url'); }
+      }, 1000);
+      box.querySelector('[data-flow-stay]').addEventListener('click', function (e) { e.preventDefault(); stop(); });
+      document.addEventListener('visibilitychange', function () { if (document.hidden) stop(); });
+    })();
+    </script>
+  <% } else if (flow.total > 1) { %>
+    <div class="form-alert success mt-24" role="status" data-practice-flow>
+      <p style="font-weight:600;margin:0">Practice completed.</p>
+      <p class="text-sm" style="margin:6px 0 0">All <%= flow.total %> practices of this training are completed. <%= flow.submitted ? 'The training is submitted.' : 'Submit the training to finish it.' %></p>
+      <p style="margin:12px 0 0"><a class="btn btn-gold" href="/training-course/<%= flow.courseId %>#practice"><%= flow.submitted ? 'Back to the training' : 'Continue — submit the training' %></a></p>
+    </div>
+  <% } %>
+<% } %>

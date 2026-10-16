@@ -4,7 +4,14 @@ const { prisma } = require('./prisma');
 
 function latestAttempt(attempts) {
   if (!attempts || attempts.length === 0) return undefined;
-  return [...attempts].sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
+  // Highest attempt number wins; on a tie (practice attempts are numbered per practice) the newer one does.
+  return [...attempts].sort((a, b) => b.attemptNumber - a.attemptNumber || new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0];
+}
+
+function trainingStatus(attempts) {
+  const latest = latestAttempt(attempts);
+  // A passed practice is progress; completion requires the course-level submission.
+  return latest?.assessmentId && latest.status === 'COMPLETED' ? 'IN_PROGRESS' : latest?.status || 'NOT_STARTED';
 }
 
 async function getMyTrainingList(profileId) {
@@ -16,7 +23,7 @@ async function getMyTrainingList(profileId) {
 
   return recipients.map((r) => ({
     ...r,
-    status: (latestAttempt(r.attempts) || {}).status || 'NOT_STARTED',
+    status: trainingStatus(r.attempts),
     latestAttempt: latestAttempt(r.attempts) || null,
   }));
 }
@@ -44,11 +51,11 @@ async function getTrainingSummaries(profileIds) {
   for (let i = 0; i < profileIds.length; i += 500) {
     const recipients = await prisma.trainingAssignmentRecipient.findMany({
       where: { profileId: { in: profileIds.slice(i, i + 500) } },
-      select: { profileId: true, attempts: { select: { status: true, attemptNumber: true } } },
+      select: { profileId: true, attempts: { select: { status: true, assessmentId: true, attemptNumber: true, createdAt: true } } },
     });
     for (const r of recipients) {
       const s = summaries.get(r.profileId);
-      const status = (latestAttempt(r.attempts) || {}).status || 'NOT_STARTED';
+      const status = trainingStatus(r.attempts);
       s.assigned += 1;
       if (status === 'IN_PROGRESS') s.inProgress += 1;
       else if (status === 'COMPLETED') s.completed += 1;

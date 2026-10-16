@@ -1,4 +1,5 @@
 <%- include('../partials/employee-frame') %>
+<% if (typeof removed !== 'undefined' && removed) { %><div class="form-alert success mt-16" role="status">The assigned training was removed from <%= employee.fullName %>.</div><% } %>
 <div class="card mt-24" style="margin-bottom:40px">
   <div class="card-header"><h2>Assigned training</h2></div>
   <% if (list.length === 0) { %>
@@ -6,12 +7,17 @@
   <% } else { %>
     <ul class="divide-list" style="padding:0 24px">
       <% list.forEach(function (r) { %>
-        <li class="row-between">
+        <li class="row-between" style="gap:12px;flex-wrap:wrap">
           <div>
-            <p style="font-weight:500;color:var(--navy-950)"><%= r.assignment.course.title %></p>
+            <p style="font-weight:500;color:var(--navy-950)"><%= r.assignment.course.title %> <span class="badge" data-category-badge><%= categoryLabel(r.assignment.course.trainingCategory) %></span></p>
             <p class="text-sm text-muted"><%= r.assignment.course.modules.length %> modules<% if (r.assignment.dueDate) { %> · due <%= r.assignment.dueDate.toLocaleDateString('en-US') %><% } %><% if (r.latestAttempt && r.latestAttempt.score != null) { %> · last score <%= Math.round(r.latestAttempt.score) %>%<% } %></p>
           </div>
-          <span class="badge <%= r.status === 'COMPLETED' ? 'badge-success' : r.status === 'RETAKE_REQUIRED' || r.status === 'FAILED' ? 'badge-danger' : r.status === 'IN_PROGRESS' ? 'badge-warning' : '' %>"><%= r.status.replace(/_/g, ' ') %></span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="badge <%= r.status === 'COMPLETED' ? 'badge-success' : r.status === 'RETAKE_REQUIRED' || r.status === 'FAILED' ? 'badge-danger' : r.status === 'IN_PROGRESS' ? 'badge-warning' : '' %>"><%= r.status.replace(/_/g, ' ') %></span>
+            <% if (typeof canRemove !== 'undefined' && canRemove) { %>
+            <form method="post" action="/employees/<%= employee.id %>/training/<%= r.id %>/delete" onsubmit="return confirm('Remove this assigned training from <%= employee.fullName.replace(/["'\\]/g, '') %>?\n\nIt disappears from their My Training and their attempts on it are removed. Certificates and skill scores already earned stay. This cannot be undone.')"><button type="submit" class="btn btn-danger btn-sm">Delete</button></form>
+            <% } %>
+          </div>
         </li>
       <% }); %>
     </ul>

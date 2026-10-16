@@ -1,4 +1,5 @@
 <%- include('../partials/page-header', { pageTitle: 'Result — ' + assessment.title }) %>
+<%- include('../partials/practice-flow') %>
 
 <div class="card mt-24">
   <div class="card-body">
@@ -10,6 +11,16 @@
       </div>
     </div>
     <p class="mt-16"><%= scoring.feedback %></p>
+    <% const list = function (v) { return Array.isArray(v) ? v.filter(Boolean) : []; }; %>
+    <% if (list(scoring.didWell).length || list(scoring.missed).length || scoring.approachUsed || scoring.wouldHaveWorkedBetter || scoring.nextStep) { %>
+      <div class="mt-24" data-debrief>
+        <% if (list(scoring.didWell).length) { %><h3 style="font-size:15px;color:var(--navy-950)">What you did well</h3><ul class="mt-8" style="padding-left:18px"><% list(scoring.didWell).forEach(function (t) { %><li><%= t %></li><% }); %></ul><% } %>
+        <% if (list(scoring.missed).length) { %><h3 class="mt-16" style="font-size:15px;color:var(--navy-950)">What you missed</h3><ul class="mt-8" style="padding-left:18px"><% list(scoring.missed).forEach(function (t) { %><li><%= t %></li><% }); %></ul><% } %>
+        <% if (scoring.approachUsed) { %><h3 class="mt-16" style="font-size:15px;color:var(--navy-950)">The approach you used</h3><p class="mt-8"><%= scoring.approachUsed %></p><% } %>
+        <% if (scoring.wouldHaveWorkedBetter) { %><h3 class="mt-16" style="font-size:15px;color:var(--navy-950)">What would have worked better</h3><p class="mt-8"><%= scoring.wouldHaveWorkedBetter %></p><% } %>
+        <% if (scoring.nextStep) { %><div class="form-alert info mt-16"><strong>Next time:</strong> <%= scoring.nextStep %></div><% } %>
+      </div>
+    <% } %>
     <% if (!passed) { %>
       <form method="post" action="/assessments/<%= assessment.id %>/remediate" class="mt-16">
         <button type="submit" class="btn btn-gold">Practice these skills now</button>
@@ -44,4 +55,7 @@
   </div>
 </div>
 
-<a href="/training" class="btn btn-secondary" style="margin-bottom:40px">Back to My Training</a>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:40px">
+  <% if (assessment.courseId) { %><a href="/training-course/<%= assessment.courseId %>#practice" class="btn <%= passed ? 'btn-gold' : 'btn-secondary' %>"><%= passed && !(typeof flow !== 'undefined' && flow && flow.next) ? 'Continue — finish & submit the training' : 'Back to the training' %></a><% } %>
+  <a href="/training" class="btn btn-secondary">Back to My Training</a>
+</div>

@@ -9,6 +9,7 @@ const { Type } = require('@google/genai');
 const { prisma } = require('./prisma');
 const { generateStructured } = require('./gemini');
 const { shuffleOptions } = require('./shuffleOptions');
+const { rulesFor, sourceKindOf } = require('./practiceRules');
 
 const QUESTION_TYPES = ['MCQ', 'MULTI_SELECT', 'ORDERING', 'MATCHING', 'SCENARIO', 'SHORT_ANSWER', 'TRUE_FALSE'];
 
@@ -81,7 +82,7 @@ async function generateQuestionAssessment({ course, analysis, actor, type, level
   }];
 
   const result = await generateStructured({
-    systemInstruction: `You are writing a ${type.replace('_', ' ')} practice assessment for travel agency employees, based strictly on the training material summarized below. ${TYPE_GUIDANCE[type]} ${focusInstruction} Every question must be answerable from the given material — never invent company rules. For MCQ/MULTI_SELECT/MATCHING/ORDERING, put the answer choices in "options" and the correct one(s) in "correctAnswer" (comma-separate multiple correct answers). Tag each question with the 1-4 most relevant skill names from the provided list where applicable. Where you can, set sourceTitle and sourceLocation to the source and the page, slide, timestamp or section that teaches the answer (from the source map below); leave them empty rather than guessing.`,
+    systemInstruction: `${rulesFor({ kind: sourceKindOf(analysis), type })}\n\nYou are writing a ${type.replace('_', ' ')} practice assessment for travel agency employees, based strictly on the training material summarized below. ${TYPE_GUIDANCE[type]} ${focusInstruction} Every question must be answerable from the given material — never invent company rules. For MCQ/MULTI_SELECT/MATCHING/ORDERING, put the answer choices in "options" and the correct one(s) in "correctAnswer" (comma-separate multiple correct answers). Tag each question with the 1-4 most relevant skill names from the provided list where applicable. Where you can, set sourceTitle and sourceLocation to the source and the page, slide, timestamp or section that teaches the answer (from the source map below); leave them empty rather than guessing.`,
     contents,
     responseSchema: questionGeminiSchema,
     zodSchema: questionZodSchema,
@@ -130,6 +131,9 @@ const roleplayZodSchema = z.object({
   scenarioBrief: z.string(),
   openingLine: z.string(),
   rubricSkills: z.array(z.string()).min(3).max(8),
+  // Hidden from the learner: what only the AI customer and the scorer know.
+  hiddenContext: z.string().optional(),
+  expectedTechnique: z.string().optional(),
 });
 
 const roleplayGeminiSchema = {
@@ -139,6 +143,8 @@ const roleplayGeminiSchema = {
     scenarioBrief: { type: Type.STRING },
     openingLine: { type: Type.STRING },
     rubricSkills: { type: Type.ARRAY, items: { type: Type.STRING } },
+    hiddenContext: { type: Type.STRING },
+    expectedTechnique: { type: Type.STRING },
   },
   required: ['customerPersonality', 'scenarioBrief', 'openingLine', 'rubricSkills'],
 };
@@ -152,7 +158,7 @@ const CUSTOMER_PERSONALITIES = ['busy executive', 'price-sensitive traveler', 's
 async function generateRoleplayAssessment({ course, analysis, actor, level = 3, focusSkills = null, status = 'AI_GENERATED', type = 'ROLEPLAY' }) {
   const personality = CUSTOMER_PERSONALITIES[Math.floor(Math.random() * CUSTOMER_PERSONALITIES.length)];
   const result = await generateStructured({
-    systemInstruction: `You are designing a realistic sales role-play simulation for travel agency employees, based on this training material. The learner plays the travel agent; Gemini plays the customer. The customer personality must be: "${personality}". The simulated customer must react naturally and must NOT be artificially easy — ${LEVEL_GUIDANCE[level] || LEVEL_GUIDANCE[3]}. List 4-8 rubric skills to evaluate (from: Opening, Discovery, Listening, Confidence, Call control, Client engagement, Product knowledge, Price presentation, Objection handling, Professionalism, Closing, Next-step creation) that this scenario should specifically test.`,
+    systemInstruction: `${rulesFor({ kind: sourceKindOf(analysis), type })}\n\nYou are designing a realistic client role-play for travel agency employees, based on this training material. The learner plays the travel agent; the AI plays the customer. The customer personality must be: "${personality}". The simulated customer must react naturally and must NOT be artificially easy — ${LEVEL_GUIDANCE[level] || LEVEL_GUIDANCE[3]}. Fill the fields like this: scenarioBrief = ONLY the client situation the learner will read (who is calling and what they ask for; no hints, no technique, no budget). openingLine = the customer's realistic first message. rubricSkills = 3-6 GENERAL skill categories (from: Opening, Discovery, Listening, Confidence, Call control, Client engagement, Product knowledge, Price presentation, Objection handling, Professionalism, Closing, Next-step creation) - never technique-specific wording. hiddenContext = what only the customer knows and reveals gradually: the real budget, the hidden objection, and what unlocks it. expectedTechnique = the technique or behaviour from the training that a good agent would use here and how to recognise it - used only to evaluate the learner afterwards.`,
     contents: [{ role: 'user', parts: [{ text: `Course: ${course.title}\nCritical knowledge: ${analysis.criticalKnowledgeJson}\nPractical behaviors: ${analysis.practicalBehaviorsJson}\n${focusSkills?.length ? `Targeted retake: focus the scenario and rubric ONLY on these weak skills: ${JSON.stringify(focusSkills)}. Use a new situation to test the same competencies.` : ''}` }] }],
     responseSchema: roleplayGeminiSchema,
     zodSchema: roleplayZodSchema,
@@ -164,7 +170,7 @@ async function generateRoleplayAssessment({ course, analysis, actor, level = 3, 
       courseId: course.id,
       createdVia: 'AI_TRAINING_ANALYSIS',
       type,
-      title: `${course.title} — ${type === 'VOICE' ? 'Voice practice' : 'Role-play'} (${personality})`,
+      title: `${course.title} — ${type === 'VOICE' ? 'Voice practice' : 'Role-play'}`,
       level,
       passingScore: course.passingScore,
       status,

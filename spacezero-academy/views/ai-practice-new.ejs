@@ -16,6 +16,15 @@
       <input id="title" name="title" maxlength="160" value="<%= values.title || '' %>" placeholder="e.g. Objection Handling Masterclass" />
     </div>
 
+    <div class="field mt-16" data-only="material">
+      <label for="trainingCategory">Training category</label>
+      <select id="trainingCategory" name="trainingCategory" required>
+        <option value="" disabled <%= values.trainingCategory ? '' : 'selected' %>>Choose a category</option>
+        <% CATEGORIES.forEach(function (c) { %><option value="<%= c.key %>" <%= values.trainingCategory === c.key ? 'selected' : '' %>><%= c.label %></option><% }); %>
+      </select>
+      <p class="hint">Product = airline/product knowledge · Sales = sales techniques and communication · System &amp; Workflow = CRM, GDS, ticketing, internal systems and procedures. It stays with the training everywhere.</p>
+    </div>
+
     <div class="field mt-16">
       <label for="files">Files <span class="text-muted" data-files-hint>— add several related files to make one source</span></label>
       <input id="files" name="files" type="file" multiple accept="<%= ACCEPT %>" data-files />

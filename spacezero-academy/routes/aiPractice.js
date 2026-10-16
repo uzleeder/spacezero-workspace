@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 // AI Practice = the AI Practice workspace: SOURCE -> ANALYSIS -> PRACTICE -> REVIEW -> TRAINING.
 // Each step is its own action the actor starts; uploading never analyzes, analyzing never generates
@@ -15,6 +15,7 @@ const router = express.Router();
 const multer = require('multer');
 
 const { prisma } = require('../lib/prisma');
+const trainingCategories = require('../lib/trainingCategories');
 const { ACCEPT, storeFiles, storeCallFiles, releaseFile } = require('../lib/sourceFiles');
 const { logAudit } = require('../lib/audit');
 const { getSetting } = require('../lib/orgSettings');
@@ -113,7 +114,7 @@ router.get('/ai-practice', creators, async (req, res) => {
 // ------------------------------------------------------------------ upload (SAVE ONLY)
 router.get('/ai-practice/new', mayCreateNew, async (req, res) => {
   const people = await prisma.profile.findMany({ where: { organizationId: req.profile.organizationId, status: 'ACTIVE' }, orderBy: { fullName: 'asc' }, select: { id: true, fullName: true } });
-  res.render('ai-practice-new', { title: 'Upload material', error: null, ACCEPT, people, values: {}, kind: req.query.kind === 'call' ? 'call' : 'material' });
+  res.render('ai-practice-new', { title: 'Upload material', error: null, ACCEPT, people, values: {}, kind: req.query.kind === 'call' ? 'call' : 'material', CATEGORIES: trainingCategories.CATEGORIES });
 });
 
 router.post('/ai-practice/new', mayCreateNew, receive('files'), async (req, res) => {
@@ -121,7 +122,7 @@ router.post('/ai-practice/new', mayCreateNew, receive('files'), async (req, res)
   const kind = req.body.kind === 'call' ? 'call' : 'material';
   const files = req.files || [];
   const noteText = clip(req.body.noteText, 60000);
-  const rerender = (error) => res.status(400).render('ai-practice-new', { title: 'Upload material', error, ACCEPT, people: [], values: req.body, kind });
+  const rerender = (error) => res.status(400).render('ai-practice-new', { title: 'Upload material', error, ACCEPT, people: [], values: req.body, kind, CATEGORIES: trainingCategories.CATEGORIES });
   if (req.uploadError) return rerender(req.uploadError);
   if (!files.length && !(kind === 'material' && noteText)) return rerender(kind === 'call' ? 'Choose at least one recording.' : 'Choose at least one file, or write some notes.');
   const title = clip(req.body.title, 160);
@@ -136,13 +137,16 @@ router.post('/ai-practice/new', mayCreateNew, receive('files'), async (req, res)
     return res.redirect(`/ai-practice?saved=${batch.id}&notice=saved`);
   }
 
+  // Every training has a Training Category from the start; it travels with the training into the Catalog, Assignments and My Training.
+  const trainingCategory = trainingCategories.readCategory(req.body.trainingCategory);
+  if (!trainingCategory) return rerender('Choose a Training Category: Product, Sales or System & Workflow.');
   const stored = await storeFiles(files);
   if (stored.error) return rerender(stored.error);
   const modules = stored.modules;
   if (noteText) modules.push({ title: 'Notes', contentType: 'NOTE', description: noteText, displayOrder: modules.length });
   const courseTitle = title || (modules[0] ? modules[0].title : 'Untitled material');
   const floor = await getSetting(actor.organizationId, 'training.minPassingScore');
-  const course = await prisma.trainingCourse.create({ data: { organizationId: actor.organizationId, title: courseTitle, createdById: actor.id, origin: 'AI_PRACTICE', status: 'DRAFT', passingScore: floor, modules: { create: modules } } });
+  const course = await prisma.trainingCourse.create({ data: { organizationId: actor.organizationId, title: courseTitle, createdById: actor.id, origin: 'AI_PRACTICE', status: 'DRAFT', passingScore: floor, trainingCategory, modules: { create: modules } } });
   await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'ai_practice.source_uploaded', targetTable: 'TrainingCourse', targetId: course.id, metadata: { kind: 'material', files: files.length, notes: Boolean(noteText) } });
   res.redirect(`/ai-practice?saved=${course.id}&notice=saved`);
 });
@@ -232,11 +236,12 @@ router.get('/ai-practice/:id', creators, async (req, res) => {
   res.set('Cache-Control', 'private, no-store');
   res.render('ai-practice/detail', {
     title: course.title, course, st, step: stepKey, steps: state.STEPS, analysis, parsed, relevance, stale, components: live, groups: plan.groupComponents(live),
-    build, buildResult: result, history, callBatch: batch, editable: editable(course), recommended: analysis ? plan.recommendedPlan(analysis) : [],
+    build, buildResult: result, history, callBatch: batch, editable: editable(course), recommended: analysis ? plan.recommendedPlan(analysis) : [], sourceKind: analysis ? plan.sourceSummary(analysis) : null,
     PLAN: plan, PURPOSE_LABEL: analysisLib.PURPOSE_LABEL, ACCEPT, roleLabel, TYPE_LABEL: state.TYPE_LABEL,
     notice: typeof req.query.notice === 'string' ? req.query.notice.slice(0, 200) : null, error: typeof req.query.error === 'string' ? req.query.error.slice(0, 300) : null,
     autoRefresh: ['ANALYZING', 'BUILDING'].includes(st.key) && !st.halted,
     isAdmin: actor.role === 'ADMIN', reviewHistory, canCreateNewVersion,
+    CATEGORIES: trainingCategories.CATEGORIES, categoryLabel: trainingCategories.categoryLabel, suggestedCategory: analysis ? trainingCategories.suggestFromClassifications(analysis.classificationsJson) : '',
   });
 });
 
@@ -483,6 +488,19 @@ router.post('/ai-practice/:id/approve', creators, async (req, res) => {
   back(res, course.id, r.ok ? { step: 'review', notice: 'Approved — ready to send to Training.' } : { step: 'review', error: r.error });
 });
 
+// The Training Category of this training (also settable later, e.g. for a training that predates categories).
+router.post('/ai-practice/:id/category', creators, async (req, res) => {
+  const course = await loadCourse(req.profile, req.params.id);
+  if (!course) return notFound(res);
+  const trainingCategory = trainingCategories.readCategory(req.body.trainingCategory);
+  if (!trainingCategory) return back(res, course.id, { step: 'review', error: 'Choose Product, Sales or System & Workflow.' });
+  if (trainingCategory !== course.trainingCategory) {
+    await prisma.trainingCourse.update({ where: { id: course.id }, data: { trainingCategory } });
+    await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'training.category_set', targetTable: 'TrainingCourse', targetId: course.id, metadata: { from: course.trainingCategory || null, to: trainingCategory } });
+  }
+  back(res, course.id, { step: 'review', notice: `Training category: ${trainingCategories.categoryLabel(trainingCategory)}.` });
+});
+
 router.post('/ai-practice/:id/approve/revoke', creators, async (req, res) => {
   const course = await loadCourse(req.profile, req.params.id);
   if (!course) return notFound(res);
@@ -520,6 +538,7 @@ router.get('/ai-practice/:id/send', adminOnly, async (req, res) => {
   const components = (await state.loadComponents(course)).filter((c) => !versions.isTargetedRetake(c));
   const insights = safeParse(course.analysis && course.analysis.insightsJson, {}) || {};
   res.render('ai-practice/send', {
+    CATEGORIES: trainingCategories.CATEGORIES, suggestedCategory: course.trainingCategory || trainingCategories.suggestFromClassifications(course.analysis && course.analysis.classificationsJson),
     title: `Send to Training — ${course.title}`, course, components, blocker, roleLabel, PLAN: plan, skills: safeParse(course.analysis && course.analysis.extractedSkillsJson, []),
     suggestedRole: course.roleKey || (insights.audienceRoles && insights.audienceRoles.length === 1 ? insights.audienceRoles[0] : ''), minutes: insights.estimatedMinutes || course.durationMinutes || '',
     minPassingScore: await getSetting(actor.organizationId, 'training.minPassingScore'), error: typeof req.query.error === 'string' ? req.query.error.slice(0, 240) : null,
@@ -536,7 +555,9 @@ router.post('/ai-practice/:id/send', adminOnly, async (req, res) => {
   if (scoreError || !Number.isInteger(passingScore)) return res.redirect(`/ai-practice/${course.id}/send?error=${encodeURIComponent(scoreError || 'Enter a valid passing score.')}`);
   const roleKey = ['TRAVEL_AGENT', 'FLIGHT_EXPERT', 'SUPERVISOR'].includes(req.body.roleKey) ? req.body.roleKey : null;
   const minutes = req.body.durationMinutes ? Number(req.body.durationMinutes) : null;
-  const r = await versions.sendToTraining(actor, course, { title, description: clip(req.body.description, 15000) || course.description, mandatory: req.body.mandatory === '1', onboardingForNewHires: req.body.onboarding === '1', passingScore, roleKey, durationMinutes: Number.isInteger(minutes) && minutes > 0 && minutes < 1000 ? minutes : null });
+  const trainingCategory = trainingCategories.readCategory(req.body.trainingCategory) || trainingCategories.readCategory(course.trainingCategory);
+  if (!trainingCategory) return res.redirect(`/ai-practice/${course.id}/send?error=${encodeURIComponent('Choose a Training Category: Product, Sales or System & Workflow.')}`);
+  const r = await versions.sendToTraining(actor, course, { trainingCategory, title, description: clip(req.body.description, 15000) || course.description, mandatory: req.body.mandatory === '1', onboardingForNewHires: req.body.onboarding === '1', passingScore, roleKey, durationMinutes: Number.isInteger(minutes) && minutes > 0 && minutes < 1000 ? minutes : null });
   if (!r.ok) return res.redirect(`/ai-practice/${course.id}/send?error=${encodeURIComponent(r.error)}`);
   res.redirect(`/ai-practice/${course.id}?step=training&notice=${encodeURIComponent(r.alreadySent ? 'Already sent to Training.' : `Sent to Training as version ${r.version}.`)}`);
 });

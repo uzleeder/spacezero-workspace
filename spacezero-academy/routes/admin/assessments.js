@@ -110,8 +110,11 @@ router.post('/assessments/:id/update', canManage, async (req, res) => {
     const rubric = lines(String(req.body.rubricSkills || '').replace(/,/g, '\n')).slice(0, 8);
     if (rubric.length < 3) return renderReview(res.status(400), assessment, { error: 'Keep at least three rubric skills.' });
     const next = { ...config, customerPersonality: clip(req.body.customerPersonality, 300), scenarioBrief: clip(req.body.scenarioBrief, 2000), openingLine: clip(req.body.openingLine, 500), rubricSkills: rubric };
+    // Hidden from learners: only edited when the form sends them, so an older form never wipes them.
+    if (req.body.hiddenContext !== undefined) next.hiddenContext = clip(req.body.hiddenContext, 2000);
+    if (req.body.expectedTechnique !== undefined) next.expectedTechnique = clip(req.body.expectedTechnique, 2000);
     if (!next.scenarioBrief || !next.openingLine) return renderReview(res.status(400), assessment, { error: 'The scenario brief and the customer opening line cannot be empty.' });
-    for (const key of ['customerPersonality', 'scenarioBrief', 'openingLine']) if (next[key] !== config[key]) changed.push(key);
+    for (const key of ['customerPersonality', 'scenarioBrief', 'openingLine', 'hiddenContext', 'expectedTechnique']) if ((next[key] || '') !== (config[key] || '')) changed.push(key);
     if (JSON.stringify(next.rubricSkills) !== JSON.stringify(config.rubricSkills)) changed.push('rubric');
     data.configJson = JSON.stringify(next);
   }

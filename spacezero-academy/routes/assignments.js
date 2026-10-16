@@ -14,6 +14,7 @@ const { getSetting } = require('../lib/orgSettings');
 const { describeAudience } = require('../lib/courseAudience');
 const { assignableCoursesWhere, canAssignCourse } = require('../lib/trainingPermissions');
 const { liveVersion } = require('../lib/courseVersions');
+const trainingCategories = require('../lib/trainingCategories');
 const { hasCapability } = require('../lib/supervisorCapabilities');
 const trainingEmails = require('../lib/trainingEmails');
 const { trainingDeadline, formatDeadline } = require('../lib/trainingDeadline');
@@ -71,8 +72,10 @@ async function formHints(actor, courses, people, query) {
 router.get('/assignments', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm, async (req, res) => {
   const actor = req.profile;
   const { courses, teams, people } = await loadFormData(actor);
+  // Same Training Category as the Catalog and My Training: All / Product / Sales / System & Workflow.
+  const category = trainingCategories.readCategory(req.query.category) || '';
   const assignments = await prisma.trainingAssignment.findMany({
-    where: actor.role === 'ADMIN' ? { organizationId: actor.organizationId } : { assignedById: actor.id },
+    where: { ...(actor.role === 'ADMIN' ? { organizationId: actor.organizationId } : { assignedById: actor.id }), ...(category ? { course: { trainingCategory: category } } : {}) },
     include: { course: true, recipients: { select: { emailSchedule: true } }, _count: { select: { recipients: true } } },
     orderBy: { createdAt: 'desc' },
     take: 20,
@@ -86,7 +89,9 @@ router.get('/assignments', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm,
     assignments,
     allowCompany: actor.role === 'ADMIN',
     error: null,
-    emailNotice: req.query.email === 'queued' ? 'Assignment emails queued. Incomplete training receives reminders every 3 hours after the deadline.' : null,
+    category, CATEGORIES: trainingCategories.CATEGORIES, categoryLabel: trainingCategories.categoryLabel,
+    deletedNotice: req.query.deleted === '1' ? 'The assigned training was deleted. It is gone from everyone\'s My Training.' : null,
+    emailNotice: req.query.email === 'queued' ? 'Assignment emails queued. Incomplete training gets a reminder every 6 hours until it is completed.' : null,
   });
 });
 
@@ -117,7 +122,7 @@ router.post('/assignments', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm
       orderBy: { createdAt: 'desc' },
       take: 20,
     });
-    res.render('assignments', { title: 'Training', courses, teams, people, assignments, allowCompany: actor.role === 'ADMIN', error, formatDeadline, emailNotice: null });
+    res.render('assignments', { title: 'Training', courses, teams, people, assignments, allowCompany: actor.role === 'ADMIN', error, formatDeadline, emailNotice: null, category: '', CATEGORIES: trainingCategories.CATEGORIES, categoryLabel: trainingCategories.categoryLabel });
   };
 
   if (!parsed.success) return rerenderError('Please complete the assignment form correctly.');
@@ -248,6 +253,22 @@ router.post('/assignments/:id/email', requireRole('ADMIN', 'SUPERVISOR'), mayUse
   await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'training.email_requested', targetTable: 'TrainingAssignment', targetId: assignment.id, metadata: { queued } });
   trainingEmails.kick();
   res.redirect('/assignments?email=queued');
+});
+
+// Admin only: delete an assigned training for everyone it was assigned to. It disappears from each
+// person's My Training and their attempts on it go with it; certificates and skill scores already
+// earned stay, and the course itself is untouched. Queued assignment/reminder emails go with it.
+router.post('/assignments/:id/delete', requireRole('ADMIN'), async (req, res) => {
+  const actor = req.profile;
+  const assignment = await prisma.trainingAssignment.findFirst({
+    where: { id: req.params.id, organizationId: actor.organizationId },
+    include: { course: { select: { title: true } }, _count: { select: { recipients: true } } },
+  });
+  if (!assignment) return res.status(404).render('not-found');
+  const attempts = await prisma.trainingAttempt.count({ where: { recipient: { assignmentId: assignment.id } } });
+  await prisma.trainingAssignment.delete({ where: { id: assignment.id } });
+  await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'training.assignment_deleted', targetTable: 'TrainingAssignment', targetId: assignment.id, metadata: { course: assignment.course.title, courseId: assignment.courseId, recipients: assignment._count.recipients, attempts } });
+  res.redirect('/assignments?deleted=1');
 });
 
 module.exports = router;

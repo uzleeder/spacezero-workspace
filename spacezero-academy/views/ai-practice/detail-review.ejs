@@ -23,6 +23,18 @@ components.forEach(function (c) {
         <div class="form-alert info mt-16"><strong>The AI check could not fully confirm <%= flagged.length %> item<%= flagged.length === 1 ? '' : 's' %> against your material:</strong>
           <ul style="margin:6px 0 0;padding-left:18px"><% flagged.slice(0, 5).forEach(function (f) { %><li><%= f.title %> — <%= f.note %></li><% }); %></ul></div>
       <% } %>
+      <% if (editable) { %>
+      <form method="post" action="/ai-practice/<%= course.id %>/category" data-once class="mt-24" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <div class="field" style="margin:0"><label for="review-category">Training category <span class="text-muted">(needed before it can be sent to Training)</span></label>
+          <select id="review-category" name="trainingCategory" required>
+            <% var currentCategory = course.trainingCategory || suggestedCategory || ''; %>
+            <option value="" disabled <%= currentCategory ? '' : 'selected' %>>Choose a category</option>
+            <% CATEGORIES.forEach(function (c) { %><option value="<%= c.key %>" <%= currentCategory === c.key ? 'selected' : '' %>><%= c.label %></option><% }); %>
+          </select></div>
+        <button class="btn btn-secondary btn-sm"><%= course.trainingCategory ? 'Change' : 'Save category' %></button>
+        <% if (!course.trainingCategory && suggestedCategory) { %><span class="text-sm text-muted">Suggested from the analysis.</span><% } %>
+      </form>
+      <% } else if (course.trainingCategory) { %><p class="text-sm text-muted mt-16">Training category: <strong><%= categoryLabel(course.trainingCategory) %></strong></p><% } %>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:20px">
         <a class="btn btn-secondary" href="/ai-practice/<%= course.id %>/preview">Preview as learner</a>
         <% if (editable && !all) { %><form method="post" action="/ai-practice/<%= course.id %>/approve" data-once><button class="btn btn-gold">Approve Practice</button></form><% } %>

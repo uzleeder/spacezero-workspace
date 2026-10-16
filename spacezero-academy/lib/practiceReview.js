@@ -8,6 +8,7 @@ const { z } = require('zod');
 const { prisma } = require('./prisma');
 const { generateStructured } = require('./gemini');
 const { shuffleOptions } = require('./shuffleOptions');
+const { rulesFor, sourceKindOf } = require('./practiceRules');
 const { QUESTION_TYPES, LEVEL_GUIDANCE, TYPE_GUIDANCE, questionZodSchema, questionGeminiSchema, roleplayZodSchema, roleplayGeminiSchema, safeParse } = require('./practiceEngine');
 
 const QUESTION_ASSESSMENTS = ['QUIZ', 'TECHNICAL', 'PROCESS_SIM', 'PRODUCT_KNOWLEDGE'];
@@ -75,6 +76,7 @@ async function courseContext(assessment) {
   const course = assessment.course;
   const analysis = course ? await prisma.trainingAnalysis.findUnique({ where: { courseId: course.id } }) : null;
   return {
+    analysis,
     title: course ? course.title : assessment.title,
     text: analysis
       ? `Critical knowledge: ${analysis.criticalKnowledgeJson}\nPractical behaviors: ${analysis.practicalBehaviorsJson}\nCommon mistakes: ${analysis.commonMistakesJson}\nRelevant skills: ${analysis.extractedSkillsJson}`
@@ -100,7 +102,7 @@ async function regenerateQuestion({ assessment, question, instruction }) {
   const ctx = await courseContext(assessment);
   const others = assessment.questions.filter((q) => q.id !== question.id).map((q) => q.prompt);
   const result = await generateStructured({
-    systemInstruction: `You are rewriting ONE question of a ${assessment.type.replace('_', ' ')} practice assessment for travel agency employees. ${TYPE_GUIDANCE[assessment.type] || ''} Stay strictly within the training material given — never invent company rules. Keep the question type "${question.type}" unless the instruction clearly needs another. For MCQ/MULTI_SELECT/MATCHING/ORDERING put the choices in "options" and the correct one(s) in "correctAnswer" (comma-separate multiple).`,
+    systemInstruction: `${rulesFor({ kind: sourceKindOf(ctx.analysis), type: assessment.type })}\n\nYou are rewriting ONE question of a ${assessment.type.replace('_', ' ')} practice assessment for travel agency employees. ${TYPE_GUIDANCE[assessment.type] || ''} Stay strictly within the training material given — never invent company rules. Keep the question type "${question.type}" unless the instruction clearly needs another. For MCQ/MULTI_SELECT/MATCHING/ORDERING put the choices in "options" and the correct one(s) in "correctAnswer" (comma-separate multiple).`,
     contents: [{ role: 'user', parts: [{ text: `Course: ${ctx.title}\n${ctx.text}\nDifficulty: ${LEVEL_GUIDANCE[assessment.level] || LEVEL_GUIDANCE[3]}\n\nQuestion to replace: ${question.prompt}\nOptions: ${question.optionsJson || 'none'}\nCurrent correct answer: ${question.correctAnswerJson}\n\nDo NOT repeat any of these other questions:\n${others.map((p) => `- ${p}`).join('\n') || '(none)'}\n\nAdmin instruction: ${instruction || 'Write a better replacement for this question.'}` }] }],
     responseSchema: oneQuestionGemini,
     zodSchema: oneQuestionZod,
@@ -122,8 +124,8 @@ async function reviseWithPrompt({ assessment, instruction }) {
   if (CONFIG_ASSESSMENTS.includes(assessment.type)) {
     const config = safeParse(assessment.configJson, {});
     const result = await generateStructured({
-      systemInstruction: `You are revising a sales role-play scenario for travel agency employees. Apply the Admin's instruction and change only what it affects; keep everything else exactly as is. The simulated customer must stay realistic (never artificially easy). ${LEVEL_GUIDANCE[assessment.level] || LEVEL_GUIDANCE[3]} Return the complete scenario.`,
-      contents: [{ role: 'user', parts: [{ text: `Course: ${ctx.title}\n${ctx.text}\n\nCurrent scenario: ${JSON.stringify({ customerPersonality: config.customerPersonality, scenarioBrief: config.scenarioBrief, openingLine: config.openingLine, rubricSkills: config.rubricSkills })}\n\nAdmin instruction: ${instruction}` }] }],
+      systemInstruction: `${rulesFor({ kind: sourceKindOf(ctx.analysis), type: assessment.type })}\n\nYou are revising a client role-play scenario for travel agency employees. Apply the Admin's instruction and change only what it affects; keep everything else exactly as is (including the hidden context and expected technique unless the instruction affects them). The simulated customer must stay realistic (never artificially easy). ${LEVEL_GUIDANCE[assessment.level] || LEVEL_GUIDANCE[3]} Return the complete scenario.`,
+      contents: [{ role: 'user', parts: [{ text: `Course: ${ctx.title}\n${ctx.text}\n\nCurrent scenario: ${JSON.stringify({ customerPersonality: config.customerPersonality, scenarioBrief: config.scenarioBrief, openingLine: config.openingLine, rubricSkills: config.rubricSkills, hiddenContext: config.hiddenContext, expectedTechnique: config.expectedTechnique })}\n\nAdmin instruction: ${instruction}` }] }],
       responseSchema: roleplayGeminiSchema,
       zodSchema: roleplayZodSchema,
     });
@@ -138,7 +140,7 @@ async function reviseWithPrompt({ assessment, instruction }) {
   }
   const current = assessment.questions.map((q) => ({ type: q.type, prompt: q.prompt, options: safeParse(q.optionsJson, undefined), correctAnswer: safeParse(q.correctAnswerJson, ''), explanation: q.explanation || undefined, skillNames: safeParse(q.skillIdsJson, []) }));
   const result = await generateStructured({
-    systemInstruction: `You are revising a ${assessment.type.replace('_', ' ')} practice assessment for travel agency employees. Apply the Admin's instruction. Return the FULL list of questions: copy every question the instruction does not affect exactly as given, and rewrite or add only what it requires. Stay within the training material. ${TYPE_GUIDANCE[assessment.type] || ''}`,
+    systemInstruction: `${rulesFor({ kind: sourceKindOf(ctx.analysis), type: assessment.type })}\n\nYou are revising a ${assessment.type.replace('_', ' ')} practice assessment for travel agency employees. Apply the Admin's instruction. Return the FULL list of questions: copy every question the instruction does not affect exactly as given, and rewrite or add only what it requires. Stay within the training material. ${TYPE_GUIDANCE[assessment.type] || ''}`,
     contents: [{ role: 'user', parts: [{ text: `Course: ${ctx.title}\n${ctx.text}\nDifficulty: ${LEVEL_GUIDANCE[assessment.level] || LEVEL_GUIDANCE[3]}\n\nCurrent questions:\n${JSON.stringify(current)}\n\nAdmin instruction: ${instruction}` }] }],
     responseSchema: questionGeminiSchema,
     zodSchema: questionZodSchema,

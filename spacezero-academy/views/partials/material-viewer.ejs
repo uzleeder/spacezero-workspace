@@ -1,0 +1,25 @@
+<%#
+  Shows one piece of material inside the page. Locals: kind (see lib/materialViewer.js), fileUrl, text (DOCX/PPTX
+  extracted text), protect (true for everyone but Admins: view only), title.
+%>
+<% const isProtected = typeof protect !== 'undefined' && protect; const viewerTitle = typeof title !== 'undefined' ? title : 'Material'; %>
+<% if (kind === 'video') { %>
+  <video src="<%= fileUrl %>" controls playsinline preload="metadata" <%- isProtected ? 'controlsList="nodownload noremoteplayback" disablePictureInPicture' : '' %> class="material-media" aria-label="<%= viewerTitle %>"></video>
+<% } else if (kind === 'audio') { %>
+  <audio src="<%= fileUrl %>" controls preload="metadata" <%- isProtected ? 'controlsList="nodownload noremoteplayback"' : '' %> class="material-media" aria-label="<%= viewerTitle %>"></audio>
+<% } else if (kind === 'image') { %>
+  <img src="<%= fileUrl %>" alt="<%= viewerTitle %>" draggable="false" class="material-image" />
+<% } else if (kind === 'pdf') { %>
+  <iframe src="<%= fileUrl %><%= isProtected ? '#toolbar=0&navpanes=0&view=FitH' : '' %>" title="<%= viewerTitle %>" class="material-frame"></iframe>
+<% } else if (kind === 'text') { %>
+  <% const parts = typeof paragraphs === 'function' ? paragraphs(text) : []; %>
+  <% if (parts.length) { %>
+    <article class="material-text" aria-label="<%= viewerTitle %>"><% parts.forEach(function (p) { %><p><%= p %></p><% }); %></article>
+  <% } else { %>
+    <p class="text-muted">This file has no readable text. <%= isProtected ? 'Ask an administrator to upload it as a PDF.' : '' %></p>
+  <% } %>
+<% } else if (kind === 'unsupported') { %>
+  <div class="form-alert info">This file type cannot be shown in the browser. <%= isProtected ? 'Ask an administrator to upload it as a PDF or a DOCX / PPTX file so you can read it here.' : 'Download it to open it.' %></div>
+<% } else { %>
+  <p class="text-muted">Nothing has been uploaded for this item yet.</p>
+<% } %>

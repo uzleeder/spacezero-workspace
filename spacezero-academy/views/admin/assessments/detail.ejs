@@ -25,8 +25,9 @@ const parse = function (v, d) { try { return v ? JSON.parse(v) : d; } catch (e) 
     <% } else { %>
       <% if (validation.stale) { %><div class="form-alert info" style="margin-bottom:12px">You changed this practice after the last check — re-check it.</div><% } %>
       <p class="text-sm"><strong><%= validation.supported %> of <%= validation.total %></strong> item<%= validation.total === 1 ? '' : 's' %> supported by the source · <strong><%= validation.application %></strong> test application in a realistic situation.</p>
-      <% var flagged = validation.items.filter(function (i) { return !i.supportedBySource || !i.testsApplication; }); %>
-      <% if (flagged.length) { %><ul class="divide-list" style="margin-top:8px"><% flagged.forEach(function (i) { %><li class="text-sm"><strong><%= i.ref %></strong> — <%= !i.supportedBySource ? 'not clearly supported by the source' : 'tests recall more than application' %>: <%= i.note %></li><% }); %></ul><% } %>
+      <% var flagged = validation.items.filter(function (i) { return !i.supportedBySource || !i.testsApplication || i.givesAwayAnswer || i.beyondSource; }); %>
+      <% if (flagged.length) { %><ul class="divide-list" style="margin-top:8px"><% flagged.forEach(function (i) { %><li class="text-sm"><strong><%= i.ref %></strong> — <%= !i.supportedBySource || i.beyondSource ? 'not clearly supported by the source' : i.givesAwayAnswer ? 'may give the answer away' : 'tests recall more than application' %>: <%= i.note %></li><% }); %></ul><% } %>
+      <% if (validation.fitsTime === false) { %><p class="text-sm mt-16"><strong>Length:</strong> this may take longer than 10-15 minutes<%= validation.timeNote ? ' — ' + validation.timeNote : '' %>.</p><% } %>
       <% if (validation.coverageGaps.length) { %><p class="text-sm mt-16"><strong>Not covered:</strong> <%= validation.coverageGaps.join(' · ') %></p><% } %>
       <p class="text-sm text-muted" style="margin-top:8px">Checked <%= new Date(validation.checkedAt).toLocaleString('en-US') %><%= validation.modelVersion ? ' · ' + validation.modelVersion : '' %></p>
     <% } %>
@@ -46,7 +47,9 @@ const parse = function (v, d) { try { return v ? JSON.parse(v) : d; } catch (e) 
         <div class="field mt-16"><label for="instructions">Instructions shown to the learner</label><textarea id="instructions" name="instructions" rows="3" maxlength="2000"><%= assessment.instructions || '' %></textarea></div>
         <% if (isConfigSet) { %>
           <div class="field mt-16"><label for="customerPersonality">Customer personality</label><input id="customerPersonality" name="customerPersonality" value="<%= config.customerPersonality || '' %>" maxlength="300" /></div>
-          <div class="field mt-16"><label for="scenarioBrief">Scenario brief</label><textarea id="scenarioBrief" name="scenarioBrief" rows="4" maxlength="2000" required><%= config.scenarioBrief || '' %></textarea></div>
+          <div class="field mt-16"><label for="scenarioBrief">Scenario brief (shown to the learner)</label><textarea id="scenarioBrief" name="scenarioBrief" rows="4" maxlength="2000" required><%= config.scenarioBrief || '' %></textarea><p class="hint">Only the client situation: no hints, no technique, no budget.</p></div>
+          <div class="field mt-16"><label for="hiddenContext">Hidden customer context (never shown to the learner)</label><textarea id="hiddenContext" name="hiddenContext" rows="3" maxlength="2000"><%= config.hiddenContext || '' %></textarea><p class="hint">What only the customer knows: the real budget, the hidden objection, what unlocks it. The AI customer reveals it gradually.</p></div>
+          <div class="field mt-16"><label for="expectedTechnique">Expected technique (hidden; used only to evaluate afterwards)</label><textarea id="expectedTechnique" name="expectedTechnique" rows="3" maxlength="2000"><%= config.expectedTechnique || '' %></textarea></div>
           <div class="field mt-16"><label for="openingLine">Customer's opening line</label><input id="openingLine" name="openingLine" value="<%= config.openingLine || '' %>" maxlength="500" required /></div>
           <div class="field mt-16"><label for="rubricSkills">Scoring rubric — skills evaluated (one per line, 3–8)</label><textarea id="rubricSkills" name="rubricSkills" rows="4"><%= (config.rubricSkills || []).join('\n') %></textarea></div>
         <% } %>

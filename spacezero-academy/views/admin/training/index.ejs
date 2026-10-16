@@ -2,30 +2,57 @@
 
 <%- include('../../partials/management-tabs', { tabs: tabsets.training }) %>
 
-<div class="row-between mt-24" style="align-items:center">
-  <div style="display:flex;gap:8px">
-    <a href="/admin/training" class="btn btn-sm <%= showArchived ? 'btn-secondary' : 'btn-gold' %>">Approved</a>
-    <a href="/admin/training?view=archived" class="btn btn-sm <%= showArchived ? 'btn-gold' : 'btn-secondary' %>">Archived</a>
+<%
+// Training Catalog -> Category -> Approved / Archived -> list. The category is one level, the status another.
+const viewParam = showArchived ? '&view=archived' : '';
+const catHref = function (key) { return '/admin/training?category=' + key + viewParam; };
+const statusHref = function (archived) { return '/admin/training?category=' + category + (archived ? '&view=archived' : ''); };
+const tabs = CATEGORIES.map(function (c) { return { key: c.key, label: c.label, short: c.short, count: counts[c.key] }; });
+if (counts.UNCATEGORIZED) tabs.push({ key: 'UNCATEGORIZED', label: 'Uncategorized', short: 'Uncategorized', count: counts.UNCATEGORIZED });
+%>
+<nav class="category-tabs mt-24" aria-label="Training category">
+  <% tabs.forEach(function (t) { %>
+    <a href="<%= catHref(t.key) %>" class="category-tab<%= category === t.key ? ' active' : '' %>" <%- category === t.key ? 'aria-current="page"' : '' %>><span><%= t.label %></span><span class="category-count"><%= t.count %></span></a>
+  <% }); %>
+</nav>
+
+<div class="row-between mt-16" style="align-items:center">
+  <div style="display:flex;gap:8px" role="group" aria-label="Status">
+    <a href="<%= statusHref(false) %>" class="btn btn-sm <%= showArchived ? 'btn-secondary' : 'btn-gold' %>">Approved</a>
+    <a href="<%= statusHref(true) %>" class="btn btn-sm <%= showArchived ? 'btn-gold' : 'btn-secondary' %>">Archived</a>
   </div>
+  <% if (category === 'UNCATEGORIZED' && canSetCategory) { %><p class="text-sm text-muted">These trainings were created before categories. Choose the right category for each one — nothing is deleted or recreated.</p><% } %>
 </div>
 
 <div class="card mt-16">
   <% if (courses.length === 0) { %>
-    <div class="card-body"><%- include('../../partials/empty-state', { title: showArchived ? 'No archived training' : 'No approved training yet', description: showArchived ? 'Training you archive will show up here.' : 'Create material in AI Practice, review and approve it, then send it to Training.' }) %></div>
+    <div class="card-body"><%- include('../../partials/empty-state', { title: showArchived ? 'No archived training in this category' : 'No approved training in this category', description: showArchived ? 'Training you archive will show up here.' : 'Create material in AI Practice, review and approve it, then send it to Training.' }) %></div>
   <% } else { %>
     <ul class="divide-list" style="padding:0 24px">
       <% courses.forEach(function (course) { %>
-        <li class="row-between" style="gap:16px">
+        <li class="row-between" style="gap:16px;flex-wrap:wrap">
           <a href="/admin/training/<%= course.id %>" style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
               <p style="font-weight:500;color:var(--navy-950)"><%= course.title %></p>
+              <span class="badge <%= course.trainingCategory ? 'badge-navy' : 'badge-warning' %>" data-category-badge><%= categoryLabel(course.trainingCategory) %></span>
               <span class="badge <%= course.status === 'PUBLISHED' ? 'badge-success' : 'badge-warning' %>"><%= course.status === 'PUBLISHED' ? 'Approved' : 'Archived' %></span>
               <span class="badge"><%= course.mandatory ? 'Mandatory' : 'Optional' %> · pass <%= course.passingScore %>%</span>
               <% if (course.origin === 'AI_PRACTICE') { %><span class="badge badge-navy">AI Practice · v<%= course.publishedVersion || 1 %></span><% } %>
             </div>
             <p class="text-sm text-muted" style="margin-top:4px"><%= course.modules.length %> modules · <%= course.roleKey ? roleLabel(course.roleKey) : 'Everyone' %> · <%= course._count.assignments %> assignment<%= course._count.assignments === 1 ? '' : 's' %> · assignable by: <%= POLICY_LABEL[course.assignPolicy] %></p>
           </a>
-          <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+          <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;flex-wrap:wrap">
+            <% if (canSetCategory) { %>
+              <form method="post" action="/admin/training/<%= course.id %>/category" style="display:flex;gap:6px;align-items:center">
+                <input type="hidden" name="view" value="<%= showArchived ? 'archived' : '' %>" />
+                <input type="hidden" name="from" value="<%= category %>" />
+                <select name="trainingCategory" aria-label="Category for <%= course.title %>" required style="min-width:0">
+                  <option value="" disabled <%= course.trainingCategory ? '' : 'selected' %>>Choose category</option>
+                  <% CATEGORIES.forEach(function (c) { %><option value="<%= c.key %>" <%= course.trainingCategory === c.key ? 'selected' : '' %>><%= c.short %></option><% }); %>
+                </select>
+                <button type="submit" class="btn btn-secondary btn-sm"><%= course.trainingCategory ? 'Move' : 'Set' %></button>
+              </form>
+            <% } %>
             <% if (course.canAssign) { %>
               <a class="btn btn-gold btn-sm" href="/assignments?courseId=<%= course.id %>">Assign</a>
             <% } else if (!showArchived) { %>

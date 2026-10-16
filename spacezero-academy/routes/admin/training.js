@@ -17,6 +17,7 @@ const { logAudit } = require('../../lib/audit');
 const { roleLabel } = require('../../lib/roles');
 const { POLICIES, POLICY_LABEL, mayAssign } = require('../../lib/trainingPermissions');
 const versions = require('../../lib/courseVersions');
+const categories = require('../../lib/trainingCategories');
 const analysisLib = require('../../lib/trainingAnalysis');
 const { z } = require('zod');
 
@@ -83,8 +84,27 @@ router.get('/training', canManage, async (req, res) => {
     include: { modules: true, assignGrants: { select: { supervisorId: true } }, _count: { select: { assignments: true } } },
     orderBy: { createdAt: 'desc' },
   });
-  const rows = courses.map((c) => ({ ...c, canAssign: !showArchived && mayAssign(actor, c) }));
-  res.render('admin/training/index', { title: 'Training', courses: rows, showArchived, POLICY_LABEL });
+  // Hierarchy: Training Catalog -> Category -> Approved / Archived -> list. The category is chosen here; the status (Approved / Archived) is a separate switch.
+  const counts = categories.countByCategory(courses);
+  let category = categories.readFilter(req.query.category);
+  if (!category || (category === 'UNCATEGORIZED' && !counts.UNCATEGORIZED)) category = categories.KEYS.find((k) => counts[k] > 0) || (counts.UNCATEGORIZED ? 'UNCATEGORIZED' : categories.KEYS[0]);
+  const rows = courses.filter((c) => categories.matches(c, category)).map((c) => ({ ...c, canAssign: !showArchived && mayAssign(actor, c) }));
+  res.render('admin/training/index', { title: 'Training', courses: rows, showArchived, POLICY_LABEL, CATEGORIES: categories.CATEGORIES, categoryLabel: categories.categoryLabel, counts, category, canSetCategory: actor.role === 'ADMIN' });
+});
+
+// Admin: choose (or change) the Training Category of any training - the way a training that predates categories gets one.
+router.post('/training/:id/category', adminOnly, async (req, res) => {
+  const actor = req.profile;
+  const course = await prisma.trainingCourse.findFirst({ where: { id: req.params.id, organizationId: actor.organizationId } });
+  if (!course) return res.status(404).render('not-found', { layout: false });
+  const trainingCategory = categories.readCategory(req.body.trainingCategory);
+  const view = req.body.view === 'archived' ? '&view=archived' : '';
+  if (!trainingCategory) return res.redirect(`/admin/training?category=${categories.readFilter(req.body.from) || ''}${view}`);
+  if (trainingCategory !== course.trainingCategory) {
+    await prisma.trainingCourse.update({ where: { id: course.id }, data: { trainingCategory } });
+    await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'training.category_set', targetTable: 'TrainingCourse', targetId: course.id, metadata: { from: course.trainingCategory || null, to: trainingCategory } });
+  }
+  res.redirect(req.body.back === 'detail' ? `/admin/training/${course.id}` : `/admin/training?category=${trainingCategory}${view}`);
 });
 
 async function newFormData(actor, extra = {}) {

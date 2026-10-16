@@ -4,6 +4,7 @@
 const requiredCount = requiredIds.size;
 const doneCount = gate.done || 0;
 const allDone = gate.unlocked;
+const protect = profile.role !== 'ADMIN'; // learners and supervisors: view only
 const notices = { 'open-first': 'Open the material first, then confirm.', 'too-fast': 'Take a little more time with this material before you confirm — at least ' + minReadSeconds + ' seconds.' };
 %>
 <% if (material && notices[material]) { %><div class="form-alert error mt-16" role="alert"><%= notices[material] %></div><% } %>
@@ -25,7 +26,7 @@ const notices = { 'open-first': 'Open the material first, then confirm.', 'too-f
   const isDoc = DOC_TYPES.includes(module.contentType);
   const isMedia = ['VIDEO','AUDIO','CALL_RECORDING'].includes(module.contentType);
 %>
-<section class="card mt-24" id="m-<%= module.id %>"><div class="card-body">
+<section class="card mt-24" id="m-<%= module.id %>"><div class="card-body<%= protect ? ' no-copy' : '' %>" <%- protect ? 'data-protect' : '' %>>
   <div class="row-between" style="gap:12px;flex-wrap:wrap">
     <h2><%= index + 1 %>. <%= module.title %></h2>
     <% if (isLearner) { %><span data-module-badge class="badge <%= isDone ? 'badge-success' : isRequired ? 'badge-warning' : '' %>"><%= isDone ? '✓ Finished' : isRequired ? 'To do' : 'Optional' %></span><% } %>
@@ -34,12 +35,12 @@ const notices = { 'open-first': 'Open the material first, then confirm.', 'too-f
   <p class="text-sm text-muted"><%= isRequired ? 'Required — ' : 'Optional / reference — ' %><%= isMedia ? (module.contentType === 'VIDEO' ? 'watch it to the end' : 'listen to it to the end') : module.contentType === 'NOTE' ? 'read it' : 'open it and read it' %></p>
 
   <% if (module.storagePath && isMedia) { const progress = gate.modules.find(m => m.id === module.id)?.mediaProgress[0]; %>
-    <<%= module.contentType === 'VIDEO' ? 'video' : 'audio' %> controls preload="metadata" src="/training-file/<%= module.id %>" style="width:100%;max-height:460px" data-learning-media="<%= module.id %>" data-required="<%= module.required %>" data-done="<%= progress?.completedAt ? 'true' : 'false' %>" data-position="<%= progress?.lastPositionSeconds || 0 %>" data-frontier="<%= progress ? JSON.parse(progress.watchedRangesJson)[0]?.[1] || 0 : 0 %>"></<%= module.contentType === 'VIDEO' ? 'video' : 'audio' %>>
+    <<%= module.contentType === 'VIDEO' ? 'video' : 'audio' %> controls preload="metadata" playsinline <%- protect ? 'controlsList="nodownload noremoteplayback" ' + (module.contentType === 'VIDEO' ? 'disablePictureInPicture' : '') : '' %> src="/training-file/<%= module.id %>" style="width:100%;max-height:460px" data-learning-media="<%= module.id %>" data-required="<%= module.required %>" data-done="<%= progress?.completedAt ? 'true' : 'false' %>" data-position="<%= progress?.lastPositionSeconds || 0 %>" data-frontier="<%= progress ? JSON.parse(progress.watchedRangesJson)[0]?.[1] || 0 : 0 %>"></<%= module.contentType === 'VIDEO' ? 'video' : 'audio' %>>
     <p class="text-sm" data-media-status="<%= module.id %>" role="status"><%= progress?.completedAt ? 'Material completed' : 'Progress saves automatically. You can pause, rewind and continue later.' %></p>
   <% } else if (module.contentType === 'NOTE') { %>
     <div style="white-space:pre-wrap;margin-top:8px"><%= module.description || '' %></div>
   <% } else if (module.storagePath) { %>
-    <a class="btn btn-secondary mt-16" href="/training-file/<%= module.id %>" target="_blank" rel="noopener">Open <%= module.contentType === 'PDF' ? 'PDF' : module.contentType === 'PPT' ? 'slides' : module.contentType === 'IMAGE' ? 'image' : 'document' %></a>
+    <a class="btn btn-secondary mt-16" href="/training-read/<%= module.id %>">Read <%= module.contentType === 'PDF' ? 'the PDF' : module.contentType === 'PPT' ? 'the slides' : module.contentType === 'IMAGE' ? 'the image' : 'the document' %></a>
   <% } else if (module.externalUrl && /^https?:\/\//i.test(module.externalUrl)) { %>
     <a class="btn btn-secondary mt-16" href="/training-link/<%= module.id %>" target="_blank" rel="noopener noreferrer">Open reference link</a>
   <% } else { %>
@@ -64,16 +65,30 @@ const notices = { 'open-first': 'Open the material first, then confirm.', 'too-f
       <p class="text-sm text-muted">Finish the <%= requiredCount - doneCount %> remaining required item<%= requiredCount - doneCount === 1 ? '' : 's' %> above first. Then <%= assessments.length %> practice<%= assessments.length === 1 ? '' : 's' %> will open here.</p>
     </div></section>
   <% } else { %>
-    <% assessments.forEach(function (a) { %>
+    <% var upNext = assessments.find(function (x) { return !passedIds.has(x.id); }); %>
+    <% assessments.forEach(function (a, ai) { %>
       <section class="card mt-16"><div class="card-body row-between">
         <div>
-          <p style="font-weight:500;color:var(--navy-950)"><%= a.title %></p>
-          <p class="text-sm text-muted">Level <%= a.level %> · Passing score <%= a.passingScore %>%</p>
+          <p style="font-weight:500;color:var(--navy-950)"><% if (assessments.length > 1) { %><span class="text-muted">Practice <%= ai + 1 %> of <%= assessments.length %> · </span><% } %><%= a.title %></p>
+          <p class="text-sm text-muted">Level <%= a.level %> · Passing score <%= a.passingScore %>%<% if (passedIds.has(a.id)) { %> · <span class="badge badge-success">✓ Completed</span><% } else if (upNext && upNext.id === a.id && assessments.length > 1) { %> · <span class="badge badge-warning">Up next</span><% } %></p>
         </div>
-        <a class="btn btn-gold" href="<%= a.type === 'ROLEPLAY' ? '/assessments/' + a.id + '/roleplay' : '/assessments/' + a.id + '/take' %>">Start</a>
+        <a class="btn <%= passedIds.has(a.id) ? 'btn-secondary' : 'btn-gold' %>" href="<%= a.type === 'ROLEPLAY' ? '/assessments/' + a.id + '/roleplay' : '/assessments/' + a.id + '/take' %>"><%= passedIds.has(a.id) ? 'Practice again' : (upNext && upNext.id === a.id && assessments.length > 1 ? 'Start next practice' : 'Start') %></a>
       </div></section>
     <% }); %>
   <% } %>
+<% } %>
+
+<% if (isLearner && completion && completion.total > 0 && allDone) { %>
+  <section class="card mt-24" style="margin-bottom:40px" data-submit-training><div class="card-body row-between" style="gap:12px;flex-wrap:wrap">
+    <% if (completion.submitted) { %>
+      <div><p style="font-weight:500;color:var(--navy-950)">✓ Training submitted</p><p class="text-sm text-muted">You finished this training. You can still practise again from the list above.</p></div>
+    <% } else if (canSubmit) { %>
+      <div><p style="font-weight:500;color:var(--navy-950)">All practice and quizzes passed</p><p class="text-sm text-muted">Submit the training to finish it. It then shows as completed for you and your supervisor.</p></div>
+      <form method="post" action="/training/<%= finishId %>/complete" data-once><button type="submit" class="btn btn-gold">Submit training</button></form>
+    <% } else { %>
+      <div><p style="font-weight:500;color:var(--navy-950)">Submit training</p><p class="text-sm text-muted"><%= completion.passedCount %> of <%= completion.total %> practice<%= completion.total === 1 ? '' : 's' %> passed. Still to pass: <%= completion.missing.join(', ') %>. When all are passed, the Submit button appears here.</p></div>
+    <% } %>
+  </div></section>
 <% } %>
 
 <% if (canFinish) { %>
@@ -81,4 +96,5 @@ const notices = { 'open-first': 'Open the material first, then confirm.', 'too-f
 <% } %>
 </div>
 <script src="<%= asset('/static/js/media-progress.js') %>" defer></script>
+<% if (protect) { %><script src="<%= asset('/static/js/protect-materials.js') %>" defer></script><% } %>
 <script src="<%= asset('/static/js/ai-practice.js') %>" defer></script>
