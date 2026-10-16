@@ -22,9 +22,9 @@ async function person(role, organizationId = org.id) {
   return p;
 }
 const post = (actor, url, body = {}) => request(app).post(url).set('Cookie', cookies[actor.id]).type('form').send(body);
-async function assignment({ profileId = learner.id, dueDate = now, actor = admin, enqueue = true } = {}) {
+async function assignment({ profileId = learner.id, dueDate = now, actor = admin, enqueue = true, courseId = course.id } = {}) {
   return prisma.$transaction(async tx => {
-    const a = await tx.trainingAssignment.create({ data: { organizationId: org.id, courseId: course.id, assignedById: actor.id, scope: 'INDIVIDUAL', dueDate } });
+    const a = await tx.trainingAssignment.create({ data: { organizationId: org.id, courseId, assignedById: actor.id, scope: 'INDIVIDUAL', dueDate } });
     const r = await tx.trainingAssignmentRecipient.create({ data: { assignmentId: a.id, profileId } });
     await tx.trainingAttempt.create({ data: { recipientId: r.id, profileId, attemptNumber: 1, status: 'NOT_STARTED' } });
     if (enqueue) await emails.enqueueAssignment(tx, r.id, now);
@@ -56,32 +56,54 @@ test('assignment POST atomically queues one email per recipient and exposes send
   assert.equal(r.assignment.dueDate.toISOString(), '2099-04-01T13:30:00.000Z');
   assert.equal(r.emailSchedule.kind, 'ASSIGNED');
   const page = await request(app).get('/assignments').set('Cookie', cookies[admin.id]);
-  assert.equal(page.status, 200); assert.match(page.text, /Assign &amp; send email/); assert.match(page.text, />Send email<\/button>/); assert.match(page.text, /every 3 hours/);
+  assert.equal(page.status, 200); assert.match(page.text, /Assign &amp; send email/); assert.match(page.text, />Send email<\/button>/); assert.match(page.text, /every 6 hours/);
 });
 
-test('first email sends immediately; reminders wait 3 hours after due date and repeat at 3-hour intervals', async () => {
-  const r = await assignment({ dueDate: later(3600000) }); const sent = [];
+const H = 3600000;
+test('the assignment email goes out at once (short and clear); a reminder follows every 6 hours', async () => {
+  const r = await assignment({ dueDate: later(2 * H) }); const sent = [];
   const send = async (m, o) => sent.push({ m, o });
   await emails.processNext({ now, send });
-  assert.match(sent[0].m.subject, /Training assigned/); assert.equal(sent[0].m.to, learner.email);
-  assert.match(sent[0].m.text, /Tashkent, UTC\+05:00/); assert.match(sent[0].m.text, /https:\/\/workspace.example.invalid\/training-course\//);
-  assert.equal((await job(r)).nextSendAt.getTime(), later(4 * 3600000).getTime());
-  assert.equal(await emails.processNext({ now: later(4 * 3600000 - 1), send }), false);
-  await emails.processNext({ now: later(4 * 3600000), send });
-  assert.match(sent[1].m.subject, /Overdue training reminder/);
-  assert.equal((await job(r)).nextSendAt.getTime(), later(7 * 3600000).getTime());
-  await emails.processNext({ now: later(7 * 3600000), send });
-  assert.equal(sent.length, 3); assert.notEqual(sent[1].o.idempotencyKey, sent[2].o.idempotencyKey);
+  assert.equal(sent[0].m.subject, 'New training: Email course'); assert.equal(sent[0].m.to, learner.email);
+  assert.match(sent[0].m.text, /^Hi /); assert.match(sent[0].m.text, /A new training was assigned to you: "Email course"/);
+  assert.match(sent[0].m.text, /Due: .*Tashkent, UTC\+05:00/); assert.match(sent[0].m.text, /Open it: https:\/\/workspace.example.invalid\/training-course\//);
+  assert.match(sent[0].m.text, /remind you every 6 hours/);
+  assert.ok(sent[0].m.text.length < 420, 'short: ' + sent[0].m.text.length);
+  assert.doesNotMatch(sent[0].m.text, /Minimum score|Required attempts|Crafted by/);
+  assert.equal((await job(r)).nextSendAt.getTime(), later(6 * H).getTime());
+  assert.equal(await emails.processNext({ now: later(6 * H - 1), send }), false);
+  await emails.processNext({ now: later(6 * H), send });
+  assert.equal(sent[1].m.subject, 'Overdue: Email course');           // the 2-hour deadline has passed
+  assert.match(sent[1].m.text, /not completed yet and is overdue/); assert.match(sent[1].m.text, /every 6 hours until you complete it/);
+  assert.equal((await job(r)).nextSendAt.getTime(), later(12 * H).getTime());
+  await emails.processNext({ now: later(12 * H), send });
+  await emails.processNext({ now: later(18 * H), send });
+  assert.equal(sent.length, 4); assert.notEqual(sent[1].o.idempotencyKey, sent[2].o.idempotencyKey);
 });
 
-test('completion stops reminders; no deadline sends only the assignment email', async () => {
-  const r = await assignment(); let count = 0; const send = async () => count++;
+test('a reminder before the deadline says "Reminder"; completion stops the reminders for good', async () => {
+  const r = await assignment({ dueDate: later(100 * H) }); const sent = [];
+  const send = async (m) => sent.push(m);
   await emails.processNext({ now, send });
+  await emails.processNext({ now: later(6 * H), send });
+  assert.equal(sent[1].subject, 'Reminder: Email course'); assert.doesNotMatch(sent[1].text, /overdue/);
   await prisma.trainingAttempt.updateMany({ where: { recipientId: r.id }, data: { status: 'COMPLETED', completedAt: now } });
-  await emails.processNext({ now: later(emails.THREE_HOURS), send });
-  assert.equal(count, 1); assert.equal((await job(r)).nextSendAt, null);
-  const noDue = await assignment({ dueDate: null });
-  await emails.processNext({ now, send }); assert.equal((await job(noDue)).nextSendAt, null); assert.equal(count, 2);
+  await emails.processNext({ now: later(12 * H), send });
+  assert.equal(sent.length, 2); assert.equal((await job(r)).nextSendAt, null);
+  assert.equal(await emails.processNext({ now: later(24 * H), send }), false);
+});
+
+test('a training with no deadline gets reminders every 6 hours too, until it is completed', async () => {
+  const r = await assignment({ dueDate: null }); const sent = [];
+  const send = async (m) => sent.push(m);
+  await emails.processNext({ now, send });
+  assert.doesNotMatch(sent[0].text, /Due:/);
+  assert.equal((await job(r)).nextSendAt.getTime(), later(6 * H).getTime());
+  await emails.processNext({ now: later(6 * H), send }); await emails.processNext({ now: later(12 * H), send });
+  assert.deepEqual(sent.map((m) => m.subject), ['New training: Email course', 'Reminder: Email course', 'Reminder: Email course']);
+  await prisma.trainingAttempt.updateMany({ where: { recipientId: r.id }, data: { status: 'COMPLETED', completedAt: later(13 * H) } });
+  await emails.processNext({ now: later(18 * H), send });
+  assert.equal(sent.length, 3);
 });
 
 test('a multi-assessment training is not complete after passing only one component', () => {
@@ -89,8 +111,48 @@ test('a multi-assessment training is not complete after passing only one compone
   const r = { assignment: { courseVersion: 1, minimumScore: 70, requiredAttempts: 1, course: { assessments: [a, { ...a, id: 'b' }] } }, attempts: [{ assessmentId: 'a', attemptNumber: 2, status: 'COMPLETED', score: 90, completedAt: now }] };
   assert.equal(emails.completed(r), false);
   r.attempts.push({ assessmentId: 'b', attemptNumber: 3, status: 'COMPLETED', score: 90, completedAt: now });
+  assert.equal(emails.completed(r), false, 'practice passes alone do not submit the course');
+  r.attempts.push({ assessmentId: null, attemptNumber: 4, status: 'COMPLETED', completedAt: now });
   assert.equal(emails.completed(r), true);
   r.assignment.requiredAttempts = 2; assert.equal(emails.completed(r), false);
+});
+
+test('a later course retake overrides an older submission for reminders', () => {
+  const r = { assignment: { courseVersion: 1, course: { assessments: [] } }, attempts: [
+    { assessmentId: null, attemptNumber: 1, status: 'COMPLETED' },
+    { assessmentId: null, attemptNumber: 2, status: 'RETAKE_REQUIRED' },
+  ] };
+  assert.equal(emails.completed(r), false);
+  r.attempts[1].status = 'IN_PROGRESS'; assert.equal(emails.completed(r), false);
+  r.attempts[1].status = 'COMPLETED'; assert.equal(emails.completed(r), true);
+});
+
+test('reminders continue after passing practice and stop only after Submit training', async () => {
+  const c = await prisma.trainingCourse.create({ data: { organizationId: org.id, title: 'Submission reminder course', status: 'PUBLISHED', createdById: admin.id } });
+  const a = await prisma.assessment.create({ data: { organizationId: org.id, courseId: c.id, createdById: admin.id, title: 'Submission quiz', createdVia: 'ADMIN_MANUAL', type: 'QUIZ', status: 'APPROVED', version: 1, passingScore: 70, level: 1 } });
+  const r = await assignment({ courseId: c.id }); const sent = [];
+  const send = async (m) => sent.push(m);
+  await emails.processNext({ now, send });
+  await prisma.trainingAttempt.create({ data: { recipientId: r.id, profileId: learner.id, assessmentId: a.id, attemptNumber: 2, status: 'COMPLETED', score: 90, completedAt: now } });
+  await emails.processNext({ now: later(6 * H), send });
+  assert.equal(sent.length, 2, 'passing practice leaves the course unsubmitted');
+  assert.equal((await post(learner, `/training/${r.id}/complete`)).status, 302);
+  await emails.processNext({ now: later(12 * H), send });
+  assert.equal(sent.length, 2); assert.equal((await job(r)).nextSendAt, null);
+});
+
+test('cadence migration updates existing schedules, preserves retries and never backfills assignments', async () => {
+  const future = await assignment(); const undated = await assignment({ dueDate: null }); const retry = await assignment();
+  const unsent = await assignment(); const noSchedule = await assignment({ enqueue: false });
+  for (const r of [future, undated, retry]) await prisma.trainingEmailSchedule.update({ where: { recipientId: r.id }, data: { kind: 'REMINDER', lastSentAt: now, nextSendAt: r.id === undated.id ? null : later(100 * H) } });
+  await prisma.trainingEmailSchedule.update({ where: { recipientId: retry.id }, data: { retryCount: 1, payloadJson: '{"subject":"retry"}' } });
+  const sql = require('node:fs').readFileSync(require('node:path').join(__dirname, '../prisma/migrations/20261015170000_training_reminder_cadence/migration.sql'), 'utf8');
+  await prisma.$executeRawUnsafe(sql);
+  assert.equal((await job(future)).nextSendAt.getTime(), later(6 * H).getTime());
+  assert.equal((await job(undated)).nextSendAt.getTime(), later(6 * H).getTime());
+  assert.equal((await job(retry)).nextSendAt.getTime(), later(100 * H).getTime());
+  assert.equal((await job(unsent)).kind, 'ASSIGNED'); assert.equal((await job(unsent)).nextSendAt.getTime(), now.getTime());
+  assert.equal(await job(noSchedule), null);
 });
 
 test('retry retains the payload and idempotency key and never marks a failed send as accepted', async () => {
@@ -112,7 +174,7 @@ test('concurrent workers cannot send the same message; a stale lease is recovera
   assert.equal(await emails.processNext({ now, send: async () => count++ }), false);
   release(); await first; assert.equal(count, 1);
   await prisma.trainingEmailSchedule.update({ where: { recipientId: r.id }, data: { claimToken: 'dead-worker', claimedAt: now } });
-  await emails.processNext({ now: later(emails.THREE_HOURS), send: async () => count++ });
+  await emails.processNext({ now: later(emails.SIX_HOURS), send: async () => count++ });
   assert.equal(count, 2); assert.equal((await job(r)).claimToken, null);
 });
 
@@ -180,15 +242,16 @@ test('manual send preserves pending retries and permits a later resend', async (
   assert.notEqual(sent[1].o.idempotencyKey, sent[2].o.idempotencyKey);
 });
 
-test('extending or removing a deadline postpones or cancels overdue reminders', async () => {
+test('the 6-hour cadence does not depend on the deadline: changing or removing it never stops reminders', async () => {
   const r = await assignment(); let count = 0; const send = async () => count++;
   await emails.processNext({ now, send });
-  await prisma.trainingAssignment.update({ where: { id: r.assignmentId }, data: { dueDate: later(6 * 3600000) } });
-  await emails.processNext({ now: later(emails.THREE_HOURS), send });
-  assert.equal(count, 1); assert.equal((await job(r)).nextSendAt.getTime(), later(9 * 3600000).getTime());
+  await prisma.trainingAssignment.update({ where: { id: r.assignmentId }, data: { dueDate: later(60 * 3600000) } });
+  assert.equal(await emails.processNext({ now: later(3 * 3600000), send }), false);       // not due yet
+  await emails.processNext({ now: later(6 * 3600000), send });
+  assert.equal(count, 2); assert.equal((await job(r)).nextSendAt.getTime(), later(12 * 3600000).getTime());
   await prisma.trainingAssignment.update({ where: { id: r.assignmentId }, data: { dueDate: null } });
-  await emails.processNext({ now: later(9 * 3600000), send });
-  assert.equal(count, 1); assert.equal((await job(r)).nextSendAt, null);
+  await emails.processNext({ now: later(12 * 3600000), send });
+  assert.equal(count, 3); assert.equal((await job(r)).nextSendAt.getTime(), later(18 * 3600000).getTime());
 });
 
 test('onboarding queues mail once and role assignments skip disabled employees', async () => {

@@ -9,6 +9,7 @@ const { logAudit } = require('../lib/audit');
 const { mediaGate, MEDIA_TYPES, DOC_TYPES, MIN_READ_MS, durationOf, advanceProgress } = require('../lib/mediaProgress');
 const { probeMedia } = require('../lib/mediaProbe');
 const { completionState } = require('../lib/trainingCompletion');
+const viewer = require('../lib/materialViewer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 300 * 1024 * 1024, files: 1, fields: 10 } });
 
 async function allowedCourse(actor, id) {
@@ -51,6 +52,18 @@ router.post('/training-material/:moduleId/acknowledge', requireSession, async (r
   if (!row.completedAt) await prisma.mediaProgress.update({ where: { id: row.id }, data: { completedAt: new Date(), percentComplete: 100, lastActivityAt: new Date() } });
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'training.material_completed', targetTable: 'TrainingModule', targetId: module.id });
   res.redirect(back);
+});
+
+// The reading page for one document (PDF, slides, Word, image): shown inside the app, view-only for everyone but Admins.
+router.get('/training-read/:moduleId', requireSession, async (req, res) => {
+  const module = await prisma.trainingModule.findUnique({ where: { id: req.params.moduleId } });
+  const course = module ? await allowedCourse(req.profile, module.courseId) : null;
+  if (!module || !course || !module.storagePath || MEDIA_TYPES.includes(module.contentType)) return res.status(404).send('Not found');
+  await noteOpened(req.profile, module); // opening a document starts its clock
+  const kind = viewer.viewerKind({ type: module.contentType, storagePath: module.storagePath });
+  const text = kind === 'text' ? await viewer.readableText(module.storagePath) : null;
+  res.set('Cache-Control', 'private, no-store');
+  res.render('training-read', { title: module.title, module, course, kind, text, paragraphs: viewer.paragraphs, protect: req.profile.role !== 'ADMIN' });
 });
 
 router.get('/training-course/:id', requireSession, async (req, res) => {
@@ -104,8 +117,11 @@ router.post('/admin/training/:id/modules/:moduleId/file', requireRole('ADMIN'), 
 router.get('/training-file/:id', requireSession, async (req, res) => {
   const module = await prisma.trainingModule.findUnique({ where: { id: req.params.id } });
   if (!module?.storagePath || !await allowedCourse(req.profile, module.courseId)) return res.status(404).send('Not found');
-  await noteOpened(req.profile, module); // reading a document starts its clock
   if (req.query.download === '1' && req.profile.role !== 'ADMIN') return res.status(403).send('Forbidden');
+  // View only: a non-Admin cannot open the raw file as a page of its own (that is where save / download buttons live);
+  // the video / audio / PDF viewer inside the training page is what they use.
+  if (viewer.refusesPageNavigation(req)) return res.status(403).send(viewer.VIEW_ONLY_PAGE);
+  await noteOpened(req.profile, module); // reading a document starts its clock
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'training.file_read', targetTable: 'TrainingModule', targetId: module.id });
   res.setHeader('Content-Disposition', req.query.download === '1' ? 'attachment' : 'inline');
   res.setHeader('Cache-Control', 'private, no-store');

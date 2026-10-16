@@ -14,6 +14,7 @@ const { Type } = require('@google/genai');
 const { openSession, findSession, claimSession, releaseSession } = require('../lib/practiceSessions');
 const { mediaGate } = require('../lib/mediaProgress');
 const { displayOptions } = require('../lib/shuffleOptions');
+const { practiceFlowFor } = require('../lib/trainingCompletion');
 
 router.use('/assessments/:id', requireSession, async (req, res, next) => {
   const loaded = await loadAssignedAssessment(req.profile, req.params.id);
@@ -32,6 +33,7 @@ async function loadAssignedAssessment(profile, assessmentId) {
   if (assessment.courseId) {
     recipient = await prisma.trainingAssignmentRecipient.findFirst({
       where: { profileId: profile.id, assignment: { courseId: assessment.courseId, organizationId: profile.organizationId, OR: [{ assessmentId: null }, { assessmentId: assessment.id }], ...(safeParse(assessment.configJson, {})?.targetedRetake === true ? {} : { courseVersion: assessment.version }) } },
+      orderBy: { createdAt: 'desc' },
       include: { assignment: true },
     });
     if (!recipient) return null;
@@ -103,6 +105,7 @@ router.post('/assessments/:id/submit', requireSession, async (req, res) => {
     graded,
     passed,
     attempt,
+    flow: recipient ? await practiceFlowFor(actor.id, assessment, recipient.id).catch(() => null) : null,
   });
 });
 
@@ -193,6 +196,7 @@ router.get('/assessments/:id/result', requireSession, async (req, res) => {
     scoring: { overallScore: Math.round(attempt.score || 0), skillScores: Object.entries(breakdown).map(([skill, score]) => ({ skill, score })), feedback: steps ? steps.map((h) => h.feedback).join(' ') : (answers.feedback || ''), ...(steps ? {} : (answers.review || {})) },
     passed: attempt.status === 'COMPLETED',
     attempt,
+    flow: await practiceFlowFor(req.profile.id, loaded.assessment, attempt.recipientId).catch(() => null),
   });
 });
 
@@ -282,6 +286,7 @@ router.post('/assessments/:id/roleplay/finish', requireSession, async (req, res)
     scoring: scoring.data,
     passed,
     attempt,
+    flow: await practiceFlowFor(actor.id, assessment, recipient?.id).catch(() => null),
   });
 });
 
@@ -362,7 +367,7 @@ router.post('/assessments/:id/process', requireSession, async (req, res) => {
   const passed = score >= loaded.assessment.passingScore;
   const attempt = await recordAssessmentAttempt({ actor: req.profile, assessment: loaded.assessment, recipientId: loaded.recipient.id, score, passed, answersJson: state.history, skillBreakdown, sourceType: 'PRACTICE' });
   await releaseSession(session.id, { completedAttemptId: attempt.id, dataJson: JSON.stringify(state) });
-  res.render('practice/roleplay-result', { title: 'Workflow result', assessment: loaded.assessment, attempt, passed, transcript: state.history.map(h => ({ role: 'agent', text: `${h.situation}: ${h.action}` })), scoring: { overallScore: score, skillScores: config.skills.map(skill => ({ skill, score })), feedback: state.history.map(h => h.feedback).join(' ') } });
+  res.render('practice/roleplay-result', { title: 'Workflow result', assessment: loaded.assessment, attempt, passed, transcript: state.history.map(h => ({ role: 'agent', text: `${h.situation}: ${h.action}` })), scoring: { overallScore: score, skillScores: config.skills.map(skill => ({ skill, score })), feedback: state.history.map(h => h.feedback).join(' ') }, flow: await practiceFlowFor(req.profile.id, loaded.assessment).catch(() => null) });
 });
 // ---------------------------------------------------------------------------
 // Voice practice. The recording is saved on the server as soon as it exists (a "draft" on the learner's
@@ -473,7 +478,7 @@ router.post('/assessments/:id/voice', requireSession, voiceUpload.single('record
     completed = true;
     // The practice is finished: the session is closed (the recording now belongs to the attempt, so it is kept).
     await releaseSession(session.id, { completedAttemptId: attempt.id, dataJson: '{}' });
-    return res.render('practice/roleplay-result', { title: 'Voice practice result', assessment: loaded.assessment, transcript: [{ role: 'agent', text: transcript }], scoring: result.data, passed, attempt });
+    return res.render('practice/roleplay-result', { title: 'Voice practice result', assessment: loaded.assessment, transcript: [{ role: 'agent', text: transcript }], scoring: result.data, passed, attempt, flow: await practiceFlowFor(req.profile.id, loaded.assessment).catch(() => null) });
   } finally {
     if (!completed) await releaseSession(session.id, {}).catch(() => undefined);
   }

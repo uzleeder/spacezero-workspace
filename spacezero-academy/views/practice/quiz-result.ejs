@@ -1,4 +1,5 @@
 <%- include('../partials/page-header', { pageTitle: 'Result — ' + assessment.title }) %>
+<%- include('../partials/practice-flow') %>
 
 <div class="card mt-24">
   <div class="card-body">
@@ -49,6 +50,6 @@
 </div>
 
 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:40px">
-  <% if (assessment.courseId) { %><a href="/training-course/<%= assessment.courseId %>#practice" class="btn <%= passed ? 'btn-gold' : 'btn-secondary' %>"><%= passed ? 'Continue — finish & submit the training' : 'Back to the training' %></a><% } %>
+  <% if (assessment.courseId) { %><a href="/training-course/<%= assessment.courseId %>#practice" class="btn <%= passed ? 'btn-gold' : 'btn-secondary' %>"><%= passed && !(typeof flow !== 'undefined' && flow && flow.next) ? 'Continue — finish & submit the training' : 'Back to the training' %></a><% } %>
   <a href="/training" class="btn btn-secondary">Back to My Training</a>
 </div>

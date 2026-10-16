@@ -6,21 +6,22 @@
 </div>
 
 <div class="card">
-  <div class="card-body no-copy">
-    <% if (item.description) { %><p class="text-sm" style="margin-bottom:16px"><%= item.description %></p><% } %>
+  <div class="card-body<%= protect ? ' no-copy' : '' %>" <%- protect ? 'data-protect' : '' %>>
+    <% if (item.description && item.itemType !== 'NOTE') { %><p class="text-sm" style="margin-bottom:16px"><%= item.description %></p><% } %>
 
     <% if (item.itemType === 'LINK' && item.externalUrl) { %>
       <a href="<%= item.externalUrl %>" target="_blank" rel="noopener noreferrer" class="link-gold" style="font-weight:500">Open link &rarr;</a>
     <% } else if (item.itemType === 'NOTE') { %>
       <p style="white-space:pre-wrap"><%= item.description %></p>
-    <% } else if (item.itemType === 'VIDEO') { %>
-      <video src="/library-file/<%= item.id %>" controls controlsList="nodownload" style="width:100%;border-radius:8px;background:var(--navy-950)"></video>
-    <% } else if (item.itemType === 'IMAGE') { %>
-      <img src="/library-file/<%= item.id %>" alt="<%= item.title %>" style="width:100%;border-radius:8px" />
     <% } else { %>
-      <iframe src="/library-file/<%= item.id %>" style="height:70vh;width:100%;border-radius:8px;border:1px solid rgba(20,24,31,.1)"></iframe>
+      <%- include('../partials/material-viewer', { kind: kind, fileUrl: '/library-file/' + item.id, text: text, protect: protect, title: item.title }) %>
     <% } %>
 
-    <p class="text-sm text-muted mt-24">Viewing in-browser only. Downloading and copying materials is restricted to administrators.</p>
+    <% if (protect) { %>
+      <p class="text-sm text-muted mt-24">Viewing in-browser only. Downloading and copying materials is restricted to administrators.</p>
+    <% } else if (item.storagePath) { %>
+      <p class="text-sm mt-24"><a class="link-gold" href="/library-file/<%= item.id %>?download=1">Download (administrators only)</a></p>
+    <% } %>
   </div>
 </div>
+<% if (protect) { %><script src="<%= asset('/static/js/protect-materials.js') %>" defer></script><% } %>

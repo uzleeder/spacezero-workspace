@@ -8,6 +8,7 @@ const { prisma } = require('../lib/prisma');
 const { requireSession } = require('../lib/authMiddleware');
 const { getVisibleLibraryItems, parseTags } = require('../lib/library');
 const { resolveStoragePath } = require('../lib/storage');
+const viewer = require('../lib/materialViewer');
 
 router.get('/library', requireSession, async (req, res) => {
   const me = req.profile;
@@ -71,7 +72,10 @@ router.get('/library/:id', requireSession, async (req, res) => {
     }),
   ]);
 
-  res.render('library/detail', { title: item.title, item, isFavorite: Boolean(favorite), parseTags });
+  // How this item is shown inside the page (video / audio / image / PDF / readable text). Everyone except Admins gets a view-only page.
+  const kind = viewer.viewerKind({ type: item.itemType, storagePath: item.storagePath, mimeType: item.mimeType });
+  const text = kind === 'text' ? await viewer.readableText(item.storagePath) : null;
+  res.render('library/detail', { title: item.title, item, isFavorite: Boolean(favorite), parseTags, kind, text, paragraphs: viewer.paragraphs, protect: me.role !== 'ADMIN' });
 });
 
 router.post('/library/:id/favorite', requireSession, async (req, res) => {
@@ -104,6 +108,9 @@ router.get('/library-file/:id', requireSession, async (req, res) => {
 
   const wantsDownload = req.query.download === '1';
   if (wantsDownload && me.role !== 'ADMIN') return res.status(403).send('Forbidden');
+  // Non-Admins cannot open the raw file as a page of its own (that is how a save / download button appears);
+  // embedding it in the page (video, image, PDF viewer) is what they get.
+  if (viewer.refusesPageNavigation(req)) return res.status(403).send(viewer.VIEW_ONLY_PAGE);
 
   const filePath = resolveStoragePath(item.storagePath);
   if (!fs.existsSync(filePath)) return res.status(404).send('Not found');

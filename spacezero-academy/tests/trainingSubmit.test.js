@@ -59,7 +59,8 @@ test('after passing every quiz the agent sees "Submit training" (also on the res
   assert.match(page.text, /All practice and quizzes passed/);
   assert.match(page.text, new RegExp(`action="/training/${recipient.id}/complete"`));
   assert.match(page.text, /<button[^>]*>Submit training</);
-  assert.match(page.text, /✓ Passed/);
+  assert.match(page.text, /✓ Completed/);
+  assert.equal(await status(), 'IN_PROGRESS', 'passing a practice must not move an unsubmitted course to Completed');
 
   const done = await post(agent, `/training/${recipient.id}/complete`);
   assert.equal(done.status, 302);
