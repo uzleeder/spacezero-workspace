@@ -33,6 +33,7 @@ document.querySelectorAll('[data-learning-media]').forEach(media => {
 
   async function onCompleted(data) {
     announced = true;
+    media.dataset.done = 'true'; media.dispatchEvent(new Event('sz-unlock')); // the progress line becomes seekable again
     status.textContent = data.unlocked ? '✓ Fully watched — this item is finished. Your quiz is now open below.' : '✓ Fully watched — this item is finished. Finish the other required items to open the quiz.';
     const refreshed = await refreshGate();
     if (!refreshed && data.unlocked) {

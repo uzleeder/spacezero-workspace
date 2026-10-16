@@ -35,8 +35,8 @@ const notices = { 'open-first': 'Open the material first, then confirm.', 'too-f
   <p class="text-sm text-muted"><%= isRequired ? 'Required — ' : 'Optional / reference — ' %><%= isMedia ? (module.contentType === 'VIDEO' ? 'watch it to the end' : 'listen to it to the end') : module.contentType === 'NOTE' ? 'read it' : 'open it and read it' %></p>
 
   <% if (module.storagePath && isMedia) { const progress = gate.modules.find(m => m.id === module.id)?.mediaProgress[0]; %>
-    <<%= module.contentType === 'VIDEO' ? 'video' : 'audio' %> controls preload="metadata" playsinline <%- protect ? 'controlsList="nodownload noremoteplayback" ' + (module.contentType === 'VIDEO' ? 'disablePictureInPicture' : '') : '' %> src="/training-file/<%= module.id %>" style="width:100%;max-height:460px" data-learning-media="<%= module.id %>" data-required="<%= module.required %>" data-done="<%= progress?.completedAt ? 'true' : 'false' %>" data-position="<%= progress?.lastPositionSeconds || 0 %>" data-frontier="<%= progress ? JSON.parse(progress.watchedRangesJson)[0]?.[1] || 0 : 0 %>"></<%= module.contentType === 'VIDEO' ? 'video' : 'audio' %>>
-    <p class="text-sm" data-media-status="<%= module.id %>" role="status"><%= progress?.completedAt ? 'Material completed' : 'Progress saves automatically. You can pause, rewind and continue later.' %></p>
+    <<%= module.contentType === 'VIDEO' ? 'video' : 'audio' %> data-skin controls preload="metadata" playsinline <%- protect ? 'controlsList="nodownload noremoteplayback" ' + (module.contentType === 'VIDEO' ? 'disablePictureInPicture' : '') : '' %> src="/training-file/<%= module.id %>" style="width:100%;max-height:460px" data-learning-media="<%= module.id %>" data-required="<%= module.required %>" <%- isLearner && module.required ? 'data-lock' : '' %> data-done="<%= progress?.completedAt ? 'true' : 'false' %>" data-position="<%= progress?.lastPositionSeconds || 0 %>" data-frontier="<%= progress ? JSON.parse(progress.watchedRangesJson)[0]?.[1] || 0 : 0 %>"></<%= module.contentType === 'VIDEO' ? 'video' : 'audio' %>>
+    <p class="text-sm" data-media-status="<%= module.id %>" role="status"><%= progress?.completedAt ? 'Material completed' : (isLearner && module.required ? 'Watch it through to the end - skipping ahead is switched off. Progress saves automatically; you can pause and continue later.' : 'Progress saves automatically. You can pause, rewind and continue later.') %></p>
   <% } else if (module.contentType === 'NOTE') { %>
     <div style="white-space:pre-wrap;margin-top:8px"><%= module.description || '' %></div>
   <% } else if (module.storagePath) { %>
@@ -95,6 +95,7 @@ const notices = { 'open-first': 'Open the material first, then confirm.', 'too-f
   <section class="card mt-24" style="margin-bottom:40px"><div class="card-body row-between"><div><p style="font-weight:500;color:var(--navy-950)">Finished this training?</p><p class="text-sm text-muted">This training has no practice, so you finish it here once you have gone through the material.</p></div><form method="post" action="/training/<%= finishId %>/complete"><button type="submit" class="btn btn-gold">Finish training</button></form></div></section>
 <% } %>
 </div>
+<script src="<%= asset('/static/js/player-skin.js') %>" defer></script>
 <script src="<%= asset('/static/js/media-progress.js') %>" defer></script>
 <% if (protect) { %><script src="<%= asset('/static/js/protect-materials.js') %>" defer></script><% } %>
 <script src="<%= asset('/static/js/ai-practice.js') %>" defer></script>

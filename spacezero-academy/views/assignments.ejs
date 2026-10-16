@@ -96,7 +96,7 @@
             <label for="dueDate">Due date</label>
             <input id="dueDate" type="date" name="dueDate" value="<%= typeof defaultDueDate !== 'undefined' ? defaultDueDate : '' %>" />
           </div>
-          <div class="field"><label for="dueTime">Due time (Tashkent, UTC+05:00)</label><input id="dueTime" type="time" name="dueTime" value="23:59" /><p class="text-sm text-muted">Optional. Reminders are sent every 6 hours until completion, with or without a due date.</p></div>
+          <div class="field"><label for="dueTime">Due time (Tashkent, UTC+05:00)</label><input id="dueTime" type="time" name="dueTime" value="23:59" /><p class="text-sm text-muted">Optional. One reminder a day is sent until completion, with or without a due date.</p></div>
           <div class="field"><label for="assessmentId">Specific practice (optional)</label><select id="assessmentId" name="assessmentId"><option value="">Complete training</option><% courses.forEach(c => { (c.assessments || []).filter(a => !JSON.parse(a.configJson || '{}').targetedRetake).forEach(a => { %><option value="<%= a.id %>"><%= c.title %> — <%= a.type %>: <%= a.title %></option><% }) }) %></select></div>
           <div class="field"><label for="requiredAttempts">Required attempts</label><input id="requiredAttempts" name="requiredAttempts" type="number" min="1" max="20" value="1"></div>
           <div class="field"><label for="minimumScore">Minimum score (%)</label><input id="minimumScore" name="minimumScore" type="number" min="<%= typeof minimumScoreFloor !== 'undefined' ? minimumScoreFloor : 70 %>" max="100" value="<%= typeof defaultMinimumScore !== 'undefined' ? defaultMinimumScore : 70 %>"></div>
@@ -104,7 +104,7 @@
             <label for="notes">Notes</label>
             <textarea id="notes" name="notes" rows="2"></textarea>
           </div>
-          <p class="text-sm text-muted">Each recipient gets an assignment email. If unfinished, a reminder follows every 6 hours until the training is completed.</p>
+          <p class="text-sm text-muted">Each recipient gets an assignment email. If unfinished, a reminder follows once a day until the training is completed.</p>
           <button type="submit" class="btn btn-gold mt-16">Assign &amp; send email</button>
         </form>
       <% } %>
