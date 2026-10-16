@@ -1193,3 +1193,23 @@ html[data-theme="dark"] .material-frame { border-color: #2e2b52; }
 .sz-player input.sz-vol { width: 76px; flex: 0 0 76px; }
 .sz-player span.sz-time { padding: 0; background: none; color: rgba(255,255,255,.92); }.sz-player input.sz-seek, .sz-player input.sz-vol { background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; outline-offset: 2px; color: inherit; }
 .sz-player input.sz-seek:focus, .sz-player input.sz-vol:focus { box-shadow: none !important; border: 0 !important; }
+/* Notifications in dark mode: readable titles (the unread rule used to win with a dark navy), calmer unread marking */
+html[data-theme="dark"] .notif-menu-panel { background: #1c1a38; border-color: #38345f; box-shadow: 0 18px 44px rgba(0,0,0,.5); }
+html[data-theme="dark"] .notif-menu-header { color: #a6a3c8; }
+html[data-theme="dark"] .notif-menu-empty { color: #a6a3c8; }
+html[data-theme="dark"] .notif-row { color: #e9e6f7; }
+html[data-theme="dark"] .notif-row-icon { color: #a6a3c8; }
+html[data-theme="dark"] .notif-row.unread .notif-row-icon { color: var(--gold-400, #dca878); }
+html[data-theme="dark"] .notif-row .notif-row-title { color: #d6d3ea; font-weight: 500; }
+html[data-theme="dark"] .notif-row.unread .notif-row-title { color: #fbfaff; font-weight: 600; }
+html[data-theme="dark"] .notif-row .notif-row-context { color: #aeabcc; }
+html[data-theme="dark"] .notif-row .notif-row-time { color: #8e8bb1; }
+html[data-theme="dark"] .notif-row.unread { background: rgba(220,168,120,.08); }
+html[data-theme="dark"] .notif-row.unread:hover, html[data-theme="dark"] .notif-row.unread:focus-visible { background: rgba(220,168,120,.14); }
+html[data-theme="dark"] .notif-row-dot { background: var(--gold-400, #dca878); box-shadow: 0 0 0 3px rgba(220,168,120,.18); }
+html[data-theme="dark"] .notif-menu-seeall { color: var(--gold-300, #e8bb90); border-color: #38345f; }
+html[data-theme="dark"] .notif-menu-seeall:hover { color: #fff; }
+/* Required material: the progress line only shows progress until it has been watched through */
+.sz-player.sz-locked input.sz-seek { cursor: default; pointer-events: none; }
+.sz-player.sz-locked .sz-seek::-webkit-slider-thumb { width: 0; height: 0; border: 0; box-shadow: none; }
+.sz-player.sz-locked .sz-seek::-moz-range-thumb { width: 0; height: 0; border: 0; }

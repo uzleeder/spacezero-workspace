@@ -58,6 +58,17 @@
       if (full) bar.appendChild(full);
       wrap.appendChild(bar);
 
+      // Required training material cannot be scrubbed until it has been watched through: the line only shows progress.
+      // (The server enforces the same rule; this just stops the picture from jumping about.) Finishing unlocks it.
+      var locked = false;
+      function lock(on) {
+        locked = on; seek.disabled = on; wrap.classList.toggle('sz-locked', on);
+        seek.setAttribute('aria-label', on ? 'Progress (seeking is switched off until you have watched it all)' : 'Seek');
+        seek.title = on ? 'Watch it through to the end - skipping is switched off for required material' : '';
+      }
+      lock(el.hasAttribute('data-lock') && el.dataset.done !== 'true');
+      el.addEventListener('sz-unlock', function () { lock(false); });
+
       var scrubbing = false, hideTimer = null;
       function paint() {
         var d = el.duration, t = el.currentTime;
@@ -90,7 +101,7 @@
       mute.addEventListener('click', function () { el.muted = !el.muted; state(); });
       vol.addEventListener('input', function () { el.volume = Number(vol.value); el.muted = el.volume === 0; state(); });
       el.addEventListener('volumechange', function () { vol.value = String(el.muted ? 0 : el.volume); state(); });
-      seek.addEventListener('input', function () { scrubbing = true; if (el.duration > 0) { el.currentTime = (Number(seek.value) / 1000) * el.duration; } paint(); });
+      seek.addEventListener('input', function () { if (locked) return; scrubbing = true; if (el.duration > 0) { el.currentTime = (Number(seek.value) / 1000) * el.duration; } paint(); });
       seek.addEventListener('change', function () { scrubbing = false; paint(); });
       if (full) full.addEventListener('click', function () {
         var doc = document;
@@ -102,6 +113,7 @@
       wrap.addEventListener('keydown', function (e) {
         if (e.target === seek || e.target === vol) return;
         if (e.key === ' ' || e.key === 'k') { if (e.target === play || e.target === mute || e.target === full || e.target === big) return; e.preventDefault(); toggle(); }
+        else if (locked && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) { e.preventDefault(); }
         else if (e.key === 'ArrowRight') { el.currentTime = Math.min((el.duration || 0), el.currentTime + 5); }
         else if (e.key === 'ArrowLeft') { el.currentTime = Math.max(0, el.currentTime - 5); }
         else if (e.key === 'm') { el.muted = !el.muted; }

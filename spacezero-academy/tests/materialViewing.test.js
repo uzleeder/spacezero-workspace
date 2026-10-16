@@ -171,3 +171,37 @@ test('the player skin: video and audio carry data-skin, the script is loaded and
   assert.match(css, /--gold-500/);
   assert.doesNotMatch((await get(agent, `/library/${items.pdf.id}`)).text, /player-skin\.js/); // a PDF page does not load the player
 });
+
+test('required training video: the progress line cannot be scrubbed by a learner until it is watched through (Admins can)', async () => {
+  const vm = require('node:vm');
+  const saved = await saveUpload({ buffer: mp4(), mimetype: 'video/mp4' }, 'training');
+  const required = await prisma.trainingModule.create({ data: { courseId: course.id, title: 'MV required video', contentType: 'VIDEO', storagePath: saved.storagePath, required: true, displayOrder: 9, sourceRefJson: '{"durationSeconds":60}' } });
+  const optional = await prisma.trainingModule.create({ data: { courseId: course.id, title: 'MV optional video', contentType: 'VIDEO', storagePath: saved.storagePath, required: false, displayOrder: 10, sourceRefJson: '{"durationSeconds":60}' } });
+  const tag = (html, id) => (html.match(new RegExp(`<video[^>]*src="/training-file/${id}"[^>]*>`)) || [''])[0];
+  const learner = await get(agent, `/training-course/${course.id}`);
+  assert.match(tag(learner.text, required.id), /data-lock/);        // required: locked for the learner
+  assert.doesNotMatch(tag(learner.text, optional.id), /data-lock/); // optional / reference: free to move around
+  assert.match(learner.text, /skipping ahead is switched off/);
+  assert.doesNotMatch(tag((await get(admin, `/training-course/${course.id}`)).text, required.id), /data-lock/); // Admins preview freely
+  // finished material opens up again
+  await prisma.mediaProgress.upsert({ where: { profileId_trainingModuleId: { profileId: agent.id, trainingModuleId: required.id } }, create: { profileId: agent.id, trainingModuleId: required.id, completedAt: new Date(), percentComplete: 100 }, update: { completedAt: new Date(), percentComplete: 100 } });
+  assert.match(tag((await get(agent, `/training-course/${course.id}`)).text, required.id), /data-done="true"/);
+  // the player honours it: locked only while data-lock is present and not done; finishing unlocks; arrow keys do not seek while locked
+  const js = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'player-skin.js'), 'utf8');
+  assert.doesNotThrow(() => new vm.Script(js));
+  assert.match(js, /lock\(el\.hasAttribute\('data-lock'\) && el\.dataset\.done !== 'true'\)/);
+  assert.match(js, /addEventListener\('sz-unlock'/);
+  assert.match(js, /seek\.disabled = on/);
+  assert.match(js, /locked && \(e\.key === 'ArrowRight' \|\| e\.key === 'ArrowLeft'\)/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'media-progress.js'), 'utf8'), /dispatchEvent\(new Event\('sz-unlock'\)\)/);
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'styles.css'), 'utf8');
+  assert.match(css, /\.sz-player\.sz-locked input\.sz-seek \{ cursor: default; pointer-events: none; \}/);
+});
+
+test('dark mode notifications: unread titles are light (no dark navy on dark) and unread rows are marked calmly', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'styles.css'), 'utf8');
+  assert.match(css, /html\[data-theme="dark"\] \.notif-row\.unread \.notif-row-title \{ color: #fbfaff; font-weight: 600; \}/);
+  assert.match(css, /html\[data-theme="dark"\] \.notif-row \.notif-row-title \{ color: #d6d3ea;/);
+  assert.match(css, /html\[data-theme="dark"\] \.notif-row-dot \{ background: var\(--gold-400/);
+  assert.match(css, /html\[data-theme="dark"\] \.notif-row\.unread \{ background: rgba\(220,168,120,\.08\); \}/);
+});
