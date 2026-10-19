@@ -355,6 +355,21 @@
   }
 })();
 
+// A profile photo whose file is gone (or cannot be loaded) falls back to the person's initials, never a broken image.
+(function () {
+  function fallback(img) {
+    if (!img || img.getAttribute('data-avatar-fallback')) return;
+    var name = (img.getAttribute('alt') || '').trim();
+    var initials = name.split(/\s+/).slice(0, 2).map(function (w) { return w.charAt(0); }).join('').toUpperCase();
+    var box = document.createElement('div');
+    box.className = img.className; box.setAttribute('data-avatar-fallback', '1'); box.setAttribute('role', 'img'); box.setAttribute('aria-label', name);
+    box.textContent = initials || '?';
+    img.replaceWith(box);
+  }
+  document.addEventListener('error', function (e) { var t = e.target; if (t && t.tagName === 'IMG' && t.classList && t.classList.contains('avatar')) fallback(t); }, true);
+  Array.prototype.forEach.call(document.querySelectorAll('img.avatar'), function (img) { if (img.complete && img.naturalWidth === 0) fallback(img); });
+})();
+
 // Closes the top-right account menu on outside click or Escape.
 (function () {
   var menu = document.querySelector('[data-user-menu]');

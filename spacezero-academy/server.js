@@ -188,6 +188,18 @@ app.use((req, res) => {
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
+  // A file that is not on disk (an avatar or thumbnail whose upload is gone) is simply "not found" - it used to be
+  // reported as a server error (HTTP 500 and an error page where an image was expected) on every page that showed it.
+  const status = Number(err && (err.status || err.statusCode));
+  if (status === 404 || (err && err.code === 'ENOENT')) {
+    if (req.path.startsWith('/static/')) return res.status(404).end();
+    return res.status(404).render('not-found', { layout: false });
+  }
+  // Bad requests the framework itself rejected (malformed body, body too large ...) are the caller's mistake, not ours.
+  if (status >= 400 && status < 500) {
+    if (req.path.startsWith('/static/')) return res.status(status).end();
+    return res.status(status).render('error', { layout: false, message: status === 413 ? 'That upload is too large.' : 'That request could not be understood. Please try again.' });
+  }
   console.error(err);
   res.status(500).render('error', { layout: false, message: 'Something went wrong. Please try again.' });
 });
