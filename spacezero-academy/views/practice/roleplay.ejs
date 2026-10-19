@@ -1,3 +1,4 @@
+<%- include('../partials/quiz-guard') %>
 <%- include('../partials/page-header', { pageTitle: assessment.title, pageDescription: 'Role-play with an AI customer. Speak naturally — they will react realistically.' }) %>
 
 <% if (typeof error !== 'undefined' && error) { %><div class="form-alert error mt-16"><%= error %></div><% } %>

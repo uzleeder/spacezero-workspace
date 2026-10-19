@@ -194,7 +194,15 @@ app.use(require('./lib/errorPages').handleNotFound);
 // Unexpected errors (and a missing file, or a request the framework rejected) - see lib/errorPages.js.
 app.use(require('./lib/errorPages').handleError);
 
+// Training uploads have no size limit, so a very large file over a slow connection can take longer than Node's default
+// 5-minute request timeout: that timeout is switched off (the upload is still streamed to disk, never held in memory).
+function allowLongUploads(server) {
+  server.requestTimeout = 0;
+  return server;
+}
+
 if (require.main === module) {
+  require('./lib/uploads').sweepStaleUploads().catch(() => undefined); // temporary upload files left by a crash
   // Prisma's query engine connects lazily on its first query by default, so without this the
   // very first page a person opens after every boot/restart pays a one-off ~2s connection cost
   // (felt constantly in dev, where --watch restarts the process on every file save). Connecting
@@ -204,9 +212,9 @@ if (require.main === module) {
       const configuredHost = process.env.HOST;
       if (configuredHost) {
         // Explicit host (e.g. production's HOST=0.0.0.0) — bind exactly as configured, unchanged.
-        app.listen(PORT, configuredHost, () => {
+        allowLongUploads(app.listen(PORT, configuredHost, () => {
           console.log(`SpaceZero Workspace running at http://${configuredHost}:${PORT}`);
-        });
+        }));
         return;
       }
       // Local dev default: listen on BOTH loopback addresses (still never reachable off this
@@ -214,8 +222,8 @@ if (require.main === module) {
       // with nothing listening there, that attempt has to time out (~2s) before falling back to
       // IPv4 — felt as "every page loads slowly". Binding both means whichever address a browser
       // or tool tries first connects immediately, so that fallback delay never happens.
-      http.createServer(app).listen(PORT, '127.0.0.1');
-      http.createServer(app).listen(PORT, '::1', () => {
+      allowLongUploads(http.createServer(app).listen(PORT, '127.0.0.1'));
+      allowLongUploads(http.createServer(app)).listen(PORT, '::1', () => {
         console.log(`SpaceZero Workspace running at http://localhost:${PORT}`);
       });
     })

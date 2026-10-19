@@ -1,6 +1,6 @@
 'use strict';
 const router = require('express').Router();
-const multer = require('multer');
+const { unlimitedUpload, withCleanup } = require('../lib/uploads');
 const fs = require('node:fs/promises');
 const { prisma } = require('../lib/prisma');
 const { requireRole } = require('../lib/authMiddleware');
@@ -13,7 +13,7 @@ const { signMedia, verifyMedia } = require('../lib/signedUrl');
 const { recordCallEvidence } = require('../lib/callEvidence');
 const { reportSchema } = require('../lib/callIntelligence');
 const { isRateLimited, AI_RATE_LIMIT } = require('../lib/rateLimit');
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 150 * 1024 * 1024, files: 10, fields: 8 } });
+const upload = unlimitedUpload(); // any size and number: streamed to disk (lib/uploads.js)
 const manage = requireRole('ADMIN'); // calls live inside AI Practice, which is Admin-only
 async function loadBatch(actor, id) {
   const batch = await prisma.callBatch.findFirst({ where: { id, organizationId: actor.organizationId }, include: { recordings: true, targetAgent: true } });
@@ -24,7 +24,7 @@ async function loadBatch(actor, id) {
 // Uploading calls is part of the single "Upload material" screen. This URL is kept for old bookmarks.
 router.get('/ai-practice/calls', manage, (req, res) => res.redirect('/ai-practice/new?kind=call'));
 // SAVE ONLY: the recordings are stored privately and nothing is analyzed until the Admin starts the analysis.
-router.post('/ai-practice/calls', manage, upload.array('calls', 10), async (req, res) => {
+router.post('/ai-practice/calls', manage, withCleanup(upload.array('calls')), async (req, res) => {
   const actor = req.profile;
   if (!req.files?.length) return res.status(400).send('Upload at least one call.');
   const stored = await storeCallFiles(req.files);

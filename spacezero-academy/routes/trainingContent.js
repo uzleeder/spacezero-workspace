@@ -1,6 +1,6 @@
 'use strict';
 const router = require('express').Router();
-const multer = require('multer');
+const { unlimitedUpload, withCleanup } = require('../lib/uploads');
 const { prisma } = require('../lib/prisma');
 const { requireSession, requireRole } = require('../lib/authMiddleware');
 const { validateUpload, saveUpload, resolveStoragePath } = require('../lib/storage');
@@ -10,7 +10,7 @@ const { mediaGate, MEDIA_TYPES, DOC_TYPES, MIN_READ_MS, durationOf, advanceProgr
 const { probeMedia } = require('../lib/mediaProbe');
 const { completionState, autoFinishForProfile } = require('../lib/trainingCompletion');
 const viewer = require('../lib/materialViewer');
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 300 * 1024 * 1024, files: 1, fields: 10 } });
+const upload = unlimitedUpload(); // any size: streamed to disk (lib/uploads.js)
 
 async function allowedCourse(actor, id) {
   return prisma.trainingCourse.findFirst({ where: {
@@ -95,7 +95,7 @@ router.get('/training-course/:id', requireSession, async (req, res) => {
 });
 
 // Training sources belong to AI Practice, which is Admin-only.
-router.post('/admin/training/:id/modules/:moduleId/file', requireRole('ADMIN'), upload.single('file'), async (req, res) => {
+router.post('/admin/training/:id/modules/:moduleId/file', requireRole('ADMIN'), withCleanup(upload.single('file')), async (req, res) => {
   const course = await allowedCourse(req.profile, req.params.id);
   if (!course) return res.status(404).send('Not found');
   if (course.publishedVersion) return res.status(409).send('This training was sent to Training. Change its material by creating a new version in AI Practice.');

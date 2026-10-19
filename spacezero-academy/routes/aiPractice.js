@@ -12,7 +12,7 @@
 // see the "Supervisor Training Creation: review" section below.
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
+const { unlimitedUpload, withCleanup } = require('../lib/uploads');
 
 const { prisma } = require('../lib/prisma');
 const trainingCategories = require('../lib/trainingCategories');
@@ -62,18 +62,18 @@ const adminOnly = (req, res, next) => {
   if (!req.profile) return redirectToLogin(req, res);
   return req.profile.role === 'ADMIN' ? next() : res.status(403).render('forbidden');
 };
-const MAX_FILES = 10;
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 300 * 1024 * 1024, files: MAX_FILES, fields: 30 } });
+// No limit on the size or the number of files: they are streamed to disk (lib/uploads.js), never held in memory.
+const upload = unlimitedUpload();
 const notFound = (res) => res.status(404).render('not-found', { layout: false });
 const { clip } = require('../lib/sourceFiles');
 
 // :id is a cuid. Anything else (calls, new, ...) belongs to another route.
 router.param('id', (req, res, next, id) => (/^c[a-z0-9]{20,32}$/.test(id) ? next() : next('route')));
 
-const receive = (field) => (req, res, next) => upload.array(field, MAX_FILES)(req, res, (err) => {
-  if (err) req.uploadError = err.code === 'LIMIT_FILE_SIZE' ? 'One of the files is too large (300 MB is the limit).' : err.code === 'LIMIT_FILE_COUNT' ? `Upload at most ${MAX_FILES} files at a time.` : 'The upload could not be read. Please try again.';
+const receive = (field) => withCleanup((req, res, next) => upload.array(field)(req, res, (err) => {
+  if (err) req.uploadError = 'The upload could not be read (it may have been interrupted). Please try again.';
   next();
-});
+}));
 
 async function loadCourse(actor, id, include = {}) {
   // A Supervisor (even one with training.create/training.revise) never sees another Supervisor's or

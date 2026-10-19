@@ -1,3 +1,4 @@
+<%- include('../partials/quiz-guard') %>
 <%- include('../partials/page-header', { pageTitle: assessment.title, pageDescription: assessment.instructions || 'Answer every question, then submit.' }) %>
 
 <form method="post" action="/assessments/<%= assessment.id %>/submit">

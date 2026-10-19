@@ -17,6 +17,7 @@ const { displayOptions } = require('../lib/shuffleOptions');
 const { practiceFlowFor } = require('../lib/trainingCompletion');
 
 router.use('/assessments/:id', requireSession, async (req, res, next) => {
+  res.set('Cache-Control', 'private, no-store'); // a quiz page is never kept in the browser cache
   const loaded = await loadAssignedAssessment(req.profile, req.params.id);
   if (!loaded) return res.status(404).render('not-found', { layout: false });
   if (loaded.assessment.courseId && !(await mediaGate(req.profile.id, loaded.assessment.courseId, loaded.assessment.version)).unlocked) return res.status(403).send(`<!doctype html><meta charset="utf-8"><title>Finish the material first</title><body style="font-family:system-ui;max-width:560px;margin:15vh auto;padding:0 16px"><h1>Finish the material first</h1><p>Watch, listen to and read all of the required material of this training before you start the practice or the quiz.</p><p><a href="/training-course/${loaded.assessment.courseId}">Go to the training material →</a></p></body>`);
