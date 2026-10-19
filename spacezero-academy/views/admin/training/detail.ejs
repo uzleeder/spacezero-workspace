@@ -6,7 +6,7 @@ const actions = '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
   (canEdit && fromAi ? '<a href="/ai-practice/' + course.id + '?step=training" class="btn btn-secondary">View source practice</a>' : '') +
   (canEdit && course.status !== 'ARCHIVED' ? '<button type="button" class="btn btn-danger" data-action="/admin/training/' + course.id + '/archive" data-confirm="Archive this training? Existing assignments and results are kept.">Archive</button>' : '') +
   (canEdit && course.status === 'ARCHIVED' ? '<button type="button" class="btn btn-secondary" data-action="/admin/training/' + course.id + '/publish">Restore to Training</button>' : '') +
-  (canDelete ? '<form method="post" action="/admin/training/' + course.id + '/delete" onsubmit="return confirm(\'Delete this training? Only possible if nothing was assigned or recorded — otherwise archive it.\')" style="display:inline"><button type="submit" class="btn btn-danger">Delete</button></form>' : '') +
+  (canDelete ? '<a href="/admin/training/' + course.id + '/delete" class="btn btn-danger">Delete</a>' : '') +
   '</div>';
 %>
 <%- include('../../partials/page-header', { pageTitle: course.title, pageDescription: course.description, headerAction: actions }) %>

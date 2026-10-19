@@ -162,6 +162,61 @@ test('confirmation and searches preserve organization and role boundaries', asyn
   assert.equal(await prisma.trainingAssignment.count({ where: { id: assignment.id } }), 1);
 });
 
+async function usedCourse(title) {
+  const c = await prisma.trainingCourse.create({ data: { organizationId: org.id, title, createdById: admin.id, status: 'PUBLISHED', publishedVersion: 1, origin: 'AI_PRACTICE', modules: { create: [{ title: 'Material', contentType: 'NOTE', description: 'x' }] } } });
+  const quiz = await prisma.assessment.create({ data: { organizationId: org.id, courseId: c.id, createdVia: 'ADMIN_MANUAL', type: 'QUIZ', title: 'Quiz', createdById: admin.id, status: 'APPROVED', version: 1, questions: { create: [{ type: 'MCQ', prompt: 'Q?', correctAnswerJson: '"a"' }] } } });
+  const assignment = await prisma.trainingAssignment.create({ data: { organizationId: org.id, courseId: c.id, assignedById: sup.id, scope: 'INDIVIDUAL' } });
+  const recipient = await prisma.trainingAssignmentRecipient.create({ data: { assignmentId: assignment.id, profileId: agentA.id } });
+  await prisma.trainingAttempt.create({ data: { recipientId: recipient.id, assessmentId: quiz.id, profileId: agentA.id, status: 'COMPLETED', score: 80, attemptNumber: 1, completedAt: new Date() } });
+  await prisma.trainingEmailSchedule.create({ data: { recipientId: recipient.id } });
+  await prisma.practiceSession.create({ data: { profileId: agentA.id, assessmentId: quiz.id } });
+  await prisma.aiTask.create({ data: { organizationId: org.id, courseId: c.id, taskType: 'ANALYZE' } });
+  await prisma.certificate.create({ data: { profileId: agentA.id, courseId: c.id, title, description: 'done' } });
+  return { c, quiz, recipient };
+}
+
+test('an Admin deletes ANY training, even one that was sent to Training, assigned (by a Supervisor), attempted and certified', async () => {
+  const before = (await getMyTrainingList(agentA.id)).length;
+  const { c, quiz, recipient } = await usedCourse('Used course');
+  assert.equal((await getMyTrainingList(agentA.id)).length, before + 1);
+  for (const url of [`/admin/training/${c.id}`, `/admin/training`]) assert.match((await get(admin, url)).text, new RegExp(`href="/admin/training/${c.id}/delete"`));
+  const page = await get(admin, `/admin/training/${c.id}/delete`);
+  assert.equal(page.status, 200);
+  assert.match(page.text, /<strong>1<\/strong> assignment/);
+  assert.match(page.text, /<strong>1<\/strong> attempt/);
+  assert.equal(await prisma.trainingCourse.count({ where: { id: c.id } }), 1, 'the confirmation page deletes nothing');
+  const res = await post(admin, `/admin/training/${c.id}/delete`);
+  assert.equal(res.status, 302);
+  assert.equal(res.headers.location, '/admin/training?deleted=1');
+  assert.equal(await prisma.trainingCourse.count({ where: { id: c.id } }), 0);
+  for (const model of ['trainingAssignment', 'assessment', 'trainingModule']) assert.equal(await prisma[model].count({ where: { courseId: c.id } }), 0, model);
+  assert.equal(await prisma.trainingAttempt.count({ where: { recipientId: recipient.id } }), 0);
+  assert.equal(await prisma.trainingEmailSchedule.count({ where: { recipientId: recipient.id } }), 0);
+  assert.equal(await prisma.practiceSession.count({ where: { assessmentId: quiz.id } }), 0);
+  assert.equal(await prisma.aiTask.count({ where: { courseId: c.id } }), 0);
+  assert.equal((await getMyTrainingList(agentA.id)).length, before);
+  assert.equal(await prisma.certificate.count({ where: { courseId: c.id } }), 1); // earned, stays
+  const audit = await prisma.auditLog.findFirst({ where: { organizationId: org.id, action: 'training.course_deleted', targetId: c.id } });
+  assert.equal(audit.actorId, admin.id);
+  assert.equal(JSON.parse(audit.metadataJson).assignments, 1);
+  assert.match((await get(admin, '/admin/training?deleted=1')).text, /The training was deleted/);
+  assert.equal((await post(admin, `/admin/training/${c.id}/delete`)).status, 404);
+});
+
+test('only an Admin of the same organization can delete a training; AI Practice sends an Admin to the confirmation page', async () => {
+  const { c } = await usedCourse('Protected course');
+  for (const who of [sup, agentA, outsider]) {
+    assert.notEqual((await post(who, `/admin/training/${c.id}/delete`)).status, 302);
+    assert.notEqual((await get(who, `/admin/training/${c.id}/delete`)).status, 200);
+  }
+  assert.equal(await prisma.trainingCourse.count({ where: { id: c.id } }), 1);
+  const viaAi = await post(admin, `/ai-practice/${c.id}/delete`);
+  assert.equal(viaAi.headers.location, `/admin/training/${c.id}/delete`);
+  assert.equal(await prisma.trainingCourse.count({ where: { id: c.id } }), 1);
+  assert.equal((await post(otherAdmin, `/admin/training/${c.id}/delete`)).status, 302); // any Admin of the organization
+  assert.equal(await prisma.trainingCourse.count({ where: { id: c.id } }), 0);
+});
+
 test('search, categories and pagination combine, including invalid page input', async () => {
   await prisma.trainingCourse.update({ where: { id: course.id }, data: { trainingCategory: 'PRODUCT' } });
   const page = await get(admin, '/assignments?q=agentA&category=PRODUCT&page=2');

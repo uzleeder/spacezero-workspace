@@ -56,7 +56,7 @@
                     <a href="/ai-practice/<%= it.id %>#rename">Rename</a>
                     <button type="submit" formaction="/ai-practice/<%= it.id %>/duplicate" formmethod="post" formnovalidate>Duplicate</button>
                     <button type="submit" formaction="/ai-practice/<%= it.id %>/archive" formmethod="post" formnovalidate>Archive</button>
-                    <button type="submit" formaction="/ai-practice/<%= it.id %>/delete" formmethod="post" formnovalidate data-confirm-msg="Delete this? If training or skill records depend on it, it will be archived instead.">Delete</button>
+                    <button type="submit" formaction="/ai-practice/<%= it.id %>/delete" formmethod="post" formnovalidate data-confirm-msg="Delete this? If it is already used in Training, an Admin sees what it affects before anything is removed; otherwise it is archived instead.">Delete</button>
                   <% } else { %>
                     <button type="submit" formaction="<%= callBase %>/archive" formmethod="post" formnovalidate>Archive</button>
                     <button type="submit" formaction="<%= callBase %>/delete" formmethod="post" formnovalidate data-confirm-msg="Permanently delete these recordings?">Delete</button>
