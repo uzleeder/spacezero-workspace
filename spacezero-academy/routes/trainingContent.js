@@ -8,7 +8,7 @@ const { safeParse } = require('../lib/practiceEngine');
 const { logAudit } = require('../lib/audit');
 const { mediaGate, MEDIA_TYPES, DOC_TYPES, MIN_READ_MS, durationOf, advanceProgress } = require('../lib/mediaProgress');
 const { probeMedia } = require('../lib/mediaProbe');
-const { completionState } = require('../lib/trainingCompletion');
+const { completionState, autoFinishForProfile } = require('../lib/trainingCompletion');
 const viewer = require('../lib/materialViewer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 300 * 1024 * 1024, files: 1, fields: 10 } });
 
@@ -51,6 +51,7 @@ router.post('/training-material/:moduleId/acknowledge', requireSession, async (r
   if (Date.now() - row.startedAt.getTime() < MIN_READ_MS) return res.redirect(`${back}?material=too-fast`); // and not skimmed in a second
   if (!row.completedAt) await prisma.mediaProgress.update({ where: { id: row.id }, data: { completedAt: new Date(), percentComplete: 100, lastActivityAt: new Date() } });
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'training.material_completed', targetTable: 'TrainingModule', targetId: module.id });
+  await autoFinishForProfile(req.profile.id, { assignment: { courseId: course.id } }).catch((err) => console.error('auto-finish failed', err.message)); // it may have been the last thing left
   res.redirect(back);
 });
 
@@ -69,6 +70,7 @@ router.get('/training-read/:moduleId', requireSession, async (req, res) => {
 router.get('/training-course/:id', requireSession, async (req, res) => {
   const course = await allowedCourse(req.profile, req.params.id);
   if (!course) return res.status(404).send('Not found');
+  await autoFinishForProfile(req.profile.id, { assignment: { courseId: course.id } }).catch((err) => console.error('auto-finish failed', err.message)); // already done = finished
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'training.content_read', targetTable: 'TrainingCourse', targetId: course.id });
   // Each learner sees the version they were assigned; the Admin sees the version that is in Training.
   const mine = req.profile.role === 'ADMIN' ? [] : await prisma.trainingAssignment.findMany({ where: { courseId: course.id, recipients: { some: { profileId: req.profile.id } } }, select: { courseVersion: true } });
@@ -141,6 +143,7 @@ router.post('/training-media/:id/progress', requireSession, async (req, res) => 
     const update = advanceProgress(row, { position: Number(req.body.position), speed: Number(req.body.speed), action: req.body.action }, duration);
     const saved = await prisma.mediaProgress.updateMany({ where: { id: row.id, lastActivityAt: row.lastActivityAt }, data: update });
     if (!saved.count) return res.status(409).json({ error: 'Progress changed in another tab. Refresh to continue.' });
+    if (update.completedAt) await autoFinishForProfile(req.profile.id, { assignment: { courseId: module.courseId } }).catch((err) => console.error('auto-finish failed', err.message)); // it may have been the last thing left
     res.json({ ...update, duration, unlocked: (await mediaGate(req.profile.id, module.courseId)).unlocked });
   } catch (err) { res.status(400).json({ error: err.message, position: row.lastPositionSeconds }); }
 });

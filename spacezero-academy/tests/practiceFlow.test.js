@@ -93,7 +93,9 @@ test('Role-play -> Completed -> "Practice completed." -> submit the training (th
   assert.match(result.text, new RegExp(`href="/training-course/${course.id}#practice">Continue — submit the training<`));
   assert.doesNotMatch(result.text, /Continue to the next practice/);
   const page = await get(agent, `/training-course/${course.id}`);
-  assert.match(page.text, /All practice and quizzes passed/); assert.match(page.text, /<button[^>]*>Submit training</);
+  // opening the training finishes it by itself now (everything is passed): no Submit press is left to do
+  assert.match(page.text, /✓ Training submitted/); assert.doesNotMatch(page.text, /<button[^>]*>Submit training</);
+  assert.equal((await require('../lib/training').getMyTrainingList(agent.id)).find((r) => r.id === recipient.id).status, 'COMPLETED');
 });
 
 test('an earlier practice that is still open is offered after the last one; targeted retakes and other courses never enter the sequence', async () => {

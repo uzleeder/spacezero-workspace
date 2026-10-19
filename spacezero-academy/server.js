@@ -178,6 +178,11 @@ if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   for (const lib of ['callRetention', 'trainingAnalysis', 'callIntelligence', 'aiTasks', 'automation']) require(`./lib/${lib}`);
   require('./lib/jobQueue').start();
   require('./lib/trainingEmails').start();
+  // Trainings whose every practice was passed before the automatic finish existed (still sitting in Overdue / In Progress)
+  // are finished at start-up and then every 15 minutes, for people who do not open the site.
+  const sweep = () => require('./lib/trainingCompletion').autoFinishAll().then((n) => { if (n) console.log(`auto-finished ${n} completed training(s)`); }).catch((err) => console.error('auto-finish sweep failed', err.message));
+  setTimeout(sweep, 20000).unref();
+  setInterval(sweep, 15 * 60 * 1000).unref();
 }
 
 // Every deploy makes sure the ready-made Company Standards & Workflow documents exist (each added once; see

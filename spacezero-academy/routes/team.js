@@ -75,10 +75,9 @@ router.post('/training/:recipientId/retake', requireRole('ADMIN', 'SUPERVISOR'),
     if (actor.role === 'SUPERVISOR' && !(await isSupervisorOfAgent(actor.id, recipient.profileId))) {
       return res.status(403).render('forbidden');
     }
-    const latest = await prisma.trainingAttempt.findFirst({
-      where: { recipientId: recipient.id },
-      orderBy: { attemptNumber: 'desc' },
-    });
+    // The submission (course-level attempt) is what a retake reopens; practice attempts alone would leave the training completed.
+    const latest = (await prisma.trainingAttempt.findFirst({ where: { recipientId: recipient.id, assessmentId: null }, orderBy: { attemptNumber: 'desc' } }))
+      || (await prisma.trainingAttempt.findFirst({ where: { recipientId: recipient.id }, orderBy: { attemptNumber: 'desc' } }));
     if (latest) {
       await prisma.trainingAttempt.update({
         where: { id: latest.id },

@@ -76,6 +76,9 @@ async function recordAssessmentAttempt({ actor, assessment, recipientId, score, 
     link: '/training',
   }).catch(() => undefined);
 
+  // The last required practice just passed: the training finishes by itself (no Submit press, no staying in Overdue).
+  if (passed) await require('./trainingCompletion').autoFinishForProfile(actor.id, { id: recipientId }).catch((err) => console.error('auto-finish failed', err.message));
+
   return attempt;
 }
 

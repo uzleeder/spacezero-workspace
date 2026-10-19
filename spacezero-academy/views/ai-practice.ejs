@@ -70,7 +70,7 @@
     </ul>
     <div class="filter-bar" style="border-top:1px solid var(--border-subtle);border-bottom:none">
       <span class="text-sm text-muted" style="align-self:center">With selected:</span>
-      <select name="action" aria-label="Bulk action"><option value="archive">Archive</option><option value="delete">Delete (only unused)</option><option value="analyze">Start analysis (material)</option></select>
+      <select name="action" aria-label="Bulk action"><option value="archive">Archive</option><option value="delete">Delete (only unused)</option><% if (profile.role === 'ADMIN') { %><option value="delete-all">Delete, including trainings in use…</option><% } %><option value="analyze">Start analysis (material)</option></select>
       <button type="submit" class="btn btn-secondary">Apply</button>
     </div>
   <% } %>

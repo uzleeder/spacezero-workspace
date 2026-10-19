@@ -18,6 +18,7 @@ const { prisma } = require('../lib/prisma');
 const trainingCategories = require('../lib/trainingCategories');
 const { ACCEPT, storeFiles, storeCallFiles, releaseFile } = require('../lib/sourceFiles');
 const { logAudit } = require('../lib/audit');
+const courseDeletion = require('../lib/courseDeletion');
 const { getSetting } = require('../lib/orgSettings');
 const { checkPassingScore } = require('../lib/courseAudience');
 const { roleLabel } = require('../lib/roles');
@@ -156,7 +157,19 @@ router.post('/ai-practice/bulk', creators, async (req, res) => {
   const actor = req.profile;
   const action = String(req.body.action || '');
   const picked = (Array.isArray(req.body.ids) ? req.body.ids : req.body.ids ? [req.body.ids] : []).map(String).slice(0, 100);
-  if (!['archive', 'delete', 'analyze'].includes(action) || !picked.length) return res.redirect('/ai-practice?error=Choose+what+to+do+and+select+at+least+one+item.');
+  if (!['archive', 'delete', 'delete-all', 'analyze'].includes(action) || !picked.length) return res.redirect('/ai-practice?error=Choose+what+to+do+and+select+at+least+one+item.');
+  // \"Delete including trainings in use\" is an Admin's decision (a Supervisor's choice falls back to the safe delete).
+  const force = action === 'delete-all' && actor.role === 'ADMIN' && !req.impersonation;
+  if (action === 'delete-all' && !force) return res.redirect('/ai-practice?error=Only+an+Admin+can+delete+trainings+that+are+in+use.');
+  if (force && req.body.confirm !== '1') {
+    const items = [];
+    for (const token of picked) {
+      const [kind, id] = token.split(':');
+      if (kind === 'material') { const c = await loadCourse(actor, id); if (c && c.origin === 'AI_PRACTICE') items.push({ token, title: c.title, kind: 'Training source', impact: await courseDeletion.deletionImpact(c) }); }
+      else if (kind === 'call') { const b = await prisma.callBatch.findFirst({ where: { id, organizationId: actor.organizationId } }); if (b) items.push({ token, title: b.title || 'Call recordings', kind: 'Call recordings', impact: null }); }
+    }
+    return res.render('ai-practice/bulk-delete', { title: 'Delete selected', items });
+  }
   const result = { done: 0, skipped: 0 };
   for (const token of picked) {
     const [kind, id] = token.split(':');
@@ -164,6 +177,7 @@ router.post('/ai-practice/bulk', creators, async (req, res) => {
       const course = await loadCourse(actor, id, { analysis: true });
       if (!course || course.origin !== 'AI_PRACTICE') { result.skipped += 1; continue; }
       if (action === 'archive') { await versions.archiveSource(actor, course); result.done += 1; }
+      else if (force) { await courseDeletion.deleteCourse(actor, course); result.done += 1; } // an Admin: whatever its state, with its assignments and attempts
       else if (action === 'delete') { if ((await versions.deletionPolicy(course)).canDelete) { await removeCourse(actor, course); result.done += 1; } else result.skipped += 1; }
       else if (action === 'analyze') {
         if (course.analysis || !(await prisma.trainingModule.count({ where: { courseId: course.id } }))) { result.skipped += 1; continue; }
@@ -175,10 +189,10 @@ router.post('/ai-practice/bulk', creators, async (req, res) => {
       const batch = await prisma.callBatch.findFirst({ where: { id, organizationId: actor.organizationId } });
       if (!batch || action === 'analyze') { result.skipped += 1; continue; } // calls need a purpose and consent, chosen one at a time
       if (action === 'archive') { await prisma.callBatch.update({ where: { id }, data: { archivedAt: new Date() } }); await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'ai_practice.source_archived', targetTable: 'CallBatch', targetId: id }); result.done += 1; }
-      else if (await removeBatch(actor, batch)) result.done += 1; else result.skipped += 1;
+      else if (await removeBatch(actor, batch, { force })) result.done += 1; else result.skipped += 1;
     } else result.skipped += 1;
   }
-  const label = { archive: 'archived', delete: 'deleted', analyze: 'sent for analysis' }[action];
+  const label = { archive: 'archived', delete: 'deleted', 'delete-all': 'deleted', analyze: 'sent for analysis' }[action];
   res.redirect(`/ai-practice?notice=${action === 'analyze' ? 'saved' : label === 'archived' ? 'archived' : 'deleted'}${result.skipped ? `&error=${encodeURIComponent(`${result.done} ${label}; ${result.skipped} skipped (in use, already analyzed, or not compatible).`)}` : ''}`);
 });
 
@@ -189,9 +203,9 @@ async function removeCourse(actor, course) {
   await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'ai_practice.source_deleted', targetTable: 'TrainingCourse', targetId: course.id, metadata: { title: course.title } });
 }
 
-/** Calls are only deleted when their analysis did not turn into training. */
-async function removeBatch(actor, batch) {
-  if (batch.generatedCourseId && await prisma.trainingCourse.findUnique({ where: { id: batch.generatedCourseId }, select: { id: true } })) return false;
+/** Calls are only deleted when their analysis did not turn into training - unless an Admin forces it (the training made from them stays). */
+async function removeBatch(actor, batch, { force = false } = {}) {
+  if (!force && batch.generatedCourseId && await prisma.trainingCourse.findUnique({ where: { id: batch.generatedCourseId }, select: { id: true } })) return false;
   if (!['UPLOADED', 'FAILED', 'READY_FOR_REVIEW', 'APPROVED'].includes(batch.status)) return false;
   const recordings = await prisma.callRecording.findMany({ where: { callBatchId: batch.id }, select: { storagePath: true } });
   await prisma.callBatch.delete({ where: { id: batch.id } });

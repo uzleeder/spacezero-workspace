@@ -8,15 +8,15 @@ const { requireSession, requireRole } = require('../lib/authMiddleware');
 const { getMyTrainingList } = require('../lib/training');
 const { buildMyTraining } = require('../lib/myTraining');
 const trainingCategories = require('../lib/trainingCategories');
-const { createNotification } = require('../lib/notifications');
 
 // One page: choose a STATUS (Overdue / To Do / In Progress / Completed) and a CATEGORY (All / Product / Sales /
 // System & Workflow) - no separate pages for every combination.
 router.get('/training', requireSession, async (req, res) => {
+  // Anything already done (every practice passed, material finished) is finished now - it must not sit in Overdue.
+  await require('../lib/trainingCompletion').autoFinishForProfile(req.profile.id).catch((err) => console.error('auto-finish failed', err.message));
   const list = await getMyTrainingList(req.profile.id);
   const view = buildMyTraining(list, { status: typeof req.query.status === 'string' ? req.query.status : '', category: typeof req.query.category === 'string' ? req.query.category : '' });
-  const ready = await require('../lib/trainingCompletion').readyToSubmitIds(list); // passed everything, only "Submit training" is left
-  res.render('training', { title: 'My Training', list, view, ready, categoryLabel: trainingCategories.categoryLabel });
+  res.render('training', { title: 'My Training', list, view, categoryLabel: trainingCategories.categoryLabel });
 });
 
 async function latestAttemptFor(recipientId) {
@@ -46,32 +46,11 @@ router.post('/training/:recipientId/complete', requireSession, async (req, res) 
   });
   if (recipient && recipient.profileId === req.profile.id) {
     if (!(await require('../lib/mediaProgress').mediaGate(req.profile.id, recipient.assignment.courseId, recipient.assignment.courseVersion)).unlocked) return res.status(403).send('Complete all required training material first.');
-    const { completionState, submitTraining } = require('../lib/trainingCompletion');
+    const { completionState, finishTraining } = require('../lib/trainingCompletion');
     const state = await completionState(recipient);
     if (!state.passedAll) return res.status(403).send('Pass all required assessments before completing this training.');
     // Submitting twice (a double tap, a stale page) changes nothing and sends no second certificate or notice.
-    if (!state.submitted) {
-      await submitTraining(recipient);
-
-      await prisma.certificate
-        .create({
-          data: {
-            profileId: req.profile.id,
-            courseId: recipient.assignment.courseId,
-            title: recipient.assignment.course.title,
-            description: 'Training course completed.',
-          },
-        })
-        .catch(() => undefined);
-
-      await createNotification({
-        profileId: req.profile.id,
-        type: 'training.completed',
-        title: 'Course completed',
-        body: `You completed "${recipient.assignment.course.title}". A certificate was added to your profile.`,
-        link: '/profile',
-      });
-    }
+    await finishTraining(recipient);
   }
   res.redirect('/training');
 });

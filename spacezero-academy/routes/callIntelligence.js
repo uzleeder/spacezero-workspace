@@ -128,7 +128,8 @@ router.post('/ai-practice/calls/:id/delete', manage, async (req, res) => {
   if (!batch) return res.status(404).send('Not found');
   const stalled = ['UPLOADED', 'TRANSCRIBING', 'ANALYZING', 'AGGREGATING', 'GENERATING_PRACTICE'].includes(batch.status) && batch.analysisRequestedAt && Date.now() - batch.updatedAt.getTime() > 15 * 60 * 1000;
   if (!stalled && (!['UPLOADED', 'FAILED', 'READY_FOR_REVIEW', 'APPROVED'].includes(batch.status) || (batch.status === 'UPLOADED' && batch.analysisRequestedAt))) return res.status(409).send('Wait for processing to finish before deleting.');
-  if (batch.generatedCourseId && await prisma.trainingCourse.findUnique({ where: { id: batch.generatedCourseId }, select: { id: true } })) return res.status(409).send('Training was created from this analysis, so the recordings are kept. Archive it instead.');
+  // Recordings behind a training are kept for everyone except an Admin, who may always delete them; the training made from them stays.
+  if (req.profile.role !== 'ADMIN' && batch.generatedCourseId && await prisma.trainingCourse.findUnique({ where: { id: batch.generatedCourseId }, select: { id: true } })) return res.status(409).send('Training was created from this analysis, so the recordings are kept. Archive it instead.');
   for (const recording of batch.recordings) await fs.unlink(resolveStoragePath(recording.storagePath)).catch(err => { if (err.code !== 'ENOENT') throw err; });
   await prisma.callBatch.delete({ where: { id: batch.id } });
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'calls.deleted', targetTable: 'CallBatch', targetId: batch.id });

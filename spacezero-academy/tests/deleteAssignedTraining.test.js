@@ -277,6 +277,39 @@ test('a Supervisor can delete a training they created, but not the Admin\'s, nor
   await prisma.trainingCourse.delete({ where: { id: adminsCourse.id } });
 });
 
+test('AI Practice: an Admin deletes trainings that are in use in bulk (after a confirmation page) and recordings behind a training; nobody else can', async () => {
+  const a = await usedCourse('Bulk in use A'); const b = await usedCourse('Bulk in use B');
+  const unused = await prisma.trainingCourse.create({ data: { organizationId: org.id, title: 'Bulk unused', createdById: admin.id, status: 'DRAFT', origin: 'AI_PRACTICE' } });
+  const ids = [`material:${a.c.id}`, `material:${b.c.id}`, `material:${unused.id}`];
+  // the plain delete still protects what is in use
+  await post(admin, '/ai-practice/bulk', { action: 'delete', ids });
+  assert.equal(await prisma.trainingCourse.count({ where: { id: { in: [a.c.id, b.c.id] } } }), 2);
+  assert.equal(await prisma.trainingCourse.count({ where: { id: unused.id } }), 0);
+  const ids2 = [`material:${a.c.id}`, `material:${b.c.id}`];
+  assert.match((await get(admin, '/ai-practice')).text, /value="delete-all"/);
+  // delete-all first shows what goes, and deletes nothing
+  const confirm = await post(admin, '/ai-practice/bulk', { action: 'delete-all', ids: ids2 });
+  assert.equal(confirm.status, 200); assert.match(confirm.text, /2 items will be deleted permanently/); assert.match(confirm.text, /1 assignment/);
+  assert.equal(await prisma.trainingCourse.count({ where: { id: { in: [a.c.id, b.c.id] } } }), 2);
+  // a Supervisor cannot use it
+  assert.notEqual((await post(sup, '/ai-practice/bulk', { action: 'delete-all', confirm: '1', ids: ids2 })).status, 200);
+  assert.equal(await prisma.trainingCourse.count({ where: { id: { in: [a.c.id, b.c.id] } } }), 2);
+  const done = await post(admin, '/ai-practice/bulk', { action: 'delete-all', confirm: '1', ids: ids2 });
+  assert.equal(done.status, 302);
+  assert.equal(await prisma.trainingCourse.count({ where: { id: { in: [a.c.id, b.c.id] } } }), 0);
+  assert.equal(await prisma.trainingAssignment.count({ where: { courseId: { in: [a.c.id, b.c.id] } } }), 0);
+  assert.equal(await prisma.certificate.count({ where: { courseId: a.c.id } }), 1); // earned, stays
+  assert.ok(await prisma.auditLog.findFirst({ where: { organizationId: org.id, action: 'training.course_deleted', targetId: a.c.id } }));
+  // recordings an analysis turned into a training: an Admin may delete them, the training stays
+  const made = await prisma.trainingCourse.create({ data: { organizationId: org.id, title: 'Made from calls', createdById: admin.id, status: 'PUBLISHED', publishedVersion: 1 } });
+  const batch = await prisma.callBatch.create({ data: { organizationId: org.id, uploadedById: admin.id, mode: 'BEST_PRACTICE', status: 'APPROVED', generatedCourseId: made.id } });
+  assert.equal((await post(admin, `/ai-practice/calls/${batch.id}/delete`)).status, 302);
+  assert.equal(await prisma.callBatch.count({ where: { id: batch.id } }), 0);
+  assert.equal(await prisma.trainingCourse.count({ where: { id: made.id } }), 1);
+  const batch2 = await prisma.callBatch.create({ data: { organizationId: org.id, uploadedById: admin.id, mode: 'BEST_PRACTICE', status: 'APPROVED', generatedCourseId: made.id } });
+  const viaBulk = await post(admin, '/ai-practice/bulk', { action: 'delete-all', confirm: '1', ids: [`call:${batch2.id}`] });
+  assert.equal(viaBulk.status, 302); assert.equal(await prisma.callBatch.count({ where: { id: batch2.id } }), 0);
+});
 test('search, categories and pagination combine, including invalid page input', async () => {
   await prisma.trainingCourse.update({ where: { id: course.id }, data: { trainingCategory: 'PRODUCT' } });
   const page = await get(admin, '/assignments?q=agentA&category=PRODUCT&page=2');

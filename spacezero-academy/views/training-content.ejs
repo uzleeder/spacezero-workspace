@@ -91,6 +91,10 @@ const notices = { 'open-first': 'Open the material first, then confirm.', 'too-f
   </div></section>
 <% } %>
 
+<% if (isLearner && completion && completion.total === 0 && completion.submitted) { %>
+  <section class="card mt-24" style="margin-bottom:40px" data-training-finished><div class="card-body"><p style="font-weight:500;color:var(--navy-950)">✓ Training finished</p><p class="text-sm text-muted">You went through all the required material. It is completed for you and your supervisor.</p></div></section>
+<% } %>
+
 <% if (canFinish) { %>
   <section class="card mt-24" style="margin-bottom:40px"><div class="card-body row-between"><div><p style="font-weight:500;color:var(--navy-950)">Finished this training?</p><p class="text-sm text-muted">This training has no practice, so you finish it here once you have gone through the material.</p></div><form method="post" action="/training/<%= finishId %>/complete"><button type="submit" class="btn btn-gold">Finish training</button></form></div></section>
 <% } %>
