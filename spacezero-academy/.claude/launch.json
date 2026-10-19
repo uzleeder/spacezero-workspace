@@ -4,7 +4,7 @@
     {
       "name": "spacezero-dev",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["--watch", "server.js"],
+      "runtimeArgs": ["--env-file-if-exists=.env", "--watch", "server.js"],
       "port": 3000
     }
   ]
