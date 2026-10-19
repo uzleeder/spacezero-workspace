@@ -62,6 +62,14 @@ test('after passing every quiz the agent sees "Submit training" (also on the res
   assert.match(page.text, /✓ Completed/);
   assert.equal(await status(), 'IN_PROGRESS', 'passing a practice must not move an unsubmitted course to Completed');
 
+  // My Training says so too: the card is marked "ready to submit" and carries the Submit button itself
+  const mine = await get(agent, '/training?status=inprogress');
+  assert.match(mine.text, /data-ready-notice[^>]*><strong>1 training is ready to submit\./);
+  assert.match(mine.text, /data-ready-badge>All passed — ready to submit</);
+  assert.match(mine.text, new RegExp(`action="/training/${recipient.id}/complete"[^>]*><button[^>]*data-submit-training>Submit training<`));
+  assert.doesNotMatch(mine.text, />Continue</);
+  assert.doesNotMatch((await get(other, '/training')).text, /data-ready-notice/); // nobody else sees it
+
   const done = await post(agent, `/training/${recipient.id}/complete`);
   assert.equal(done.status, 302);
   assert.equal(done.headers.location, '/training');
@@ -75,6 +83,10 @@ test('after passing every quiz the agent sees "Submit training" (also on the res
   assert.equal(await prisma.notification.count({ where: { profileId: agent.id, type: 'training.completed' } }), 1);
   assert.match((await get(agent, `/training-course/${course.id}`)).text, /✓ Training submitted/);
   assert.doesNotMatch((await get(agent, `/training-course/${course.id}`)).text, /<button[^>]*>Submit training</);
+  // ...and it now sits under Completed on My Training, with no "ready to submit" prompt left
+  const completed = await get(agent, '/training?status=completed');
+  assert.match(completed.text, /Submit course/);
+  assert.doesNotMatch(completed.text, /data-ready-notice|data-ready-badge/);
 });
 
 test('submitting again changes nothing: no second certificate, notification or attempt', async () => {

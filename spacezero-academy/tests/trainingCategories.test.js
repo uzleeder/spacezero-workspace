@@ -129,7 +129,10 @@ test('buildMyTraining: status groups, overdue first with the days spelled out, a
   assert.deepEqual(v.statusTabs.map((s) => [s.key, s.count]), [['overdue', 2], ['todo', 3], ['inprogress', 2], ['completed', 1]]);
   assert.deepEqual(v.cards.map((c) => c.row.id), ['B overdue 10d', 'A overdue 3d']); // most overdue first
   assert.deepEqual(v.cards.map((c) => c.overdueText), ['10 days overdue', '3 days overdue']);
-  assert.deepEqual(v.categoryTabs.map((c) => [c.label, c.count]), [['All', 2], ['Product', 1], ['Sales', 1], ['System & Workflow', 0]]);
+  // the legacy training (no category) gets its own chip, so it never vanishes from every filter
+  assert.deepEqual(v.categoryTabs.map((c) => [c.label, c.count]), [['All', 2], ['Product', 1], ['Sales', 1], ['System & Workflow', 0], ['Uncategorized', 0]]);
+  assert.deepEqual(buildMyTraining(list, { status: 'todo', category: 'UNCATEGORIZED' }, now).cards.map((c) => c.row.id), ['H legacy']);
+  assert.equal(buildMyTraining(list.filter((r) => r.assignment.course.trainingCategory), {}, now).categoryTabs.some((c) => c.key === 'UNCATEGORIZED'), false); // no chip when there is nothing to show
   v = buildMyTraining(list, { status: 'overdue', category: 'SALES' }, now);
   assert.deepEqual(v.cards.map((c) => c.row.id), ['B overdue 10d']); assert.equal(v.counts.overdue, 1);
   v = buildMyTraining(list, { status: 'todo' }, now);

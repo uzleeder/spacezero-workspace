@@ -15,7 +15,8 @@ const { createNotification } = require('../lib/notifications');
 router.get('/training', requireSession, async (req, res) => {
   const list = await getMyTrainingList(req.profile.id);
   const view = buildMyTraining(list, { status: typeof req.query.status === 'string' ? req.query.status : '', category: typeof req.query.category === 'string' ? req.query.category : '' });
-  res.render('training', { title: 'My Training', list, view, categoryLabel: trainingCategories.categoryLabel });
+  const ready = await require('../lib/trainingCompletion').readyToSubmitIds(list); // passed everything, only "Submit training" is left
+  res.render('training', { title: 'My Training', list, view, ready, categoryLabel: trainingCategories.categoryLabel });
 });
 
 async function latestAttemptFor(recipientId) {

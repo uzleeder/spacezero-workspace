@@ -38,8 +38,8 @@ function buildMyTraining(list, query = {}, now = new Date()) {
     return { row, group, category, dueDate, overdueText: group === 'overdue' ? overdueText(dueDate, now) : null, retake: group !== 'completed' && (row.status === 'RETAKE_REQUIRED' || row.status === 'FAILED') };
   });
 
-  const category = categories.isCategory(query.category) ? query.category : '';
-  const inCategory = rows.filter((r) => !category || r.category === category);
+  const category = categories.readFilter(query.category); // a category, "UNCATEGORIZED" (trainings that predate categories), or all
+  const inCategory = rows.filter((r) => categories.matches({ trainingCategory: r.category }, category));
   const counts = Object.fromEntries(STATUS_KEYS.map((k) => [k, inCategory.filter((r) => r.group === k).length]));
 
   // No status chosen: land on the first thing that needs attention (Overdue first, then To Do ...).
@@ -47,8 +47,8 @@ function buildMyTraining(list, query = {}, now = new Date()) {
   const status = requested || STATUS_KEYS.find((k) => counts[k] > 0) || 'todo';
 
   const forStatus = rows.filter((r) => r.group === status);
-  const catCounts = Object.fromEntries(categories.KEYS.map((k) => [k, forStatus.filter((r) => r.category === k).length]));
-  const cards = forStatus.filter((r) => !category || r.category === category);
+  const catCounts = Object.fromEntries([...categories.KEYS, 'UNCATEGORIZED'].map((k) => [k, forStatus.filter((r) => categories.matches({ trainingCategory: r.category }, k)).length]));
+  const cards = forStatus.filter((r) => categories.matches({ trainingCategory: r.category }, category));
   const time = (r) => (r.dueDate ? r.dueDate.getTime() : Infinity);
   if (status === 'completed') cards.sort((a, b) => new Date((b.row.latestAttempt && b.row.latestAttempt.completedAt) || 0) - new Date((a.row.latestAttempt && a.row.latestAttempt.completedAt) || 0));
   else cards.sort((a, b) => time(a) - time(b) || new Date(b.row.createdAt) - new Date(a.row.createdAt)); // overdue first = the oldest due date first
@@ -56,7 +56,8 @@ function buildMyTraining(list, query = {}, now = new Date()) {
   return {
     status, category, cards, counts, catCounts, total: forStatus.length,
     statusTabs: STATUSES.map((s) => ({ ...s, count: counts[s.key] })),
-    categoryTabs: [{ key: '', label: 'All', count: forStatus.length }, ...categories.CATEGORIES.map((c) => ({ key: c.key, label: c.short, count: catCounts[c.key] }))],
+    // a training from before categories has none: it gets its own chip (only while one exists) instead of vanishing from every filter
+    categoryTabs: [{ key: '', label: 'All', count: forStatus.length }, ...categories.CATEGORIES.map((c) => ({ key: c.key, label: c.short, count: catCounts[c.key] })), ...(rows.some((r) => !r.category) ? [{ key: 'UNCATEGORIZED', label: 'Uncategorized', count: catCounts.UNCATEGORIZED }] : [])],
   };
 }
 

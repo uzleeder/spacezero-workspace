@@ -4,12 +4,15 @@
 <%
 const href = function (status, category) { return '/training?status=' + status + (category ? '&category=' + category : ''); };
 const when = function (d) { return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); };
+const isReady = function (r) { return typeof ready !== 'undefined' && ready.has(r.id); };
+const readyCount = typeof ready !== 'undefined' ? ready.size : 0;
 const emptyText = { overdue: 'Nothing is overdue. Nice work.', todo: 'Nothing is waiting for you to start.', inprogress: 'Nothing is in progress right now.', completed: 'Completed training will appear here.' };
 %>
 
 <% if (list.length === 0) { %>
   <div class="card mt-24"><div class="card-body"><%- include('partials/empty-state', { title: 'No training assigned yet', description: 'Your admin or supervisor will assign training here.' }) %></div></div>
 <% } else { %>
+  <% if (readyCount > 0) { %><div class="form-alert success mt-24" role="status" data-ready-notice><strong><%= readyCount %> training<%= readyCount === 1 ? ' is' : 's are' %> ready to submit.</strong> You passed everything in <%= readyCount === 1 ? 'it' : 'them' %>. Press <em>Submit training</em> to finish — only then does it move to Completed.</div><% } %>
   <nav class="status-tabs mt-24" aria-label="Training status">
     <% view.statusTabs.forEach(function (s) { %>
       <a href="<%= href(s.key, view.category) %>" class="status-tab<%= s.key === 'overdue' ? ' status-tab--overdue' : '' %><%= view.status === s.key ? ' active' : '' %>" title="<%= s.hint %>" <%- view.status === s.key ? 'aria-current="page"' : '' %>><span><%= s.label %></span><span class="category-count"><%= s.count %></span></a>
@@ -33,6 +36,7 @@ const emptyText = { overdue: 'Nothing is overdue. Nice work.', todo: 'Nothing is
               <span class="badge <%= c.category ? 'badge-navy' : '' %>" data-category-badge><%= categoryLabel(c.category) %></span>
               <% if (c.group === 'overdue') { %><span class="badge badge-danger" data-overdue-badge>Overdue</span><% } %>
               <% if (c.retake) { %><span class="badge badge-danger">Retake required</span><% } %>
+              <% if (isReady(r)) { %><span class="badge badge-success" data-ready-badge>All passed — ready to submit</span><% } %>
             </div>
             <p class="text-sm text-muted" style="margin-top:4px">
               <%= r.assignment.course.modules.length %> module<%= r.assignment.course.modules.length === 1 ? '' : 's' %>
@@ -41,7 +45,9 @@ const emptyText = { overdue: 'Nothing is overdue. Nice work.', todo: 'Nothing is
             </p>
             <% if (c.group === 'overdue') { %><p class="text-sm" style="margin-top:2px"><span class="overdue-label">Overdue — <%= c.overdueText %></span></p><% } %>
           </div>
-          <% if (r.status === 'NOT_STARTED' || r.status === 'RETAKE_REQUIRED') { %>
+          <% if (isReady(r)) { %>
+            <form method="post" action="/training/<%= r.id %>/complete" data-once><button type="submit" class="btn btn-gold btn-sm" data-submit-training>Submit training</button></form>
+          <% } else if (r.status === 'NOT_STARTED' || r.status === 'RETAKE_REQUIRED') { %>
             <form method="post" action="/training/<%= r.id %>/start"><button type="submit" class="btn <%= c.group === 'overdue' ? 'btn-gold' : 'btn-secondary' %> btn-sm"><%= r.status === 'RETAKE_REQUIRED' ? 'Start retake' : 'Start' %></button></form>
           <% } else if (r.status !== 'COMPLETED') { %>
             <a class="btn btn-gold btn-sm" href="/training-course/<%= r.assignment.courseId %>">Continue</a>

@@ -54,6 +54,27 @@ async function submitTraining(recipient) {
   });
 }
 
+/**
+ * Which of the learner's unfinished trainings are READY TO SUBMIT: every required material is finished and every
+ * practice/quiz is passed, so only the Submit press is left. My Training
+ * shows these with their own button, so a learner who passed everything is never left wondering why it is still open.
+ * `list` is getMyTrainingList(); returns a Set of recipient ids. Same rules as the training page and POST /complete.
+ */
+async function readyToSubmitIds(list) {
+  const open = list.filter((r) => r.status !== 'COMPLETED' && r.assignment && r.assignment.course);
+  if (!open.length) return new Set();
+  const courseIds = [...new Set(open.map((r) => r.assignment.courseId))];
+  const assessments = await prisma.assessment.findMany({ where: { courseId: { in: courseIds }, status: 'APPROVED', archivedAt: null }, orderBy: { createdAt: 'asc' } });
+  const { mediaGate } = require('./mediaProgress');
+  const ready = new Set();
+  for (const r of open) {
+    const state = completionFromAssessments(r, assessments.filter((a) => a.courseId === r.assignment.courseId));
+    if (state.submitted || state.total === 0 || !state.passedAll) continue; // a training without practice is finished on its own page
+    if ((await mediaGate(r.profileId, r.assignment.courseId, r.assignment.courseVersion)).unlocked) ready.add(r.id);
+  }
+  return ready;
+}
+
 const startUrl = (assessment) => (assessment.type === 'ROLEPLAY' ? `/assessments/${assessment.id}/roleplay` : `/assessments/${assessment.id}/take`);
 
 /**
@@ -83,4 +104,4 @@ async function practiceFlowFor(profileId, assessment, recipientId) {
   };
 }
 
-module.exports = { completionState, completionFromAssessments, submitTraining, practiceFlowFor, startUrl };
+module.exports = { completionState, completionFromAssessments, submitTraining, practiceFlowFor, readyToSubmitIds, startUrl };
