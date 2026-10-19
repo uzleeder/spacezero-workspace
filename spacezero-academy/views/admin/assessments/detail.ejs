@@ -80,13 +80,14 @@ const parse = function (v, d) { try { return v ? JSON.parse(v) : d; } catch (e) 
       <% if (assessment.questions.length === 0) { %><p class="text-sm text-muted">No questions yet — add one below.</p><% } %>
       <ul class="divide-list">
         <% assessment.questions.forEach(function (q, i) {
-          var options = parse(q.optionsJson, []); var correct = parse(q.correctAnswerJson, q.correctAnswerJson); var skills = parse(q.skillIdsJson, []);
+          var options = parse(q.optionsJson, []); var key = answerKeyOf(q); var correct = key.answers.length === 1 ? key.answers[0] : key.answers; var skills = parse(q.skillIdsJson, []);
           var handEditable = HAND_EDITABLE.includes(q.type); %>
           <li>
             <p style="font-weight:500;color:var(--navy-950)"><%= i + 1 %>. <%= q.prompt %></p>
             <p class="text-sm text-muted" style="margin-top:4px"><%= q.type.replace('_', ' ') %><% if (skills.length) { %> · <%= skills.join(', ') %><% } %></p>
             <% if (options.length) { %><ul style="margin-top:8px;padding-left:20px"><% options.forEach(function (o) { %><li class="text-sm"><%= o %></li><% }); %></ul><% } %>
-            <p class="text-sm mt-16" style="color:var(--green-600, #16a34a)">Correct answer: <%= Array.isArray(correct) ? correct.join(', ') : correct %></p>
+            <p class="text-sm mt-16" style="color:var(--green-600, #16a34a)">Correct answer: <%= key.answers.join(', ') %></p>
+            <% if (key.problem) { %><div class="form-alert error mt-16" role="alert" data-answer-problem><%= key.problem %></div><% } %>
             <% if (q.explanation) { %><p class="text-sm text-muted" style="margin-top:4px"><%= q.explanation %></p><% } %>
             <% var ref = parse(q.sourceRefJson, null); if (ref && ref.title) { %><p class="text-sm text-muted" style="margin-top:4px">Source: <%= ref.title %><%= ref.location ? ', ' + ref.location : '' %></p><% } %>
             <details class="mt-16">
@@ -95,7 +96,7 @@ const parse = function (v, d) { try { return v ? JSON.parse(v) : d; } catch (e) 
                 <div class="field"><label>Question</label><textarea name="prompt" rows="2" maxlength="1000" required><%= q.prompt %></textarea></div>
                 <% if (handEditable && q.type !== 'SHORT_ANSWER' && q.type !== 'TRUE_FALSE') { %>
                   <div class="field mt-16"><label>Answer options (one per line)</label><textarea name="options" rows="4"><%= options.join('\n') %></textarea></div>
-                  <div class="field mt-16"><label>Correct answer<%= q.type === 'MULTI_SELECT' ? 's (one per line)' : '' %> — copy the option exactly</label><textarea name="correctAnswer" rows="2"><%= Array.isArray(correct) ? correct.join('\n') : String(correct).split(',').join(q.type === 'MULTI_SELECT' ? '\n' : ',') %></textarea></div>
+                  <div class="field mt-16"><label>Correct answer<%= q.type === 'MULTI_SELECT' ? 's (one per line)' : '' %> — copy the option exactly</label><textarea name="correctAnswer" rows="2"><%= key.answers.join('\n') %></textarea></div>
                 <% } else if (q.type === 'TRUE_FALSE') { %>
                   <div class="field mt-16"><label>Correct answer</label><select name="correctAnswer"><option value="True" <%= String(correct) === 'True' ? 'selected' : '' %>>True</option><option value="False" <%= String(correct) === 'False' ? 'selected' : '' %>>False</option></select></div>
                 <% } else if (q.type === 'SHORT_ANSWER') { %>

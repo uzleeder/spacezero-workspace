@@ -20,4 +20,14 @@ async function claimSession(profileId, assessmentId, id) {
   return result.count ? prisma.practiceSession.findUnique({ where: { id } }) : null;
 }
 async function releaseSession(id, data) { return prisma.practiceSession.update({ where: { id }, data: { busy: false, ...data } }); }
-module.exports = { openSession, findSession, claimSession, releaseSession };
+/** Waits briefly while another request holds the session (the first of two taps on Submit); returns the row as it then is. */
+async function waitWhileBusy(profileId, assessmentId, id, { timeoutMs = 15000, everyMs = 250 } = {}) {
+  const until = Date.now() + timeoutMs;
+  let row = await findSession(profileId, assessmentId, id);
+  while (row && row.busy && !row.completedAttemptId && Date.now() < until) {
+    await new Promise((resolve) => setTimeout(resolve, everyMs));
+    row = await findSession(profileId, assessmentId, id);
+  }
+  return row;
+}
+module.exports = { openSession, findSession, claimSession, releaseSession, waitWhileBusy };

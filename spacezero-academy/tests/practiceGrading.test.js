@@ -57,3 +57,32 @@ test('skill breakdown averages scores per tagged skill across questions', async 
   assert.equal(graded.skillBreakdown['Objection Handling'], 50); // (100+0)/2
   assert.equal(graded.skillBreakdown['Closing'], 0); // only q2 touches it, which was wrong
 });
+
+// An option may itself contain a comma: the correct answers are a real list, and an older comma-joined key is
+// rebuilt against the options instead of being cut apart at every comma.
+const commaOptions = JSON.stringify(['Seat selection, meals', 'Lounge access', 'Wi-Fi']);
+
+test('MULTI_SELECT with an option that contains a comma grades correctly (list key and older comma-joined key)', async () => {
+  for (const key of [['Seat selection, meals', 'Lounge access'], 'Seat selection, meals,Lounge access']) {
+    const questions = [{ id: 'q1', type: 'MULTI_SELECT', optionsJson: commaOptions, correctAnswerJson: JSON.stringify(key), skillIdsJson: '[]' }];
+    assert.equal((await gradeAttempt(questions, { q1: ['Lounge access', 'Seat selection, meals'] })).overallScore, 100, `key ${JSON.stringify(key)}`);
+    assert.equal((await gradeAttempt(questions, { q1: ['Lounge access'] })).overallScore, 0);
+  }
+});
+
+test('a single checked box is one whole option, never split at its comma', async () => {
+  const questions = [{ id: 'q1', type: 'MULTI_SELECT', optionsJson: commaOptions, correctAnswerJson: JSON.stringify(['Seat selection, meals']), skillIdsJson: '[]' }];
+  assert.equal((await gradeAttempt(questions, { q1: 'Seat selection, meals' })).overallScore, 100);
+});
+
+test('ORDERING steps that contain commas keep their sequence', async () => {
+  const optionsJson = JSON.stringify(['Check dates, cabin and stops', 'Search availability', 'Quote the options']);
+  const questions = [{ id: 'q1', type: 'ORDERING', optionsJson, correctAnswerJson: JSON.stringify('Check dates, cabin and stops,Search availability,Quote the options'), skillIdsJson: '[]' }];
+  assert.equal((await gradeAttempt(questions, { q1: ['Check dates, cabin and stops', 'Search availability', 'Quote the options'] })).overallScore, 100);
+  assert.equal((await gradeAttempt(questions, { q1: ['Search availability', 'Check dates, cabin and stops', 'Quote the options'] })).overallScore, 0);
+});
+
+test('a single-choice key copied with different case or punctuation still matches its option', async () => {
+  const questions = [{ id: 'q1', type: 'MCQ', optionsJson: JSON.stringify(['Check the fare rules first', 'Quote at once']), correctAnswerJson: JSON.stringify('check the fare rules first.'), skillIdsJson: '[]' }];
+  assert.equal((await gradeAttempt(questions, { q1: 'Check the fare rules first' })).overallScore, 100);
+});

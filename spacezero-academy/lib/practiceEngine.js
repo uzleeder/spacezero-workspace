@@ -10,6 +10,7 @@ const { prisma } = require('./prisma');
 const { generateStructured } = require('./gemini');
 const { shuffleOptions } = require('./shuffleOptions');
 const { rulesFor, sourceKindOf } = require('./practiceRules');
+const { fitToOptions } = require('./answerKey');
 
 const QUESTION_TYPES = ['MCQ', 'MULTI_SELECT', 'ORDERING', 'MATCHING', 'SCENARIO', 'SHORT_ANSWER', 'TRUE_FALSE'];
 
@@ -20,18 +21,19 @@ const TYPE_GUIDANCE = {
   PRODUCT_KNOWLEDGE: 'Write questions that require identifying, comparing, or recommending real products (aircraft, cabins, seats, airlines, lounges) covered in the material — comparisons, "which is more appropriate for this traveler", and identification questions. Favor MCQ, MATCHING (product to feature), and SCENARIO ("recommend the best option for this traveler").',
 };
 
-const questionZodSchema = z.object({
-  questions: z.array(z.object({
-    type: z.enum(QUESTION_TYPES),
-    prompt: z.string(),
-    options: z.array(z.string()).optional(),
-    correctAnswer: z.union([z.string(), z.array(z.string())]),
-    explanation: z.string().optional(),
-    skillNames: z.array(z.string()).max(4).optional(),
-    sourceTitle: z.string().optional(),
-    sourceLocation: z.string().optional(),
-  })).min(3).max(15),
+const questionItemZod = z.object({
+  type: z.enum(QUESTION_TYPES),
+  prompt: z.string(),
+  options: z.array(z.string()).optional(),
+  correctAnswer: z.union([z.string(), z.array(z.string())]),
+  explanation: z.string().optional(),
+  skillNames: z.array(z.string()).max(4).optional(),
+  sourceTitle: z.string().optional(),
+  sourceLocation: z.string().optional(),
 });
+const questionZodSchema = z.object({ questions: z.array(questionItemZod).min(3).max(15) });
+// A rewrite of only the questions whose correct answer was not one of their options (see answerableQuestions).
+const repairZodSchema = z.object({ questions: z.array(questionItemZod).min(1).max(15) });
 
 const questionGeminiSchema = {
   type: Type.OBJECT,
@@ -66,6 +68,38 @@ const LEVEL_GUIDANCE = {
 };
 
 /**
+ * The AI's questions with every correct answer fitted to the question's own options (lib/answerKey.js). A
+ * question whose answer matches none of its options could never be answered correctly: the AI is asked once
+ * to rewrite just those, and any it still gets wrong is left out rather than saved.
+ */
+async function answerableQuestions(questions, { systemInstruction, contents }) {
+  const fit = (q) => { const fitted = fitToOptions(q); return fitted.problem ? null : { ...q, correctAnswer: fitted.correctAnswer }; };
+  const result = questions.map(fit);
+  const broken = questions.filter((_q, i) => !result[i]);
+  if (broken.length) {
+    const rewritten = await generateStructured({
+      systemInstruction,
+      contents: [
+        ...contents,
+        { role: 'model', parts: [{ text: JSON.stringify({ questions }) }] },
+        { role: 'user', parts: [{ text: `In these questions the correct answer is not one of the options, so nobody could answer them correctly. Rewrite each one (same type, testing the same thing) so its "correctAnswer" is copied exactly from its own "options". Return only these rewritten questions, in the same order:\n${JSON.stringify(broken)}` }] },
+      ],
+      responseSchema: questionGeminiSchema,
+      zodSchema: repairZodSchema,
+    }).then((r) => r.data.questions).catch(() => []);
+    let next = 0;
+    for (let i = 0; i < result.length; i += 1) {
+      if (result[i]) continue;
+      result[i] = rewritten[next] ? fit(rewritten[next]) : null;
+      next += 1;
+    }
+  }
+  const kept = result.filter(Boolean);
+  if (!kept.length) throw new Error('The AI wrote no question whose correct answer is one of its options. Please retry.');
+  return kept;
+}
+
+/**
  * Generates a QUIZ/TECHNICAL/PROCESS_SIM/PRODUCT_KNOWLEDGE Assessment + its Question rows from
  * an approved TrainingAnalysis, and saves them in DRAFT-reviewable (AI_GENERATED) status.
  */
@@ -81,12 +115,9 @@ async function generateQuestionAssessment({ course, analysis, actor, type, level
     }],
   }];
 
-  const result = await generateStructured({
-    systemInstruction: `${rulesFor({ kind: sourceKindOf(analysis), type })}\n\nYou are writing a ${type.replace('_', ' ')} practice assessment for travel agency employees, based strictly on the training material summarized below. ${TYPE_GUIDANCE[type]} ${focusInstruction} Every question must be answerable from the given material — never invent company rules. For MCQ/MULTI_SELECT/MATCHING/ORDERING, put the answer choices in "options" and the correct one(s) in "correctAnswer" (comma-separate multiple correct answers). Tag each question with the 1-4 most relevant skill names from the provided list where applicable. Where you can, set sourceTitle and sourceLocation to the source and the page, slide, timestamp or section that teaches the answer (from the source map below); leave them empty rather than guessing.`,
-    contents,
-    responseSchema: questionGeminiSchema,
-    zodSchema: questionZodSchema,
-  });
+  const systemInstruction = `${rulesFor({ kind: sourceKindOf(analysis), type })}\n\nYou are writing a ${type.replace('_', ' ')} practice assessment for travel agency employees, based strictly on the training material summarized below. ${TYPE_GUIDANCE[type]} ${focusInstruction} Every question must be answerable from the given material — never invent company rules. For MCQ/MULTI_SELECT/MATCHING/ORDERING, put the answer choices in "options" and the correct one(s) in "correctAnswer", copied exactly from the options (comma-separate multiple correct answers). Tag each question with the 1-4 most relevant skill names from the provided list where applicable. Where you can, set sourceTitle and sourceLocation to the source and the page, slide, timestamp or section that teaches the answer (from the source map below); leave them empty rather than guessing.`;
+  const result = await generateStructured({ systemInstruction, contents, responseSchema: questionGeminiSchema, zodSchema: questionZodSchema });
+  const questions = await answerableQuestions(result.data.questions, { systemInstruction, contents });
 
   return prisma.$transaction(async (tx) => {
     const assessment = await tx.assessment.create({
@@ -105,7 +136,7 @@ async function generateQuestionAssessment({ course, analysis, actor, type, level
       },
     });
 
-    for (const [i, q] of result.data.questions.entries()) {
+    for (const [i, q] of questions.entries()) {
       await tx.question.create({
         data: {
           assessmentId: assessment.id,

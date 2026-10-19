@@ -57,6 +57,7 @@ async function renderReview(res, assessment, extra = {}) {
     config: safeParse(assessment.configJson, {}),
     validation: (() => { const v = safeParse(assessment.configJson, {}) && safeParse(assessment.configJson, {}).validation; return v ? { ...v, stale: v.contentHash !== contentHash(assessment) } : null; })(),
     locked: lockReason(assessment),
+    answerKeyOf: require('../../lib/answerKey').keyFor, // flags a question whose correct answer is not one of its options
     isQuestionSet: QUESTION_ASSESSMENTS.includes(assessment.type),
     isConfigSet: CONFIG_ASSESSMENTS.includes(assessment.type),
     HAND_EDITABLE,

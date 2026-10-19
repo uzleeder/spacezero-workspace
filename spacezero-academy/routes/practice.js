@@ -11,10 +11,11 @@ const { generateText, generateStructured } = require('../lib/gemini');
 const { recordAssessmentAttempt } = require('../lib/practiceAttempts');
 const { z } = require('zod');
 const { Type } = require('@google/genai');
-const { openSession, findSession, claimSession, releaseSession } = require('../lib/practiceSessions');
+const { openSession, findSession, claimSession, releaseSession, waitWhileBusy } = require('../lib/practiceSessions');
 const { mediaGate } = require('../lib/mediaProgress');
 const { displayOptions } = require('../lib/shuffleOptions');
 const { practiceFlowFor } = require('../lib/trainingCompletion');
+const { keyFor } = require('../lib/answerKey');
 
 router.use('/assessments/:id', requireSession, async (req, res, next) => {
   const loaded = await loadAssignedAssessment(req.profile, req.params.id);
@@ -61,14 +62,35 @@ router.get('/assessments/:id/take', requireSession, async (req, res) => {
     const state = JSON.parse(session.dataJson);
     return res.render('practice/process', { title: assessment.title, assessment, session, state, node: config.nodes.find(n => n.id === state.currentId) });
   }
-  res.render('practice/quiz', {
-    title: assessment.title,
-    assessment,
-    // Older quizzes were saved in the AI's order (correct answer first); every learner sees a stirred,
-    // stable order (the same on a refresh). Grading compares the answer text, so order never matters.
-    questions: assessment.questions.map((q) => ({ ...q, options: displayOptions(q, safeParse(q.optionsJson, [])) })),
-  });
+  // One practice session per sitting: its id travels with the form, so the same answers sent twice (a double
+  // tap, a refresh of the result page) show the result already saved instead of recording a second attempt.
+  const session = await openSession(req.profile.id, assessment, {});
+  res.render('practice/quiz', { title: assessment.title, assessment, questions: quizQuestions(assessment), sessionId: session.id, answers: {}, error: null });
 });
+
+// Older quizzes were saved in the AI's order (correct answer first); every learner sees a stirred,
+// stable order (the same on a refresh). Grading compares the answer text, so order never matters.
+const quizQuestions = (assessment) => assessment.questions.map((q) => ({ ...q, options: displayOptions(q, safeParse(q.optionsJson, [])) }));
+
+async function renderQuizResult(res, actor, assessment, recipient, { graded, passed, attempt }) {
+  res.render('practice/quiz-result', {
+    title: `Result — ${assessment.title}`,
+    assessment,
+    questions: assessment.questions.map((q) => ({ ...q, options: safeParse(q.optionsJson, []), correctAnswer: keyFor(q).answers })),
+    graded,
+    passed,
+    attempt,
+    flow: recipient ? await practiceFlowFor(actor.id, assessment, recipient.id).catch(() => null) : null,
+  });
+}
+
+/** The result a finished sitting already has (kept with its session), shown again instead of grading twice. */
+async function renderSavedQuizResult(res, actor, assessment, recipient, row) {
+  const saved = safeParse(row.dataJson, {}) || {};
+  if (!saved.graded) return res.redirect(`/assessments/${assessment.id}/take`);
+  const attempt = (await prisma.trainingAttempt.findFirst({ where: { id: row.completedAttemptId, profileId: actor.id } })) || { score: saved.graded.overallScore, attemptNumber: 1 };
+  return renderQuizResult(res, actor, assessment, recipient, { graded: saved.graded, passed: saved.passed, attempt });
+}
 
 router.post('/assessments/:id/submit', requireSession, async (req, res) => {
   const actor = req.profile;
@@ -83,7 +105,26 @@ router.post('/assessments/:id/submit', requireSession, async (req, res) => {
     answers[q.id] = Array.isArray(raw) ? raw : raw || '';
   }
 
-  const graded = await gradeAttempt(assessment.questions, answers);
+  // A form opened before sittings existed carries no session id: it uses the open sitting (or starts one).
+  const sessionId = typeof req.body.sessionId === 'string' ? req.body.sessionId : (await openSession(actor.id, assessment, {})).id;
+  const showQuiz = (status, error) => res.status(status).render('practice/quiz', { title: assessment.title, assessment, questions: quizQuestions(assessment), sessionId, answers, error });
+  const session = await claimSession(actor.id, assessment.id, sessionId);
+  if (!session) {
+    // The same sitting sent again: once the first submission is saved, its result is shown - never a second attempt.
+    const row = await waitWhileBusy(actor.id, assessment.id, sessionId);
+    if (row && row.completedAttemptId) return renderSavedQuizResult(res, actor, assessment, recipient, row);
+    if (row) return showQuiz(409, 'Your answers are still being graded. Wait a moment, then press Submit again.');
+    return res.redirect(`/assessments/${assessment.id}/take`);
+  }
+  res.on('finish', () => releaseSession(session.id, {}).catch(() => undefined));
+
+  let graded;
+  try {
+    graded = await gradeAttempt(assessment.questions, answers);
+  } catch {
+    // Nothing is saved and nothing is lost: the quiz comes back with every answer still filled in.
+    return showQuiz(503, 'Your written answers could not be graded right now. Nothing was lost — check your answers and press Submit again in a moment.');
+  }
   const passed = graded.overallScore >= assessment.passingScore;
 
   const attempt = recipient
@@ -98,15 +139,9 @@ router.post('/assessments/:id/submit', requireSession, async (req, res) => {
       })
     : { score: graded.overallScore, attemptNumber: 1 };
 
-  res.render('practice/quiz-result', {
-    title: `Result — ${assessment.title}`,
-    assessment,
-    questions: assessment.questions.map((q) => ({ ...q, options: safeParse(q.optionsJson, []), correctAnswer: safeParse(q.correctAnswerJson, null) })),
-    graded,
-    passed,
-    attempt,
-    flow: recipient ? await practiceFlowFor(actor.id, assessment, recipient.id).catch(() => null) : null,
-  });
+  // The sitting is finished; its result stays with it, so the same answers sent again show this result.
+  await releaseSession(session.id, { completedAttemptId: attempt.id || 'completed', dataJson: JSON.stringify({ graded, passed }) });
+  await renderQuizResult(res, actor, assessment, recipient, { graded, passed, attempt });
 });
 
 // ---------------------------------------------------------------------------
@@ -254,12 +289,18 @@ router.post('/assessments/:id/roleplay/finish', requireSession, async (req, res)
   }
 
   const transcriptText = transcript.map((t) => `${t.role === 'agent' ? 'Agent' : 'Customer'}: ${t.text}`).join('\n');
-  const scoring = await generateStructured({
-    systemInstruction: `Score this sales role-play call transcript against these rubric skills: ${(config.rubricSkills || []).join(', ')}. Be a strict, realistic evaluator — do not inflate scores. Give an overall score 0-100 and a 0-100 score per rubric skill, plus 2-4 sentences of specific feedback. ${DEBRIEF_INSTRUCTION}${scorerContext(config) ? `\n${scorerContext(config)}` : ''}`,
-    contents: [{ role: 'user', parts: [{ text: transcriptText }] }],
-    responseSchema: roleplayScoreGeminiSchema,
-    zodSchema: roleplayScoreZodSchema,
-  });
+  let scoring;
+  try {
+    scoring = await generateStructured({
+      systemInstruction: `Score this sales role-play call transcript against these rubric skills: ${(config.rubricSkills || []).join(', ')}. Be a strict, realistic evaluator — do not inflate scores. Give an overall score 0-100 and a 0-100 score per rubric skill, plus 2-4 sentences of specific feedback. ${DEBRIEF_INSTRUCTION}${scorerContext(config) ? `\n${scorerContext(config)}` : ''}`,
+      contents: [{ role: 'user', parts: [{ text: transcriptText }] }],
+      responseSchema: roleplayScoreGeminiSchema,
+      zodSchema: roleplayScoreZodSchema,
+    });
+  } catch {
+    // The conversation stays saved: Finish simply scores it again once the AI is back.
+    return res.status(503).render('practice/roleplay', { title: assessment.title, assessment, config, session, error: 'Scoring is unavailable right now. Your conversation is saved — press Finish again in a moment.' });
+  }
 
   const skillBreakdown = Object.fromEntries(scoring.data.skillScores.map((s) => [s.skill, s.score]));
   const passed = scoring.data.overallScore >= assessment.passingScore;
