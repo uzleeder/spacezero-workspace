@@ -570,6 +570,16 @@ router.get('/employees/:id/training', requireSession, async (req, res) => {
 // Admin only: take ONE assigned training away from this employee (the assignment stays for everyone else;
 // if they were its only recipient the now-empty assignment goes too). Their attempts on it are removed;
 // certificates and skill scores already earned stay.
+router.get('/employees/:id/training/:recipientId/delete', requireSession, async (req, res) => {
+  const actor = req.profile;
+  if (actor.role !== 'ADMIN' || req.impersonation) return res.status(403).render('forbidden');
+  const ctx = await loadEmployeeFor(actor, req.params.id);
+  if (!ctx) return notFound(res);
+  const recipient = await prisma.trainingAssignmentRecipient.findFirst({ where: { id: req.params.recipientId, profileId: ctx.employee.id, assignment: { organizationId: actor.organizationId } }, include: { assignment: { include: { course: true, assignedBy: { select: { fullName: true } } } } } });
+  if (!recipient) return notFound(res);
+  res.render('delete-training-assignment', { title: 'Delete assigned training', assignment: recipient.assignment, employee: ctx.employee, action: `/employees/${ctx.employee.id}/training/${recipient.id}/delete`, returnTo: `/employees/${ctx.employee.id}/training` });
+});
+
 router.post('/employees/:id/training/:recipientId/delete', requireSession, async (req, res) => {
   const actor = req.profile;
   if (actor.role !== 'ADMIN' || req.impersonation) return res.status(403).render('forbidden');

@@ -18,6 +18,54 @@ const trainingCategories = require('../lib/trainingCategories');
 const { hasCapability } = require('../lib/supervisorCapabilities');
 const trainingEmails = require('../lib/trainingEmails');
 const { trainingDeadline, formatDeadline } = require('../lib/trainingDeadline');
+const { containsText } = require('../lib/textSearch');
+
+// All assignments remain reachable, including older ones created by supervisors.
+async function assignmentList(actor, query = {}) {
+  const category = trainingCategories.readCategory(query.category) || '';
+  const q = typeof query.q === 'string' ? query.q.trim().slice(0, 150) : '';
+  const where = {
+    organizationId: actor.organizationId,
+    ...(actor.role === 'ADMIN' ? {} : { assignedById: actor.id }),
+    ...(category ? { course: { trainingCategory: category } } : {}),
+    ...(q ? { OR: [
+      { course: { title: containsText(q) } },
+      { assignedBy: { fullName: containsText(q) } },
+      { assignedBy: { username: containsText(q) } },
+      { recipients: { some: { profile: { fullName: containsText(q) } } } },
+      { recipients: { some: { profile: { username: containsText(q) } } } },
+      { targetTeam: { name: containsText(q) } },
+    ] } : {}),
+  };
+  const total = await prisma.trainingAssignment.count({ where });
+  const pageCount = Math.max(1, Math.ceil(total / 20));
+  const requestedPage = /^\d{1,8}$/.test(String(query.page || '')) ? Number(query.page) : 1;
+  const page = Math.min(pageCount, Math.max(1, requestedPage));
+  const assignments = await prisma.trainingAssignment.findMany({
+    where,
+    include: { course: true, assignedBy: { select: { fullName: true, role: true } }, targetTeam: { select: { name: true } }, recipients: { select: { emailSchedule: true } }, _count: { select: { recipients: true } } },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (page - 1) * 20, take: 20,
+  });
+  const listUrl = (change = {}) => {
+    const values = { q, category, page, ...change };
+    const params = new URLSearchParams();
+    if (values.q) params.set('q', values.q);
+    if (values.category) params.set('category', values.category);
+    if (values.page > 1) params.set('page', values.page);
+    return '/assignments' + (params.size ? '?' + params : '');
+  };
+  return { assignments, q, category, page, pageCount, total, listUrl, CATEGORIES: trainingCategories.CATEGORIES, categoryLabel: trainingCategories.categoryLabel };
+}
+
+function assignmentReturn(value, deleted = false) {
+  const url = new URL('/assignments', 'http://internal');
+  if (typeof value === 'string' && /^\/assignments(?:\?|$)/.test(value) && !/[\\\r\n]/.test(value)) {
+    const supplied = new URL(value, url.origin);
+    for (const key of ['q', 'category', 'page']) if (supplied.searchParams.has(key)) url.searchParams.set(key, supplied.searchParams.get(key));
+  }
+  if (deleted) url.searchParams.set('deleted', '1');
+  return url.pathname + url.search;
+}
 
 // A Supervisor has no assign access at all until an Admin grants 'training.assign' — separate from,
 // and in addition to, the per-course assignPolicy/TrainingAssignGrant check further down (which
@@ -72,24 +120,15 @@ async function formHints(actor, courses, people, query) {
 router.get('/assignments', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm, async (req, res) => {
   const actor = req.profile;
   const { courses, teams, people } = await loadFormData(actor);
-  // Same Training Category as the Catalog and My Training: All / Product / Sales / System & Workflow.
-  const category = trainingCategories.readCategory(req.query.category) || '';
-  const assignments = await prisma.trainingAssignment.findMany({
-    where: { ...(actor.role === 'ADMIN' ? { organizationId: actor.organizationId } : { assignedById: actor.id }), ...(category ? { course: { trainingCategory: category } } : {}) },
-    include: { course: true, recipients: { select: { emailSchedule: true } }, _count: { select: { recipients: true } } },
-    orderBy: { createdAt: 'desc' },
-    take: 20,
-  });
   res.render('assignments', {
     ...(await formHints(actor, courses, people, req.query)),
+    ...(await assignmentList(actor, req.query)),
     title: 'Training',
     courses,
     teams,
     people,
-    assignments,
     allowCompany: actor.role === 'ADMIN',
     error: null,
-    category, CATEGORIES: trainingCategories.CATEGORIES, categoryLabel: trainingCategories.categoryLabel,
     deletedNotice: req.query.deleted === '1' ? 'The assigned training was deleted. It is gone from everyone\'s My Training.' : null,
     emailNotice: req.query.email === 'queued' ? 'Assignment emails queued. Incomplete training gets one reminder a day until it is completed.' : null,
   });
@@ -116,13 +155,7 @@ router.post('/assignments', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm
 
   const rerenderError = async (error) => {
     const { courses, teams, people } = await loadFormData(actor);
-    const assignments = await prisma.trainingAssignment.findMany({
-      where: actor.role === 'ADMIN' ? { organizationId: actor.organizationId } : { assignedById: actor.id },
-      include: { course: true, recipients: { select: { emailSchedule: true } }, _count: { select: { recipients: true } } },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
-    });
-    res.render('assignments', { title: 'Training', courses, teams, people, assignments, allowCompany: actor.role === 'ADMIN', error, formatDeadline, emailNotice: null, category: '', CATEGORIES: trainingCategories.CATEGORIES, categoryLabel: trainingCategories.categoryLabel });
+    res.render('assignments', { title: 'Training', courses, teams, people, ...(await assignmentList(actor)), allowCompany: actor.role === 'ADMIN', error, formatDeadline, emailNotice: null });
   };
 
   if (!parsed.success) return rerenderError('Please complete the assignment form correctly.');
@@ -258,8 +291,16 @@ router.post('/assignments/:id/email', requireRole('ADMIN', 'SUPERVISOR'), mayUse
 // Admin only: delete an assigned training for everyone it was assigned to. It disappears from each
 // person's My Training and their attempts on it go with it; certificates and skill scores already
 // earned stay, and the course itself is untouched. Queued assignment/reminder emails go with it.
+router.get('/assignments/:id/delete', requireRole('ADMIN'), async (req, res) => {
+  if (req.impersonation) return res.status(403).render('forbidden');
+  const assignment = await prisma.trainingAssignment.findFirst({ where: { id: req.params.id, organizationId: req.profile.organizationId }, include: { course: true, assignedBy: { select: { fullName: true } }, _count: { select: { recipients: true } } } });
+  if (!assignment) return res.status(404).render('not-found');
+  res.render('delete-training-assignment', { title: 'Delete assigned training', assignment, employee: null, action: `/assignments/${assignment.id}/delete`, returnTo: assignmentReturn(req.query.returnTo) });
+});
+
 router.post('/assignments/:id/delete', requireRole('ADMIN'), async (req, res) => {
   const actor = req.profile;
+  if (req.impersonation) return res.status(403).render('forbidden');
   const assignment = await prisma.trainingAssignment.findFirst({
     where: { id: req.params.id, organizationId: actor.organizationId },
     include: { course: { select: { title: true } }, _count: { select: { recipients: true } } },
@@ -268,7 +309,7 @@ router.post('/assignments/:id/delete', requireRole('ADMIN'), async (req, res) =>
   const attempts = await prisma.trainingAttempt.count({ where: { recipient: { assignmentId: assignment.id } } });
   await prisma.trainingAssignment.delete({ where: { id: assignment.id } });
   await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'training.assignment_deleted', targetTable: 'TrainingAssignment', targetId: assignment.id, metadata: { course: assignment.course.title, courseId: assignment.courseId, recipients: assignment._count.recipients, attempts } });
-  res.redirect('/assignments?deleted=1');
+  res.redirect(assignmentReturn(req.body.returnTo, true));
 });
 
 module.exports = router;

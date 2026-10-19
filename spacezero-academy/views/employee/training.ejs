@@ -15,7 +15,7 @@
           <div style="display:flex;align-items:center;gap:8px">
             <span class="badge <%= r.status === 'COMPLETED' ? 'badge-success' : r.status === 'RETAKE_REQUIRED' || r.status === 'FAILED' ? 'badge-danger' : r.status === 'IN_PROGRESS' ? 'badge-warning' : '' %>"><%= r.status.replace(/_/g, ' ') %></span>
             <% if (typeof canRemove !== 'undefined' && canRemove) { %>
-            <form method="post" action="/employees/<%= employee.id %>/training/<%= r.id %>/delete" onsubmit="return confirm('Remove this assigned training from <%= employee.fullName.replace(/["'\\]/g, '') %>?\n\nIt disappears from their My Training and their attempts on it are removed. Certificates and skill scores already earned stay. This cannot be undone.')"><button type="submit" class="btn btn-danger btn-sm">Delete</button></form>
+            <form method="get" action="/employees/<%= employee.id %>/training/<%= r.id %>/delete"><button type="submit" class="btn btn-danger btn-sm">Delete</button></form>
             <% } %>
           </div>
         </li>
