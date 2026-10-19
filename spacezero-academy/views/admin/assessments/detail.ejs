@@ -85,6 +85,7 @@ const parse = function (v, d) { try { return v ? JSON.parse(v) : d; } catch (e) 
           <li>
             <p style="font-weight:500;color:var(--navy-950)"><%= i + 1 %>. <%= q.prompt %></p>
             <p class="text-sm text-muted" style="margin-top:4px"><%= q.type.replace('_', ' ') %><% if (skills.length) { %> · <%= skills.join(', ') %><% } %></p>
+            <% var offCatalog = skills.filter(function (s) { return !inCatalog(s); }); if (offCatalog.length) { %><p class="text-sm" style="margin-top:4px;color:var(--amber-700, #b45309)" data-off-catalog>Not in your skill catalog, so results for it do not reach the Skill Graph: <%= offCatalog.join(', ') %></p><% } %>
             <% if (options.length) { %><ul style="margin-top:8px;padding-left:20px"><% options.forEach(function (o) { %><li class="text-sm"><%= o %></li><% }); %></ul><% } %>
             <p class="text-sm mt-16" style="color:var(--green-600, #16a34a)">Correct answer: <%= key.answers.join(', ') %></p>
             <% if (key.problem) { %><div class="form-alert error mt-16" role="alert" data-answer-problem><%= key.problem %></div><% } %>
@@ -139,5 +140,5 @@ const parse = function (v, d) { try { return v ? JSON.parse(v) : d; } catch (e) 
 <% } else if (!isConfigSet) { %>
   <div class="card mt-24" style="margin-bottom:40px"><div class="card-body"><p class="text-sm text-muted">This practice type is a guided process simulation. Use the Settings above for its title, difficulty and instructions.</p></div></div>
 <% } else { %>
-  <div class="card mt-24" style="margin-bottom:40px"><div class="card-header"><h2>Rubric skills evaluated</h2></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:8px"><% (config.rubricSkills || []).forEach(function (s) { %><span class="badge badge-navy"><%= s %></span><% }); %></div></div></div>
+  <div class="card mt-24" style="margin-bottom:40px"><div class="card-header"><h2>Rubric skills evaluated</h2></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:8px"><% (config.rubricSkills || []).forEach(function (s) { %><span class="badge badge-navy"><%= s %></span><% }); %></div><% var offRubric = (config.rubricSkills || []).filter(function (s) { return !inCatalog(s); }); if (offRubric.length) { %><p class="text-sm mt-16" style="color:var(--amber-700, #b45309)" data-off-catalog>Not in your skill catalog, so results for it do not reach the Skill Graph: <%= offRubric.join(', ') %></p><% } %></div></div>
 <% } %>

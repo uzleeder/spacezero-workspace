@@ -11,6 +11,7 @@ const { shuffleOptions } = require('./shuffleOptions');
 const { rulesFor, sourceKindOf } = require('./practiceRules');
 const { QUESTION_TYPES, LEVEL_GUIDANCE, TYPE_GUIDANCE, questionZodSchema, questionGeminiSchema, roleplayZodSchema, roleplayGeminiSchema, safeParse } = require('./practiceEngine');
 const { fitToOptions } = require('./answerKey');
+const { catalogNamesFor, toCatalog } = require('./skillCatalog');
 
 const QUESTION_ASSESSMENTS = ['QUIZ', 'TECHNICAL', 'PROCESS_SIM', 'PRODUCT_KNOWLEDGE'];
 const CONFIG_ASSESSMENTS = ['ROLEPLAY', 'VOICE'];
@@ -77,12 +78,16 @@ async function reopenIfApproved(tx, assessment) {
 async function courseContext(assessment) {
   const course = assessment.course;
   const analysis = course ? await prisma.trainingAnalysis.findUnique({ where: { courseId: course.id } }) : null;
+  // Questions are tagged with the organization's skill catalog names, so their results reach the Skill Graph.
+  const catalog = await catalogNamesFor(course);
   return {
     analysis,
+    catalog,
     title: course ? course.title : assessment.title,
-    text: analysis
-      ? `Critical knowledge: ${analysis.criticalKnowledgeJson}\nPractical behaviors: ${analysis.practicalBehaviorsJson}\nCommon mistakes: ${analysis.commonMistakesJson}\nRelevant skills: ${analysis.extractedSkillsJson}`
-      : '',
+    text: [
+      analysis ? `Critical knowledge: ${analysis.criticalKnowledgeJson}\nPractical behaviors: ${analysis.practicalBehaviorsJson}\nCommon mistakes: ${analysis.commonMistakesJson}\nSkills the material teaches: ${analysis.extractedSkillsJson}` : '',
+      catalog.length ? `Skill catalog (tag questions only with these exact names): ${JSON.stringify(catalog)}` : '',
+    ].filter(Boolean).join('\n'),
   };
 }
 
@@ -91,7 +96,7 @@ async function courseContext(assessment) {
  * `strict` refuses an answer that matches none of the options, so a replacement nobody could answer is never saved;
  * otherwise it is kept as written and Admin review flags it.
  */
-const persistQuestionData = (q, { strict = false } = {}) => {
+const persistQuestionData = (q, { strict = false, catalog = [] } = {}) => {
   const fitted = fitToOptions(q);
   if (fitted.problem && strict) throw Object.assign(new Error('The AI wrote a question whose correct answer is not one of its options. Nothing was changed — try again.'), { userFacing: true });
   return {
@@ -101,7 +106,7 @@ const persistQuestionData = (q, { strict = false } = {}) => {
     optionsJson: q.options ? JSON.stringify(shuffleOptions(q.type, q.options)) : null,
     correctAnswerJson: JSON.stringify(fitted.problem ? q.correctAnswer : fitted.correctAnswer),
     explanation: q.explanation || null,
-    skillIdsJson: JSON.stringify(q.skillNames || []),
+    skillIdsJson: JSON.stringify(toCatalog(q.skillNames || [], catalog)), // the catalog's spelling, so results match a skill
     sourceRefJson: q.sourceTitle ? JSON.stringify({ title: q.sourceTitle, location: q.sourceLocation || '' }) : null,
   };
 };
@@ -118,7 +123,7 @@ async function regenerateQuestion({ assessment, question, instruction }) {
     responseSchema: oneQuestionGemini,
     zodSchema: oneQuestionZod,
   });
-  const data = persistQuestionData(result.data, { strict: true });
+  const data = persistQuestionData(result.data, { strict: true, catalog: ctx.catalog });
   return prisma.$transaction(async (tx) => {
     await tx.question.update({ where: { id: question.id }, data });
     await reopenIfApproved(tx, assessment);
@@ -142,7 +147,7 @@ async function reviseWithPrompt({ assessment, instruction }) {
       zodSchema: roleplayZodSchema,
     });
     await prisma.$transaction(async (tx) => {
-      await tx.assessment.update({ where: { id: assessment.id }, data: { configJson: JSON.stringify({ ...config, ...result.data }) } });
+      await tx.assessment.update({ where: { id: assessment.id }, data: { configJson: JSON.stringify({ ...config, ...result.data, rubricSkills: toCatalog(result.data.rubricSkills, ctx.catalog) }) } });
       await reopenIfApproved(tx, assessment);
     });
     return { changed: 1, kind: 'scenario' };
@@ -162,7 +167,7 @@ async function reviseWithPrompt({ assessment, instruction }) {
   await prisma.$transaction(async (tx) => {
     for (const [i, q] of next.entries()) {
       const existing = assessment.questions[i];
-      const data = { ...persistQuestionData(q), displayOrder: i };
+      const data = { ...persistQuestionData(q, { catalog: ctx.catalog }), displayOrder: i };
       // A question the AI left as it was keeps the order it already has (otherwise every revision would "change" every question).
       if (existing && sameChoices(safeParse(existing.optionsJson, null), q.options)) data.optionsJson = existing.optionsJson;
       if (existing) {

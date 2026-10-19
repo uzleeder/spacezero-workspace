@@ -431,9 +431,13 @@ test('TRAINING: the existing assignment workflow still works and assignments rem
   assert.equal((await get(agent, `/assessments/${v1Assessment.id}/take`)).status, 200);
   // the classic /assignments page also lists this training
   assert.equal((await get(admin, `/assignments?courseId=${src.id}`)).status, 200);
-  // a completed attempt writes SkillEvidence through the deterministic engine (not the AI)
+  // a completed attempt writes SkillEvidence through the deterministic engine (not the AI), against a skill of
+  // the learner's own role: "Sabre Availability" is a Flight Expert skill, so the Travel Agent's result writes none
   v1Attempt = await recordAssessmentAttempt({ actor: agent, assessment: v1Assessment, recipientId: v1Recipient.id, score: 82, passed: true, skillBreakdown: { 'Sabre Availability': 82 } });
-  const evidence = await prisma.skillEvidence.findFirst({ where: { sourceId: v1Attempt.id } });
+  assert.equal(await prisma.skillEvidence.count({ where: { sourceId: v1Attempt.id } }), 0);
+  const expertRecipient = await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId: expert.id, assignmentId: assignment.id } });
+  const expertAttempt = await recordAssessmentAttempt({ actor: expert, assessment: v1Assessment, recipientId: expertRecipient.id, score: 82, passed: true, skillBreakdown: { 'Sabre Availability': 82 } });
+  const evidence = await prisma.skillEvidence.findFirst({ where: { sourceId: expertAttempt.id } });
   assert.equal(evidence.assessmentId, v1Assessment.id); assert.equal(evidence.scoreImpact, 82);
 });
 

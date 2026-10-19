@@ -12,6 +12,7 @@ const { shuffleOptions } = require('./shuffleOptions');
 const { rulesFor, sourceKindOf } = require('./practiceRules');
 const { fitToOptions } = require('./answerKey');
 const { retakeConfig } = require('./courseVersions');
+const { catalogNamesFor, toCatalog } = require('./skillCatalog');
 
 const QUESTION_TYPES = ['MCQ', 'MULTI_SELECT', 'ORDERING', 'MATCHING', 'SCENARIO', 'SHORT_ANSWER', 'TRUE_FALSE'];
 
@@ -108,14 +109,16 @@ async function answerableQuestions(questions, { systemInstruction, contents }) {
  * an approved TrainingAnalysis, and saves them in DRAFT-reviewable (AI_GENERATED) status.
  */
 async function generateQuestionAssessment({ course, analysis, actor, type, level = 3, questionCount = 6, focusSkills = null, status = 'AI_GENERATED', retakeOf = null, version = null }) {
-  const skillNames = focusSkills && focusSkills.length ? focusSkills : safeParse(analysis.extractedSkillsJson, []);
+  // Questions are tagged with the organization's skill catalog names, so their results reach the Skill Graph.
+  const catalog = await catalogNamesFor(course);
+  const skillNames = focusSkills && focusSkills.length ? focusSkills : catalog.length ? catalog : safeParse(analysis.extractedSkillsJson, []);
   const focusInstruction = focusSkills && focusSkills.length
     ? `This is TARGETED RETAKE practice — the learner previously scored poorly on exactly these skills: ${JSON.stringify(focusSkills)}. Write every question to test ONLY these skills, at a HIGHER difficulty than a first attempt (vary the scenarios/wording so it isn't the same question repeated, but it must test the same underlying competency). Do NOT write questions about unrelated skills the learner already demonstrated.`
     : retakeOf ? RETAKE_INSTRUCTION : '';
   const contents = [{
     role: 'user',
     parts: [{
-      text: `Course: ${course.title}\nCritical knowledge: ${analysis.criticalKnowledgeJson}\nPractical behaviors: ${analysis.practicalBehaviorsJson}\nCommon mistakes: ${analysis.commonMistakesJson}\nRelevant skills: ${JSON.stringify(skillNames)}\nSource map: ${JSON.stringify((safeParse(analysis.sourceReferencesJson, {}) || {}).facts || [])}\n\nGenerate ${questionCount} questions at difficulty ${LEVEL_GUIDANCE[level] || LEVEL_GUIDANCE[3]}`,
+      text: `Course: ${course.title}\nCritical knowledge: ${analysis.criticalKnowledgeJson}\nPractical behaviors: ${analysis.practicalBehaviorsJson}\nCommon mistakes: ${analysis.commonMistakesJson}\nRelevant skills (tag questions only with these exact names): ${JSON.stringify(skillNames)}${catalog.length && !(focusSkills && focusSkills.length) ? `\nSkills the material teaches: ${analysis.extractedSkillsJson || '[]'}` : ''}\nSource map: ${JSON.stringify((safeParse(analysis.sourceReferencesJson, {}) || {}).facts || [])}\n\nGenerate ${questionCount} questions at difficulty ${LEVEL_GUIDANCE[level] || LEVEL_GUIDANCE[3]}`,
     }],
   }];
 
@@ -151,7 +154,7 @@ async function generateQuestionAssessment({ course, analysis, actor, type, level
           optionsJson: q.options ? JSON.stringify(shuffleOptions(q.type, q.options)) : null,
           correctAnswerJson: JSON.stringify(q.correctAnswer),
           explanation: q.explanation || null,
-          skillIdsJson: JSON.stringify(q.skillNames || []),
+          skillIdsJson: JSON.stringify(toCatalog(q.skillNames || [], catalog)), // the catalog's spelling, so results match a skill
           sourceRefJson: q.sourceTitle ? JSON.stringify({ title: q.sourceTitle, location: q.sourceLocation || '' }) : null,
           displayOrder: i,
         },
@@ -193,8 +196,13 @@ const CUSTOMER_PERSONALITIES = ['busy executive', 'price-sensitive traveler', 's
  */
 async function generateRoleplayAssessment({ course, analysis, actor, level = 3, focusSkills = null, status = 'AI_GENERATED', type = 'ROLEPLAY', retakeOf = null, version = null }) {
   const personality = CUSTOMER_PERSONALITIES[Math.floor(Math.random() * CUSTOMER_PERSONALITIES.length)];
+  // The rubric uses the organization's skill catalog names, so the role-play's result reaches the Skill Graph.
+  const catalog = await catalogNamesFor(course);
+  const rubricFrom = catalog.length
+    ? `skills copied exactly from this skill catalog: ${JSON.stringify(catalog)}`
+    : 'GENERAL skill categories (from: Opening, Discovery, Listening, Confidence, Call control, Client engagement, Product knowledge, Price presentation, Objection handling, Professionalism, Closing, Next-step creation)';
   const result = await generateStructured({
-    systemInstruction: `${rulesFor({ kind: sourceKindOf(analysis), type })}\n\nYou are designing a realistic client role-play for travel agency employees, based on this training material. The learner plays the travel agent; the AI plays the customer. The customer personality must be: "${personality}". The simulated customer must react naturally and must NOT be artificially easy — ${LEVEL_GUIDANCE[level] || LEVEL_GUIDANCE[3]}. Fill the fields like this: scenarioBrief = ONLY the client situation the learner will read (who is calling and what they ask for; no hints, no technique, no budget). openingLine = the customer's realistic first message. rubricSkills = 3-6 GENERAL skill categories (from: Opening, Discovery, Listening, Confidence, Call control, Client engagement, Product knowledge, Price presentation, Objection handling, Professionalism, Closing, Next-step creation) - never technique-specific wording. hiddenContext = what only the customer knows and reveals gradually: the real budget, the hidden objection, and what unlocks it. expectedTechnique = the technique or behaviour from the training that a good agent would use here and how to recognise it - used only to evaluate the learner afterwards.`,
+    systemInstruction: `${rulesFor({ kind: sourceKindOf(analysis), type })}\n\nYou are designing a realistic client role-play for travel agency employees, based on this training material. The learner plays the travel agent; the AI plays the customer. The customer personality must be: "${personality}". The simulated customer must react naturally and must NOT be artificially easy — ${LEVEL_GUIDANCE[level] || LEVEL_GUIDANCE[3]}. Fill the fields like this: scenarioBrief = ONLY the client situation the learner will read (who is calling and what they ask for; no hints, no technique, no budget). openingLine = the customer's realistic first message. rubricSkills = 3-6 ${rubricFrom} - never technique-specific wording. hiddenContext = what only the customer knows and reveals gradually: the real budget, the hidden objection, and what unlocks it. expectedTechnique = the technique or behaviour from the training that a good agent would use here and how to recognise it - used only to evaluate the learner afterwards.`,
     contents: [{ role: 'user', parts: [{ text: `Course: ${course.title}\nCritical knowledge: ${analysis.criticalKnowledgeJson}\nPractical behaviors: ${analysis.practicalBehaviorsJson}\n${focusSkills?.length ? `Targeted retake: focus the scenario and rubric ONLY on these weak skills: ${JSON.stringify(focusSkills)}. Use a new situation to test the same competencies.` : retakeOf ? RETAKE_INSTRUCTION : ''}` }] }],
     responseSchema: roleplayGeminiSchema,
     zodSchema: roleplayZodSchema,
@@ -212,7 +220,7 @@ async function generateRoleplayAssessment({ course, analysis, actor, level = 3, 
       status,
       createdById: actor.id,
       modelVersion: result.modelVersion,
-      configJson: JSON.stringify({ ...result.data, ...retakeConfig({ focusSkills, retakeOf }) }),
+      configJson: JSON.stringify({ ...result.data, rubricSkills: toCatalog(result.data.rubricSkills, catalog), ...retakeConfig({ focusSkills, retakeOf }) }),
       ...(version ? { version } : {}),
     },
   });

@@ -8,21 +8,23 @@ const { prisma } = require('./prisma');
 const { recomputeSkillScore } = require('./scoring');
 const { evidenceWeight } = require('./scoring');
 const { getSetting } = require('./orgSettings');
+const { skillMatcher } = require('./skillCatalog');
 
 async function recordCallEvidence({ batch, report, approver }) {
   if (batch.mode !== 'INDIVIDUAL_AGENT' || !batch.targetAgentId) return { written: 0, unmatched: [] };
-  const skills = await prisma.skill.findMany({ where: { organizationId: batch.organizationId } });
-  const byName = new Map(skills.map((s) => [s.name.trim().toLowerCase(), s]));
+  // The coached employee's own role decides which catalog skill a shared name ("Aircraft Knowledge") means.
+  const agent = await prisma.profile.findUnique({ where: { id: batch.targetAgentId }, select: { role: true } });
+  const skillIdOf = await skillMatcher(batch.organizationId, agent && agent.role);
   const config = await getSetting(batch.organizationId, 'scoring.config');
   let written = 0;
   const unmatched = [];
   for (const observation of report.skills) {
-    const skill = byName.get(observation.name.trim().toLowerCase());
-    if (!skill) { unmatched.push(observation.name); continue; } // shown to the reviewer, never written against a skill that does not exist
+    const skillId = skillIdOf(observation.name);
+    if (!skillId) { unmatched.push(observation.name); continue; } // shown to the reviewer, never written against a skill that does not exist
     const employeeSkill = await prisma.employeeSkill.upsert({
-      where: { profileId_skillId: { profileId: batch.targetAgentId, skillId: skill.id } },
+      where: { profileId_skillId: { profileId: batch.targetAgentId, skillId } },
       update: {},
-      create: { profileId: batch.targetAgentId, skillId: skill.id },
+      create: { profileId: batch.targetAgentId, skillId },
     });
     await prisma.skillEvidence.create({
       data: {

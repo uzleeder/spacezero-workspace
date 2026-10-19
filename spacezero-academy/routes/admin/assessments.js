@@ -13,6 +13,7 @@ const { lockReason } = require('../../lib/courseVersions');
 const tasks = require('../../lib/aiTasks');
 const plan = require('../../lib/practicePlan');
 const { claim, release } = require('../../lib/inFlightLock');
+const { catalogNamesFor, key: skillKey } = require('../../lib/skillCatalog');
 
 const canManage = requireRole('ADMIN'); // AI Practice review tools are Admin-only
 
@@ -51,7 +52,10 @@ const back = (assessment, q = '') => `/admin/assessments/${assessment.id}${q}`;
 const notFound = (res) => res.status(404).render('not-found', { layout: false });
 
 async function renderReview(res, assessment, extra = {}) {
+  // A skill tag outside the catalog is flagged: its results write no Skill Graph evidence (lib/skillCatalog.js).
+  const catalogKeys = new Set((await catalogNamesFor(assessment.course)).map(skillKey));
   res.render('admin/assessments/detail', {
+    inCatalog: (name) => !catalogKeys.size || catalogKeys.has(skillKey(name)),
     title: assessment.title,
     assessment,
     config: safeParse(assessment.configJson, {}),
@@ -132,7 +136,7 @@ async function withQuestion(req, res) {
   if (!assessment || assessment.status === 'ARCHIVED' || !QUESTION_ASSESSMENTS.includes(assessment.type)) { notFound(res); return {}; }
   const question = req.params.qid ? assessment.questions.find((q) => q.id === req.params.qid) : null;
   if (req.params.qid && !question) { notFound(res); return {}; } // a question ID from another assessment looks like a missing one
-  if (lockReason(assessment)) { renderReview(res.status(409), assessment, { error: lockReason(assessment) }); return {}; }
+  if (lockReason(assessment)) { await renderReview(res.status(409), assessment, { error: lockReason(assessment) }); return {}; }
   return { assessment, question };
 }
 
