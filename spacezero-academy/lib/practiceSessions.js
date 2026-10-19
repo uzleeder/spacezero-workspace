@@ -1,9 +1,19 @@
 'use strict';
 const { prisma } = require('./prisma');
-async function openSession(profileId, assessment, initialData) {
-  const existing = await prisma.practiceSession.findFirst({ where: { profileId, assessmentId: assessment.id, completedAttemptId: null }, orderBy: { createdAt: 'desc' } });
-  if (existing) return existing;
-  return prisma.practiceSession.create({ data: { profileId, assessmentId: assessment.id, dataJson: JSON.stringify(initialData) } });
+// One opening at a time per learner and practice (this app runs as one process): two requests opening the same
+// practice at once - a double tap on a form that carries no session id - share one session instead of each
+// creating its own (and each recording an attempt).
+const opening = new Map();
+function openSession(profileId, assessment, initialData) {
+  const key = `${profileId}:${assessment.id}`;
+  const run = (opening.get(key) || Promise.resolve()).catch(() => undefined).then(async () => {
+    const existing = await prisma.practiceSession.findFirst({ where: { profileId, assessmentId: assessment.id, completedAttemptId: null }, orderBy: { createdAt: 'desc' } });
+    if (existing) return existing;
+    return prisma.practiceSession.create({ data: { profileId, assessmentId: assessment.id, dataJson: JSON.stringify(initialData) } });
+  });
+  opening.set(key, run);
+  run.finally(() => { if (opening.get(key) === run) opening.delete(key); }).catch(() => undefined);
+  return run;
 }
 // A turn is claimed while the AI answers. A claim that was never released (the server restarted, the
 // request died) frees itself after this long, so a practice can never stay stuck.

@@ -63,10 +63,16 @@ test('roleplay retake supplies weak skills to the generator and preserves scenar
   assert.match(prompts.at(-1).contents[0].parts[0].text, /weak skills: \["Discovery"\]/);
 });
 
-test('no weak evidence does not generate a blanket retake', async () => {
-  await prisma.trainingAttempt.updateMany({ where: { assessmentId: assessment.id }, data: { skillBreakdownJson: '{}' } });
+test('with no skill evidence the retake covers the whole practice again - never a dead end', async () => {
+  const original = await prisma.assessment.create({ data: { organizationId: org.id, courseId: course.id, createdById: owner.id, createdVia: 'AI_TRAINING_ANALYSIS', type: 'QUIZ', title: 'No skills tagged', status: 'APPROVED', level: 2 } });
+  await prisma.trainingAttempt.create({ data: { recipientId: recipient.id, profileId: owner.id, assessmentId: original.id, status: 'RETAKE_REQUIRED', skillBreakdownJson: '{}' } });
   const count = prompts.length;
-  const response = await request(app).post(`/assessments/${assessment.id}/remediate`).set('Cookie', cookie);
-  assert.equal(response.headers.location, '/training');
-  assert.equal(prompts.length, count);
+  const response = await request(app).post(`/assessments/${original.id}/remediate`).set('Cookie', cookie);
+  assert.equal(response.status, 302);
+  assert.notEqual(response.headers.location, '/training');
+  const retake = await prisma.assessment.findUnique({ where: { id: response.headers.location.split('/')[2] } });
+  assert.equal(JSON.parse(retake.configJson).retakeOf, original.id);
+  assert.deepEqual(JSON.parse(retake.configJson).focusSkills, []);
+  assert.equal(prompts.length, count + 1);
+  assert.match(prompts.at(-1).systemInstruction, /RETAKE of a practice the learner did not pass/);
 });

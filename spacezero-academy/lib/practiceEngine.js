@@ -11,6 +11,7 @@ const { generateStructured } = require('./gemini');
 const { shuffleOptions } = require('./shuffleOptions');
 const { rulesFor, sourceKindOf } = require('./practiceRules');
 const { fitToOptions } = require('./answerKey');
+const { retakeConfig } = require('./courseVersions');
 
 const QUESTION_TYPES = ['MCQ', 'MULTI_SELECT', 'ORDERING', 'MATCHING', 'SCENARIO', 'SHORT_ANSWER', 'TRUE_FALSE'];
 
@@ -67,6 +68,9 @@ const LEVEL_GUIDANCE = {
   5: 'Level 5 (Difficult Scenario): can the learner handle complications, objections, errors or edge cases?',
 };
 
+// A retake of the whole practice (there were no weak skills to aim at): the same material again, never the same items.
+const RETAKE_INSTRUCTION = 'This is a RETAKE of a practice the learner did not pass. Test the same material again with NEW questions or situations at a HIGHER difficulty than a first attempt - vary the scenarios and wording; never repeat an item word for word.';
+
 /**
  * The AI's questions with every correct answer fitted to the question's own options (lib/answerKey.js). A
  * question whose answer matches none of its options could never be answered correctly: the AI is asked once
@@ -103,11 +107,11 @@ async function answerableQuestions(questions, { systemInstruction, contents }) {
  * Generates a QUIZ/TECHNICAL/PROCESS_SIM/PRODUCT_KNOWLEDGE Assessment + its Question rows from
  * an approved TrainingAnalysis, and saves them in DRAFT-reviewable (AI_GENERATED) status.
  */
-async function generateQuestionAssessment({ course, analysis, actor, type, level = 3, questionCount = 6, focusSkills = null, status = 'AI_GENERATED' }) {
+async function generateQuestionAssessment({ course, analysis, actor, type, level = 3, questionCount = 6, focusSkills = null, status = 'AI_GENERATED', retakeOf = null, version = null }) {
   const skillNames = focusSkills && focusSkills.length ? focusSkills : safeParse(analysis.extractedSkillsJson, []);
   const focusInstruction = focusSkills && focusSkills.length
     ? `This is TARGETED RETAKE practice — the learner previously scored poorly on exactly these skills: ${JSON.stringify(focusSkills)}. Write every question to test ONLY these skills, at a HIGHER difficulty than a first attempt (vary the scenarios/wording so it isn't the same question repeated, but it must test the same underlying competency). Do NOT write questions about unrelated skills the learner already demonstrated.`
-    : '';
+    : retakeOf ? RETAKE_INSTRUCTION : '';
   const contents = [{
     role: 'user',
     parts: [{
@@ -126,13 +130,14 @@ async function generateQuestionAssessment({ course, analysis, actor, type, level
         courseId: course.id,
         createdVia: 'AI_TRAINING_ANALYSIS',
         type,
-        title: focusSkills && focusSkills.length ? `${course.title} — Targeted retake (${focusSkills.join(', ')})` : `${course.title} — ${type.replace('_', ' ')}`,
+        title: focusSkills && focusSkills.length ? `${course.title} — Targeted retake (${focusSkills.join(', ')})` : retakeOf ? `${course.title} — Retake` : `${course.title} — ${type.replace('_', ' ')}`,
         level,
         passingScore: course.passingScore,
         status,
-        configJson: focusSkills?.length ? JSON.stringify({ targetedRetake: true, focusSkills }) : null,
+        configJson: focusSkills?.length || retakeOf ? JSON.stringify(retakeConfig({ focusSkills, retakeOf })) : null,
         createdById: actor.id,
         modelVersion: result.modelVersion,
+        ...(version ? { version } : {}),
       },
     });
 
@@ -186,11 +191,11 @@ const CUSTOMER_PERSONALITIES = ['busy executive', 'price-sensitive traveler', 's
  * Generates a ROLEPLAY Assessment's scenario config (no Question rows — the practice itself is
  * a live turn-based chat scored from the transcript at the end).
  */
-async function generateRoleplayAssessment({ course, analysis, actor, level = 3, focusSkills = null, status = 'AI_GENERATED', type = 'ROLEPLAY' }) {
+async function generateRoleplayAssessment({ course, analysis, actor, level = 3, focusSkills = null, status = 'AI_GENERATED', type = 'ROLEPLAY', retakeOf = null, version = null }) {
   const personality = CUSTOMER_PERSONALITIES[Math.floor(Math.random() * CUSTOMER_PERSONALITIES.length)];
   const result = await generateStructured({
     systemInstruction: `${rulesFor({ kind: sourceKindOf(analysis), type })}\n\nYou are designing a realistic client role-play for travel agency employees, based on this training material. The learner plays the travel agent; the AI plays the customer. The customer personality must be: "${personality}". The simulated customer must react naturally and must NOT be artificially easy — ${LEVEL_GUIDANCE[level] || LEVEL_GUIDANCE[3]}. Fill the fields like this: scenarioBrief = ONLY the client situation the learner will read (who is calling and what they ask for; no hints, no technique, no budget). openingLine = the customer's realistic first message. rubricSkills = 3-6 GENERAL skill categories (from: Opening, Discovery, Listening, Confidence, Call control, Client engagement, Product knowledge, Price presentation, Objection handling, Professionalism, Closing, Next-step creation) - never technique-specific wording. hiddenContext = what only the customer knows and reveals gradually: the real budget, the hidden objection, and what unlocks it. expectedTechnique = the technique or behaviour from the training that a good agent would use here and how to recognise it - used only to evaluate the learner afterwards.`,
-    contents: [{ role: 'user', parts: [{ text: `Course: ${course.title}\nCritical knowledge: ${analysis.criticalKnowledgeJson}\nPractical behaviors: ${analysis.practicalBehaviorsJson}\n${focusSkills?.length ? `Targeted retake: focus the scenario and rubric ONLY on these weak skills: ${JSON.stringify(focusSkills)}. Use a new situation to test the same competencies.` : ''}` }] }],
+    contents: [{ role: 'user', parts: [{ text: `Course: ${course.title}\nCritical knowledge: ${analysis.criticalKnowledgeJson}\nPractical behaviors: ${analysis.practicalBehaviorsJson}\n${focusSkills?.length ? `Targeted retake: focus the scenario and rubric ONLY on these weak skills: ${JSON.stringify(focusSkills)}. Use a new situation to test the same competencies.` : retakeOf ? RETAKE_INSTRUCTION : ''}` }] }],
     responseSchema: roleplayGeminiSchema,
     zodSchema: roleplayZodSchema,
   });
@@ -207,7 +212,8 @@ async function generateRoleplayAssessment({ course, analysis, actor, level = 3, 
       status,
       createdById: actor.id,
       modelVersion: result.modelVersion,
-      configJson: JSON.stringify({ ...result.data, ...(focusSkills?.length ? { targetedRetake: true, focusSkills } : {}) }),
+      configJson: JSON.stringify({ ...result.data, ...retakeConfig({ focusSkills, retakeOf }) }),
+      ...(version ? { version } : {}),
     },
   });
 }

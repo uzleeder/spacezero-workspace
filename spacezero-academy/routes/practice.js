@@ -14,8 +14,11 @@ const { Type } = require('@google/genai');
 const { openSession, findSession, claimSession, releaseSession, waitWhileBusy } = require('../lib/practiceSessions');
 const { mediaGate } = require('../lib/mediaProgress');
 const { displayOptions } = require('../lib/shuffleOptions');
-const { practiceFlowFor } = require('../lib/trainingCompletion');
+const { practiceFlowFor, startUrl } = require('../lib/trainingCompletion');
 const { keyFor } = require('../lib/answerKey');
+const { retakeOf } = require('../lib/courseVersions');
+const { focusSkillsFor, retakeSource, preparedRetake } = require('../lib/retakes');
+const { claim, release } = require('../lib/inFlightLock');
 
 router.use('/assessments/:id', requireSession, async (req, res, next) => {
   const loaded = await loadAssignedAssessment(req.profile, req.params.id);
@@ -29,11 +32,16 @@ async function loadAssignedAssessment(profile, assessmentId) {
     where: { id: assessmentId, organizationId: profile.organizationId, status: 'APPROVED' },
     include: { questions: { orderBy: { displayOrder: 'asc' } }, course: true },
   });
-  if (!assessment || (safeParse(assessment.configJson, {})?.targetedRetake === true && assessment.createdById !== profile.id)) return null;
+  const config = (assessment && safeParse(assessment.configJson, {})) || {};
+  if (!assessment || (config.targetedRetake === true && assessment.createdById !== profile.id)) return null;
   let recipient = null;
   if (assessment.courseId) {
+    // A retake belongs to the assignment of the practice it retakes (same version; an assignment of the whole
+    // training or of that practice). An older retake that does not record its practice accepts any assignment
+    // of the training - otherwise a practice-specific assignment could never open it.
+    const olderRetake = config.targetedRetake === true && !config.retakeOf;
     recipient = await prisma.trainingAssignmentRecipient.findFirst({
-      where: { profileId: profile.id, assignment: { courseId: assessment.courseId, organizationId: profile.organizationId, OR: [{ assessmentId: null }, { assessmentId: assessment.id }], ...(safeParse(assessment.configJson, {})?.targetedRetake === true ? {} : { courseVersion: assessment.version }) } },
+      where: { profileId: profile.id, assignment: { courseId: assessment.courseId, organizationId: profile.organizationId, ...(olderRetake ? {} : { courseVersion: assessment.version, OR: [{ assessmentId: null }, { assessmentId: config.retakeOf || assessment.id }] }) } },
       orderBy: { createdAt: 'desc' },
       include: { assignment: true },
     });
@@ -333,9 +341,14 @@ router.post('/assessments/:id/roleplay/finish', requireSession, async (req, res)
 
 // ---------------------------------------------------------------------------
 // Smart Retake (spec section 9): identify WHY the learner failed from the last
-// attempt's skill breakdown and generate targeted remediation for only the weak
-// skills, at a higher level — never a blanket repeat of the whole assessment.
+// attempt's skill breakdown and generate targeted remediation for the weak skills
+// (lib/retakes.js), at a higher level. Passing it passes the practice it retakes.
 // ---------------------------------------------------------------------------
+
+/** Why no retake opened, with the ways forward: try again, retake the practice as it is, or go back. */
+function renderRetakeProblem(res, assessment, status, message) {
+  return res.status(status).render('practice/retake-unavailable', { title: `Retake — ${assessment.title}`, assessment, message, practiceUrl: startUrl(assessment) });
+}
 
 router.post('/assessments/:id/remediate', requireSession, async (req, res) => {
   const actor = req.profile;
@@ -349,34 +362,37 @@ router.post('/assessments/:id/remediate', requireSession, async (req, res) => {
   });
   if (!lastAttempt || lastAttempt.status !== 'RETAKE_REQUIRED') return res.redirect('/training');
 
-  const breakdown = safeParse(lastAttempt.skillBreakdownJson, {});
-  const focusSkills = Object.entries(breakdown || {}).filter(([, score]) => typeof score === 'number' && Number.isFinite(score) && score >= 0 && score < assessment.passingScore).map(([skill]) => skill);
-  if (!focusSkills.length) return res.redirect('/training');
+  // A retake of a retake still stands in for the same original practice.
+  const originalId = retakeOf(assessment) || assessment.id;
+  const ready = await preparedRetake(actor, assessment, originalId, lastAttempt);
+  if (ready) return res.redirect(startUrl(ready));
+  const lockKey = `retake:${actor.id}:${originalId}`;
+  if (!claim(lockKey)) return renderRetakeProblem(res, assessment, 409, 'Your retake is already being prepared. Wait a moment, then press "Try again" to open it.');
+  try {
+    const focusSkills = focusSkillsFor(safeParse(lastAttempt.skillBreakdownJson, {}), assessment.passingScore);
+    const course = await prisma.trainingCourse.findUnique({ where: { id: assessment.courseId }, include: { analysis: true, modules: true } });
+    if (!course) return res.status(404).render('not-found', { layout: false });
+    // Written from the learner's own version of the material, stamped with that version (its material gate and assignment).
+    const version = loaded.recipient ? loaded.recipient.assignment.courseVersion : assessment.version;
+    const source = retakeSource(course, assessment, version);
+    const common = { course, analysis: source, actor, level: Math.min(5, (assessment.level || 3) + 1), focusSkills: focusSkills.length ? focusSkills : null, status: 'APPROVED', retakeOf: originalId, version };
+    let newAssessment;
+    try {
+      newAssessment = assessment.type === 'PROCESS_SIM' && safeParse(assessment.configJson, {}).nodes
+        ? await require('../lib/processSimulation').generateProcessAssessment(common)
+        : ['ROLEPLAY', 'VOICE'].includes(assessment.type)
+        ? await generateRoleplayAssessment({ ...common, type: assessment.type })
+        : await generateQuestionAssessment({ ...common, type: assessment.type, questionCount: Math.min(15, Math.max(3, focusSkills.length ? focusSkills.length * 2 : assessment.questions.length)) });
+    } catch {
+      return renderRetakeProblem(res, assessment, 503, 'Your retake could not be prepared right now. Nothing was lost — press "Try again" in a moment, or retake the practice as it is.');
+    }
 
-  const course = await prisma.trainingCourse.findUnique({ where: { id: assessment.courseId }, include: { analysis: true } });
-  if (!course || !course.analysis) return res.redirect('/training');
-
-  const nextLevel = Math.min(5, (assessment.level || 3) + 1);
-  const newAssessment = assessment.type === 'PROCESS_SIM' && safeParse(assessment.configJson, {}).nodes
-    ? await require('../lib/processSimulation').generateProcessAssessment({ course, analysis: course.analysis, actor, level: nextLevel, focusSkills, status: 'APPROVED' })
-    : ['ROLEPLAY', 'VOICE'].includes(assessment.type)
-    ? await generateRoleplayAssessment({ course, analysis: course.analysis, actor, level: nextLevel, focusSkills, status: 'APPROVED', type: assessment.type })
-    : await generateQuestionAssessment({
-        course,
-        analysis: course.analysis,
-        actor,
-        type: assessment.type,
-        level: nextLevel,
-        questionCount: Math.min(15, Math.max(3, focusSkills.length * 2)),
-        focusSkills,
-        status: 'APPROVED',
-      });
-
-  // Targeted retake practice the learner asks for after failing is auto-approved — it is
-  // scoped to skills they already have real evidence on, not new company-wide training that
-  // needs Admin/Supervisor review before assignment.
-
-  res.redirect(assessment.type === 'ROLEPLAY' ? `/assessments/${newAssessment.id}/roleplay` : `/assessments/${newAssessment.id}/take`);
+    // Retake practice the learner asks for after failing is auto-approved — it is scoped to their own
+    // result on a practice they were assigned, not new company-wide training that needs review.
+    res.redirect(startUrl(newAssessment));
+  } finally {
+    release(lockKey);
+  }
 });
 
 const voiceUpload = require('multer')({ storage: require('multer').memoryStorage(), limits: { fileSize: 20 * 1024 * 1024, files: 1 } });

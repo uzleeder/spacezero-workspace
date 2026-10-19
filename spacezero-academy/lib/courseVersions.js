@@ -16,6 +16,10 @@ const { createNotification } = require('./notifications');
 
 const safe = (v, fallback) => { try { return v ? JSON.parse(v) : fallback; } catch { return fallback; } };
 const isTargetedRetake = (a) => safe(a.configJson, {}) && safe(a.configJson, {}).targetedRetake === true;
+/** The practice a learner's retake stands in for (passing the retake passes it); null otherwise - older retakes did not record it. */
+const retakeOf = (a) => (isTargetedRetake(a) && safe(a.configJson, {}).retakeOf) || null;
+/** The configJson marks of a learner's retake: aimed at weak skills, or (with none to aim at) the whole practice again. */
+const retakeConfig = ({ focusSkills = null, retakeOf: of = null } = {}) => (focusSkills?.length || of ? { targetedRetake: true, ...(of ? { retakeOf: of } : {}), focusSkills: focusSkills || [] } : {});
 
 /** The learning material of one version: added on or before it and not yet removed. */
 const modulesFor = (modules, version) => (modules || []).filter((m) => (m.addedInVersion || 1) <= version && (m.removedInVersion == null || m.removedInVersion > version));
@@ -266,7 +270,7 @@ async function restoreSource(actor, course) {
 }
 
 module.exports = {
-  liveVersion, modulesFor, learnerVersion, draftWhere, publishedWhere, packageComponents, lockReason, isTargetedRetake,
+  liveVersion, modulesFor, learnerVersion, draftWhere, publishedWhere, packageComponents, lockReason, isTargetedRetake, retakeOf, retakeConfig,
   approvePackage, revokeApproval, sendBlocker, sendToTraining, createNewVersion, discardDraftVersion, versionHistory,
   deletionPolicy, archiveSource, restoreSource, getSetting,
   submitForApproval, requestChanges, reviewHistory,

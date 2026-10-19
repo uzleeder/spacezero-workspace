@@ -21,6 +21,7 @@ const { prisma } = require('../lib/prisma');
 const { generateToken } = require('../lib/tokens');
 const { generateQuestionAssessment } = require('../lib/practiceEngine');
 const { readQuestionForm } = require('../lib/practiceReview');
+const { openSession } = require('../lib/practiceSessions');
 const app = require('../server');
 
 let org, admin; const cookies = {}; let n = 0;
@@ -128,6 +129,15 @@ test('quiz: the same sitting submitted twice at once, or again from a refreshed 
   assert.notEqual(again, sessionId);
   await post(learner, `/assessments/${a.id}/submit`, { sessionId: again, [`q_${qs[0].id}`]: 'Wrong' });
   assert.equal(await attemptsOf(a), 2);
+});
+
+test('two requests opening the same practice at once share ONE sitting (a form without a sitting id sent twice)', async () => {
+  const c = await course();
+  const { a } = await practice(c.id, { questions: [{ type: 'MCQ', options: ['Right', 'Wrong'], correct: 'Right' }] });
+  const learner = await learnerOn(c.id);
+  const [first, second] = await Promise.all([openSession(learner.id, a, {}), openSession(learner.id, a, {})]);
+  assert.equal(first.id, second.id);
+  assert.equal(await prisma.practiceSession.count({ where: { assessmentId: a.id, profileId: learner.id } }), 1);
 });
 
 test('the Admin question editor saves several correct answers as a list, so an option with a comma stays whole', () => {

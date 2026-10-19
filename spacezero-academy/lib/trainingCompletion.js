@@ -4,24 +4,51 @@
 // and whether the training has been submitted (finished) yet. One source for the training page (which
 // shows the "Submit training" button) and for POST /training/:id/complete (which enforces it).
 const { prisma } = require('./prisma');
+const { retakeOf } = require('./courseVersions');
 
 const safeParse = (value, fallback) => { try { return value ? JSON.parse(value) : fallback; } catch { return fallback; } };
+
+/**
+ * The practice an older retake (made before retakes recorded it) stands in for: the practice of the same kind
+ * the learner had most recently failed when the retake was made - the retake was asked for from that result.
+ */
+function olderRetakeOriginal(retake, practices, attempts) {
+  let found = null;
+  for (const practice of practices) {
+    if (practice.type !== retake.type) continue;
+    for (const t of attempts) {
+      if (t.assessmentId !== practice.id || t.status !== 'RETAKE_REQUIRED' || new Date(t.createdAt) > new Date(retake.createdAt)) continue;
+      if (!found || new Date(t.createdAt) > found.at) found = { id: practice.id, at: new Date(t.createdAt) };
+    }
+  }
+  return found ? found.id : null;
+}
 
 /** recipient: a TrainingAssignmentRecipient loaded with { assignment, attempts }. */
 async function completionState(recipient) {
   const { assignment } = recipient;
   const assessments = await prisma.assessment.findMany({
-    where: { courseId: assignment.courseId, status: 'APPROVED', archivedAt: null, version: assignment.courseVersion, ...(assignment.assessmentId ? { id: assignment.assessmentId } : {}) },
+    where: {
+      courseId: assignment.courseId, status: 'APPROVED', archivedAt: null,
+      // the practices of the assigned version, and the learner's retakes of them (see completionFromAssessments)
+      OR: [{ version: assignment.courseVersion, ...(assignment.assessmentId ? { id: assignment.assessmentId } : {}) }, { createdById: recipient.profileId, configJson: { contains: 'targetedRetake' } }],
+    },
     orderBy: { createdAt: 'asc' },
   });
   return completionFromAssessments(recipient, assessments);
 }
 
 // Also used by the email worker, which already loaded the course's assessments.
+// A learner's retake of a practice (Smart Retake) stands in for that practice: passing the retake passes it,
+// and its attempts count towards the required attempts. Both attempts stay in the history.
 function completionFromAssessments(recipient, assessments) {
   const { assignment } = recipient;
-  const rows = assessments.filter((a) => a.status === 'APPROVED' && !a.archivedAt && a.version === assignment.courseVersion && (!assignment.assessmentId || a.id === assignment.assessmentId) && !safeParse(a.configJson, {}).targetedRetake).map((assessment) => {
-    const finished = recipient.attempts.filter((t) => t.assessmentId === assessment.id && t.completedAt);
+  const practices = assessments.filter((a) => a.status === 'APPROVED' && !a.archivedAt && a.version === assignment.courseVersion && (!assignment.assessmentId || a.id === assignment.assessmentId) && !safeParse(a.configJson, {}).targetedRetake);
+  const retakes = assessments.filter((a) => a.status === 'APPROVED' && !a.archivedAt && a.createdById === recipient.profileId && safeParse(a.configJson, {}).targetedRetake);
+  const retakeIdsOf = (id) => retakes.filter((a) => (retakeOf(a) || olderRetakeOriginal(a, practices, recipient.attempts)) === id).map((a) => a.id);
+  const rows = practices.map((assessment) => {
+    const ids = new Set([assessment.id, ...retakeIdsOf(assessment.id)]);
+    const finished = recipient.attempts.filter((t) => ids.has(t.assessmentId) && t.completedAt);
     const needed = Math.max(assessment.passingScore, assignment.minimumScore);
     const passed = finished.length >= assignment.requiredAttempts && finished.some((t) => t.status === 'COMPLETED' && t.score !== null && t.score >= needed);
     return { assessment, passed };
@@ -61,10 +88,12 @@ const startUrl = (assessment) => (assessment.type === 'ROLEPLAY' ? `/assessments
  * which practice comes next (the first one not yet completed after this one, else any earlier one still open),
  * how many are completed, and whether that was the last. A practice counts as Completed when it is passed -
  * the same rule that decides whether the training can be submitted; nothing about scoring, passing or retakes
- * changes. Returns null for practice that is not part of the training's sequence (e.g. a targeted retake).
+ * changes. A retake takes the place of the practice it retakes; null for practice that is not part of the
+ * training's sequence (e.g. an older retake that does not record which practice it retakes).
  */
 async function practiceFlowFor(profileId, assessment, recipientId) {
   if (!assessment || !assessment.courseId) return null;
+  if (retakeOf(assessment)) assessment = (await prisma.assessment.findUnique({ where: { id: retakeOf(assessment) } })) || assessment;
   const recipient = await prisma.trainingAssignmentRecipient.findFirst({ where: { ...(recipientId ? { id: recipientId } : {}), profileId, assignment: { courseId: assessment.courseId, courseVersion: assessment.version, OR: [{ assessmentId: null }, { assessmentId: assessment.id }] } }, orderBy: { createdAt: 'desc' }, include: { assignment: true, attempts: true } });
   if (!recipient) return null;
   const state = await completionState(recipient);
