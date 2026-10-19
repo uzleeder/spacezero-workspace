@@ -254,7 +254,7 @@ router.post('/employees/new', requireAdmin, async (req, res) => {
   catch {
     await prisma.invitation.updateMany({ where: { profileId: profile.id }, data: { status: 'REVOKED' } });
     await logAudit({ organizationId: admin.organizationId, actorId: admin.id, action: 'email.invitation_failed', targetId: profile.id });
-    return res.status(503).render('error', { layout: false, message: 'Account created, but invitation delivery failed. Configure email and resend the invitation from Employees.' });
+    return res.status(503).render('error', { layout: false, message: 'Account created, but invitation delivery failed. Configure email and resend the invitation from Employees.', action: { label: 'Open Employees', href: '/admin/employees' } });
   }
   await logAudit({ organizationId: admin.organizationId, actorId: admin.id, action: 'email.invitation_sent', targetId: profile.id });
   return res.redirect('/admin/employees');
@@ -304,7 +304,7 @@ router.post('/employees/invite-pending', requireAdmin, async (req, res) => {
     orderBy: { fullName: 'asc' },
   });
   if (!isEmailConfigured() && process.env.NODE_ENV === 'production') {
-    return res.status(503).render('error', { layout: false, message: 'Email delivery is not configured, so invitations cannot be sent.' });
+    return res.status(503).render('error', { layout: false, message: 'Email delivery is not configured, so invitations cannot be sent.', action: { label: 'Open Employees', href: '/admin/employees' } });
   }
   const origin = process.env.APP_ORIGIN || `${req.protocol}://${req.get('host')}`;
   const results = [];

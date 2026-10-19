@@ -74,6 +74,7 @@ app.use(express.json({ limit: '256kb' }));
 app.use(cookieParser());
 app.use(require('./lib/sensitiveRateLimit').sensitiveRateLimit);
 
+app.use(require('./lib/errorPages').friendlyErrors); // every refusal a browser receives is the branded page, not a bare line of text
 app.use(attachProfile);
 app.use(require('./lib/privateUploads').privateUploads);
 app.use('/static/uploads', express.static(require('./lib/uploadRoot').UPLOAD_ROOT, { dotfiles: 'deny', fallthrough: false, cacheControl: false, setHeaders: (res) => res.setHeader('Cache-Control', 'private, max-age=600') })); // avatars/thumbnails: the viewer's own browser may reuse them for a few minutes (each fetch costs an authorization query)
@@ -182,27 +183,10 @@ if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
 // lib/readyStandards.js). Not in tests, which build their own data.
 if (process.env.NODE_ENV !== 'test') setImmediate(() => { require('./lib/readyStandards').provisionAllOrganizations(); });
 
-app.use((req, res) => {
-  res.status(404).render('not-found', { layout: false });
-});
+app.use(require('./lib/errorPages').handleNotFound);
 
-// eslint-disable-next-line no-unused-vars
-app.use((err, req, res, next) => {
-  // A file that is not on disk (an avatar or thumbnail whose upload is gone) is simply "not found" - it used to be
-  // reported as a server error (HTTP 500 and an error page where an image was expected) on every page that showed it.
-  const status = Number(err && (err.status || err.statusCode));
-  if (status === 404 || (err && err.code === 'ENOENT')) {
-    if (req.path.startsWith('/static/')) return res.status(404).end();
-    return res.status(404).render('not-found', { layout: false });
-  }
-  // Bad requests the framework itself rejected (malformed body, body too large ...) are the caller's mistake, not ours.
-  if (status >= 400 && status < 500) {
-    if (req.path.startsWith('/static/')) return res.status(status).end();
-    return res.status(status).render('error', { layout: false, message: status === 413 ? 'That upload is too large.' : 'That request could not be understood. Please try again.' });
-  }
-  console.error(err);
-  res.status(500).render('error', { layout: false, message: 'Something went wrong. Please try again.' });
-});
+// Unexpected errors (and a missing file, or a request the framework rejected) - see lib/errorPages.js.
+app.use(require('./lib/errorPages').handleError);
 
 if (require.main === module) {
   // Prisma's query engine connects lazily on its first query by default, so without this the

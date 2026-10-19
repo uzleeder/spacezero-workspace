@@ -2,6 +2,10 @@
   // Shared look for every standalone error page (403/404/500) — the same branded card used for
   // sign-in, instead of a bare message floating in an empty page. `tone` (passed by the caller)
   // picks the icon color: 'danger' for something blocked/broken, 'muted' for a plain "not found".
+  // Ways out: an optional primary `action` ({ label, href }) for the obvious next step, "Go back" to the page the
+  // person came from (`backUrl`, set by lib/errorPages.js), and always the dashboard.
+  const next = (typeof action !== 'undefined' && action && action.href) ? action : null;
+  const back = (typeof backUrl !== 'undefined' && backUrl) ? backUrl : null;
 %>
 <div class="auth-shell">
   <div class="auth-box error-box">
@@ -11,6 +15,11 @@
     <div class="icon-circle <%= tone %> error-icon"><%- iconSvg %></div>
     <h1><%= errorTitle %></h1>
     <p class="subtitle"><%= errorMessage %></p>
-    <a href="<%= typeof backHref !== 'undefined' ? backHref : '/dashboard' %>" class="btn btn-gold mt-24" style="width:100%"><%= typeof backLabel !== 'undefined' ? backLabel : 'Back to dashboard' %></a>
+    <% if (typeof reference !== 'undefined' && reference) { %><p class="text-sm text-muted" style="margin-top:12px">Reference: <strong><%= reference %></strong></p><% } %>
+    <div class="error-actions" style="display:flex;flex-direction:column;gap:10px;margin-top:24px">
+      <% if (next) { %><a href="<%= next.href %>" class="btn btn-gold" style="width:100%" data-error-action><%= next.label %></a><% } %>
+      <% if (back) { %><a href="<%= back %>" class="btn <%= next ? 'btn-secondary' : 'btn-gold' %>" style="width:100%" data-error-back>Go back</a><% } %>
+      <a href="/dashboard" class="btn <%= (next || back) ? 'btn-secondary' : 'btn-gold' %>" style="width:100%">Back to dashboard</a>
+    </div>
   </div>
 </div>

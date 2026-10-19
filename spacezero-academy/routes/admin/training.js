@@ -305,7 +305,7 @@ router.post('/training/:id/send-to-training', adminOnly, async (req, res) => {
   if (!course) return res.status(404).render('not-found', { layout: false });
   if (!canEditCourse(actor, course)) return res.status(403).render('forbidden');
   const sent = await versions.sendToTraining(actor, course);
-  if (!sent.ok) return res.status(409).render('error', { layout: false, message: sent.error });
+  if (!sent.ok) return res.status(409).render('error', { layout: false, message: sent.error, action: { label: 'Open it in AI Practice', href: `/ai-practice/${course.id}?step=training` } });
   res.redirect('/admin/training');
 });
 
@@ -383,7 +383,7 @@ router.post('/training/:id/analysis/approve', adminOnly, async (req, res) => {
   const course = await prisma.trainingCourse.findFirst({ where: { id: req.params.id, organizationId: actor.organizationId }, include: { analysis: true } });
   if (!course || !course.analysis) return res.status(404).render('not-found', { layout: false });
   if (!canEditCourse(actor, course)) return res.status(403).render('forbidden');
-  if (course.analysis.status !== 'READY_FOR_REVIEW') return res.status(400).render('error', { layout: false, message: 'This analysis is not ready to approve yet.' });
+  if (course.analysis.status !== 'READY_FOR_REVIEW') return res.status(400).render('error', { layout: false, message: 'This analysis is not ready to approve yet.', action: { label: 'Open the analysis', href: `/ai-practice/${course.id}?step=analysis` } });
   const moved = await prisma.trainingAnalysis.updateMany({ where: { id: course.analysis.id, status: 'READY_FOR_REVIEW' }, data: { status: 'APPROVED', approvedById: actor.id, approvedAt: new Date() } });
   if (moved.count) await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'training.analysis_approved', targetTable: 'TrainingCourse', targetId: course.id });
   res.redirect(`/ai-practice/${course.id}?step=practice`);
