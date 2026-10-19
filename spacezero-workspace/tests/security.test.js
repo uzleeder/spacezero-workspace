@@ -44,7 +44,7 @@ before(async () => {
     });
   });
   await new Promise(resolve => smtp.listen(0,'127.0.0.1',resolve));
-  Object.assign(process.env, { SMTP_HOST: '127.0.0.1', SMTP_PORT: String(smtp.address().port), SMTP_FROM: 'academy@example.invalid', APP_ORIGIN: 'http://localhost:3000' });
+  Object.assign(process.env, { SMTP_HOST: '127.0.0.1', SMTP_PORT: String(smtp.address().port), SMTP_FROM: 'workspace@example.invalid', APP_ORIGIN: 'http://localhost:3000' });
   delete process.env.SMTP_USER; delete process.env.SMTP_PASSWORD;
   org = await prisma.organization.create({ data: { name: 'Security fixture' } });
   foreignOrg = await prisma.organization.create({ data: { name: 'Foreign fixture' } });

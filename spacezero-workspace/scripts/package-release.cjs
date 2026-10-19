@@ -88,7 +88,7 @@ function build(root = ROOT) {
   for (const rel of result.files) zip.addLocalFile(path.join(root, rel), path.posix.dirname(rel) === '.' ? '' : path.posix.dirname(rel));
   const dist = path.join(root, 'dist');
   fs.mkdirSync(dist, { recursive: true });
-  const target = path.join(dist, `spacezero-academy-${new Date().toISOString().slice(0, 10)}.zip`);
+  const target = path.join(dist, `spacezero-workspace-${new Date().toISOString().slice(0, 10)}.zip`);
   zip.writeZip(target);
   return { target, count: result.files.length };
 }

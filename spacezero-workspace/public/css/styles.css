@@ -672,7 +672,7 @@ html[data-theme="dark"] [style*="color:var(--navy-950)"], html[data-theme="dark"
 html[data-theme="dark"] [style*="color:var(--gold-600)"], html[data-theme="dark"] [style*="color: var(--gold-600)"] { color: #e8bb90 !important; }
 
 /* ---------------------------------------------------------------------------
-   Unified brand mark (icon box + "SpaceZero / ACADEMY" wordmark) — one
+   Unified brand mark (icon box + "SpaceZero / WORKSPACE" wordmark) — one
    partial, two surface variants, used identically in the sidebar, every
    auth page, and the certificate.
    ------------------------------------------------------------------------- */

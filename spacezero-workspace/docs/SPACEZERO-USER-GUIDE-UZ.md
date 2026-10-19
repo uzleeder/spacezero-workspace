@@ -1,8 +1,8 @@
-# SpaceZero Academy — foydalanish va boshqaruv qo‘llanmasi
+# SpaceZero Workspace — foydalanish va boshqaruv qo‘llanmasi
 
 Assalomu alaykum, Ali!
 
-Quyida SpaceZero Academy platformasidan foydalanish, xodimlarni ishga tayyorlash va trening jarayonini boshqarish bo‘yicha batafsil qo‘llanma keltirilgan. Qo‘llanma loyihadagi 2026-yil 29-sentabr holatidagi interfeys va kod asosida yozildi. Menyular foydalanuvchi roli, berilgan huquqlar va unga biriktirilgan ma’lumotlarga qarab farq qiladi.
+Quyida SpaceZero Workspace platformasidan foydalanish, xodimlarni ishga tayyorlash va trening jarayonini boshqarish bo‘yicha batafsil qo‘llanma keltirilgan. Qo‘llanma loyihadagi 2026-yil 29-sentabr holatidagi interfeys va kod asosida yozildi. Menyular foydalanuvchi roli, berilgan huquqlar va unga biriktirilgan ma’lumotlarga qarab farq qiladi.
 
 Platforma manzili: https://workspace.spacezero.uz
 
@@ -142,10 +142,10 @@ Kundalik nazorat: bajarilmagan Setup, ochiq muammolar, muddati o‘tgan trening,
 
 ## 15. Email va ishga tushirish holati
 
-Email jo‘natuvchi Resend orqali SpaceZero Academy <noreply@spacezero.uz> qilib sozlangan. Aktivatsiya va reset email havolalari https://workspace.spacezero.uz manziliga yo‘naltiriladi. Yuborish xizmatining xatni qabul qilishi bilan Inbox’ga yetib kelishi alohida bosqichlar; zarur bo‘lsa Spam va Resend delivery holati tekshiriladi.
+Email jo‘natuvchi Resend orqali SpaceZero Workspace <noreply@spacezero.uz> qilib sozlangan. Aktivatsiya va reset email havolalari https://workspace.spacezero.uz manziliga yo‘naltiriladi. Yuborish xizmatining xatni qabul qilishi bilan Inbox’ga yetib kelishi alohida bosqichlar; zarur bo‘lsa Spam va Resend delivery holati tekshiriladi.
 
 Ushbu qo‘llanma ommaviy domenning barcha server, database va AI jarayonlari yakuniy production tekshiruvidan o‘tganini tasdiqlamaydi. Lokal localhost faqat shu kompyuterdagi serverga ishora qiladi. Xodimlarga ommaviy havola berishdan oldin workspace.spacezero.uz’da kirish, aktivatsiya, materiallar va background AI ishlari amalda tekshirilishi kerak. Alohida HTML demo esa dizaynni ko‘rsatish uchun; unda haqiqiy akkauntlar va backend yo‘q.
 
 Hurmat bilan,
-SpaceZero Academy
+SpaceZero Workspace
 Crafted by UZLEEDER

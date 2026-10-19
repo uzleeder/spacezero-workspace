@@ -1,4 +1,4 @@
-﻿# What SpaceZero Academy sends to the AI service (Google Gemini)
+﻿# What SpaceZero Workspace sends to the AI service (Google Gemini)
 
 All AI calls are made **server-side** (`lib/gemini.js`, `lib/aiMedia.js`). The API key lives only in the
 `GEMINI_API_KEY` environment variable; no browser code can read it. Every reply is validated against a

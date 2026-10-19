@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'academy-tests-'));
+const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'workspace-tests-'));
 fs.writeFileSync(path.join(folder,'test.db'), '');
 const env = { ...process.env, NODE_ENV: 'test', DATABASE_URL: `file:${path.join(folder,'test.db').replaceAll('\\','/')}`, STORAGE_ROOT: path.join(folder,'storage') };
 env.CREDENTIAL_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString('base64'); // fixed throwaway key: tests never touch the real one

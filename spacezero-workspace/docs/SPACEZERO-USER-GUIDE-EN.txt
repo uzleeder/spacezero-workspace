@@ -1,6 +1,6 @@
 Hello Ali,
 
-Here is the SpaceZero Academy user and administrator guide in English, replacing the Uzbek version sent earlier. It describes the current project as of September 29, 2026. Available pages and actions depend on your role, permissions and assigned records.
+Here is the SpaceZero Workspace user and administrator guide in English, replacing the Uzbek version sent earlier. It describes the current project as of September 29, 2026. Available pages and actions depend on your role, permissions and assigned records.
 
 Platform address: https://workspace.spacezero.uz
 
@@ -158,12 +158,12 @@ Check incomplete setup, open issues, overdue training, retakes, leave requests a
 
 15. EMAIL AND DEPLOYMENT STATUS
 
-Account email is configured through Resend with SpaceZero Academy <noreply@spacezero.uz> as sender. Activation and reset links point to https://workspace.spacezero.uz. Provider acceptance and inbox delivery are separate stages; check Spam and delivery status when needed.
+Account email is configured through Resend with SpaceZero Workspace <noreply@spacezero.uz> as sender. Activation and reset links point to https://workspace.spacezero.uz. Provider acceptance and inbox delivery are separate stages; check Spam and delivery status when needed.
 
 This guide is not confirmation that the public domain, database, storage and background AI processing have all passed final production verification. localhost refers to the development server on the local computer. Before broad employee rollout, verify sign-in, activation, private materials and background processing on the public domain itself.
 
 The separate downloadable HTML demo is for presenting the design and sample interactions. It contains sample data and is not the live authenticated platform.
 
 Best regards,
-SpaceZero Academy
+SpaceZero Workspace
 Crafted by UZLEEDER

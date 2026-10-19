@@ -36,7 +36,7 @@ before(async () => {
   // The suite shares one temporary DB across sequential files. Earlier assignment tests
   // leave pending jobs; this worker test must consume only its own fixtures.
   assert.equal(process.env.NODE_ENV, 'test');
-  assert.match(process.env.DATABASE_URL, /academy-tests-/);
+  assert.match(process.env.DATABASE_URL, /workspace-tests-/);
   await prisma.trainingEmailSchedule.deleteMany();
   process.env.APP_ORIGIN = 'https://workspace.example.invalid';
   org = await prisma.organization.create({ data: { name: 'Training email tests' } });

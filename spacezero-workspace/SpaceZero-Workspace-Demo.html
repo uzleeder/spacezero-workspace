@@ -1,4 +1,4 @@
-<!doctype html><html lang="en" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Space Zero Academy — offline interactive product preview"><title>Space Zero Academy · Preview</title><style>/* SpaceZero Academy — design tokens + component styles (plain CSS, no build step). */
+<!doctype html><html lang="en" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Space Zero Workspace — offline interactive product preview"><title>Space Zero Workspace · Preview</title><style>/* SpaceZero Workspace — design tokens + component styles (plain CSS, no build step). */
 
 :root {
   /* Navy — dominant surface + text-on-light color, near-black at the deep end */
@@ -310,7 +310,7 @@ html[data-theme="dark"] .divider-top { border-color: #2a3c54; }
 .skeleton { background: linear-gradient(90deg, rgba(20,24,31,.06), rgba(20,24,31,.12), rgba(20,24,31,.06)); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 8px; }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-/* Academy visual system */
+/* Workspace visual system */
 body { -webkit-font-smoothing:antialiased; letter-spacing:-.012em; }
 button,input,select,textarea { font:inherit; }
 :focus-visible { outline:3px solid #b99559; outline-offset:4px; }
@@ -353,7 +353,7 @@ button,input,select,textarea { font:inherit; }
 .stat-card { position:relative; padding:22px 23px; }
 .stat-card .label { font-size:11px; margin:0; }
 .stat-card .value { font-size:34px; font-weight:550; letter-spacing:-1.5px; line-height:1.3; margin:13px 0 0; font-variant-numeric:tabular-nums; }
-.academy-hero { position:relative; display:flex; justify-content:space-between; overflow:hidden; min-height:277px; background:#14263e; border-radius:14px; margin-bottom:23px; color:#fff; }
+.workspace-hero { position:relative; display:flex; justify-content:space-between; overflow:hidden; min-height:277px; background:#14263e; border-radius:14px; margin-bottom:23px; color:#fff; }
 .hero-copy { position:relative; z-index:1; padding:32px 36px; }
 .eyebrow { font-size:9px; letter-spacing:1.8px; font-weight:600; color:#84909f; }
 .hero-copy .eyebrow { color:#d4ba87; display:flex; align-items:center; gap:8px; }
@@ -381,7 +381,7 @@ button,input,select,textarea { font:inherit; }
   .hero-art .orbit-plane { animation:none; offset-distance:48%; }
   .hero-art .orbit-plane-front { visibility:hidden; }
 }
-.hero-art .flight-path { stroke:url(#academy-flight); stroke-width:1.35; stroke-dasharray:3 5; stroke-linecap:round; }
+.hero-art .flight-path { stroke:url(#workspace-flight); stroke-width:1.35; stroke-dasharray:3 5; stroke-linecap:round; }
 .hero-art .flight-beacon { fill:#d8bf90; fill-opacity:.08; stroke:#d8bf90; stroke-opacity:.22; stroke-width:.7; }
 .hero-art .flight-dot { fill:#d8bf90; stroke:none; }
 .hero-art .plane-mark { fill:#ead4a5; stroke:#f3e2bf; stroke-width:.45; stroke-linejoin:round; filter:drop-shadow(0 3px 5px #070f1e80); }
@@ -418,9 +418,9 @@ input:not([type=checkbox]):not([type=radio]):not([type=submit]):not([type=button
 .auth-brand { padding-bottom:25px; border-bottom:1px solid #eef0f3; margin-bottom:28px; }
 .auth-box h1 { font-size:25px; letter-spacing:-.8px; }
 .auth-box .subtitle { font-size:12px; line-height:1.8; }
-@media(min-width:1440px) { .main-content { padding-top:42px; } .academy-hero { min-height:300px; } .hero-copy { padding:36px 40px; } }
+@media(min-width:1440px) { .main-content { padding-top:42px; } .workspace-hero { min-height:300px; } .hero-copy { padding:36px 40px; } }
 @media(max-width:1023px) { .main-area { margin-left:0; } .topbar { padding:14px 22px; height:68px; } .breadcrumb { margin-right:auto; margin-left:17px; } .main-content { padding:25px 22px; } }
-@media(max-width:640px) { .main-content { padding:24px 16px; } .topbar { padding:12px 16px; } .breadcrumb { font-size:11px; gap:7px; } .breadcrumb>span,.breadcrumb>strong { display:none; } .topbar-user { gap:10px; } .topbar-user .role { max-width:100px; } .page-header h1 { font-size:24px; } .page-header { gap:14px; } .academy-hero { min-height:270px; } .hero-copy { padding:27px 24px; } .hero-copy h2 { font-size:28px; } .hero-art { position:absolute; right:-120px; top:20px; width:290px; opacity:.22; height:100%; } .hero-coordinate { display:none; } .stat-card { padding:18px; } .stat-card .value { font-size:29px; } .section-heading>.text-sm { display:none; } .action-grid,.grid-2 { grid-template-columns:1fr; } .library-banner { flex-wrap:wrap; padding:20px; } .library-banner>div:nth-child(2) { flex:1; } .library-banner .btn { margin-left:0; width:100%; } .auth-box { padding:28px; } .auth-shell { padding:24px 16px; } .card-header,.card-body { padding:18px; } .filter-bar input,.filter-bar select { max-width:100%; flex:1 1 140px; } }
+@media(max-width:640px) { .main-content { padding:24px 16px; } .topbar { padding:12px 16px; } .breadcrumb { font-size:11px; gap:7px; } .breadcrumb>span,.breadcrumb>strong { display:none; } .topbar-user { gap:10px; } .topbar-user .role { max-width:100px; } .page-header h1 { font-size:24px; } .page-header { gap:14px; } .workspace-hero { min-height:270px; } .hero-copy { padding:27px 24px; } .hero-copy h2 { font-size:28px; } .hero-art { position:absolute; right:-120px; top:20px; width:290px; opacity:.22; height:100%; } .hero-coordinate { display:none; } .stat-card { padding:18px; } .stat-card .value { font-size:29px; } .section-heading>.text-sm { display:none; } .action-grid,.grid-2 { grid-template-columns:1fr; } .library-banner { flex-wrap:wrap; padding:20px; } .library-banner>div:nth-child(2) { flex:1; } .library-banner .btn { margin-left:0; width:100%; } .auth-box { padding:28px; } .auth-shell { padding:24px 16px; } .card-header,.card-body { padding:18px; } .filter-bar input,.filter-bar select { max-width:100%; flex:1 1 140px; } }
 @media(prefers-reduced-motion:reduce) { *,*:before,*:after { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
 
 /* ---------------------------------------------------------------------------
@@ -530,7 +530,7 @@ html[data-theme="dark"] [style*="color:var(--navy-950)"], html[data-theme="dark"
 html[data-theme="dark"] [style*="color:var(--gold-600)"], html[data-theme="dark"] [style*="color: var(--gold-600)"] { color: #e3c583 !important; }
 
 /* ---------------------------------------------------------------------------
-   Unified brand mark (icon box + "SpaceZero / ACADEMY" wordmark) — one
+   Unified brand mark (icon box + "SpaceZero / WORKSPACE" wordmark) — one
    partial, two surface variants, used identically in the sidebar, every
    auth page, and the certificate.
    ------------------------------------------------------------------------- */
@@ -733,51 +733,51 @@ html[data-theme="dark"] .user-menu-panel form { border-color: #2a3c54; }
 .viewas-menu a { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; font-size: 12.5px; color: rgba(250,246,238,.8); }
 .viewas-menu a:hover, .viewas-menu a:focus-visible { background: rgba(255,255,255,.08); color: #fff; }
 .viewas-menu .pill { font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: #8d9aaf; padding: 2px 6px; border-radius: 999px; border: 1px solid rgba(255,255,255,.12); }
-/* Academy introduction: first visit and refresh. Hidden when JavaScript is unavailable. */
+/* Workspace introduction: first visit and refresh. Hidden when JavaScript is unavailable. */
 html.intro-active { overflow: hidden; }
-.academy-intro[hidden] { display: none !important; }
-.academy-intro {
+.workspace-intro[hidden] { display: none !important; }
+.workspace-intro {
   position: fixed; inset: 0; z-index: 10000; overflow: hidden;
   display: grid; place-items: center; min-height: 100svh;
   background: radial-gradient(ellipse at 50% 40%, #203c59 0%, #101e32 42%, #070e19 100%);
   color: #fff; opacity: 1; transition: opacity .45s ease, visibility .45s;
 }
-.academy-intro--done { opacity: 0; visibility: hidden; }
-.academy-intro__halo {
+.workspace-intro--done { opacity: 0; visibility: hidden; }
+.workspace-intro__halo {
   position: absolute; width: min(85vw, 590px); aspect-ratio: 1;
   border: 1px solid rgba(227,197,131,.1); border-radius: 50%; pointer-events: none;
   box-shadow: 0 0 0 65px rgba(227,197,131,.025), 0 0 0 130px rgba(227,197,131,.018);
   animation: intro-orbit 22s linear infinite;
 }
-.academy-intro__halo::before { content: ''; position: absolute; inset: 24px; border: 1px dashed rgba(227,197,131,.14); border-radius: 50%; }
-.academy-intro__halo::after { content: ''; position: absolute; top: 50%; left: -3px; width: 6px; height: 6px; border-radius: 50%; background: #e3c583; box-shadow: 0 0 22px 5px rgba(227,197,131,.3); }
+.workspace-intro__halo::before { content: ''; position: absolute; inset: 24px; border: 1px dashed rgba(227,197,131,.14); border-radius: 50%; }
+.workspace-intro__halo::after { content: ''; position: absolute; top: 50%; left: -3px; width: 6px; height: 6px; border-radius: 50%; background: #e3c583; box-shadow: 0 0 22px 5px rgba(227,197,131,.3); }
 @keyframes intro-orbit { to { transform: rotate(360deg); } }
-.academy-intro__center { position: relative; width: min(360px, calc(100vw - 56px)); text-align: center; }
-.academy-intro__eyebrow { margin: 0 0 38px; color: #a5b4c7; font-size: 9px; letter-spacing: .25em; }
-.academy-intro .brand-mark { justify-content: center; flex-direction: column; gap: 24px; }
-.academy-intro .brand-mark-text { align-items: center; }
-.academy-intro .brand-mark-box { width: 82px; height: 82px; flex-shrink: 0; border-color: rgba(227,197,131,.5); border-radius: 24px; background: linear-gradient(145deg, rgba(227,197,131,.13), rgba(227,197,131,.02)); box-shadow: 0 16px 45px rgba(0,0,0,.2), inset 0 1px rgba(255,255,255,.12); }
-.academy-intro .brand-mark-box svg { width: 43px; height: 43px; }
-.academy-intro .brand-mark-word { font-size: clamp(21px, 6vw, 29px); letter-spacing: .09em; }
-.academy-intro .brand-mark-rule { margin: 8px 0; background: rgba(227,197,131,.3); }
-.academy-intro .brand-mark-sub { color: #e3c583; font-size: 12px; letter-spacing: .4em; }
-.academy-intro__loading { margin-top: 40px; padding: 20px 22px; border: 1px solid rgba(255,255,255,.08); border-radius: 14px; background: rgba(7,14,25,.3); }
-.academy-intro__labels { display: flex; justify-content: space-between; margin-bottom: 13px; color: #b7c4d4; font-size: 11px; letter-spacing: .03em; }
-.academy-intro__labels [data-intro-percent] { color: #e3c583; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.academy-intro__track { height: 3px; overflow: hidden; border-radius: 3px; background: rgba(255,255,255,.1); }
-.academy-intro__fill { height: 100%; background: linear-gradient(90deg, #bd995c, #f2dba8); transform: scaleX(0); transform-origin: left; }
-.academy-intro__motto { margin-top: 23px; color: #8193aa; font-size: 8px; letter-spacing: .2em; }
-.academy-intro__credit { position: absolute; bottom: max(28px, env(safe-area-inset-bottom)); margin: 0; color: #fff; font-size: 11px; letter-spacing: .08em; }
-.academy-intro__credit strong { margin-left: 5px; font-weight: 600; letter-spacing: .2em; }
-@media (prefers-reduced-motion: reduce) { .academy-intro { transition: none; } .academy-intro__halo { animation: none; } }
+.workspace-intro__center { position: relative; width: min(360px, calc(100vw - 56px)); text-align: center; }
+.workspace-intro__eyebrow { margin: 0 0 38px; color: #a5b4c7; font-size: 9px; letter-spacing: .25em; }
+.workspace-intro .brand-mark { justify-content: center; flex-direction: column; gap: 24px; }
+.workspace-intro .brand-mark-text { align-items: center; }
+.workspace-intro .brand-mark-box { width: 82px; height: 82px; flex-shrink: 0; border-color: rgba(227,197,131,.5); border-radius: 24px; background: linear-gradient(145deg, rgba(227,197,131,.13), rgba(227,197,131,.02)); box-shadow: 0 16px 45px rgba(0,0,0,.2), inset 0 1px rgba(255,255,255,.12); }
+.workspace-intro .brand-mark-box svg { width: 43px; height: 43px; }
+.workspace-intro .brand-mark-word { font-size: clamp(21px, 6vw, 29px); letter-spacing: .09em; }
+.workspace-intro .brand-mark-rule { margin: 8px 0; background: rgba(227,197,131,.3); }
+.workspace-intro .brand-mark-sub { color: #e3c583; font-size: 12px; letter-spacing: .4em; }
+.workspace-intro__loading { margin-top: 40px; padding: 20px 22px; border: 1px solid rgba(255,255,255,.08); border-radius: 14px; background: rgba(7,14,25,.3); }
+.workspace-intro__labels { display: flex; justify-content: space-between; margin-bottom: 13px; color: #b7c4d4; font-size: 11px; letter-spacing: .03em; }
+.workspace-intro__labels [data-intro-percent] { color: #e3c583; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.workspace-intro__track { height: 3px; overflow: hidden; border-radius: 3px; background: rgba(255,255,255,.1); }
+.workspace-intro__fill { height: 100%; background: linear-gradient(90deg, #bd995c, #f2dba8); transform: scaleX(0); transform-origin: left; }
+.workspace-intro__motto { margin-top: 23px; color: #8193aa; font-size: 8px; letter-spacing: .2em; }
+.workspace-intro__credit { position: absolute; bottom: max(28px, env(safe-area-inset-bottom)); margin: 0; color: #fff; font-size: 11px; letter-spacing: .08em; }
+.workspace-intro__credit strong { margin-left: 5px; font-weight: 600; letter-spacing: .2em; }
+@media (prefers-reduced-motion: reduce) { .workspace-intro { transition: none; } .workspace-intro__halo { animation: none; } }
 @media (max-height: 450px) {
-  .academy-intro__eyebrow { margin-bottom: 15px; }
-  .academy-intro__loading { margin-top: 24px; }
-  .academy-intro__credit { bottom: 12px; }
-  .academy-intro .brand-mark { flex-direction: row; gap: 17px; }
-  .academy-intro .brand-mark-box { width: 54px; height: 54px; border-radius: 15px; }
-  .academy-intro__loading { padding: 12px 18px; margin-top: 18px; }
-  .academy-intro__motto { margin-top: 12px; }
+  .workspace-intro__eyebrow { margin-bottom: 15px; }
+  .workspace-intro__loading { margin-top: 24px; }
+  .workspace-intro__credit { bottom: 12px; }
+  .workspace-intro .brand-mark { flex-direction: row; gap: 17px; }
+  .workspace-intro .brand-mark-box { width: 54px; height: 54px; border-radius: 15px; }
+  .workspace-intro__loading { padding: 12px 18px; margin-top: 18px; }
+  .workspace-intro__motto { margin-top: 12px; }
 }
 
 /* Keep employee search, filters and column labels together during page scrolling. */
@@ -853,11 +853,11 @@ html[data-theme="dark"] .spark polyline, html[data-theme="dark"] .timeline-chart
   .skill-row .bar { grid-column: 1 / -1; order: 3; }
 }
 /* Full-screen brand introduction. All styling is isolated from the application. */
-.academy-intro--premium {
+.workspace-intro--premium {
   background: radial-gradient(ellipse at 50% 36%, #17344b 0%, #0b1a2a 38%, #060d17 76%);
   isolation: isolate;
 }
-.academy-intro--premium::before {
+.workspace-intro--premium::before {
   content: ''; position: absolute; inset: 0; pointer-events: none;
   background-image: radial-gradient(circle, #bfcedb 0.6px, transparent 1px);
   background-size: 87px 93px; opacity: .12;
@@ -867,51 +867,51 @@ html[data-theme="dark"] .spark polyline, html[data-theme="dark"] .timeline-chart
 .intro-orbits { position: absolute; width: min(1100px, 130vw); height: 100%; pointer-events: none; stroke: #d8bd8620; stroke-width: .65; }
 .intro-orbits > circle:not(.intro-star) { stroke: #92b3cd14; stroke-dasharray: 2 9; }
 .intro-orbits .intro-star { fill: #e8c98b; stroke: none; }
-.academy-intro--premium .academy-intro__halo { width: min(520px, 90vw); border-color: #d9bb7410; box-shadow: none; opacity: .65; }
-.academy-intro--premium .academy-intro__halo::before { inset: -50px; border-color: #c6d9ed0c; }
-.academy-intro--premium .academy-intro__center { width: min(440px, calc(100vw - 64px)); }
-.academy-intro--premium .academy-intro__eyebrow { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0 0 32px; font-size: 8px; letter-spacing: .32em; color: #d5bf92; }
-.academy-intro__eyebrow > span { width: 4px; height: 4px; border-radius: 50%; background: #e3c583; box-shadow: 0 0 12px #e3c583; }
-.academy-intro--premium .brand-mark { gap: 25px; }
-.academy-intro--premium .brand-mark-box { position: relative; width: 86px; height: 86px; border-radius: 26px; transform: rotate(-8deg); background: linear-gradient(145deg, #d9bd8120, #d9bd8105); border-color: #d9bd8160; box-shadow: inset 0 1px 0 #fff2, 0 0 60px #d9bd8110, 0 24px 45px #0003; }
-.academy-intro--premium .brand-mark-box svg { transform: rotate(8deg); width: 42px; height: 42px; color: #efd6a5; }
-.academy-intro--premium .brand-mark-word { font-size: clamp(27px, 7vw, 42px); font-weight: 600; letter-spacing: .13em; line-height: 1.3; color: #f7f4ee; }
-.academy-intro--premium .brand-mark-rule { width: 60%; margin: 10px auto 12px; background: linear-gradient(90deg, transparent, #e3c58380, transparent); }
-.academy-intro--premium .brand-mark-sub { font-size: 10px; letter-spacing: .65em; padding-left: .65em; color: #d9c398; }
+.workspace-intro--premium .workspace-intro__halo { width: min(520px, 90vw); border-color: #d9bb7410; box-shadow: none; opacity: .65; }
+.workspace-intro--premium .workspace-intro__halo::before { inset: -50px; border-color: #c6d9ed0c; }
+.workspace-intro--premium .workspace-intro__center { width: min(440px, calc(100vw - 64px)); }
+.workspace-intro--premium .workspace-intro__eyebrow { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0 0 32px; font-size: 8px; letter-spacing: .32em; color: #d5bf92; }
+.workspace-intro__eyebrow > span { width: 4px; height: 4px; border-radius: 50%; background: #e3c583; box-shadow: 0 0 12px #e3c583; }
+.workspace-intro--premium .brand-mark { gap: 25px; }
+.workspace-intro--premium .brand-mark-box { position: relative; width: 86px; height: 86px; border-radius: 26px; transform: rotate(-8deg); background: linear-gradient(145deg, #d9bd8120, #d9bd8105); border-color: #d9bd8160; box-shadow: inset 0 1px 0 #fff2, 0 0 60px #d9bd8110, 0 24px 45px #0003; }
+.workspace-intro--premium .brand-mark-box svg { transform: rotate(8deg); width: 42px; height: 42px; color: #efd6a5; }
+.workspace-intro--premium .brand-mark-word { font-size: clamp(27px, 7vw, 42px); font-weight: 600; letter-spacing: .13em; line-height: 1.3; color: #f7f4ee; }
+.workspace-intro--premium .brand-mark-rule { width: 60%; margin: 10px auto 12px; background: linear-gradient(90deg, transparent, #e3c58380, transparent); }
+.workspace-intro--premium .brand-mark-sub { font-size: 10px; letter-spacing: .65em; padding-left: .65em; color: #d9c398; }
 .intro-tagline { margin: 23px 0 0; font-size: 13px; letter-spacing: .025em; color: #a5b4c5; font-weight: 300; }
-.academy-intro--premium .academy-intro__loading { margin: 38px auto 0; padding: 0; max-width: 310px; border: none; background: none; }
-.academy-intro--premium .academy-intro__labels { align-items: baseline; margin-bottom: 14px; font-size: 8px; letter-spacing: .15em; color: #9baec0; }
-.academy-intro--premium .academy-intro__labels [data-intro-percent] { font-size: 21px; font-weight: 300; letter-spacing: -.04em; color: #f1d9a9; }
-.academy-intro--premium .academy-intro__track { height: 2px; overflow: visible; background: #ffffff12; }
-.academy-intro--premium .academy-intro__fill { position: relative; background: linear-gradient(90deg, #97723b, #edd4a0); box-shadow: 0 0 14px #e3c58338; }
-.academy-intro--premium .academy-intro__fill::after { content: ''; position: absolute; right: 0; top: -1px; width: 4px; height: 4px; border-radius: 50%; background: #fff0cf; box-shadow: 0 0 10px #efd6a5; }
-.academy-intro--premium .academy-intro__motto { margin-top: 22px; font-size: 7px; letter-spacing: .24em; color: #8193a8; }
-.academy-intro--premium .academy-intro__credit { bottom: max(51px, env(safe-area-inset-bottom)); font-size: 10px; color: #fff; }
+.workspace-intro--premium .workspace-intro__loading { margin: 38px auto 0; padding: 0; max-width: 310px; border: none; background: none; }
+.workspace-intro--premium .workspace-intro__labels { align-items: baseline; margin-bottom: 14px; font-size: 8px; letter-spacing: .15em; color: #9baec0; }
+.workspace-intro--premium .workspace-intro__labels [data-intro-percent] { font-size: 21px; font-weight: 300; letter-spacing: -.04em; color: #f1d9a9; }
+.workspace-intro--premium .workspace-intro__track { height: 2px; overflow: visible; background: #ffffff12; }
+.workspace-intro--premium .workspace-intro__fill { position: relative; background: linear-gradient(90deg, #97723b, #edd4a0); box-shadow: 0 0 14px #e3c58338; }
+.workspace-intro--premium .workspace-intro__fill::after { content: ''; position: absolute; right: 0; top: -1px; width: 4px; height: 4px; border-radius: 50%; background: #fff0cf; box-shadow: 0 0 10px #efd6a5; }
+.workspace-intro--premium .workspace-intro__motto { margin-top: 22px; font-size: 7px; letter-spacing: .24em; color: #8193a8; }
+.workspace-intro--premium .workspace-intro__credit { bottom: max(51px, env(safe-area-inset-bottom)); font-size: 10px; color: #fff; }
 @media (max-width: 480px) {
   .intro-frame { inset: 16px; padding: 16px 12px; }
   .intro-frame span:last-child { display: none; }
-  .academy-intro--premium .academy-intro__credit { bottom: 35px; }
+  .workspace-intro--premium .workspace-intro__credit { bottom: 35px; }
 }
 @media (max-height: 620px) {
-  .academy-intro--premium .academy-intro__eyebrow { margin-bottom: 15px; }
-  .academy-intro--premium .brand-mark { flex-direction: row; gap: 18px; }
-  .academy-intro--premium .brand-mark-box { width: 58px; height: 58px; border-radius: 18px; }
-  .academy-intro--premium .brand-mark-word { font-size: clamp(22px, 5vw, 32px); }
-  .academy-intro--premium .academy-intro__loading { margin-top: 22px; }
+  .workspace-intro--premium .workspace-intro__eyebrow { margin-bottom: 15px; }
+  .workspace-intro--premium .brand-mark { flex-direction: row; gap: 18px; }
+  .workspace-intro--premium .brand-mark-box { width: 58px; height: 58px; border-radius: 18px; }
+  .workspace-intro--premium .brand-mark-word { font-size: clamp(22px, 5vw, 32px); }
+  .workspace-intro--premium .workspace-intro__loading { margin-top: 22px; }
   .intro-tagline { margin-top: 15px; }
-  .academy-intro--premium .academy-intro__credit { bottom: 24px; }
+  .workspace-intro--premium .workspace-intro__credit { bottom: 24px; }
   .intro-frame { inset: 12px; padding: 12px; }
 }
 
 
-body{margin:0}.demo-shell{min-height:100vh;display:grid;grid-template-columns:245px minmax(0,1fr)}.demo-sidebar{padding:32px 20px;background:#101e32;color:#fff;position:sticky;top:0;height:100vh;box-sizing:border-box}.demo-sidebar .brand-mark{margin-bottom:46px}.demo-sidebar nav{display:grid;gap:7px}.demo-sidebar nav a{padding:13px 14px;border-radius:8px;color:#aebdd0;font-size:13px}.demo-sidebar nav a[aria-current=page]{background:#ffffff0c;color:#e3c583;border-left:2px solid #e3c583}.demo-sidebar small{display:block;margin:42px 12px;color:#8c9db4;font-size:10px;line-height:1.8}.demo-top{padding:20px 32px;border-bottom:1px solid var(--border-subtle);display:flex;gap:15px;justify-content:space-between;align-items:center}.demo-chip{font-size:10px;letter-spacing:.1em;border:1px solid #bd995c66;color:var(--gold-500);padding:6px 10px;border-radius:30px}.demo-main{max-width:1250px;padding:30px 32px 60px;margin:auto}.demo-main h1{margin-bottom:8px}.demo-kicker{font-size:10px;letter-spacing:.14em;color:#bd995c;margin-bottom:12px}.demo-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.demo-number{font-size:34px;margin-top:10px}.demo-heading{display:flex;justify-content:space-between;margin:28px 0 15px;font-size:18px}.demo-heading span{font-size:11px;color:var(--ink-500);font-weight:400}.demo-skills{display:grid;grid-template-columns:1fr 1fr;gap:25px 35px}.demo-skills .progress-track{margin-top:12px}.demo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:28px}.demo-grid h3{margin:12px 0}.demo-grid p{margin-bottom:20px}.course-art{background:radial-gradient(ellipse at top right,#345c72,#14263e);padding:26px 20px;border-radius:9px;color:#e3c583;font-size:34px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between}.course-art span{font-size:8px;letter-spacing:.13em}.demo-banner{margin:24px 0;background:linear-gradient(120deg,#14263e,#25435c);color:white}.demo-banner h2{color:white;margin-bottom:16px}#practice-answer{display:block;width:100%;margin:12px 0}#practice-feedback{margin-top:20px}.demo-page[hidden]{display:none}dialog{border:1px solid #456078;border-radius:16px;max-width:560px;width:calc(100% - 48px);padding:30px;background:#101e32;color:#fff}dialog::backdrop{background:#050a12bb}dialog h2{color:#e3c583;margin:15px 0}dialog p{line-height:1.8;margin-bottom:20px}.demo-footer{margin-top:32px;font-size:10px;color:var(--ink-500)}@media(max-width:950px){.demo-shell{grid-template-columns:200px minmax(0,1fr)}.demo-grid{grid-template-columns:1fr}.demo-stats{grid-template-columns:1fr 1fr}}@media(max-width:650px){.demo-shell{display:block}.demo-sidebar{position:static;height:auto;padding:18px}.demo-sidebar .brand-mark{margin-bottom:18px}.demo-sidebar nav{display:flex;overflow:auto;gap:4px}.demo-sidebar nav a{white-space:nowrap;padding:10px}.demo-sidebar small{display:none}.demo-main{padding:24px 16px}.demo-top{padding:14px 16px}.demo-skills{grid-template-columns:1fr}.demo-heading{gap:10px}.demo-main .academy-hero{margin-top:24px}}
+body{margin:0}.demo-shell{min-height:100vh;display:grid;grid-template-columns:245px minmax(0,1fr)}.demo-sidebar{padding:32px 20px;background:#101e32;color:#fff;position:sticky;top:0;height:100vh;box-sizing:border-box}.demo-sidebar .brand-mark{margin-bottom:46px}.demo-sidebar nav{display:grid;gap:7px}.demo-sidebar nav a{padding:13px 14px;border-radius:8px;color:#aebdd0;font-size:13px}.demo-sidebar nav a[aria-current=page]{background:#ffffff0c;color:#e3c583;border-left:2px solid #e3c583}.demo-sidebar small{display:block;margin:42px 12px;color:#8c9db4;font-size:10px;line-height:1.8}.demo-top{padding:20px 32px;border-bottom:1px solid var(--border-subtle);display:flex;gap:15px;justify-content:space-between;align-items:center}.demo-chip{font-size:10px;letter-spacing:.1em;border:1px solid #bd995c66;color:var(--gold-500);padding:6px 10px;border-radius:30px}.demo-main{max-width:1250px;padding:30px 32px 60px;margin:auto}.demo-main h1{margin-bottom:8px}.demo-kicker{font-size:10px;letter-spacing:.14em;color:#bd995c;margin-bottom:12px}.demo-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.demo-number{font-size:34px;margin-top:10px}.demo-heading{display:flex;justify-content:space-between;margin:28px 0 15px;font-size:18px}.demo-heading span{font-size:11px;color:var(--ink-500);font-weight:400}.demo-skills{display:grid;grid-template-columns:1fr 1fr;gap:25px 35px}.demo-skills .progress-track{margin-top:12px}.demo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:28px}.demo-grid h3{margin:12px 0}.demo-grid p{margin-bottom:20px}.course-art{background:radial-gradient(ellipse at top right,#345c72,#14263e);padding:26px 20px;border-radius:9px;color:#e3c583;font-size:34px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between}.course-art span{font-size:8px;letter-spacing:.13em}.demo-banner{margin:24px 0;background:linear-gradient(120deg,#14263e,#25435c);color:white}.demo-banner h2{color:white;margin-bottom:16px}#practice-answer{display:block;width:100%;margin:12px 0}#practice-feedback{margin-top:20px}.demo-page[hidden]{display:none}dialog{border:1px solid #456078;border-radius:16px;max-width:560px;width:calc(100% - 48px);padding:30px;background:#101e32;color:#fff}dialog::backdrop{background:#050a12bb}dialog h2{color:#e3c583;margin:15px 0}dialog p{line-height:1.8;margin-bottom:20px}.demo-footer{margin-top:32px;font-size:10px;color:var(--ink-500)}@media(max-width:950px){.demo-shell{grid-template-columns:200px minmax(0,1fr)}.demo-grid{grid-template-columns:1fr}.demo-stats{grid-template-columns:1fr 1fr}}@media(max-width:650px){.demo-shell{display:block}.demo-sidebar{position:static;height:auto;padding:18px}.demo-sidebar .brand-mark{margin-bottom:18px}.demo-sidebar nav{display:flex;overflow:auto;gap:4px}.demo-sidebar nav a{white-space:nowrap;padding:10px}.demo-sidebar small{display:none}.demo-main{padding:24px 16px}.demo-top{padding:14px 16px}.demo-skills{grid-template-columns:1fr}.demo-heading{gap:10px}.demo-main .workspace-hero{margin-top:24px}}
 </style></head><body>
-<div class="academy-intro academy-intro--premium" id="academy-intro" hidden role="dialog" aria-modal="true" aria-label="Welcome to Space Zero Academy">
-  <div class="intro-frame" aria-hidden="true"><span>SPACE ZERO / ACADEMY</span><span>THE ART OF EXCELLENCE</span></div>
+<div class="workspace-intro workspace-intro--premium" id="workspace-intro" hidden role="dialog" aria-modal="true" aria-label="Welcome to Space Zero Workspace">
+  <div class="intro-frame" aria-hidden="true"><span>SPACE ZERO / WORKSPACE</span><span>THE ART OF EXCELLENCE</span></div>
   <svg class="intro-orbits" viewBox="0 0 1000 800" fill="none" aria-hidden="true"><ellipse cx="500" cy="400" rx="440" ry="210" transform="rotate(-32 500 400)"/><ellipse cx="500" cy="400" rx="440" ry="210" transform="rotate(32 500 400)"/><circle cx="500" cy="400" r="310"/><circle cx="182" cy="218" r="3" class="intro-star"/><circle cx="821" cy="578" r="4" class="intro-star"/></svg>
-  <div class="academy-intro__halo" aria-hidden="true"></div>
-  <div class="academy-intro__center">
-    <p class="academy-intro__eyebrow"><span></span> WELCOME ABOARD</p>
+  <div class="workspace-intro__halo" aria-hidden="true"></div>
+  <div class="workspace-intro__center">
+    <p class="workspace-intro__eyebrow"><span></span> WELCOME ABOARD</p>
     
 <div class="brand-mark brand-mark--dark">
   <div class="brand-mark-box">
@@ -920,23 +920,23 @@ body{margin:0}.demo-shell{min-height:100vh;display:grid;grid-template-columns:24
   <div class="brand-mark-text">
     <div class="brand-mark-word">SPACE ZERO</div>
     <div class="brand-mark-rule"></div>
-    <div class="brand-mark-sub">ACADEMY</div>
+    <div class="brand-mark-sub">WORKSPACE</div>
   </div>
 </div>
 
     <p class="intro-tagline">Your next level begins here.</p>
-    <div class="academy-intro__loading">
-      <div class="academy-intro__labels"><span>PREPARING YOUR ACADEMY</span><span data-intro-percent aria-hidden="true">0%</span></div>
-      <div class="academy-intro__track" role="progressbar" aria-label="Opening academy" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="academy-intro__fill"></div></div>
+    <div class="workspace-intro__loading">
+      <div class="workspace-intro__labels"><span>PREPARING YOUR WORKSPACE</span><span data-intro-percent aria-hidden="true">0%</span></div>
+      <div class="workspace-intro__track" role="progressbar" aria-label="Opening workspace" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="workspace-intro__fill"></div></div>
     </div>
-    <p class="academy-intro__motto">KNOWLEDGE · CONFIDENCE · EXCELLENCE</p>
+    <p class="workspace-intro__motto">KNOWLEDGE · CONFIDENCE · EXCELLENCE</p>
   </div>
-  <p class="academy-intro__credit">Crafted by <strong>UZLEEDER</strong></p>
+  <p class="workspace-intro__credit">Crafted by <strong>UZLEEDER</strong></p>
 </div>
 
 <script>(function () {
   'use strict';
-  var intro = document.getElementById('academy-intro');
+  var intro = document.getElementById('workspace-intro');
   if (!intro) return;
   var key = 'spacezero-intro-seen-v1';
   var navigation = window.performance && window.performance.getEntriesByType
@@ -946,7 +946,7 @@ body{margin:0}.demo-shell{min-height:100vh;display:grid;grid-template-columns:24
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var duration = reduced ? 250 : 2400;
   var bar = intro.querySelector('[role="progressbar"]');
-  var fill = intro.querySelector('.academy-intro__fill');
+  var fill = intro.querySelector('.workspace-intro__fill');
   var label = intro.querySelector('[data-intro-percent]');
   var previousFocus = document.activeElement;
   var locked = [];
@@ -978,7 +978,7 @@ body{margin:0}.demo-shell{min-height:100vh;display:grid;grid-template-columns:24
       fill.style.transform = 'scaleX(' + fraction + ')';
       if (fraction < 1) requestAnimationFrame(frame);
       else setTimeout(function () {
-        intro.classList.add('academy-intro--done');
+        intro.classList.add('workspace-intro--done');
         setTimeout(release, reduced ? 0 : 450);
       }, reduced ? 0 : 300);
     }
@@ -999,10 +999,10 @@ body{margin:0}.demo-shell{min-height:100vh;display:grid;grid-template-columns:24
   <div class="brand-mark-text">
     <div class="brand-mark-word">SPACE ZERO</div>
     <div class="brand-mark-rule"></div>
-    <div class="brand-mark-sub">ACADEMY</div>
+    <div class="brand-mark-sub">WORKSPACE</div>
   </div>
 </div>
-<nav aria-label="Demo sections"><a href="#dashboard" data-nav="dashboard">Dashboard</a><a href="#training" data-nav="training">My Training</a><a href="#practice" data-nav="practice">AI Practice</a><a href="#library" data-nav="library">Library</a><a href="#employees" data-nav="employees">Employees & Teams</a><a href="#settings" data-nav="settings">Settings & Security</a></nav><small>INTERACTIVE PREVIEW<br>Fictional data · No login required<br>Works offline</small></aside><div><header class="demo-top"><span id="page-name">Dashboard</span><span class="demo-chip">DEMO / SAMPLE DATA</span></header><main class="demo-main"><section class="demo-page" id="dashboard" ><div class="page-header"><div><p class="demo-kicker">YOUR LEARNING JOURNEY</p><h1>Welcome to Space Zero.</h1><p class="text-muted">A place to learn, practice and grow.</p></div></div><section class="academy-hero">
+<nav aria-label="Demo sections"><a href="#dashboard" data-nav="dashboard">Dashboard</a><a href="#training" data-nav="training">My Training</a><a href="#practice" data-nav="practice">AI Practice</a><a href="#library" data-nav="library">Library</a><a href="#employees" data-nav="employees">Employees & Teams</a><a href="#settings" data-nav="settings">Settings & Security</a></nav><small>INTERACTIVE PREVIEW<br>Fictional data · No login required<br>Works offline</small></aside><div><header class="demo-top"><span id="page-name">Dashboard</span><span class="demo-chip">DEMO / SAMPLE DATA</span></header><main class="demo-main"><section class="demo-page" id="dashboard" ><div class="page-header"><div><p class="demo-kicker">YOUR LEARNING JOURNEY</p><h1>Welcome to Space Zero.</h1><p class="text-muted">A place to learn, practice and grow.</p></div></div><section class="workspace-hero">
   <div class="hero-copy">
     <div class="eyebrow"><span></span> THE ABOVE9 STANDARD</div>
     <h2>Extraordinary service.<br>Starts with you.</h2>
@@ -1012,29 +1012,29 @@ body{margin:0}.demo-shell{min-height:100vh;display:grid;grid-template-columns:24
   <div class="hero-art" aria-hidden="true">
     <svg viewBox="0 0 400 270" fill="none" focusable="false">
       <defs>
-        <mask id="academy-behind-globe" maskUnits="userSpaceOnUse" x="0" y="0" width="400" height="270">
+        <mask id="workspace-behind-globe" maskUnits="userSpaceOnUse" x="0" y="0" width="400" height="270">
           <rect width="400" height="270" fill="white"/>
           <circle cx="204" cy="133" r="102" fill="black"/>
         </mask>
-        <path id="academy-aircraft" d="M21 0C21-1 19-2 16-2L3-3-9-17-15-17-8-3-19-2-24-7-27-7-24 0-27 7-24 7-19 2-8 3-15 17-9 17 3 3 16 2C19 2 21 1 21 0Z"/>
-        <radialGradient id="academy-sphere" cx="32%" cy="24%" r="80%">
+        <path id="workspace-aircraft" d="M21 0C21-1 19-2 16-2L3-3-9-17-15-17-8-3-19-2-24-7-27-7-24 0-27 7-24 7-19 2-8 3-15 17-9 17 3 3 16 2C19 2 21 1 21 0Z"/>
+        <radialGradient id="workspace-sphere" cx="32%" cy="24%" r="80%">
           <stop stop-color="#375c75" stop-opacity=".55"/>
           <stop offset=".6" stop-color="#1b344c" stop-opacity=".32"/>
           <stop offset="1" stop-color="#0b192b" stop-opacity=".8"/>
         </radialGradient>
-        <linearGradient id="academy-grid" x1="120" y1="42" x2="284" y2="225" gradientUnits="userSpaceOnUse">
+        <linearGradient id="workspace-grid" x1="120" y1="42" x2="284" y2="225" gradientUnits="userSpaceOnUse">
           <stop stop-color="#9abace" stop-opacity=".8"/>
           <stop offset="1" stop-color="#52738b" stop-opacity=".28"/>
         </linearGradient>
-        <linearGradient id="academy-flight" x1="53" y1="220" x2="348" y2="66" gradientUnits="userSpaceOnUse">
+        <linearGradient id="workspace-flight" x1="53" y1="220" x2="348" y2="66" gradientUnits="userSpaceOnUse">
           <stop stop-color="#d8bf90" stop-opacity=".1"/>
           <stop offset=".55" stop-color="#e9d4a7"/>
           <stop offset="1" stop-color="#d8bf90" stop-opacity=".3"/>
         </linearGradient>
       </defs>
       <circle class="planet-halo" cx="204" cy="133" r="120"/>
-      <circle class="planet-surface" cx="204" cy="133" r="101" fill="url(#academy-sphere)"/>
-      <g class="planet-grid" stroke="url(#academy-grid)">
+      <circle class="planet-surface" cx="204" cy="133" r="101" fill="url(#workspace-sphere)"/>
+      <g class="planet-grid" stroke="url(#workspace-grid)">
         <circle cx="204" cy="133" r="101"/>
         <ellipse class="planet-meridian" cx="204" cy="133" rx="101" ry="101"/>
         <ellipse class="planet-meridian planet-meridian-two" cx="204" cy="133" rx="101" ry="101"/>
@@ -1043,15 +1043,15 @@ body{margin:0}.demo-shell{min-height:100vh;display:grid;grid-template-columns:24
         <path d="M103 133h202 M117 82Q204 116 291 82 M117 184Q204 150 291 184"/>
       </g>
       <path class="flight-path" d="M66 190A155 57-24 1 1 342 76A155 57-24 1 1 66 190Z"/>
-      <g mask="url(#academy-behind-globe)"><g class="orbit-plane"><use class="plane-mark" href="#academy-aircraft"/></g></g>
+      <g mask="url(#workspace-behind-globe)"><g class="orbit-plane"><use class="plane-mark" href="#workspace-aircraft"/></g></g>
       <g class="orbit-plane orbit-plane-front">
-        <use class="plane-mark" href="#academy-aircraft"/>
+        <use class="plane-mark" href="#workspace-aircraft"/>
       </g>
     </svg>
     <div class="hero-coordinate">KNOWLEDGE → CONFIDENCE → EXCELLENCE</div>
   </div>
 </section>
-<div class="demo-stats"><div class="card card-body"><p class="text-muted">Assigned</p><div class="demo-number">8</div></div><div class="card card-body"><p class="text-muted">In progress</p><div class="demo-number">3</div></div><div class="card card-body"><p class="text-muted">Completed</p><div class="demo-number">12</div></div><div class="card card-body"><p class="text-muted">Retake required</p><div class="demo-number">1</div></div></div><h2 class="demo-heading">Your skill graph <span>Sample progress</span></h2><div class="card card-body demo-skills"><div><div class="row-between"><strong>Discovery Questions</strong><span>82%</span></div><div class="progress-track"><div style="height:100%;background:#d6b578;width:82%"></div></div></div><div><div class="row-between"><strong>Call Control</strong><span>68%</span></div><div class="progress-track"><div style="height:100%;background:#d6b578;width:68%"></div></div></div><div><div class="row-between"><strong>Client Engagement</strong><span>91%</span></div><div class="progress-track"><div style="height:100%;background:#d6b578;width:91%"></div></div></div><div><div class="row-between"><strong>Product Knowledge</strong><span>76%</span></div><div class="progress-track"><div style="height:100%;background:#d6b578;width:76%"></div></div></div><div><div class="row-between"><strong>Aircraft Knowledge</strong><span>64%</span></div><div class="progress-track"><div style="height:100%;background:#d6b578;width:64%"></div></div></div><div><div class="row-between"><strong>Objection Handling</strong><span>73%</span></div><div class="progress-track"><div style="height:100%;background:#d6b578;width:73%"></div></div></div></div></section><section class="demo-page" id="training" hidden><h1>My Training</h1><p class="text-muted">Build knowledge. Practice with purpose.</p><div class="demo-grid"><article class="card card-body"><div class="course-art">01 <span>SPACE ZERO / TRAINING</span></div><p class="demo-kicker">ASSIGNED</p><h3>Discovery & Client Needs</h3><p class="text-muted">Video lessons · Practical exercises · Assessment</p><button class="btn btn-gold" data-course="0">Preview lesson ↗</button></article><article class="card card-body"><div class="course-art">02 <span>SPACE ZERO / TRAINING</span></div><p class="demo-kicker">IN PROGRESS</p><h3>Business Class Experience</h3><p class="text-muted">Video lessons · Practical exercises · Assessment</p><button class="btn btn-gold" data-course="1">Preview lesson ↗</button></article><article class="card card-body"><div class="course-art">03 <span>SPACE ZERO / TRAINING</span></div><p class="demo-kicker">ASSIGNED</p><h3>Handling Objections</h3><p class="text-muted">Video lessons · Practical exercises · Assessment</p><button class="btn btn-gold" data-course="2">Preview lesson ↗</button></article></div></section><section class="demo-page" id="practice" hidden><h1>AI Practice</h1><p class="text-muted">Turn training materials into guided practice.</p><div class="card card-body demo-banner"><p class="demo-kicker">FROM KNOWLEDGE TO CONFIDENCE</p><h2>A safe space to sharpen your skills.</h2><p>Explore a sample client conversation. This offline demo uses a prepared response.</p></div><div class="card card-body"><h3>Client scenario</h3><p>“I’m flying to London next month. Why should I choose business class?”</p><label for="practice-answer">Your response</label><textarea id="practice-answer" rows="4" placeholder="Write your response..."></textarea><button class="btn btn-gold" id="practice-check">View sample guidance</button><p id="practice-feedback" hidden class="form-alert info">Sample guidance: Ask about the client’s priorities first, explain relevant comfort and flexibility benefits, then confirm their preferred travel dates. Live AI scoring is available in the full platform.</p></div></section><section class="demo-page" id="library" hidden><h1>Library</h1><p class="text-muted">Reference knowledge, always within reach.</p><div class="demo-grid"><article class="card card-body"><div class="course-art">✈</div><p class="demo-kicker">KNOWLEDGE COLLECTION</p><h3>Aircraft & Cabin Guide</h3><p class="text-muted">A preview of the academy’s reference library.</p><button class="btn btn-secondary" data-resource="0">Open preview</button></article><article class="card card-body"><div class="course-art">◇</div><p class="demo-kicker">KNOWLEDGE COLLECTION</p><h3>Service Standards</h3><p class="text-muted">A preview of the academy’s reference library.</p><button class="btn btn-secondary" data-resource="1">Open preview</button></article><article class="card card-body"><div class="course-art">◎</div><p class="demo-kicker">KNOWLEDGE COLLECTION</p><h3>Client Discovery Playbook</h3><p class="text-muted">A preview of the academy’s reference library.</p><button class="btn btn-secondary" data-resource="2">Open preview</button></article></div></section><section class="demo-page" id="employees" hidden><h1>Employees & Teams</h1><p class="text-muted">All names and accounts below are fictional demo records.</p><div class="card"><div class="filter-bar"><input id="employee-search" aria-label="Search demo employees" placeholder="Search by name or username..."><select id="employee-team" aria-label="Filter by team"><option value="">All teams</option><option>Sales</option><option>Operations</option></select></div><div class="table-wrap"><table><thead><tr><th>Employee</th><th>Username</th><th>Role</th><th>Team</th><th>Status</th></tr></thead><tbody><tr data-employee data-team="Sales"><td>Alex Morgan</td><td>alex.demo</td><td>Travel Agent</td><td>Sales</td><td><span class="badge">Active</span></td></tr><tr data-employee data-team="Sales"><td>Sam Taylor</td><td>sam.demo</td><td>Supervisor</td><td>Sales</td><td><span class="badge">Active</span></td></tr><tr data-employee data-team="Operations"><td>Jordan Lee</td><td>jordan.demo</td><td>Flight Expert</td><td>Operations</td><td><span class="badge">Invited</span></td></tr><tr data-employee data-team="Operations"><td>Casey Parker</td><td>casey.demo</td><td>Travel Agent</td><td>Operations</td><td><span class="badge">Active</span></td></tr></tbody></table></div><p id="no-employees" class="card-body" hidden>No matching employees.</p></div></section><section class="demo-page" id="settings" hidden><h1>Settings & Security</h1><p class="text-muted">Preview the academy workspace.</p><div class="card card-body"><h3>Appearance</h3><p>Choose the theme for this preview.</p><button id="theme-toggle" class="btn btn-secondary">Switch to light theme</button></div><div class="card card-body mt-16"><h3>About this demo</h3><p>This HTML file works offline. It includes design previews and sample interactions, without access to accounts, passwords, uploads or live AI services.</p><p>Crafted by <strong>UZLEEDER</strong></p></div></section><footer class="demo-footer">Space Zero Academy · Offline product preview · Crafted by UZLEEDER</footer></main></div></div><dialog id="preview-dialog"><p class="demo-kicker">LESSON & RESOURCE PREVIEW</p><h2 id="preview-title"></h2><p id="preview-copy"></p><button class="btn btn-gold" id="close-preview">Close preview</button></dialog><script>
+<div class="demo-stats"><div class="card card-body"><p class="text-muted">Assigned</p><div class="demo-number">8</div></div><div class="card card-body"><p class="text-muted">In progress</p><div class="demo-number">3</div></div><div class="card card-body"><p class="text-muted">Completed</p><div class="demo-number">12</div></div><div class="card card-body"><p class="text-muted">Retake required</p><div class="demo-number">1</div></div></div><h2 class="demo-heading">Your skill graph <span>Sample progress</span></h2><div class="card card-body demo-skills"><div><div class="row-between"><strong>Discovery Questions</strong><span>82%</span></div><div class="progress-track"><div style="height:100%;background:#d6b578;width:82%"></div></div></div><div><div class="row-between"><strong>Call Control</strong><span>68%</span></div><div class="progress-track"><div style="height:100%;background:#d6b578;width:68%"></div></div></div><div><div class="row-between"><strong>Client Engagement</strong><span>91%</span></div><div class="progress-track"><div style="height:100%;background:#d6b578;width:91%"></div></div></div><div><div class="row-between"><strong>Product Knowledge</strong><span>76%</span></div><div class="progress-track"><div style="height:100%;background:#d6b578;width:76%"></div></div></div><div><div class="row-between"><strong>Aircraft Knowledge</strong><span>64%</span></div><div class="progress-track"><div style="height:100%;background:#d6b578;width:64%"></div></div></div><div><div class="row-between"><strong>Objection Handling</strong><span>73%</span></div><div class="progress-track"><div style="height:100%;background:#d6b578;width:73%"></div></div></div></div></section><section class="demo-page" id="training" hidden><h1>My Training</h1><p class="text-muted">Build knowledge. Practice with purpose.</p><div class="demo-grid"><article class="card card-body"><div class="course-art">01 <span>SPACE ZERO / TRAINING</span></div><p class="demo-kicker">ASSIGNED</p><h3>Discovery & Client Needs</h3><p class="text-muted">Video lessons · Practical exercises · Assessment</p><button class="btn btn-gold" data-course="0">Preview lesson ↗</button></article><article class="card card-body"><div class="course-art">02 <span>SPACE ZERO / TRAINING</span></div><p class="demo-kicker">IN PROGRESS</p><h3>Business Class Experience</h3><p class="text-muted">Video lessons · Practical exercises · Assessment</p><button class="btn btn-gold" data-course="1">Preview lesson ↗</button></article><article class="card card-body"><div class="course-art">03 <span>SPACE ZERO / TRAINING</span></div><p class="demo-kicker">ASSIGNED</p><h3>Handling Objections</h3><p class="text-muted">Video lessons · Practical exercises · Assessment</p><button class="btn btn-gold" data-course="2">Preview lesson ↗</button></article></div></section><section class="demo-page" id="practice" hidden><h1>AI Practice</h1><p class="text-muted">Turn training materials into guided practice.</p><div class="card card-body demo-banner"><p class="demo-kicker">FROM KNOWLEDGE TO CONFIDENCE</p><h2>A safe space to sharpen your skills.</h2><p>Explore a sample client conversation. This offline demo uses a prepared response.</p></div><div class="card card-body"><h3>Client scenario</h3><p>“I’m flying to London next month. Why should I choose business class?”</p><label for="practice-answer">Your response</label><textarea id="practice-answer" rows="4" placeholder="Write your response..."></textarea><button class="btn btn-gold" id="practice-check">View sample guidance</button><p id="practice-feedback" hidden class="form-alert info">Sample guidance: Ask about the client’s priorities first, explain relevant comfort and flexibility benefits, then confirm their preferred travel dates. Live AI scoring is available in the full platform.</p></div></section><section class="demo-page" id="library" hidden><h1>Library</h1><p class="text-muted">Reference knowledge, always within reach.</p><div class="demo-grid"><article class="card card-body"><div class="course-art">✈</div><p class="demo-kicker">KNOWLEDGE COLLECTION</p><h3>Aircraft & Cabin Guide</h3><p class="text-muted">A preview of the workspace’s reference library.</p><button class="btn btn-secondary" data-resource="0">Open preview</button></article><article class="card card-body"><div class="course-art">◇</div><p class="demo-kicker">KNOWLEDGE COLLECTION</p><h3>Service Standards</h3><p class="text-muted">A preview of the workspace’s reference library.</p><button class="btn btn-secondary" data-resource="1">Open preview</button></article><article class="card card-body"><div class="course-art">◎</div><p class="demo-kicker">KNOWLEDGE COLLECTION</p><h3>Client Discovery Playbook</h3><p class="text-muted">A preview of the workspace’s reference library.</p><button class="btn btn-secondary" data-resource="2">Open preview</button></article></div></section><section class="demo-page" id="employees" hidden><h1>Employees & Teams</h1><p class="text-muted">All names and accounts below are fictional demo records.</p><div class="card"><div class="filter-bar"><input id="employee-search" aria-label="Search demo employees" placeholder="Search by name or username..."><select id="employee-team" aria-label="Filter by team"><option value="">All teams</option><option>Sales</option><option>Operations</option></select></div><div class="table-wrap"><table><thead><tr><th>Employee</th><th>Username</th><th>Role</th><th>Team</th><th>Status</th></tr></thead><tbody><tr data-employee data-team="Sales"><td>Alex Morgan</td><td>alex.demo</td><td>Travel Agent</td><td>Sales</td><td><span class="badge">Active</span></td></tr><tr data-employee data-team="Sales"><td>Sam Taylor</td><td>sam.demo</td><td>Supervisor</td><td>Sales</td><td><span class="badge">Active</span></td></tr><tr data-employee data-team="Operations"><td>Jordan Lee</td><td>jordan.demo</td><td>Flight Expert</td><td>Operations</td><td><span class="badge">Invited</span></td></tr><tr data-employee data-team="Operations"><td>Casey Parker</td><td>casey.demo</td><td>Travel Agent</td><td>Operations</td><td><span class="badge">Active</span></td></tr></tbody></table></div><p id="no-employees" class="card-body" hidden>No matching employees.</p></div></section><section class="demo-page" id="settings" hidden><h1>Settings & Security</h1><p class="text-muted">Preview the workspace.</p><div class="card card-body"><h3>Appearance</h3><p>Choose the theme for this preview.</p><button id="theme-toggle" class="btn btn-secondary">Switch to light theme</button></div><div class="card card-body mt-16"><h3>About this demo</h3><p>This HTML file works offline. It includes design previews and sample interactions, without access to accounts, passwords, uploads or live AI services.</p><p>Crafted by <strong>UZLEEDER</strong></p></div></section><footer class="demo-footer">Space Zero Workspace · Offline product preview · Crafted by UZLEEDER</footer></main></div></div><dialog id="preview-dialog"><p class="demo-kicker">LESSON & RESOURCE PREVIEW</p><h2 id="preview-title"></h2><p id="preview-copy"></p><button class="btn btn-gold" id="close-preview">Close preview</button></dialog><script>
 const names={"dashboard":"Dashboard","training":"My Training","practice":"AI Practice","library":"Library","employees":"Employees & Teams","settings":"Settings & Security"};
 function showPage(){const id=location.hash.slice(1);const current=Object.hasOwn(names,id)?id:'dashboard';document.querySelectorAll('.demo-page').forEach(p=>p.hidden=p.id!==current);document.querySelectorAll('[data-nav]').forEach(a=>{if(a.dataset.nav===current)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});document.getElementById('page-name').textContent=names[current];}
 window.addEventListener('hashchange',showPage);showPage();
@@ -1062,5 +1062,5 @@ document.getElementById('practice-check').onclick=()=>document.getElementById('p
 const modal=document.getElementById('preview-dialog');document.getElementById('close-preview').onclick=()=>modal.close();
 const lessons=["Discovery & Client Needs","Business Class Experience","Handling Objections"];
 document.querySelectorAll('[data-course]').forEach(b=>b.onclick=()=>{document.getElementById('preview-title').textContent=lessons[Number(b.dataset.course)];document.getElementById('preview-copy').textContent='Sample lesson: Begin by understanding the client’s travel purpose, priorities and expectations. Ask open questions, confirm what matters most, and tailor your recommendation. The full platform includes assigned lessons, assessments and progress tracking.';modal.showModal();});
-document.querySelectorAll('[data-resource]').forEach(b=>b.onclick=()=>{document.getElementById('preview-title').textContent=b.closest('article').querySelector('h3').textContent;document.getElementById('preview-copy').textContent='Reference preview: Listen carefully, verify the details, explain relevant options clearly and confirm the next step. Full documents and approved company materials are available inside the live academy.';modal.showModal();});
+document.querySelectorAll('[data-resource]').forEach(b=>b.onclick=()=>{document.getElementById('preview-title').textContent=b.closest('article').querySelector('h3').textContent;document.getElementById('preview-copy').textContent='Reference preview: Listen carefully, verify the details, explain relevant options clearly and confirm the next step. Full documents and approved company materials are available inside the live workspace.';modal.showModal();});
 </script></body></html>

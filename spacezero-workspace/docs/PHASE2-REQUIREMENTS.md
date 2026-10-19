@@ -1,6 +1,6 @@
 phase 2ga o'tamiz: hammasini steplarga bo'lib boshidan oxirgacha tugat: LET'S GOOO!!!!
 
-* SPACEZERO ACADEMY — PHASE 2 
+* SPACEZERO WORKSPACE — PHASE 2 
 AI Training Intelligence, Call Intelligence, Assessment 
 Generation & Intensive Practice Engine 
 Phase 1 must already be functioning. 
@@ -8,7 +8,7 @@ Do NOT rebuild or replace the Phase 1 architecture.
 Build on top of the existing authentication, roles, teams, employee profiles, training 
 assignments, Knowledge Library, Skill Graph foundation, Supabase database and security 
 architecture. 
-This phase creates the core intelligence engine of SpaceZero Academy. 
+This phase creates the core intelligence engine of SpaceZero Workspace. 
 The fundamental workflow is: 
 UPLOAD → ANALYZE → CLASSIFY → RECOMMEND PRACTICE → HUMAN APPROVAL 
 → PRACTICE → SCORE → RETAKE IF REQUIRED → UPDATE SKILLS 
@@ -308,7 +308,7 @@ Never overwrite previous scores.
 10. REAL CUSTOMER CALL UPLOAD — 
 CORE FEATURE 
 Real customer communications will be one of the most important inputs into SpaceZero 
-Academy. 
+Workspace. 
 Admin and authorized Supervisor must be able to upload customer call recordings. 
 Support: 
 ● Single call 

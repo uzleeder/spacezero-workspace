@@ -24,7 +24,7 @@ if (!process.argv.includes('--child')) {
     }
   } catch { /* no .env file */ }
   if (!process.env.GEMINI_API_KEY) { console.error('GEMINI_API_KEY is not set (.env).'); process.exit(1); }
-  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'academy-live-'));
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'workspace-live-'));
   fs.writeFileSync(path.join(folder, 'live.db'), '');
   const env = { ...process.env, NODE_ENV: 'test', DATABASE_URL: `file:${path.join(folder, 'live.db').replaceAll('\\', '/')}`, STORAGE_ROOT: path.join(folder, 'storage'), LIVE_DIR: folder, CREDENTIAL_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString('base64') };
   for (const key of ['SMTP_HOST', 'SMTP_FROM', 'SMTP_USER', 'SMTP_PASSWORD', 'SMTP_PORT']) delete env[key];

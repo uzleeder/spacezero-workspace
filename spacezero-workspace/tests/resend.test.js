@@ -7,8 +7,8 @@ after(() => { for (const key of ['RESEND_API_KEY', 'RESEND_FROM', 'APP_ORIGIN'])
 
 test('Resend sends invitation and reset links using server-side configuration', async t => {
   process.env.RESEND_API_KEY = 'test-key';
-  process.env.RESEND_FROM = 'Academy <test@example.invalid>';
-  process.env.APP_ORIGIN = 'https://academy.example.invalid';
+  process.env.RESEND_FROM = 'Workspace <test@example.invalid>';
+  process.env.APP_ORIGIN = 'https://workspace.example.invalid';
   const sent = [];
   t.mock.method(globalThis, 'fetch', async (url, options) => {
     assert.equal(url, 'https://api.resend.com/emails');
@@ -19,8 +19,8 @@ test('Resend sends invitation and reset links using server-side configuration', 
   assert.equal(isEmailConfigured(), true);
   await sendAccountEmail('recipient@example.invalid', 'test-token', 'invite');
   await sendAccountEmail('recipient@example.invalid', 'reset-token', 'reset');
-  assert.match(sent[0].text, /https:\/\/academy.example.invalid\/accept-invite\/test-token/);
-  assert.match(sent[1].text, /https:\/\/academy.example.invalid\/reset-password\/reset-token/);
+  assert.match(sent[0].text, /https:\/\/workspace.example.invalid\/accept-invite\/test-token/);
+  assert.match(sent[1].text, /https:\/\/workspace.example.invalid\/reset-password\/reset-token/);
   assert.deepEqual(sent[0].to, ['recipient@example.invalid']);
   assert.ok(!JSON.stringify(sent).includes('test-key'));
 });
