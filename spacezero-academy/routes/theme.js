@@ -4,7 +4,7 @@ const express = require('express');
 const router = express.Router();
 const { safeRedirect } = require('../lib/requestSecurity');
 
-const THEME_COOKIE = 'sz_theme';
+const { THEME_COOKIE } = require('../lib/theme');
 
 // No auth required — the theme preference isn't sensitive, and this needs
 // to work from the (public) login page too.

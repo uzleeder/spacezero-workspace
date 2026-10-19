@@ -12,7 +12,8 @@ const { navForRole, LOGIN_AS_ROLES } = require('./lib/nav');
 const { hasSystemConfigAccess, ensureInitialSystemConfigAccess, capabilitiesFor } = require('./lib/supervisorCapabilities');
 const { unreadCount, recentPreview, formatRelativeTime } = require('./lib/notifications');
 const { attachImpersonation } = require('./lib/impersonation');
-const { router: themeRouter, THEME_COOKIE } = require('./routes/theme');
+const { router: themeRouter } = require('./routes/theme');
+const { themeFor } = require('./lib/theme');
 const { renderInline } = require('./lib/richContent');
 const { prisma } = require('./lib/prisma');
 
@@ -122,7 +123,7 @@ app.use(async (req, res, next) => {
   res.locals.unreadNotifications = unread;
   res.locals.notificationPreview = preview;
   res.locals.formatRelativeTime = formatRelativeTime;
-  res.locals.theme = req.cookies[THEME_COOKIE] === 'dark' ? 'dark' : 'light';
+  res.locals.theme = themeFor(req); // dark unless this browser chose light (lib/theme.js)
   next();
 });
 

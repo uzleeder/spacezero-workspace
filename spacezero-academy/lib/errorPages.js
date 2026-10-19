@@ -9,6 +9,7 @@
 // "Go back" button to the page the person came from, and - where one is known - a button for the obvious next step.
 // Requests that are not page navigations (fetch/JSON, images, files) keep their plain answers.
 const crypto = require('node:crypto');
+const { themeFor } = require('./theme');
 
 const HEADINGS = {
   400: "That didn't work",
@@ -46,7 +47,7 @@ function backUrl(req) {
 function renderErrorPage(req, res, status, message, extra = {}) {
   const back = backUrl(req);
   // Some refusals happen early (before the page-wide view settings exist), so this page must not depend on them.
-  const theme = res.locals.theme || (req.cookies && req.cookies.sz_theme === 'dark' ? 'dark' : 'light');
+  const theme = res.locals.theme || themeFor(req);
   const locals = { layout: false, backUrl: back, theme, ...extra };
   res.status(status);
   if (status === 404 && (!message || BARE[404].test(message))) return res.render('not-found', locals);
@@ -72,7 +73,7 @@ function friendlyErrors(req, res, next) {
   };
   res.render = function (view, options, callback) {
     if (view === 'error' && options && typeof options === 'object' && !Array.isArray(options)) {
-      options = { heading: headingFor(this.statusCode), backUrl: backUrl(req), theme: this.locals.theme || (req.cookies && req.cookies.sz_theme === 'dark' ? 'dark' : 'light'), ...options };
+      options = { heading: headingFor(this.statusCode), backUrl: backUrl(req), theme: this.locals.theme || themeFor(req), ...options };
     }
     return render.call(this, view, options, callback);
   };
