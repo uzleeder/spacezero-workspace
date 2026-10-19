@@ -59,7 +59,7 @@ if (counts.UNCATEGORIZED) tabs.push({ key: 'UNCATEGORIZED', label: 'Uncategorize
             <% } else if (!showArchived) { %>
               <span class="badge" title="An administrator has not allowed you to assign this training">View only</span>
             <% } %>
-            <% if (canDelete) { %><a class="btn btn-danger btn-sm" href="/admin/training/<%= course.id %>/delete" aria-label="Delete <%= course.title %>">Delete</a><% } %>
+            <% if (course.canDelete) { %><a class="btn btn-danger btn-sm" href="/admin/training/<%= course.id %>/delete" aria-label="Delete <%= course.title %>">Delete</a><% } %>
           </div>
         </li>
       <% }); %>

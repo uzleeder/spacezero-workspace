@@ -288,21 +288,24 @@ router.post('/assignments/:id/email', requireRole('ADMIN', 'SUPERVISOR'), mayUse
   res.redirect('/assignments?email=queued');
 });
 
-// Admin only: delete an assigned training for everyone it was assigned to. It disappears from each
-// person's My Training and their attempts on it go with it; certificates and skill scores already
-// earned stay, and the course itself is untouched. Queued assignment/reminder emails go with it.
-router.get('/assignments/:id/delete', requireRole('ADMIN'), async (req, res) => {
+// Delete an assigned training for everyone it was assigned to: an Admin any assignment of the organization, a
+// Supervisor (who may assign at all) only the assignments they made themselves. It disappears from each person's
+// My Training and their attempts on it go with it; certificates and skill scores already earned stay, and the
+// course itself is untouched. Queued assignment/reminder emails go with it.
+const deletableBy = (actor) => ({ organizationId: actor.organizationId, ...(actor.role === 'SUPERVISOR' ? { assignedById: actor.id } : {}) });
+
+router.get('/assignments/:id/delete', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm, async (req, res) => {
   if (req.impersonation) return res.status(403).render('forbidden');
-  const assignment = await prisma.trainingAssignment.findFirst({ where: { id: req.params.id, organizationId: req.profile.organizationId }, include: { course: true, assignedBy: { select: { fullName: true } }, _count: { select: { recipients: true } } } });
+  const assignment = await prisma.trainingAssignment.findFirst({ where: { id: req.params.id, ...deletableBy(req.profile) }, include: { course: true, assignedBy: { select: { fullName: true } }, _count: { select: { recipients: true } } } });
   if (!assignment) return res.status(404).render('not-found');
   res.render('delete-training-assignment', { title: 'Delete assigned training', assignment, employee: null, action: `/assignments/${assignment.id}/delete`, returnTo: assignmentReturn(req.query.returnTo) });
 });
 
-router.post('/assignments/:id/delete', requireRole('ADMIN'), async (req, res) => {
+router.post('/assignments/:id/delete', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm, async (req, res) => {
   const actor = req.profile;
   if (req.impersonation) return res.status(403).render('forbidden');
   const assignment = await prisma.trainingAssignment.findFirst({
-    where: { id: req.params.id, organizationId: actor.organizationId },
+    where: { id: req.params.id, ...deletableBy(actor) },
     include: { course: { select: { title: true } }, _count: { select: { recipients: true } } },
   });
   if (!assignment) return res.status(404).render('not-found');

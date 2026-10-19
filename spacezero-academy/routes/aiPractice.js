@@ -597,8 +597,9 @@ router.post('/ai-practice/:id/delete', creators, async (req, res) => {
   const course = await loadCourse(req.profile, req.params.id);
   if (!course) return notFound(res);
   const policy = await versions.deletionPolicy(course);
-  // An Admin may delete anything: show what it affects and let them confirm (the training page does the delete).
-  if (!policy.canDelete && req.profile.role === 'ADMIN' && !req.impersonation) return res.redirect(`/admin/training/${course.id}/delete`);
+  // An Admin may delete anything (a Supervisor their own training when all its assignments are theirs): show what it
+  // affects and let them confirm (the training page does the delete).
+  if (!policy.canDelete && !req.impersonation && await require('../lib/courseDeletion').mayDeleteCourse(req.profile, course)) return res.redirect(`/admin/training/${course.id}/delete`);
   if (!policy.canDelete) { // never destroy what training or skill evidence depends on: hide it instead
     await versions.archiveSource(req.profile, course);
     return res.redirect(`/ai-practice?notice=archived&error=${encodeURIComponent(`Archived instead of deleted, because ${policy.reasons.join(' and ')}.`)}`);

@@ -156,7 +156,11 @@ test('confirmation and searches preserve organization and role boundaries', asyn
   await prisma.supervisorCapability.create({ data: { organizationId: org.id, supervisorId: sup.id, key: 'training.assign', grantedById: admin.id } });
   const ownPage = await get(sup, '/assignments?q=sup');
   assert.equal(ownPage.status, 200);
-  assert.doesNotMatch(ownPage.text, /action="\/assignments\/[^"]+\/delete"/);
+  assert.match(ownPage.text, new RegExp(`action="/assignments/${assignment.id}/delete"`)); // their own assignment gets Delete...
+  const adminsOwn = await assign([agentB], admin);
+  assert.doesNotMatch((await get(sup, '/assignments')).text, new RegExp(`/assignments/${adminsOwn.assignment.id}/delete`)); // ...the Admin's does not
+  assert.equal((await get(sup, `/assignments/${adminsOwn.assignment.id}/delete`)).status, 404);
+  await prisma.trainingAssignment.delete({ where: { id: adminsOwn.assignment.id } });
   const preview = await get(admin, `/assignments/${assignment.id}/delete?returnTo=https://example.invalid`);
   assert.match(preview.text, /href="\/assignments">Cancel/);
   assert.equal(await prisma.trainingAssignment.count({ where: { id: assignment.id } }), 1);
@@ -215,6 +219,62 @@ test('only an Admin of the same organization can delete a training; AI Practice 
   assert.equal(await prisma.trainingCourse.count({ where: { id: c.id } }), 1);
   assert.equal((await post(otherAdmin, `/admin/training/${c.id}/delete`)).status, 302); // any Admin of the organization
   assert.equal(await prisma.trainingCourse.count({ where: { id: c.id } }), 0);
+});
+
+test('a Supervisor can delete the trainings THEY assigned (and remove them from their own team), never the Admin\'s', async () => {
+  await prisma.supervisorAssignment.create({ data: { supervisorId: sup.id, agentId: agentA.id, assignedById: admin.id } });
+  const mine = await assign([agentA, agentB], sup);
+  const adminsOwn = await assign([agentA], admin);
+  // from the employee page: only the ones they assigned
+  const page = (await get(sup, `/employees/${agentA.id}/training`)).text;
+  assert.match(page, new RegExp(`/employees/${agentA.id}/training/${mine.rows[0].id}/delete`));
+  assert.doesNotMatch(page, new RegExp(`/employees/${agentA.id}/training/${adminsOwn.rows[0].id}/delete`));
+  assert.equal((await post(sup, `/employees/${agentA.id}/training/${adminsOwn.rows[0].id}/delete`)).status, 403);
+  assert.equal(await prisma.trainingAssignmentRecipient.count({ where: { id: adminsOwn.rows[0].id } }), 1);
+  assert.equal((await post(sup, `/employees/${agentA.id}/training/${mine.rows[0].id}/delete`)).status, 302);
+  assert.equal(await prisma.trainingAssignmentRecipient.count({ where: { id: mine.rows[0].id } }), 0);
+  assert.equal(await prisma.trainingAssignmentRecipient.count({ where: { id: mine.rows[1].id } }), 1); // the other person keeps it
+  // the whole assignment from the Training page: theirs yes, the Admin's no
+  assert.equal((await post(sup, `/assignments/${adminsOwn.assignment.id}/delete`)).status, 404);
+  assert.equal((await post(sup, `/assignments/${mine.assignment.id}/delete`)).status, 302);
+  assert.equal(await prisma.trainingAssignment.count({ where: { id: mine.assignment.id } }), 0);
+  assert.equal(await prisma.trainingAssignment.count({ where: { id: adminsOwn.assignment.id } }), 1);
+  assert.ok(await prisma.auditLog.findFirst({ where: { organizationId: org.id, action: 'training.assignment_deleted', targetId: mine.assignment.id, actorId: sup.id } }));
+  // a Supervisor without the assign permission has none of this
+  await prisma.supervisorCapability.deleteMany({ where: { supervisorId: sup.id, key: 'training.assign' } });
+  const again = await assign([agentA], sup);
+  assert.equal((await post(sup, `/assignments/${again.assignment.id}/delete`)).status, 403);
+  assert.doesNotMatch((await get(sup, `/employees/${agentA.id}/training`)).text, /training\/[^"]+\/delete/);
+  assert.equal((await post(sup, `/employees/${agentA.id}/training/${again.rows[0].id}/delete`)).status, 403);
+  await prisma.supervisorCapability.create({ data: { organizationId: org.id, supervisorId: sup.id, key: 'training.assign', grantedById: admin.id } });
+  await prisma.trainingAssignment.deleteMany({ where: { id: { in: [again.assignment.id, adminsOwn.assignment.id] } } });
+});
+
+test('a Supervisor can delete a training they created, but not the Admin\'s, nor one the Admin assigned to others', async () => {
+  const own = await prisma.trainingCourse.create({ data: { organizationId: org.id, title: 'Supervisor course', createdById: sup.id, status: 'PUBLISHED', publishedVersion: 1, origin: 'AI_PRACTICE' } });
+  const adminsCourse = await prisma.trainingCourse.create({ data: { organizationId: org.id, title: 'Admin course', createdById: admin.id, status: 'PUBLISHED', publishedVersion: 1 } });
+  const catalog = (await get(sup, '/admin/training?category=UNCATEGORIZED')).text;
+  assert.match(catalog, new RegExp(`/admin/training/${own.id}/delete`));
+  assert.doesNotMatch(catalog, new RegExp(`/admin/training/${adminsCourse.id}/delete`));
+  // someone else's training: the central object-access guard answers 404 (it does not even confirm the course exists)
+  assert.equal((await get(sup, `/admin/training/${adminsCourse.id}/delete`)).status, 404);
+  assert.equal((await post(sup, `/admin/training/${adminsCourse.id}/delete`)).status, 404);
+  assert.equal(await prisma.trainingCourse.count({ where: { id: adminsCourse.id } }), 1);
+  // the Admin assigned it to somebody: the Supervisor may no longer remove it
+  const byAdmin = await prisma.trainingAssignment.create({ data: { organizationId: org.id, courseId: own.id, assignedById: admin.id, scope: 'INDIVIDUAL' } });
+  assert.equal((await post(sup, `/admin/training/${own.id}/delete`)).status, 403);
+  assert.notEqual((await post(sup, `/ai-practice/${own.id}/delete`)).headers.location, `/admin/training/${own.id}/delete`);
+  assert.equal(await prisma.trainingCourse.count({ where: { id: own.id } }), 1);
+  await prisma.trainingAssignment.delete({ where: { id: byAdmin.id } });
+  // theirs alone: confirmation page, then it is gone, for the people they assigned it to as well
+  const theirs = await prisma.trainingAssignment.create({ data: { organizationId: org.id, courseId: own.id, assignedById: sup.id, scope: 'INDIVIDUAL' } });
+  await prisma.trainingAssignmentRecipient.create({ data: { assignmentId: theirs.id, profileId: agentB.id } });
+  assert.equal((await get(sup, `/admin/training/${own.id}/delete`)).status, 200);
+  assert.equal((await post(sup, `/admin/training/${own.id}/delete`)).status, 302);
+  assert.equal(await prisma.trainingCourse.count({ where: { id: own.id } }), 0);
+  assert.equal(await prisma.trainingAssignment.count({ where: { id: theirs.id } }), 0);
+  assert.ok(await prisma.auditLog.findFirst({ where: { organizationId: org.id, action: 'training.course_deleted', targetId: own.id, actorId: sup.id } }));
+  await prisma.trainingCourse.delete({ where: { id: adminsCourse.id } });
 });
 
 test('search, categories and pagination combine, including invalid page input', async () => {

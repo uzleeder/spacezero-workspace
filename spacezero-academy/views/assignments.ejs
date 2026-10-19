@@ -33,9 +33,7 @@
             <p class="text-sm text-muted mt-4">Email: <%= emails.filter(e => e.assignmentSentAt).length %> accepted for sending<% if (emails.some(e => e.lastError)) { %> · Some emails need attention; temporary failures retry automatically.<% } %></p>
             <div class="mt-8" style="display:flex;gap:8px;flex-wrap:wrap">
               <form method="post" action="/assignments/<%= a.id %>/email" data-once><button type="submit" class="btn btn-secondary btn-sm">Send email</button></form>
-              <% if (allowCompany) { %>
               <form method="get" action="/assignments/<%= a.id %>/delete"><input type="hidden" name="returnTo" value="<%= listUrl() %>"><button type="submit" class="btn btn-danger btn-sm">Delete</button></form>
-              <% } %>
             </div>
           </li>
         <% }); %>

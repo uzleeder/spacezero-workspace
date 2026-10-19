@@ -89,8 +89,11 @@ router.get('/training', canManage, async (req, res) => {
   const counts = categories.countByCategory(courses);
   let category = categories.readFilter(req.query.category);
   if (!category || (category === 'UNCATEGORIZED' && !counts.UNCATEGORIZED)) category = categories.KEYS.find((k) => counts[k] > 0) || (counts.UNCATEGORIZED ? 'UNCATEGORIZED' : categories.KEYS[0]);
-  const rows = courses.filter((c) => categories.matches(c, category)).map((c) => ({ ...c, canAssign: !showArchived && mayAssign(actor, c) }));
-  res.render('admin/training/index', { title: 'Training', courses: rows, showArchived, POLICY_LABEL, CATEGORIES: categories.CATEGORIES, categoryLabel: categories.categoryLabel, counts, category, canSetCategory: actor.role === 'ADMIN', canDelete: actor.role === 'ADMIN' && !req.impersonation, deletedNotice: req.query.deleted === '1' });
+  const shown = courses.filter((c) => categories.matches(c, category));
+  // Delete: an Admin for any training; a Supervisor only for a training they created whose assignments are all theirs.
+  const deletable = req.impersonation ? new Set() : await courseDeletion.deletableCourseIds(actor, shown);
+  const rows = shown.map((c) => ({ ...c, canAssign: !showArchived && mayAssign(actor, c), canDelete: deletable.has(c.id) }));
+  res.render('admin/training/index', { title: 'Training', courses: rows, showArchived, POLICY_LABEL, CATEGORIES: categories.CATEGORIES, categoryLabel: categories.categoryLabel, counts, category, canSetCategory: actor.role === 'ADMIN', deletedNotice: req.query.deleted === '1' });
 });
 
 // Admin: choose (or change) the Training Category of any training - the way a training that predates categories gets one.
@@ -205,7 +208,7 @@ router.get('/training/:id', canManage, async (req, res) => {
     course,
     roleLabel,
     canEdit: canEditCourse(actor, course),
-    canDelete: actor.role === 'ADMIN',
+    canDelete: !req.impersonation && await courseDeletion.mayDeleteCourse(actor, course),
     editError: null,
     ...(await detailExtras(actor, course)),
   });
@@ -339,18 +342,21 @@ router.post('/training/:id/archive', adminOnly, (req, res) => setCourseStatus(re
 
 // Admin only, any training: even one that was sent to Training, assigned, attempted or has skill evidence.
 // A confirmation page first shows exactly what goes; archiving stays available as the gentler choice.
-router.get('/training/:id/delete', requireRole('ADMIN'), async (req, res) => {
+// A Supervisor may delete a training they created themselves while every assignment of it is theirs (see lib/courseDeletion.js).
+router.get('/training/:id/delete', canManage, async (req, res) => {
   if (req.impersonation) return res.status(403).render('forbidden');
   const course = await prisma.trainingCourse.findFirst({ where: { id: req.params.id, organizationId: req.profile.organizationId } });
   if (!course) return res.status(404).render('not-found', { layout: false });
+  if (!await courseDeletion.mayDeleteCourse(req.profile, course)) return res.status(403).render('forbidden');
   res.render('admin/training/delete', { title: 'Delete training', course, impact: await courseDeletion.deletionImpact(course) });
 });
 
-router.post('/training/:id/delete', requireRole('ADMIN'), async (req, res) => {
+router.post('/training/:id/delete', canManage, async (req, res) => {
   const actor = req.profile;
   if (req.impersonation) return res.status(403).render('forbidden');
   const course = await prisma.trainingCourse.findFirst({ where: { id: req.params.id, organizationId: actor.organizationId } });
   if (!course) return res.status(404).render('not-found', { layout: false });
+  if (!await courseDeletion.mayDeleteCourse(actor, course)) return res.status(403).render('forbidden');
   await courseDeletion.deleteCourse(actor, course);
   res.redirect('/admin/training?deleted=1');
 });
