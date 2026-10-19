@@ -51,7 +51,8 @@ function completionFromAssessments(recipient, assessments) {
     const finished = recipient.attempts.filter((t) => ids.has(t.assessmentId) && t.completedAt);
     const needed = Math.max(assessment.passingScore, assignment.minimumScore);
     const passed = finished.length >= assignment.requiredAttempts && finished.some((t) => t.status === 'COMPLETED' && t.score !== null && t.score >= needed);
-    return { assessment, passed };
+    const latest = [...finished].sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))[0] || null;
+    return { assessment, passed, latest };
   });
   return {
     rows,
@@ -61,13 +62,60 @@ function completionFromAssessments(recipient, assessments) {
     missing: rows.filter((r) => !r.passed).map((r) => r.assessment.title),
     // Submitted = a course-level attempt (not tied to one practice) has been completed.
     // A later course retake/start supersedes an older submission.
-    submitted: recipient.attempts.filter((t) => !t.assessmentId).sort((a, b) => b.attemptNumber - a.attemptNumber || new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0]?.status === 'COMPLETED',
+    submitted: isSubmitted(recipient.attempts),
   };
+}
+
+// Practice attempts are numbered per practice, so "the attempt with the highest number" says nothing about a
+// training as a whole. Its course-level attempts (Start, Submit training, a manager's retake request) do.
+const newestFirst = (a, b) => b.attemptNumber - a.attemptNumber || new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+/** The newest course-level attempt of a training (not tied to one practice), or null. */
+const courseAttempt = (attempts) => attempts.filter((t) => !t.assessmentId).sort(newestFirst)[0] || null;
+/** Submitted (finished), and no retake asked for since. */
+const isSubmitted = (attempts) => courseAttempt(attempts)?.status === 'COMPLETED';
+/** The attempt a manager's retake request re-opens: the training's submission, else (never submitted) its newest attempt. */
+const retakeTarget = (attempts) => courseAttempt(attempts) || [...attempts].sort(newestFirst)[0] || null;
+
+/**
+ * The status of one assigned training, by the same rules as submitting it:
+ *   COMPLETED       - submitted, and no retake asked for since (practising again afterwards changes nothing);
+ *   RETAKE_REQUIRED - a manager asked for a retake, or a required practice is not passed yet and its latest
+ *                     result failed;
+ *   IN_PROGRESS     - anything started; NOT_STARTED otherwise.
+ * recipient: { profileId, assignment, attempts }; assessments: the course's (see assessmentsByCourse).
+ */
+function trainingStatusFrom(recipient, assessments) {
+  const course = courseAttempt(recipient.attempts);
+  if (course && course.status === 'COMPLETED') return 'COMPLETED';
+  if (course && course.status === 'RETAKE_REQUIRED') return 'RETAKE_REQUIRED';
+  const { rows } = completionFromAssessments(recipient, assessments);
+  if (rows.some((r) => !r.passed && r.latest && ['RETAKE_REQUIRED', 'FAILED'].includes(r.latest.status))) return 'RETAKE_REQUIRED';
+  return recipient.attempts.some((t) => t.status !== 'NOT_STARTED') ? 'IN_PROGRESS' : 'NOT_STARTED';
+}
+
+/** The approved assessments of many courses in one query (Map courseId -> list), as completion needs them. */
+async function assessmentsByCourse(courseIds) {
+  const ids = [...new Set(courseIds)];
+  const byCourse = new Map(ids.map((id) => [id, []]));
+  if (!ids.length) return byCourse;
+  const rows = await prisma.assessment.findMany({
+    where: { courseId: { in: ids }, status: 'APPROVED', archivedAt: null },
+    select: { id: true, courseId: true, status: true, archivedAt: true, version: true, type: true, configJson: true, createdById: true, passingScore: true, title: true, createdAt: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  for (const a of rows) byCourse.get(a.courseId).push(a);
+  return byCourse;
+}
+
+/** The status of each recipient ({ profileId, assignment, attempts }) by trainingStatusFrom, loading what it needs. */
+async function trainingStatuses(recipients) {
+  const assessments = await assessmentsByCourse(recipients.map((r) => r.assignment.courseId));
+  return recipients.map((r) => trainingStatusFrom(r, assessments.get(r.assignment.courseId) || []));
 }
 
 /**
  * Finishes the training for this recipient: the course-level attempt becomes COMPLETED and is numbered
- * after every practice attempt, so it is the one the My Training list reads as the current status.
+ * after every practice attempt, so it is the newest course-level attempt (see courseAttempt).
  */
 async function submitTraining(recipient) {
   const highest = recipient.attempts.reduce((max, t) => Math.max(max, t.attemptNumber), 0);
@@ -112,4 +160,4 @@ async function practiceFlowFor(profileId, assessment, recipientId) {
   };
 }
 
-module.exports = { completionState, completionFromAssessments, submitTraining, practiceFlowFor, startUrl };
+module.exports = { completionState, completionFromAssessments, submitTraining, practiceFlowFor, startUrl, courseAttempt, isSubmitted, retakeTarget, newestFirst, trainingStatusFrom, assessmentsByCourse, trainingStatuses };

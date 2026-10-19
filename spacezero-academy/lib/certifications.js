@@ -7,6 +7,7 @@
 const { prisma } = require('./prisma');
 const { logAudit } = require('./audit');
 const { notifyOnce } = require('./notifications');
+const { trainingStatuses } = require('./trainingCompletion');
 
 const CONF_RANK = { NONE: 0, LOW: 1, MEDIUM: 2, HIGH: 3 };
 const parse = (v, fallback) => { try { return v ? JSON.parse(v) : fallback; } catch { return fallback; } };
@@ -56,8 +57,9 @@ async function evaluate(definition, profile) {
     }
   }
   if (req.noOutstandingRetakes) {
-    const recipients = await prisma.trainingAssignmentRecipient.findMany({ where: { profileId: profile.id }, include: { attempts: { select: { status: true, attemptNumber: true }, orderBy: { attemptNumber: 'desc' }, take: 1 } } });
-    const outstanding = recipients.filter((r) => r.attempts[0] && ['RETAKE_REQUIRED', 'FAILED'].includes(r.attempts[0].status)).length;
+    const recipients = await prisma.trainingAssignmentRecipient.findMany({ where: { profileId: profile.id }, include: { assignment: true, attempts: true } });
+    // Outstanding = the training's status is Retake required (lib/trainingCompletion.js); a failure later passed is not.
+    const outstanding = (await trainingStatuses(recipients)).filter((s) => s === 'RETAKE_REQUIRED').length;
     checks.push({ type: 'retakes', label: 'No mandatory retakes outstanding', ok: outstanding === 0, detail: outstanding ? `${outstanding} outstanding` : 'None outstanding' });
   }
   return { met: checks.length > 0 && checks.every((c) => c.ok), checks };

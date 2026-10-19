@@ -9,6 +9,7 @@ const { getMyTrainingList } = require('../lib/training');
 const { buildMyTraining } = require('../lib/myTraining');
 const trainingCategories = require('../lib/trainingCategories');
 const { createNotification } = require('../lib/notifications');
+const { courseAttempt } = require('../lib/trainingCompletion');
 
 // One page: choose a STATUS (Overdue / To Do / In Progress / Completed) and a CATEGORY (All / Product / Sales /
 // System & Workflow) - no separate pages for every combination.
@@ -18,19 +19,17 @@ router.get('/training', requireSession, async (req, res) => {
   res.render('training', { title: 'My Training', list, view, categoryLabel: trainingCategories.categoryLabel });
 });
 
-async function latestAttemptFor(recipientId) {
-  return prisma.trainingAttempt.findFirst({ where: { recipientId }, orderBy: { attemptNumber: 'desc' } });
-}
-
 router.post('/training/:recipientId/start', requireSession, async (req, res) => {
-  const recipient = await prisma.trainingAssignmentRecipient.findUnique({ where: { id: req.params.recipientId } });
+  const recipient = await prisma.trainingAssignmentRecipient.findUnique({ where: { id: req.params.recipientId }, include: { attempts: true } });
   if (recipient && recipient.profileId === req.profile.id) {
-    const latest = await latestAttemptFor(recipient.id);
+    // The training's own (course-level) attempt, not whichever practice attempt has the highest number.
+    const latest = courseAttempt(recipient.attempts);
     if (latest && latest.status === 'NOT_STARTED') {
       await prisma.trainingAttempt.update({ where: { id: latest.id }, data: { status: 'IN_PROGRESS', startedAt: new Date() } });
     } else if (latest && latest.status === 'RETAKE_REQUIRED') {
+      const highest = recipient.attempts.reduce((max, t) => Math.max(max, t.attemptNumber), 0);
       await prisma.trainingAttempt.create({
-        data: { recipientId: recipient.id, profileId: req.profile.id, attemptNumber: latest.attemptNumber + 1, status: 'IN_PROGRESS', startedAt: new Date() },
+        data: { recipientId: recipient.id, profileId: req.profile.id, attemptNumber: highest + 1, status: 'IN_PROGRESS', startedAt: new Date() },
       });
     }
   }
