@@ -17,10 +17,11 @@ const ALLOWED_MIME = {
   IMAGE: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
   NOTE: [],
   LINK: [],
-  CALL_RECORDING: ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'video/mp4', 'video/webm'],
-  AUDIO: ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/webm'],
+  // audio/mp4 (.m4a) is what iPhone / Safari record and what phones export; browsers also call .m4a audio/x-m4a.
+  CALL_RECORDING: ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/x-m4a', 'audio/m4a', 'video/mp4', 'video/webm'],
+  AUDIO: ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/webm', 'audio/mp4', 'audio/x-m4a', 'audio/m4a'],
   // AI Practice upload types (Phase 1: upload/organize only, no AI scoring)
-  CALL: ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'video/mp4', 'video/webm'],
+  CALL: ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/x-m4a', 'audio/m4a', 'video/mp4', 'video/webm'],
   SLIDES: ['application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
 };
 
@@ -62,6 +63,10 @@ function validateUpload(itemType, file) {
     'audio/mpeg': text.startsWith('ID3') || (b[0] === 255 && (b[1] & 224) === 224),
     'audio/mp3': text.startsWith('ID3') || (b[0] === 255 && (b[1] & 224) === 224),
     'video/mp4': text.slice(4,8) === 'ftyp',
+    // .m4a is an MP4 file holding audio: the same container signature
+    'audio/mp4': text.slice(4,8) === 'ftyp',
+    'audio/x-m4a': text.slice(4,8) === 'ftyp',
+    'audio/m4a': text.slice(4,8) === 'ftyp',
     'video/quicktime': ['ftyp', 'moov', 'mdat'].includes(text.slice(4,8)),
     'video/webm': hex.startsWith('1a45dfa3'),
     'audio/webm': hex.startsWith('1a45dfa3'),
@@ -77,11 +82,12 @@ function validateUpload(itemType, file) {
 async function saveUpload(file, subdir) {
   const dir = resolveStoragePath(subdir);
   await mkdir(dir, { recursive: true });
-  const ext = ({ 'application/pdf': '.pdf', 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/gif': '.gif', 'video/mp4': '.mp4', 'video/webm': '.webm', 'video/quicktime': '.mov', 'audio/mpeg': '.mp3', 'audio/mp3': '.mp3', 'audio/wav': '.wav', 'audio/ogg': '.ogg', 'application/msword': '.doc', 'application/vnd.ms-powerpoint': '.ppt', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx' })[file.mimetype] || '.bin';
+  const ext = ({ 'application/pdf': '.pdf', 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/gif': '.gif', 'video/mp4': '.mp4', 'video/webm': '.webm', 'video/quicktime': '.mov', 'audio/mpeg': '.mp3', 'audio/mp3': '.mp3', 'audio/wav': '.wav', 'audio/ogg': '.ogg', 'audio/webm': '.webm', 'audio/mp4': '.m4a', 'audio/x-m4a': '.m4a', 'audio/m4a': '.m4a', 'application/msword': '.doc', 'application/vnd.ms-powerpoint': '.ppt', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx' })[file.mimetype] || '.bin';
   const id = crypto.randomUUID();
   const filename = `${id}${ext}`;
   await writeFile(path.join(dir, filename), file.buffer, { mode: 0o600, flag: 'wx' });
-  return { storagePath: path.posix.join(subdir, filename), mimeType: file.mimetype };
+  // One name for .m4a audio, however the browser labelled it - used for playback and when the AI receives the file.
+  return { storagePath: path.posix.join(subdir, filename), mimeType: ['audio/x-m4a', 'audio/m4a'].includes(file.mimetype) ? 'audio/mp4' : file.mimetype };
 }
 
 function resolveStoragePath(storagePath) {
