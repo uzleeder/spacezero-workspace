@@ -9,6 +9,11 @@ function latestAttempt(attempts) {
 }
 
 function trainingStatus(attempts) {
+  // A SUBMITTED training stays completed: the course-level attempt (not tied to one practice) is what finishes it, and
+  // practising again afterwards - a passed or failed practice attempt - must never reopen it. Only a newer course-level
+  // attempt (a retake request or a restart) does.
+  const course = latestAttempt((attempts || []).filter((a) => !a.assessmentId));
+  if (course && course.status === 'COMPLETED') return 'COMPLETED';
   const latest = latestAttempt(attempts);
   // A passed practice is progress; completion requires the course-level submission.
   return latest?.assessmentId && latest.status === 'COMPLETED' ? 'IN_PROGRESS' : latest?.status || 'NOT_STARTED';
@@ -66,4 +71,4 @@ async function getTrainingSummaries(profileIds) {
   return summaries;
 }
 
-module.exports = { getMyTrainingList, getMyTrainingSummary, getTrainingSummaries };
+module.exports = { getMyTrainingList, getMyTrainingSummary, getTrainingSummaries, trainingStatus };

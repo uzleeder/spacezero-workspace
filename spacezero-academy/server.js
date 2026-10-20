@@ -12,7 +12,8 @@ const { navForRole, LOGIN_AS_ROLES } = require('./lib/nav');
 const { hasSystemConfigAccess, ensureInitialSystemConfigAccess, capabilitiesFor } = require('./lib/supervisorCapabilities');
 const { unreadCount, recentPreview, formatRelativeTime } = require('./lib/notifications');
 const { attachImpersonation } = require('./lib/impersonation');
-const { router: themeRouter, THEME_COOKIE } = require('./routes/theme');
+const { router: themeRouter } = require('./routes/theme');
+const { themeFor } = require('./lib/theme');
 const { renderInline } = require('./lib/richContent');
 const { prisma } = require('./lib/prisma');
 
@@ -74,6 +75,7 @@ app.use(express.json({ limit: '256kb' }));
 app.use(cookieParser());
 app.use(require('./lib/sensitiveRateLimit').sensitiveRateLimit);
 
+app.use(require('./lib/errorPages').friendlyErrors); // every refusal a browser receives is the branded page, not a bare line of text
 app.use(attachProfile);
 app.use(require('./lib/privateUploads').privateUploads);
 app.use('/static/uploads', express.static(require('./lib/uploadRoot').UPLOAD_ROOT, { dotfiles: 'deny', fallthrough: false, cacheControl: false, setHeaders: (res) => res.setHeader('Cache-Control', 'private, max-age=600') })); // avatars/thumbnails: the viewer's own browser may reuse them for a few minutes (each fetch costs an authorization query)
@@ -121,7 +123,7 @@ app.use(async (req, res, next) => {
   res.locals.unreadNotifications = unread;
   res.locals.notificationPreview = preview;
   res.locals.formatRelativeTime = formatRelativeTime;
-  res.locals.theme = req.cookies[THEME_COOKIE] === 'dark' ? 'dark' : 'light';
+  res.locals.theme = themeFor(req); // dark unless this browser chose light (lib/theme.js)
   next();
 });
 
@@ -176,23 +178,31 @@ if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   for (const lib of ['callRetention', 'trainingAnalysis', 'callIntelligence', 'aiTasks', 'automation']) require(`./lib/${lib}`);
   require('./lib/jobQueue').start();
   require('./lib/trainingEmails').start();
+  // Trainings whose every practice was passed before the automatic finish existed (still sitting in Overdue / In Progress)
+  // are finished at start-up and then every 15 minutes, for people who do not open the site.
+  const sweep = () => require('./lib/trainingCompletion').autoFinishAll().then((n) => { if (n) console.log(`auto-finished ${n} completed training(s)`); }).catch((err) => console.error('auto-finish sweep failed', err.message));
+  setTimeout(sweep, 20000).unref();
+  setInterval(sweep, 15 * 60 * 1000).unref();
 }
 
 // Every deploy makes sure the ready-made Company Standards & Workflow documents exist (each added once; see
 // lib/readyStandards.js). Not in tests, which build their own data.
 if (process.env.NODE_ENV !== 'test') setImmediate(() => { require('./lib/readyStandards').provisionAllOrganizations(); });
 
-app.use((req, res) => {
-  res.status(404).render('not-found', { layout: false });
-});
+app.use(require('./lib/errorPages').handleNotFound);
 
-// eslint-disable-next-line no-unused-vars
-app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(500).render('error', { layout: false, message: 'Something went wrong. Please try again.' });
-});
+// Unexpected errors (and a missing file, or a request the framework rejected) - see lib/errorPages.js.
+app.use(require('./lib/errorPages').handleError);
+
+// Training uploads have no size limit, so a very large file over a slow connection can take longer than Node's default
+// 5-minute request timeout: that timeout is switched off (the upload is still streamed to disk, never held in memory).
+function allowLongUploads(server) {
+  server.requestTimeout = 0;
+  return server;
+}
 
 if (require.main === module) {
+  require('./lib/uploads').sweepStaleUploads().catch(() => undefined); // temporary upload files left by a crash
   // Prisma's query engine connects lazily on its first query by default, so without this the
   // very first page a person opens after every boot/restart pays a one-off ~2s connection cost
   // (felt constantly in dev, where --watch restarts the process on every file save). Connecting
@@ -202,9 +212,9 @@ if (require.main === module) {
       const configuredHost = process.env.HOST;
       if (configuredHost) {
         // Explicit host (e.g. production's HOST=0.0.0.0) — bind exactly as configured, unchanged.
-        app.listen(PORT, configuredHost, () => {
+        allowLongUploads(app.listen(PORT, configuredHost, () => {
           console.log(`SpaceZero Workspace running at http://${configuredHost}:${PORT}`);
-        });
+        }));
         return;
       }
       // Local dev default: listen on BOTH loopback addresses (still never reachable off this
@@ -212,8 +222,8 @@ if (require.main === module) {
       // with nothing listening there, that attempt has to time out (~2s) before falling back to
       // IPv4 — felt as "every page loads slowly". Binding both means whichever address a browser
       // or tool tries first connects immediately, so that fallback delay never happens.
-      http.createServer(app).listen(PORT, '127.0.0.1');
-      http.createServer(app).listen(PORT, '::1', () => {
+      allowLongUploads(http.createServer(app).listen(PORT, '127.0.0.1'));
+      allowLongUploads(http.createServer(app)).listen(PORT, '::1', () => {
         console.log(`SpaceZero Workspace running at http://localhost:${PORT}`);
       });
     })

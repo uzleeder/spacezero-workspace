@@ -6,33 +6,44 @@
 
 <div class="grid mt-24" style="grid-template-columns: minmax(0,1fr) 400px">
   <div class="card">
-    <div class="card-header"><h2>Recent assignments</h2></div>
+    <div class="card-header"><h2>Assigned training</h2><span class="text-sm text-muted"><%= total %> assignment<%= total === 1 ? '' : 's' %></span></div>
   <div class="card-body" style="padding-bottom:0">
+    <form method="get" action="/assignments" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+      <% if (category) { %><input type="hidden" name="category" value="<%= category %>"><% } %>
+      <label for="assignment-search" class="text-sm" style="width:100%">Search by training, assigned by, employee or team</label>
+      <input id="assignment-search" type="search" name="q" value="<%= q %>" maxlength="150" placeholder="Training or supervisor name..." style="flex:1;min-width:180px">
+      <button class="btn btn-secondary" type="submit">Search</button>
+      <% if (q) { %><a class="btn btn-secondary" href="<%= listUrl({ q: '', page: 1 }) %>">Clear</a><% } %>
+    </form>
     <nav class="category-tabs" aria-label="Filter by training category">
-      <a href="/assignments" class="category-tab<%= category ? '' : ' active' %>" <%- category ? '' : 'aria-current="page"' %>>All</a>
-      <% CATEGORIES.forEach(function (c) { %><a href="/assignments?category=<%= c.key %>" class="category-tab<%= category === c.key ? ' active' : '' %>" <%- category === c.key ? 'aria-current="page"' : '' %>><%= c.short %></a><% }); %>
+      <a href="<%= listUrl({ category: '', page: 1 }) %>" class="category-tab<%= category ? '' : ' active' %>" <%- category ? '' : 'aria-current="page"' %>>All</a>
+      <% CATEGORIES.forEach(function (c) { %><a href="<%= listUrl({ category: c.key, page: 1 }) %>" class="category-tab<%= category === c.key ? ' active' : '' %>" <%- category === c.key ? 'aria-current="page"' : '' %>><%= c.short %></a><% }); %>
     </nav>
   </div>
     <% if (assignments.length === 0) { %>
-      <div class="card-body"><%- include('partials/empty-state', { title: category ? 'No assignments in this category' : 'No assignments yet', description: 'Use the form to assign a published course.' }) %></div>
+      <div class="card-body"><%- include('partials/empty-state', { title: q || category ? 'No matching assignments' : 'No assignments yet', description: q || category ? 'Try another search or category.' : 'Use the form to assign a published course.' }) %></div>
     <% } else { %>
       <ul class="divide-list" style="padding:0 24px">
         <% assignments.forEach(function (a) { %>
           <li>
             <p style="font-weight:500;color:var(--navy-950)"><%= a.course.title %> <span class="badge <%= a.course.trainingCategory ? 'badge-navy' : 'badge-warning' %>" data-category-badge><%= categoryLabel(a.course.trainingCategory) %></span></p>
+            <p class="text-sm text-muted">Assigned by <strong><%= a.assignedBy.fullName %></strong> · <%= roleLabel(a.assignedBy.role) %><% if (a.targetTeam) { %> · <%= a.targetTeam.name %><% } %></p>
             <p class="text-sm text-muted"><%= a.scope === 'ROLE' && a.targetRole ? 'ROLE · ' + a.targetRole.replace('_', ' ').toLowerCase() : a.scope %> · <%= a._count.recipients %> recipient<%= a._count.recipients === 1 ? '' : 's' %><% if (a.dueDate) { %> · due <%= formatDeadline(a.dueDate) %><% } %></p>
             <% const emails = (a.recipients || []).map(r => r.emailSchedule).filter(Boolean); %>
             <p class="text-sm text-muted mt-4">Email: <%= emails.filter(e => e.assignmentSentAt).length %> accepted for sending<% if (emails.some(e => e.lastError)) { %> · Some emails need attention; temporary failures retry automatically.<% } %></p>
             <div class="mt-8" style="display:flex;gap:8px;flex-wrap:wrap">
               <form method="post" action="/assignments/<%= a.id %>/email" data-once><button type="submit" class="btn btn-secondary btn-sm">Send email</button></form>
-              <% if (allowCompany) { %>
-              <form method="post" action="/assignments/<%= a.id %>/delete" onsubmit="return confirm('Delete this assigned training (<%= a.course.title.replace(/["'\\]/g, '') %>) for <%= a._count.recipients %> <%= a._count.recipients === 1 ? 'person' : 'people' %>?\n\nIt disappears from their My Training and their attempts on it are removed. Certificates and skill scores already earned stay. This cannot be undone.')"><button type="submit" class="btn btn-danger btn-sm">Delete</button></form>
-              <% } %>
+              <form method="get" action="/assignments/<%= a.id %>/delete"><input type="hidden" name="returnTo" value="<%= listUrl() %>"><button type="submit" class="btn btn-danger btn-sm">Delete</button></form>
             </div>
           </li>
         <% }); %>
       </ul>
     <% } %>
+    <% if (pageCount > 1) { %><nav class="card-body" aria-label="Assignment pages" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <% if (page > 1) { %><a class="btn btn-secondary btn-sm" href="<%= listUrl({ page: page - 1 }) %>">Previous</a><% } %>
+      <span class="text-sm text-muted">Page <%= page %> of <%= pageCount %></span>
+      <% if (page < pageCount) { %><a class="btn btn-secondary btn-sm" href="<%= listUrl({ page: page + 1 }) %>">Next</a><% } %>
+    </nav><% } %>
   </div>
 
   <div class="card">

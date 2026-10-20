@@ -4,7 +4,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=1" />
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Something went wrong · SpaceZero Workspace</title>
+  <title><%= typeof heading !== 'undefined' ? heading : 'Something went wrong' %> · SpaceZero Workspace</title>
   <link rel="stylesheet" href="<%= asset('/static/css/styles.css') %>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -14,7 +14,7 @@
   <%- include('partials/error-shell', {
     tone: 'danger',
     iconSvg: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>',
-    errorTitle: 'Something went wrong',
+    errorTitle: typeof heading !== 'undefined' ? heading : 'Something went wrong',
     errorMessage: typeof message !== 'undefined' ? message : 'Please try again in a moment.',
   }) %>
 </body>

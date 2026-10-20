@@ -21,6 +21,7 @@ const { getTrainingSummaries } = require('../../lib/training');
 const { employeeWorkbook } = require('../../lib/employeeExport');
 const { roleLabel } = require('../../lib/roles');
 const { containsText } = require('../../lib/textSearch');
+const employeeDeletion = require('../../lib/employeeDeletion');
 
 const { sendAccountEmail, isEmailConfigured } = require('../../lib/mailer');
 const { sendReset } = require('../../lib/accountEmail');
@@ -112,6 +113,7 @@ router.get('/employees', requireAdmin, async (req, res) => {
   const pendingInvites = await prisma.profile.count({ where: { organizationId: admin.organizationId, status: 'INVITED', ...excludeOtherAdminsTestProfiles(admin) } });
   res.render('admin/employees/index', {
     title: 'Employees & Teams',
+    removedNotice: { deleted: 'The employee was deleted permanently.', archived: 'The employee was archived. You can restore them from the Archived filter.' }[str(req.query.removed)] || null,
     pendingInvites,
     employees,
     setupMap,
@@ -252,7 +254,7 @@ router.post('/employees/new', requireAdmin, async (req, res) => {
   catch {
     await prisma.invitation.updateMany({ where: { profileId: profile.id }, data: { status: 'REVOKED' } });
     await logAudit({ organizationId: admin.organizationId, actorId: admin.id, action: 'email.invitation_failed', targetId: profile.id });
-    return res.status(503).render('error', { layout: false, message: 'Account created, but invitation delivery failed. Configure email and resend the invitation from Employees.' });
+    return res.status(503).render('error', { layout: false, message: 'Account created, but invitation delivery failed. Configure email and resend the invitation from Employees.', action: { label: 'Open Employees', href: '/admin/employees' } });
   }
   await logAudit({ organizationId: admin.organizationId, actorId: admin.id, action: 'email.invitation_sent', targetId: profile.id });
   return res.redirect('/admin/employees');
@@ -302,7 +304,7 @@ router.post('/employees/invite-pending', requireAdmin, async (req, res) => {
     orderBy: { fullName: 'asc' },
   });
   if (!isEmailConfigured() && process.env.NODE_ENV === 'production') {
-    return res.status(503).render('error', { layout: false, message: 'Email delivery is not configured, so invitations cannot be sent.' });
+    return res.status(503).render('error', { layout: false, message: 'Email delivery is not configured, so invitations cannot be sent.', action: { label: 'Open Employees', href: '/admin/employees' } });
   }
   const origin = process.env.APP_ORIGIN || `${req.protocol}://${req.get('host')}`;
   const results = [];
@@ -425,28 +427,69 @@ router.post('/employees/:id', requireAdmin, async (req, res) => {
   res.redirect('/admin/employees');
 });
 
+async function applyStatus(admin, target, status) {
+  const nextStatus = status === 'ACTIVE' && !target.passwordHash ? 'INVITED' : status;
+  await prisma.profile.update({
+    where: { id: target.id },
+    data: { status: nextStatus, archivedAt: status === 'ARCHIVED' ? new Date() : null },
+  });
+  if (status !== 'ACTIVE') await prisma.session.deleteMany({ where: { profileId: target.id } });
+  await logAudit({
+    organizationId: admin.organizationId,
+    actorId: admin.id,
+    action: `employee.status_${status.toLowerCase()}`,
+    targetTable: 'Profile',
+    targetId: target.id,
+  });
+}
+
 async function setStatus(req, res, status) {
   const admin = req.profile;
   const target = await prisma.profile.findFirst({
     where: { id: req.params.id, organizationId: admin.organizationId, ...excludeOtherAdminsTestProfiles(admin) },
   });
-  if (target) {
-    const nextStatus = status === 'ACTIVE' && !target.passwordHash ? 'INVITED' : status;
-    await prisma.profile.update({
-      where: { id: target.id },
-      data: { status: nextStatus, archivedAt: status === 'ARCHIVED' ? new Date() : null },
-    });
-    if (status !== 'ACTIVE') await prisma.session.deleteMany({ where: { profileId: target.id } });
-    await logAudit({
-      organizationId: admin.organizationId,
-      actorId: admin.id,
-      action: `employee.status_${status.toLowerCase()}`,
-      targetTable: 'Profile',
-      targetId: target.id,
-    });
-  }
+  if (target) await applyStatus(admin, target, status);
   res.json({ ok: true });
 }
+
+// Removing a person: the Admin chooses ARCHIVE (kept and restorable) or DELETE (gone for good). The page shows what a
+// delete would remove, and a permanent delete has to be typed out. Never while impersonating.
+async function loadRemovable(req, res) {
+  const admin = req.profile;
+  if (req.impersonation) { res.status(403).render('forbidden'); return null; }
+  const target = await prisma.profile.findFirst({ where: { id: req.params.id, organizationId: admin.organizationId, ...excludeOtherAdminsTestProfiles(admin) } });
+  if (!target) { res.status(404).render('not-found'); return null; }
+  return target;
+}
+
+router.get('/employees/:id/remove', requireAdmin, async (req, res) => {
+  const target = await loadRemovable(req, res);
+  if (!target) return;
+  const blocker = await employeeDeletion.deleteBlocker(req.profile, target);
+  res.render('admin/employees/remove', {
+    title: 'Delete or archive', employee: target, impact: await employeeDeletion.deletionImpact(target), blocker,
+    mode: req.query.mode === 'delete' && !blocker ? 'delete' : 'archive', error: null, roleLabel,
+  });
+});
+
+router.post('/employees/:id/remove', requireAdmin, async (req, res) => {
+  const admin = req.profile;
+  const target = await loadRemovable(req, res);
+  if (!target) return;
+  const mode = req.body.mode === 'delete' ? 'delete' : req.body.mode === 'archive' ? 'archive' : '';
+  const blocker = await employeeDeletion.deleteBlocker(admin, target);
+  const again = async (error) => res.status(400).render('admin/employees/remove', { title: 'Delete or archive', employee: target, impact: await employeeDeletion.deletionImpact(target), blocker, mode: mode || 'archive', error, roleLabel });
+  if (!mode) return again('Choose Archive or Delete.');
+  if (mode === 'archive') {
+    if (target.id === admin.id) return again('You cannot archive your own account.');
+    if (target.status !== 'ARCHIVED') await applyStatus(admin, target, 'ARCHIVED');
+    return res.redirect('/admin/employees?removed=archived');
+  }
+  if (blocker) return again(blocker);
+  if (String(req.body.confirm || '').trim() !== 'DELETE') return again('Type DELETE to confirm that this person is deleted permanently.');
+  await employeeDeletion.deleteEmployee(admin, target);
+  res.redirect('/admin/employees?removed=deleted');
+});
 
 router.post('/employees/:id/disable', requireAdmin, (req, res) => setStatus(req, res, 'DISABLED'));
 router.post('/employees/:id/reactivate', requireAdmin, (req, res) => setStatus(req, res, 'ACTIVE'));

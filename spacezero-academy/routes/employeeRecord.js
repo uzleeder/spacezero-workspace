@@ -560,19 +560,42 @@ router.post('/employees/:id/passport/reveal', requireSession, async (req, res) =
   res.json({ passportNumber: number });
 });
 
+// Who may take an assigned training away from an employee: an Admin any; a Supervisor (who may assign at all) only
+// one they assigned themselves to someone on their own team. Never while impersonating.
+async function trainingRemover(req) {
+  const actor = req.profile;
+  if (req.impersonation) return () => false;
+  if (actor.role === 'ADMIN') return () => true;
+  if (actor.role === 'SUPERVISOR' && await hasCapability(actor, 'training.assign')) return (r) => r.assignment.assignedById === actor.id;
+  return () => false;
+}
+
 router.get('/employees/:id/training', requireSession, async (req, res) => {
   const ctx = await loadEmployeeFor(req.profile, req.params.id);
   if (!ctx) return notFound(res);
   const list = await getMyTrainingList(ctx.employee.id);
-  res.render('employee/training', { title: `${ctx.employee.fullName} — Training`, ...(await frame(req, ctx)), list, categoryLabel: require('../lib/trainingCategories').categoryLabel, canRemove: req.profile.role === 'ADMIN' && !req.impersonation, removed: req.query.removed === '1' });
+  res.render('employee/training', { title: `${ctx.employee.fullName} — Training`, ...(await frame(req, ctx)), list, categoryLabel: require('../lib/trainingCategories').categoryLabel, canRemove: await trainingRemover(req), removed: req.query.removed === '1' });
 });
 
 // Admin only: take ONE assigned training away from this employee (the assignment stays for everyone else;
 // if they were its only recipient the now-empty assignment goes too). Their attempts on it are removed;
 // certificates and skill scores already earned stay.
+router.get('/employees/:id/training/:recipientId/delete', requireSession, async (req, res) => {
+  const actor = req.profile;
+  const mayRemove = await trainingRemover(req);
+  if (actor.role !== 'ADMIN' && actor.role !== 'SUPERVISOR') return res.status(403).render('forbidden');
+  const ctx = await loadEmployeeFor(actor, req.params.id);
+  if (!ctx) return notFound(res);
+  const recipient = await prisma.trainingAssignmentRecipient.findFirst({ where: { id: req.params.recipientId, profileId: ctx.employee.id, assignment: { organizationId: actor.organizationId } }, include: { assignment: { include: { course: true, assignedBy: { select: { fullName: true } } } } } });
+  if (!recipient) return notFound(res);
+  if (!mayRemove(recipient)) return res.status(403).render('forbidden');
+  res.render('delete-training-assignment', { title: 'Delete assigned training', assignment: recipient.assignment, employee: ctx.employee, action: `/employees/${ctx.employee.id}/training/${recipient.id}/delete`, returnTo: `/employees/${ctx.employee.id}/training` });
+});
+
 router.post('/employees/:id/training/:recipientId/delete', requireSession, async (req, res) => {
   const actor = req.profile;
-  if (actor.role !== 'ADMIN' || req.impersonation) return res.status(403).render('forbidden');
+  const mayRemove = await trainingRemover(req);
+  if (actor.role !== 'ADMIN' && actor.role !== 'SUPERVISOR') return res.status(403).render('forbidden');
   const ctx = await loadEmployeeFor(actor, req.params.id);
   if (!ctx) return notFound(res);
   const recipient = await prisma.trainingAssignmentRecipient.findFirst({
@@ -580,6 +603,7 @@ router.post('/employees/:id/training/:recipientId/delete', requireSession, async
     include: { assignment: { include: { course: { select: { title: true } } } } },
   });
   if (!recipient) return notFound(res);
+  if (!mayRemove(recipient)) return res.status(403).render('forbidden');
   const attempts = await prisma.trainingAttempt.count({ where: { recipientId: recipient.id } });
   await prisma.trainingAssignmentRecipient.delete({ where: { id: recipient.id } });
   const left = await prisma.trainingAssignmentRecipient.count({ where: { assignmentId: recipient.assignmentId } });

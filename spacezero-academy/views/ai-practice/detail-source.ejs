@@ -47,7 +47,7 @@
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
       <form method="post" action="/ai-practice/<%= course.id %>/duplicate" data-once><button class="btn btn-secondary btn-sm">Duplicate</button></form>
       <form method="post" action="/ai-practice/<%= course.id %>/archive" data-once><button class="btn btn-secondary btn-sm">Archive</button></form>
-      <form method="post" action="/ai-practice/<%= course.id %>/delete" data-once><button class="btn btn-danger btn-sm" data-confirm-msg="Delete this? If training or skill records depend on it, it will be archived instead.">Delete</button></form>
+      <form method="post" action="/ai-practice/<%= course.id %>/delete" data-once><button class="btn btn-danger btn-sm" data-confirm-msg="Delete this? If it is already used in Training, an Admin sees what it affects before anything is removed; otherwise it is archived instead.">Delete</button></form>
     </div>
   </div>
 </div>

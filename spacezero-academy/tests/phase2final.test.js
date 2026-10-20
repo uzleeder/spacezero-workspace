@@ -164,7 +164,7 @@ test('every practice attempt stores the full evidence trail, and the Skill Graph
   assert.equal(first.status, 'RETAKE_REQUIRED'); assert.equal(first.attemptNumber, 1);
   const second = await recordAssessmentAttempt({ actor: agent, assessment, recipientId: recipient.id, score: 82, passed: true, skillBreakdown: { 'Objection Handling': 90 }, sourceType: 'PRACTICE' });
   assert.equal(second.attemptNumber, 2); assert.equal(second.status, 'COMPLETED');
-  assert.equal(await prisma.trainingAttempt.count({ where: { recipientId: recipient.id } }), 2); // both attempts are kept
+  assert.equal(await prisma.trainingAttempt.count({ where: { recipientId: recipient.id, assessmentId: assessment.id } }), 2); // both practice attempts are kept (the passed one also finished the training by itself)
 
   const es = await prisma.employeeSkill.findFirst({ where: { profileId: agent.id, skillId: skill.id } });
   const evidence = await prisma.skillEvidence.findMany({ where: { employeeSkillId: es.id }, orderBy: { createdAt: 'asc' } });

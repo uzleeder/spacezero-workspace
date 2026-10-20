@@ -2,7 +2,7 @@
 
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
+const { unlimitedUpload, withCleanup } = require('../../lib/uploads');
 
 const { prisma } = require('../../lib/prisma');
 const { requireAdmin } = require('../../lib/authMiddleware');
@@ -10,7 +10,7 @@ const { LibraryItemSchema, LibraryCategorySchema } = require('../../lib/validati
 const { validateUpload, saveUpload } = require('../../lib/storage');
 const { logAudit } = require('../../lib/audit');
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 300 * 1024 * 1024 } });
+const upload = unlimitedUpload(); // any size: streamed to disk (lib/uploads.js)
 
 async function loadPageData(admin) {
   const [categories, items] = await Promise.all([
@@ -38,7 +38,7 @@ router.post('/library/categories', requireAdmin, async (req, res) => {
   res.redirect('/admin/library');
 });
 
-router.post('/library/items', requireAdmin, upload.single('file'), async (req, res) => {
+router.post('/library/items', requireAdmin, withCleanup(upload.single('file')), async (req, res) => {
   const admin = req.profile;
   const visibleRoles = Array.isArray(req.body.visibleRoles) ? req.body.visibleRoles : req.body.visibleRoles ? [req.body.visibleRoles] : [];
 

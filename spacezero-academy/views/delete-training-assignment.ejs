@@ -1,0 +1,14 @@
+<%- include('partials/page-header', { pageTitle: 'Delete assigned training', pageDescription: 'Review the assignment before removing it.' }) %>
+<div class="card" style="max-width:720px">
+  <div class="card-header"><h2><%= assignment.course.title %></h2></div>
+  <div class="card-body">
+    <p>Assigned by <strong><%= assignment.assignedBy.fullName %></strong>.</p>
+    <p class="mt-16"><% if (employee) { %>Remove this training from <strong><%= employee.fullName %></strong>. Other recipients will keep their assignment.<% } else { %>Remove this training from <strong>all <%= assignment._count.recipients %> recipient<%= assignment._count.recipients === 1 ? '' : 's' %></strong>.<% } %></p>
+    <p class="text-sm text-muted mt-16">The affected assignment, attempts and pending reminder emails will be removed. The course, earned certificates and skill scores stay. This cannot be undone.</p>
+    <form method="post" action="<%= action %>" class="mt-24" data-once style="display:flex;gap:12px;flex-wrap:wrap">
+      <input type="hidden" name="returnTo" value="<%= returnTo %>">
+      <a class="btn btn-secondary" href="<%= returnTo %>">Cancel</a>
+      <button type="submit" class="btn btn-danger">Delete assigned training</button>
+    </form>
+  </div>
+</div>

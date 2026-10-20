@@ -4,7 +4,6 @@
 // produced here is assignable until an Admin/Supervisor explicitly approves it on the
 // Creator Review screen (routes/admin/trainingAnalysis.js). Runs via lib/jobQueue.js so an
 // upload request returns immediately instead of blocking on 3 sequential Gemini calls.
-const fs = require('fs/promises');
 const crypto = require('crypto');
 const { z } = require('zod');
 const { Type } = require('@google/genai');
@@ -48,9 +47,9 @@ async function buildContentParts(ai, course, uploadedNames) {
       try {
         const document = await require('./documentText').documentText(resolveStoragePath(mod.storagePath));
         if (document !== null) { parts.push({ text: `${header}${redactText(document)}` }); continue; }
-        const buffer = await fs.readFile(resolveStoragePath(mod.storagePath));
         const mimeType = guessMimeType(mod.storagePath);
-        let uploaded = await ai.files.upload({ file: new Blob([buffer], { type: mimeType }), config: { mimeType, displayName: mod.title } });
+        // By path, so the SDK streams the file: a very large recording is never loaded into memory (uploads have no size limit).
+        let uploaded = await ai.files.upload({ file: resolveStoragePath(mod.storagePath), config: { mimeType, displayName: mod.title } });
         uploadedNames.push(uploaded.name);
         const deadline = Date.now() + 300000;
         while (uploaded.state === 'PROCESSING' && Date.now() < deadline) {

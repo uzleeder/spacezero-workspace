@@ -12,12 +12,13 @@
 // see the "Supervisor Training Creation: review" section below.
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
+const { unlimitedUpload, withCleanup } = require('../lib/uploads');
 
 const { prisma } = require('../lib/prisma');
 const trainingCategories = require('../lib/trainingCategories');
 const { ACCEPT, storeFiles, storeCallFiles, releaseFile } = require('../lib/sourceFiles');
 const { logAudit } = require('../lib/audit');
+const courseDeletion = require('../lib/courseDeletion');
 const { getSetting } = require('../lib/orgSettings');
 const { checkPassingScore } = require('../lib/courseAudience');
 const { roleLabel } = require('../lib/roles');
@@ -61,18 +62,18 @@ const adminOnly = (req, res, next) => {
   if (!req.profile) return redirectToLogin(req, res);
   return req.profile.role === 'ADMIN' ? next() : res.status(403).render('forbidden');
 };
-const MAX_FILES = 10;
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 300 * 1024 * 1024, files: MAX_FILES, fields: 30 } });
+// No limit on the size or the number of files: they are streamed to disk (lib/uploads.js), never held in memory.
+const upload = unlimitedUpload();
 const notFound = (res) => res.status(404).render('not-found', { layout: false });
 const { clip } = require('../lib/sourceFiles');
 
 // :id is a cuid. Anything else (calls, new, ...) belongs to another route.
 router.param('id', (req, res, next, id) => (/^c[a-z0-9]{20,32}$/.test(id) ? next() : next('route')));
 
-const receive = (field) => (req, res, next) => upload.array(field, MAX_FILES)(req, res, (err) => {
-  if (err) req.uploadError = err.code === 'LIMIT_FILE_SIZE' ? 'One of the files is too large (300 MB is the limit).' : err.code === 'LIMIT_FILE_COUNT' ? `Upload at most ${MAX_FILES} files at a time.` : 'The upload could not be read. Please try again.';
+const receive = (field) => withCleanup((req, res, next) => upload.array(field)(req, res, (err) => {
+  if (err) req.uploadError = 'The upload could not be read (it may have been interrupted). Please try again.';
   next();
-});
+}));
 
 async function loadCourse(actor, id, include = {}) {
   // A Supervisor (even one with training.create/training.revise) never sees another Supervisor's or
@@ -156,7 +157,19 @@ router.post('/ai-practice/bulk', creators, async (req, res) => {
   const actor = req.profile;
   const action = String(req.body.action || '');
   const picked = (Array.isArray(req.body.ids) ? req.body.ids : req.body.ids ? [req.body.ids] : []).map(String).slice(0, 100);
-  if (!['archive', 'delete', 'analyze'].includes(action) || !picked.length) return res.redirect('/ai-practice?error=Choose+what+to+do+and+select+at+least+one+item.');
+  if (!['archive', 'delete', 'delete-all', 'analyze'].includes(action) || !picked.length) return res.redirect('/ai-practice?error=Choose+what+to+do+and+select+at+least+one+item.');
+  // \"Delete including trainings in use\" is an Admin's decision (a Supervisor's choice falls back to the safe delete).
+  const force = action === 'delete-all' && actor.role === 'ADMIN' && !req.impersonation;
+  if (action === 'delete-all' && !force) return res.redirect('/ai-practice?error=Only+an+Admin+can+delete+trainings+that+are+in+use.');
+  if (force && req.body.confirm !== '1') {
+    const items = [];
+    for (const token of picked) {
+      const [kind, id] = token.split(':');
+      if (kind === 'material') { const c = await loadCourse(actor, id); if (c && c.origin === 'AI_PRACTICE') items.push({ token, title: c.title, kind: 'Training source', impact: await courseDeletion.deletionImpact(c) }); }
+      else if (kind === 'call') { const b = await prisma.callBatch.findFirst({ where: { id, organizationId: actor.organizationId } }); if (b) items.push({ token, title: b.title || 'Call recordings', kind: 'Call recordings', impact: null }); }
+    }
+    return res.render('ai-practice/bulk-delete', { title: 'Delete selected', items });
+  }
   const result = { done: 0, skipped: 0 };
   for (const token of picked) {
     const [kind, id] = token.split(':');
@@ -164,6 +177,7 @@ router.post('/ai-practice/bulk', creators, async (req, res) => {
       const course = await loadCourse(actor, id, { analysis: true });
       if (!course || course.origin !== 'AI_PRACTICE') { result.skipped += 1; continue; }
       if (action === 'archive') { await versions.archiveSource(actor, course); result.done += 1; }
+      else if (force) { await courseDeletion.deleteCourse(actor, course); result.done += 1; } // an Admin: whatever its state, with its assignments and attempts
       else if (action === 'delete') { if ((await versions.deletionPolicy(course)).canDelete) { await removeCourse(actor, course); result.done += 1; } else result.skipped += 1; }
       else if (action === 'analyze') {
         if (course.analysis || !(await prisma.trainingModule.count({ where: { courseId: course.id } }))) { result.skipped += 1; continue; }
@@ -175,10 +189,10 @@ router.post('/ai-practice/bulk', creators, async (req, res) => {
       const batch = await prisma.callBatch.findFirst({ where: { id, organizationId: actor.organizationId } });
       if (!batch || action === 'analyze') { result.skipped += 1; continue; } // calls need a purpose and consent, chosen one at a time
       if (action === 'archive') { await prisma.callBatch.update({ where: { id }, data: { archivedAt: new Date() } }); await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'ai_practice.source_archived', targetTable: 'CallBatch', targetId: id }); result.done += 1; }
-      else if (await removeBatch(actor, batch)) result.done += 1; else result.skipped += 1;
+      else if (await removeBatch(actor, batch, { force })) result.done += 1; else result.skipped += 1;
     } else result.skipped += 1;
   }
-  const label = { archive: 'archived', delete: 'deleted', analyze: 'sent for analysis' }[action];
+  const label = { archive: 'archived', delete: 'deleted', 'delete-all': 'deleted', analyze: 'sent for analysis' }[action];
   res.redirect(`/ai-practice?notice=${action === 'analyze' ? 'saved' : label === 'archived' ? 'archived' : 'deleted'}${result.skipped ? `&error=${encodeURIComponent(`${result.done} ${label}; ${result.skipped} skipped (in use, already analyzed, or not compatible).`)}` : ''}`);
 });
 
@@ -189,9 +203,9 @@ async function removeCourse(actor, course) {
   await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'ai_practice.source_deleted', targetTable: 'TrainingCourse', targetId: course.id, metadata: { title: course.title } });
 }
 
-/** Calls are only deleted when their analysis did not turn into training. */
-async function removeBatch(actor, batch) {
-  if (batch.generatedCourseId && await prisma.trainingCourse.findUnique({ where: { id: batch.generatedCourseId }, select: { id: true } })) return false;
+/** Calls are only deleted when their analysis did not turn into training - unless an Admin forces it (the training made from them stays). */
+async function removeBatch(actor, batch, { force = false } = {}) {
+  if (!force && batch.generatedCourseId && await prisma.trainingCourse.findUnique({ where: { id: batch.generatedCourseId }, select: { id: true } })) return false;
   if (!['UPLOADED', 'FAILED', 'READY_FOR_REVIEW', 'APPROVED'].includes(batch.status)) return false;
   const recordings = await prisma.callRecording.findMany({ where: { callBatchId: batch.id }, select: { storagePath: true } });
   await prisma.callBatch.delete({ where: { id: batch.id } });
@@ -597,6 +611,9 @@ router.post('/ai-practice/:id/delete', creators, async (req, res) => {
   const course = await loadCourse(req.profile, req.params.id);
   if (!course) return notFound(res);
   const policy = await versions.deletionPolicy(course);
+  // An Admin may delete anything (a Supervisor their own training when all its assignments are theirs): show what it
+  // affects and let them confirm (the training page does the delete).
+  if (!policy.canDelete && !req.impersonation && await require('../lib/courseDeletion').mayDeleteCourse(req.profile, course)) return res.redirect(`/admin/training/${course.id}/delete`);
   if (!policy.canDelete) { // never destroy what training or skill evidence depends on: hide it instead
     await versions.archiveSource(req.profile, course);
     return res.redirect(`/ai-practice?notice=archived&error=${encodeURIComponent(`Archived instead of deleted, because ${policy.reasons.join(' and ')}.`)}`);

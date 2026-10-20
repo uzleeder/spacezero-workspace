@@ -1,6 +1,6 @@
 'use strict';
 
-const { mkdir, writeFile } = require('fs/promises');
+const { mkdir, writeFile, rename, copyFile, unlink, chmod } = require('fs/promises');
 const path = require('path');
 const crypto = require('crypto');
 
@@ -24,23 +24,33 @@ const ALLOWED_MIME = {
   SLIDES: ['application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
 };
 
+// Size limits: none for training material, recordings and Library items (0 = unlimited). Small images keep their own
+// limits where the route sets one (profile photos, thumbnails) - that is the upload middleware, not this table.
 const MAX_SIZE_BYTES = {
-  VIDEO: 300 * 1024 * 1024,
-  PDF: 40 * 1024 * 1024,
-  PPT: 60 * 1024 * 1024,
-  DOC: 25 * 1024 * 1024,
-  IMAGE: 15 * 1024 * 1024,
-  NOTE: 0,
-  LINK: 0,
-  CALL_RECORDING: 150 * 1024 * 1024,
-  CALL: 150 * 1024 * 1024,
-  AUDIO: 150 * 1024 * 1024,
-  SLIDES: 60 * 1024 * 1024,
+  VIDEO: 0, PDF: 0, PPT: 0, DOC: 0, IMAGE: 0, NOTE: 0, LINK: 0, CALL_RECORDING: 0, CALL: 0, AUDIO: 0, SLIDES: 0,
 };
 
+const fs = require('fs');
+
+/**
+ * The bytes the content check needs: the whole file when it is in memory, otherwise only the first and last 256 KB of
+ * the file on disk (magic numbers are at the start; the names inside a .docx/.pptx are listed at the end).
+ */
+function sampleOf(file) {
+  if (file.buffer) return file.buffer;
+  const SAMPLE = 256 * 1024;
+  const fd = fs.openSync(file.path, 'r');
+  try {
+    const size = fs.fstatSync(fd).size;
+    const head = Buffer.alloc(Math.min(SAMPLE, size)); fs.readSync(fd, head, 0, head.length, 0);
+    if (size <= SAMPLE) return head;
+    const tail = Buffer.alloc(Math.min(SAMPLE, size - head.length)); fs.readSync(fd, tail, 0, tail.length, size - tail.length);
+    return Buffer.concat([head, tail]);
+  } finally { fs.closeSync(fd); }
+}
 function validateUpload(itemType, file) {
   const allowed = ALLOWED_MIME[itemType] || [];
-  if (!file || !allowed.length || !file.buffer || !file.size || file.size !== file.buffer.length) return 'Invalid upload.';
+  if (!file || !allowed.length || !file.size || !(file.buffer ? file.size === file.buffer.length : file.path)) return 'Invalid upload.';
   if (allowed.length > 0 && !allowed.includes(file.mimetype)) {
     return `File type "${file.mimetype || 'unknown'}" is not allowed for ${itemType}.`;
   }
@@ -48,7 +58,7 @@ function validateUpload(itemType, file) {
   if (max > 0 && file.size > max) {
     return `File is too large. Maximum allowed size is ${Math.round(max / (1024 * 1024))} MB.`;
   }
-  const b = file.buffer;
+  const b = sampleOf(file);
   const hex = b.subarray(0, 12).toString('hex');
   const text = b.subarray(0, 12).toString('ascii');
   const matches = {
@@ -74,13 +84,24 @@ function validateUpload(itemType, file) {
   return null;
 }
 
+/** Renames into place (same disk); falls back to copy + delete if the temporary folder is on another disk. */
+async function moveFile(from, to) {
+  try { await rename(from, to); } catch (err) {
+    if (err.code !== 'EXDEV') throw err;
+    await copyFile(from, to, fs.constants.COPYFILE_EXCL); await unlink(from).catch(() => undefined);
+  }
+  await chmod(to, 0o600).catch(() => undefined);
+}
+
 async function saveUpload(file, subdir) {
   const dir = resolveStoragePath(subdir);
   await mkdir(dir, { recursive: true });
   const ext = ({ 'application/pdf': '.pdf', 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/gif': '.gif', 'video/mp4': '.mp4', 'video/webm': '.webm', 'video/quicktime': '.mov', 'audio/mpeg': '.mp3', 'audio/mp3': '.mp3', 'audio/wav': '.wav', 'audio/ogg': '.ogg', 'application/msword': '.doc', 'application/vnd.ms-powerpoint': '.ppt', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx' })[file.mimetype] || '.bin';
   const id = crypto.randomUUID();
   const filename = `${id}${ext}`;
-  await writeFile(path.join(dir, filename), file.buffer, { mode: 0o600, flag: 'wx' });
+  const target = path.join(dir, filename);
+  if (file.path) await moveFile(file.path, target); // streamed to disk by lib/uploads.js: no copy through memory
+  else await writeFile(target, file.buffer, { mode: 0o600, flag: 'wx' });
   return { storagePath: path.posix.join(subdir, filename), mimeType: file.mimetype };
 }
 
@@ -92,4 +113,4 @@ function resolveStoragePath(storagePath) {
   return resolved;
 }
 
-module.exports = { validateUpload, saveUpload, resolveStoragePath };
+module.exports = { validateUpload, saveUpload, resolveStoragePath, STORAGE_ROOT };

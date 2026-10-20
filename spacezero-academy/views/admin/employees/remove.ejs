@@ -1,0 +1,38 @@
+<%- include('../../partials/page-header', { pageTitle: 'Delete or archive', pageDescription: employee.fullName + ' · @' + employee.username + ' · ' + roleLabel(employee.role) }) %>
+<% const plural = function (n, one, many) { return n + ' ' + (n === 1 ? one : many); }; %>
+<div class="card" style="max-width:760px">
+  <div class="card-header"><h2>What do you want to do with <%= employee.fullName %>?</h2></div>
+  <form method="post" action="/admin/employees/<%= employee.id %>/remove" class="card-body" data-once>
+    <% if (error) { %><div class="form-alert error" role="alert"><%= error %></div><% } %>
+
+    <label class="checkbox-row" style="display:block;border:1px solid var(--border,#d9dce3);border-radius:12px;padding:16px;margin-top:8px">
+      <input type="radio" name="mode" value="archive" <%= mode === 'archive' ? 'checked' : '' %> <%= employee.status === 'ARCHIVED' ? 'disabled' : '' %>>
+      <strong>Archive</strong> <span class="badge badge-success">Recommended</span>
+      <span class="text-sm text-muted" style="display:block;margin-top:6px"><%= employee.status === 'ARCHIVED' ? 'This person is already archived.' : 'They can no longer sign in and are hidden from lists, but all their history is kept (training, certificates, notes, credentials). You can restore them at any time.' %></span>
+    </label>
+
+    <label class="checkbox-row" style="display:block;border:1px solid var(--border,#d9dce3);border-radius:12px;padding:16px;margin-top:12px">
+      <input type="radio" name="mode" value="delete" <%= mode === 'delete' ? 'checked' : '' %> <%= blocker ? 'disabled' : '' %>>
+      <strong>Delete permanently</strong>
+      <% if (blocker) { %>
+        <span class="text-sm" style="display:block;margin-top:6px;color:var(--danger,#b42318)"><%= blocker %></span>
+      <% } else { %>
+        <span class="text-sm text-muted" style="display:block;margin-top:6px">The account and everything that belongs to this person is removed. This cannot be undone.</span>
+        <ul class="text-sm" style="margin:8px 0 0;padding-left:20px;line-height:1.6">
+          <li>Removed: <%= plural(impact.trainings, 'assigned training', 'assigned trainings') %>, <%= plural(impact.attempts, 'attempt', 'attempts') %>, <%= plural(impact.certificates, 'certificate', 'certificates') %>, <%= plural(impact.skills, 'skill record', 'skill records') %>, <%= plural(impact.credentials, 'vault entry', 'vault entries') %>, <%= plural(impact.notesAbout, 'note about them', 'notes about them') %>, <%= plural(impact.leave, 'leave request', 'leave requests') %>, their sign-ins and notifications</li>
+          <% if (impact.createdTrainings || impact.createdAssignments) { %><li>Handed over to you (kept for everyone else): <%= plural(impact.createdTrainings, 'training they created', 'trainings they created') %>, <%= plural(impact.createdAssignments, 'assignment they made', 'assignments they made') %>, and other content they created</li><% } %>
+          <% if (impact.agents) { %><li><%= plural(impact.agents, 'person', 'people') %> they supervised will have no supervisor until you assign a new one</li><% } %>
+          <% if (impact.testProfiles) { %><li><%= plural(impact.testProfiles, 'personal test profile', 'personal test profiles') %> of theirs is deleted too</li><% } %>
+          <li>Kept: the audit log of what happened</li>
+        </ul>
+        <span class="text-sm" style="display:block;margin-top:12px"><label for="confirm">To delete permanently, type <strong>DELETE</strong>:</label>
+        <input id="confirm" type="text" name="confirm" autocomplete="off" maxlength="10" style="margin-left:8px;width:140px"></span>
+      <% } %>
+    </label>
+
+    <div class="mt-24" style="display:flex;gap:12px;flex-wrap:wrap">
+      <a class="btn btn-secondary" href="/admin/employees/<%= employee.id %>">Cancel</a>
+      <button type="submit" class="btn btn-danger">Continue</button>
+    </div>
+  </form>
+</div>
