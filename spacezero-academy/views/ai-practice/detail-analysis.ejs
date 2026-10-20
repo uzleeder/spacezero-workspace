@@ -28,7 +28,7 @@ const a = analysis;
     <p class="text-sm text-muted"><%= a.status === 'QUEUED' ? 'Waiting to start.' : 'Step ' + stage + ' of 3.' %> You can leave this page — the analysis keeps going and will be here when you come back.</p>
     <% if (st.halted) { %>
       <div style="display:flex;gap:8px;flex-wrap:wrap" class="mt-16"><form method="post" action="/ai-practice/<%= course.id %>/analysis/resume" data-once><button class="btn btn-gold">Continue</button></form>
-      <form method="post" action="/ai-practice/<%= course.id %>/delete" data-once><button class="btn btn-secondary" data-confirm-msg="Remove this? If training or skill records depend on it, it will be archived instead.">Remove</button></form></div>
+      <form method="post" action="/ai-practice/<%= course.id %>/delete" data-once><button class="btn btn-secondary" data-confirm-msg="Remove this? If it is already used in Training, an Admin sees what it affects before anything is removed; otherwise it is archived instead.">Remove</button></form></div>
     <% } %>
   </div></div>
 
@@ -40,7 +40,7 @@ const a = analysis;
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
       <form method="post" action="/ai-practice/<%= course.id %>/analysis/retry" data-once><button class="btn btn-gold">Retry Analysis</button></form>
       <a class="btn btn-secondary" href="/ai-practice/<%= course.id %>?step=source">View source</a>
-      <form method="post" action="/ai-practice/<%= course.id %>/delete" data-once><button class="btn btn-secondary" data-confirm-msg="Remove this? If training or skill records depend on it, it will be archived instead.">Remove</button></form>
+      <form method="post" action="/ai-practice/<%= course.id %>/delete" data-once><button class="btn btn-secondary" data-confirm-msg="Remove this? If it is already used in Training, an Admin sees what it affects before anything is removed; otherwise it is archived instead.">Remove</button></form>
     </div>
     <details class="mt-16"><summary class="text-sm link-gold" style="cursor:pointer">View details</summary>
       <p class="text-sm" style="margin-top:8px"><%= a.errorMessage || 'No details were recorded.' %></p>

@@ -93,8 +93,8 @@ test('an Admin sets the category of any training (nothing is deleted or recreate
 test('Assignments: the same category filter (All / Product / Sales / System & Workflow), a category badge, and nothing else changes', async () => {
   const assign = async (course) => { const a = await prisma.trainingAssignment.create({ data: { organizationId: org.id, courseId: course.id, assignedById: admin.id, scope: 'INDIVIDUAL' } }); await prisma.trainingAssignmentRecipient.create({ data: { assignmentId: a.id, profileId: agent.id } }); return a; };
   await assign(courses.p1); await assign(courses.s1); await assign(courses.w1); await assign(courses.old);
-  // only the Recent assignments list (the assign form beside it lists every course)
-  const listOf = (res) => ({ ...res, text: res.text.slice(res.text.indexOf('Recent assignments'), res.text.indexOf('Assign training')) });
+  // only the Assigned training list (the assign form beside it lists every course)
+  const listOf = (res) => ({ ...res, text: res.text.slice(res.text.indexOf('<h2>Assigned training</h2>'), res.text.indexOf('<h2>Assign training</h2>')) });
   const all = await get(admin, '/assignments');
   assert.equal(all.status, 200);
   for (const t of ['Aircraft Cabins', 'Handling Objections', 'CRM Statuses', 'Legacy Course']) assert.ok(listOf(all).text.includes(t), t);
@@ -129,7 +129,10 @@ test('buildMyTraining: status groups, overdue first with the days spelled out, a
   assert.deepEqual(v.statusTabs.map((s) => [s.key, s.count]), [['overdue', 2], ['todo', 3], ['inprogress', 2], ['completed', 1]]);
   assert.deepEqual(v.cards.map((c) => c.row.id), ['B overdue 10d', 'A overdue 3d']); // most overdue first
   assert.deepEqual(v.cards.map((c) => c.overdueText), ['10 days overdue', '3 days overdue']);
-  assert.deepEqual(v.categoryTabs.map((c) => [c.label, c.count]), [['All', 2], ['Product', 1], ['Sales', 1], ['System & Workflow', 0]]);
+  // the legacy training (no category) gets its own chip, so it never vanishes from every filter
+  assert.deepEqual(v.categoryTabs.map((c) => [c.label, c.count]), [['All', 2], ['Product', 1], ['Sales', 1], ['System & Workflow', 0], ['Uncategorized', 0]]);
+  assert.deepEqual(buildMyTraining(list, { status: 'todo', category: 'UNCATEGORIZED' }, now).cards.map((c) => c.row.id), ['H legacy']);
+  assert.equal(buildMyTraining(list.filter((r) => r.assignment.course.trainingCategory), {}, now).categoryTabs.some((c) => c.key === 'UNCATEGORIZED'), false); // no chip when there is nothing to show
   v = buildMyTraining(list, { status: 'overdue', category: 'SALES' }, now);
   assert.deepEqual(v.cards.map((c) => c.row.id), ['B overdue 10d']); assert.equal(v.counts.overdue, 1);
   v = buildMyTraining(list, { status: 'todo' }, now);

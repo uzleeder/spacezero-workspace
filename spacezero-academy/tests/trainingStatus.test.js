@@ -74,7 +74,7 @@ test('Retake required means a required practice is still not passed - passing an
   assert.deepEqual(await statusesOf(learner, recipient), ['RETAKE_REQUIRED', 'RETAKE_REQUIRED', 'RETAKE_REQUIRED']);
   await later();
   await answer(learner, first, 'Right');
-  assert.deepEqual(await statusesOf(learner, recipient), ['IN_PROGRESS', 'IN_PROGRESS', 'IN_PROGRESS'], 'every practice passed, not submitted yet');
+  assert.deepEqual(await statusesOf(learner, recipient), ['COMPLETED', 'COMPLETED', 'COMPLETED'], 'every practice passed: the training finishes by itself');
 });
 
 test('a manager\'s retake request re-opens the submitted training itself, not a practice attempt', async () => {

@@ -17,6 +17,7 @@ const { logAudit } = require('../../lib/audit');
 const { roleLabel } = require('../../lib/roles');
 const { POLICIES, POLICY_LABEL, mayAssign } = require('../../lib/trainingPermissions');
 const versions = require('../../lib/courseVersions');
+const courseDeletion = require('../../lib/courseDeletion');
 const categories = require('../../lib/trainingCategories');
 const analysisLib = require('../../lib/trainingAnalysis');
 const { z } = require('zod');
@@ -88,8 +89,11 @@ router.get('/training', canManage, async (req, res) => {
   const counts = categories.countByCategory(courses);
   let category = categories.readFilter(req.query.category);
   if (!category || (category === 'UNCATEGORIZED' && !counts.UNCATEGORIZED)) category = categories.KEYS.find((k) => counts[k] > 0) || (counts.UNCATEGORIZED ? 'UNCATEGORIZED' : categories.KEYS[0]);
-  const rows = courses.filter((c) => categories.matches(c, category)).map((c) => ({ ...c, canAssign: !showArchived && mayAssign(actor, c) }));
-  res.render('admin/training/index', { title: 'Training', courses: rows, showArchived, POLICY_LABEL, CATEGORIES: categories.CATEGORIES, categoryLabel: categories.categoryLabel, counts, category, canSetCategory: actor.role === 'ADMIN' });
+  const shown = courses.filter((c) => categories.matches(c, category));
+  // Delete: an Admin for any training; a Supervisor only for a training they created whose assignments are all theirs.
+  const deletable = req.impersonation ? new Set() : await courseDeletion.deletableCourseIds(actor, shown);
+  const rows = shown.map((c) => ({ ...c, canAssign: !showArchived && mayAssign(actor, c), canDelete: deletable.has(c.id) }));
+  res.render('admin/training/index', { title: 'Training', courses: rows, showArchived, POLICY_LABEL, CATEGORIES: categories.CATEGORIES, categoryLabel: categories.categoryLabel, counts, category, canSetCategory: actor.role === 'ADMIN', deletedNotice: req.query.deleted === '1' });
 });
 
 // Admin: choose (or change) the Training Category of any training - the way a training that predates categories gets one.
@@ -204,7 +208,7 @@ router.get('/training/:id', canManage, async (req, res) => {
     course,
     roleLabel,
     canEdit: canEditCourse(actor, course),
-    canDelete: actor.role === 'ADMIN',
+    canDelete: !req.impersonation && await courseDeletion.mayDeleteCourse(actor, course),
     editError: null,
     ...(await detailExtras(actor, course)),
   });
@@ -301,7 +305,7 @@ router.post('/training/:id/send-to-training', adminOnly, async (req, res) => {
   if (!course) return res.status(404).render('not-found', { layout: false });
   if (!canEditCourse(actor, course)) return res.status(403).render('forbidden');
   const sent = await versions.sendToTraining(actor, course);
-  if (!sent.ok) return res.status(409).render('error', { layout: false, message: sent.error });
+  if (!sent.ok) return res.status(409).render('error', { layout: false, message: sent.error, action: { label: 'Open it in AI Practice', href: `/ai-practice/${course.id}?step=training` } });
   res.redirect('/admin/training');
 });
 
@@ -336,24 +340,25 @@ router.post('/training/:id/publish', adminOnly, (req, res) => setCourseStatus(re
 router.post('/training/:id/draft', adminOnly, (req, res) => setCourseStatus(req, res, 'DRAFT'));
 router.post('/training/:id/archive', adminOnly, (req, res) => setCourseStatus(req, res, 'ARCHIVED'));
 
-router.post('/training/:id/delete', requireRole('ADMIN'), async (req, res) => {
+// Admin only, any training: even one that was sent to Training, assigned, attempted or has skill evidence.
+// A confirmation page first shows exactly what goes; archiving stays available as the gentler choice.
+// A Supervisor may delete a training they created themselves while every assignment of it is theirs (see lib/courseDeletion.js).
+router.get('/training/:id/delete', canManage, async (req, res) => {
+  if (req.impersonation) return res.status(403).render('forbidden');
+  const course = await prisma.trainingCourse.findFirst({ where: { id: req.params.id, organizationId: req.profile.organizationId } });
+  if (!course) return res.status(404).render('not-found', { layout: false });
+  if (!await courseDeletion.mayDeleteCourse(req.profile, course)) return res.status(403).render('forbidden');
+  res.render('admin/training/delete', { title: 'Delete training', course, impact: await courseDeletion.deletionImpact(course) });
+});
+
+router.post('/training/:id/delete', canManage, async (req, res) => {
   const actor = req.profile;
+  if (req.impersonation) return res.status(403).render('forbidden');
   const course = await prisma.trainingCourse.findFirst({ where: { id: req.params.id, organizationId: actor.organizationId } });
   if (!course) return res.status(404).render('not-found', { layout: false });
-  const policy = await versions.deletionPolicy(course);
-  if (!policy.canDelete) return res.status(409).render('error', { layout: false, message: `This can't be deleted because ${policy.reasons.join(' and ')}. Archive it instead — history is kept.` });
-
-  await prisma.trainingCourse.delete({ where: { id: course.id } });
-  await logAudit({
-    organizationId: actor.organizationId,
-    actorId: actor.id,
-    action: 'training.course_deleted',
-    targetTable: 'TrainingCourse',
-    targetId: course.id,
-    metadata: { title: course.title },
-  });
-
-  res.redirect('/admin/training');
+  if (!await courseDeletion.mayDeleteCourse(actor, course)) return res.status(403).render('forbidden');
+  await courseDeletion.deleteCourse(actor, course);
+  res.redirect('/admin/training?deleted=1');
 });
 
 // Analysis and practice are handled in AI Practice. These URLs keep working (same rules, idempotent) and lead there.
@@ -378,7 +383,7 @@ router.post('/training/:id/analysis/approve', adminOnly, async (req, res) => {
   const course = await prisma.trainingCourse.findFirst({ where: { id: req.params.id, organizationId: actor.organizationId }, include: { analysis: true } });
   if (!course || !course.analysis) return res.status(404).render('not-found', { layout: false });
   if (!canEditCourse(actor, course)) return res.status(403).render('forbidden');
-  if (course.analysis.status !== 'READY_FOR_REVIEW') return res.status(400).render('error', { layout: false, message: 'This analysis is not ready to approve yet.' });
+  if (course.analysis.status !== 'READY_FOR_REVIEW') return res.status(400).render('error', { layout: false, message: 'This analysis is not ready to approve yet.', action: { label: 'Open the analysis', href: `/ai-practice/${course.id}?step=analysis` } });
   const moved = await prisma.trainingAnalysis.updateMany({ where: { id: course.analysis.id, status: 'READY_FOR_REVIEW' }, data: { status: 'APPROVED', approvedById: actor.id, approvedAt: new Date() } });
   if (moved.count) await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'training.analysis_approved', targetTable: 'TrainingCourse', targetId: course.id });
   res.redirect(`/ai-practice/${course.id}?step=practice`);

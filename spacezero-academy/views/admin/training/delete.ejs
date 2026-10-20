@@ -1,0 +1,17 @@
+<%- include('../../partials/page-header', { pageTitle: 'Delete training', pageDescription: 'Review what will be removed before you delete it.' }) %>
+<div class="card" style="max-width:720px">
+  <div class="card-header"><h2><%= course.title %></h2></div>
+  <div class="card-body">
+    <p>Deleting this training removes it for everyone, even though <%= impact.assignments ? 'it has been assigned' : 'nobody has been assigned it' %>.</p>
+    <ul class="mt-16" style="padding-left:20px;line-height:1.7">
+      <li><strong><%= impact.assignments %></strong> assignment<%= impact.assignments === 1 ? '' : 's' %> (<%= impact.recipients %> recipient<%= impact.recipients === 1 ? '' : 's' %>) leave My Training, with their pending emails</li>
+      <li><strong><%= impact.attempts %></strong> attempt<%= impact.attempts === 1 ? '' : 's' %> and <strong><%= impact.assessments %></strong> practice / quiz<%= impact.assessments === 1 ? '' : 'zes' %> are removed</li>
+      <li><strong><%= impact.modules %></strong> material item<%= impact.modules === 1 ? '' : 's' %> and the version history are removed</li>
+    </ul>
+    <p class="text-sm text-muted mt-16">Certificates and skill scores people already earned stay. This cannot be undone. <% if (course.status !== 'ARCHIVED') { %>If you only want to hide it, archive it instead — assignments and results are kept.<% } %></p>
+    <form method="post" action="/admin/training/<%= course.id %>/delete" class="mt-24" data-once style="display:flex;gap:12px;flex-wrap:wrap">
+      <a class="btn btn-secondary" href="/admin/training/<%= course.id %>">Cancel</a>
+      <button type="submit" class="btn btn-danger">Delete training</button>
+    </form>
+  </div>
+</div>

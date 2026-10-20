@@ -76,7 +76,8 @@ router.post('/training/:recipientId/retake', requireRole('ADMIN', 'SUPERVISOR'),
     if (actor.role === 'SUPERVISOR' && !(await isSupervisorOfAgent(actor.id, recipient.profileId))) {
       return res.status(403).render('forbidden');
     }
-    // Re-opens the training's submission (not whichever practice attempt happens to have the highest number).
+    // The submission (course-level attempt) is what a retake reopens; practice attempts alone would leave the training
+    // completed. The same rule as the bulk retake (lib/trainingCompletion.js retakeTarget).
     const latest = retakeTarget(await prisma.trainingAttempt.findMany({ where: { recipientId: recipient.id } }));
     if (latest) {
       await prisma.trainingAttempt.update({

@@ -1,6 +1,6 @@
 'use strict';
 const router = require('express').Router();
-const multer = require('multer');
+const { unlimitedUpload, withCleanup } = require('../lib/uploads');
 const fs = require('node:fs/promises');
 const { prisma } = require('../lib/prisma');
 const { requireRole } = require('../lib/authMiddleware');
@@ -13,7 +13,7 @@ const { signMedia, verifyMedia } = require('../lib/signedUrl');
 const { recordCallEvidence } = require('../lib/callEvidence');
 const { reportSchema } = require('../lib/callIntelligence');
 const { isRateLimited, AI_RATE_LIMIT } = require('../lib/rateLimit');
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 150 * 1024 * 1024, files: 10, fields: 8 } });
+const upload = unlimitedUpload(); // any size and number: streamed to disk (lib/uploads.js)
 const manage = requireRole('ADMIN'); // calls live inside AI Practice, which is Admin-only
 async function loadBatch(actor, id) {
   const batch = await prisma.callBatch.findFirst({ where: { id, organizationId: actor.organizationId }, include: { recordings: true, targetAgent: true } });
@@ -24,7 +24,7 @@ async function loadBatch(actor, id) {
 // Uploading calls is part of the single "Upload material" screen. This URL is kept for old bookmarks.
 router.get('/ai-practice/calls', manage, (req, res) => res.redirect('/ai-practice/new?kind=call'));
 // SAVE ONLY: the recordings are stored privately and nothing is analyzed until the Admin starts the analysis.
-router.post('/ai-practice/calls', manage, upload.array('calls', 10), async (req, res) => {
+router.post('/ai-practice/calls', manage, withCleanup(upload.array('calls')), async (req, res) => {
   const actor = req.profile;
   if (!req.files?.length) return res.status(400).send('Upload at least one call.');
   const stored = await storeCallFiles(req.files);
@@ -128,7 +128,8 @@ router.post('/ai-practice/calls/:id/delete', manage, async (req, res) => {
   if (!batch) return res.status(404).send('Not found');
   const stalled = ['UPLOADED', 'TRANSCRIBING', 'ANALYZING', 'AGGREGATING', 'GENERATING_PRACTICE'].includes(batch.status) && batch.analysisRequestedAt && Date.now() - batch.updatedAt.getTime() > 15 * 60 * 1000;
   if (!stalled && (!['UPLOADED', 'FAILED', 'READY_FOR_REVIEW', 'APPROVED'].includes(batch.status) || (batch.status === 'UPLOADED' && batch.analysisRequestedAt))) return res.status(409).send('Wait for processing to finish before deleting.');
-  if (batch.generatedCourseId && await prisma.trainingCourse.findUnique({ where: { id: batch.generatedCourseId }, select: { id: true } })) return res.status(409).send('Training was created from this analysis, so the recordings are kept. Archive it instead.');
+  // Recordings behind a training are kept for everyone except an Admin, who may always delete them; the training made from them stays.
+  if (req.profile.role !== 'ADMIN' && batch.generatedCourseId && await prisma.trainingCourse.findUnique({ where: { id: batch.generatedCourseId }, select: { id: true } })) return res.status(409).send('Training was created from this analysis, so the recordings are kept. Archive it instead.');
   for (const recording of batch.recordings) await fs.unlink(resolveStoragePath(recording.storagePath)).catch(err => { if (err.code !== 'ENOENT') throw err; });
   await prisma.callBatch.delete({ where: { id: batch.id } });
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'calls.deleted', targetTable: 'CallBatch', targetId: batch.id });

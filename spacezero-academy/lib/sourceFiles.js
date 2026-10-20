@@ -66,9 +66,17 @@ async function releaseFile(storagePath) {
 }
 
 
+/** SHA-256 of an upload, read in pieces from disk (or from memory for a small in-memory upload). */
+function hashOf(file) {
+  if (file.buffer) return Promise.resolve(crypto.createHash('sha256').update(file.buffer).digest('hex'));
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    require('fs').createReadStream(file.path).on('data', (chunk) => hash.update(chunk)).on('end', () => resolve(hash.digest('hex'))).on('error', reject);
+  });
+}
+
 /** Stores customer-call recordings (audio/video only), rejecting duplicates within the batch. */
 async function storeCallFiles(files) {
-  if (files.reduce((n, f) => n + f.size, 0) > 300 * 1024 * 1024) return { error: 'A batch of calls may contain at most 300 MB.' };
   const seen = new Set(); const saved = [];
   try {
     for (const file of files) {
@@ -76,7 +84,7 @@ async function storeCallFiles(files) {
       if (kind.error || !MEDIA.includes(kind.contentType)) throw new Error(kind.error || `"${file.originalname}" is not an audio or video recording.`);
       const problem = validateUpload('CALL', file);
       if (problem) throw new Error(`${file.originalname}: ${problem}`);
-      const hash = crypto.createHash('sha256').update(file.buffer).digest('hex');
+      const hash = await hashOf(file);
       if (seen.has(hash)) throw new Error('The same recording was included more than once.');
       seen.add(hash);
       const stored = await saveUpload(file, 'calls');

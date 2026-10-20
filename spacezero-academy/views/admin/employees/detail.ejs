@@ -36,11 +36,10 @@
         <% if (employee.status === 'DISABLED') { %>
           <button type="button" class="btn btn-secondary" data-action="/admin/employees/<%= employee.id %>/reactivate">Reactivate account</button>
         <% } %>
-        <% if (employee.status !== 'ARCHIVED') { %>
-          <button type="button" class="btn btn-danger" data-action="/admin/employees/<%= employee.id %>/archive" data-confirm="Archive this employee?">Archive</button>
-        <% } else { %>
+        <% if (employee.status === 'ARCHIVED') { %>
           <button type="button" class="btn btn-secondary" data-action="/admin/employees/<%= employee.id %>/unarchive">Unarchive</button>
         <% } %>
+        <a href="/admin/employees/<%= employee.id %>/remove" class="btn btn-danger"><%= employee.status === 'ARCHIVED' ? 'Delete…' : 'Delete or archive…' %></a>
       </div>
     </div>
 

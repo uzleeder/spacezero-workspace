@@ -509,13 +509,15 @@ test('DELETION: unused sources can be deleted; anything that training or evidenc
   assert.equal(await prisma.trainingCourse.count({ where: { id: unused.id } }), 0);
   const policy = await versions.deletionPolicy(await reload(src.id));
   assert.equal(policy.canDelete, false); assert.ok(policy.reasons.length >= 2);
+  // An Admin may delete anything, but a used source first goes to the confirmation page that shows what it affects
   const res = await post(admin, `/ai-practice/${src.id}/delete`);
-  assert.match(decodeURIComponent(res.headers.location), /Archived instead of deleted/);
+  assert.equal(res.headers.location, `/admin/training/${src.id}/delete`);
+  assert.equal((await get(admin, res.headers.location)).status, 200);
+  assert.equal(await prisma.trainingCourse.count({ where: { id: src.id } }), 1);
+  assert.equal((await post(admin, `/ai-practice/${src.id}/archive`)).status, 302); // archiving is still there
   const kept = await reload(src.id);
   assert.ok(kept.workspaceArchivedAt); assert.equal(kept.status, 'PUBLISHED'); // Training and every learner record are intact
   assert.equal(await prisma.trainingAttempt.count({ where: { id: v1Attempt.id } }), 1);
-  assert.equal((await post(admin, `/admin/training/${src.id}/delete`)).status, 409); // the Training screen refuses too
-  assert.equal(await prisma.trainingCourse.count({ where: { id: src.id } }), 1);
   assert.ok(!(await state.loadSources(admin)).some((i) => i.id === src.id));
   assert.ok((await state.loadSources(admin, { archived: true })).some((i) => i.id === src.id));
   assert.equal((await post(admin, `/ai-practice/${src.id}/restore`)).status, 302);

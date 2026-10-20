@@ -1,0 +1,24 @@
+<%- include('../partials/page-header', { pageTitle: 'Delete selected', pageDescription: 'Review what will be removed before you confirm.' }) %>
+<div class="card" style="max-width:760px">
+  <div class="card-header"><h2><%= items.length %> item<%= items.length === 1 ? '' : 's' %> will be deleted permanently</h2></div>
+  <form method="post" action="/ai-practice/bulk" class="card-body" data-once>
+    <% if (!items.length) { %>
+      <p class="text-muted">Nothing selected can be deleted.</p>
+    <% } else { %>
+      <ul style="padding-left:20px;line-height:1.7">
+        <% items.forEach(function (it) { %>
+          <li><strong><%= it.title %></strong> <span class="text-muted">· <%= it.kind %></span>
+            <% if (it.impact) { %><br><span class="text-sm text-muted"><%= it.impact.assignments %> assignment<%= it.impact.assignments === 1 ? '' : 's' %> (<%= it.impact.recipients %> recipient<%= it.impact.recipients === 1 ? '' : 's' %>), <%= it.impact.attempts %> attempt<%= it.impact.attempts === 1 ? '' : 's' %>, <%= it.impact.assessments %> practice<%= it.impact.assessments === 1 ? '' : 's' %> / quiz<%= it.impact.assessments === 1 ? '' : 'zes' %>, <%= it.impact.modules %> material item<%= it.impact.modules === 1 ? '' : 's' %></span><% } else { %><br><span class="text-sm text-muted">The recordings are removed; any training already made from them stays.</span><% } %>
+          </li>
+          <input type="hidden" name="ids" value="<%= it.token %>">
+        <% }); %>
+      </ul>
+      <p class="text-sm text-muted mt-16">Trainings leave everyone's My Training, with their attempts and pending emails. Certificates and skill scores people already earned stay. This cannot be undone. To only hide them, go back and choose Archive.</p>
+      <input type="hidden" name="action" value="delete-all"><input type="hidden" name="confirm" value="1">
+    <% } %>
+    <div class="mt-24" style="display:flex;gap:12px;flex-wrap:wrap">
+      <a class="btn btn-secondary" href="/ai-practice">Cancel</a>
+      <% if (items.length) { %><button type="submit" class="btn btn-danger">Delete permanently</button><% } %>
+    </div>
+  </form>
+</div>

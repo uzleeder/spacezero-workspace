@@ -2,6 +2,7 @@
 <%- include('../../partials/page-header', { pageTitle: 'Employees & Teams', pageDescription: 'The management centre for every employee: setup readiness, training, leave and credentials.', headerAction: '<div style="display:flex;gap:10px;flex-wrap:wrap"><a href="/admin/employees/export.xlsx" class="btn btn-secondary" download title="Employees and Admins sheets: names, usernames, roles and separately supplied export passwords.">Download Excel</a><a href="/admin/employees/new" class="btn btn-gold">+ Add employee</a></div>' }) %>
 
 <%- include('../../partials/management-tabs', { tabs: tabsets.employees }) %>
+<% if (typeof removedNotice !== 'undefined' && removedNotice) { %><div class="form-alert success mt-16" role="status"><%= removedNotice %></div><% } %>
 
 <div class="row-between mt-24" style="gap:8px;flex-wrap:wrap;justify-content:flex-start">
   <% [['', 'All employees'], ['ADMIN', 'Admins'], ['SUPERVISOR', 'Supervisors'], ['FLIGHT_EXPERT', 'Flight Experts'], ['TRAVEL_AGENT', 'Travel Agents']].forEach(function (r) { %>
