@@ -146,7 +146,7 @@
 
   paint();
   if (kind === 'pdf') startPdf();
-  else if (kind === 'docx') { pages = Math.max(1, Math.round((body ? body.scrollHeight : 900) / 900)); root.setAttribute('data-pages', String(pages)); }
+  else if (kind !== 'slides' && kind !== 'image') { pages = Math.max(1, Math.round((body ? body.scrollHeight : 900) / 900)); root.setAttribute('data-pages', String(pages)); } // text, sheets, e-books, fonts, drawings: about one page per screenful
   // a short document or picture that fits on one screen is already fully in view: it still waits for the minimum time
   window.addEventListener('load', function () { update(); setTimeout(update, 600); });
 })();

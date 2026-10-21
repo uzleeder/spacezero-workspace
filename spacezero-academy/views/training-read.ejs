@@ -20,8 +20,22 @@
       <% if (kind === 'pdf') { %>
         <div class="doc-reader__pages" data-reader-body aria-label="<%= module.title %>"></div>
         <p class="text-sm text-muted doc-reader__loading" data-reader-loading>Opening the document…</p>
-      <% } else if (kind === 'docx') { %>
-        <article class="doc-reader__paper" data-reader-body aria-label="<%= module.title %>"><%- html %></article>
+      <% } else if (kind === 'docx' || kind === 'epub' || kind === 'text') { %>
+        <article class="doc-reader__paper doc-reader__paper--<%= kind %>" data-reader-body aria-label="<%= module.title %>"><%- html %></article>
+      <% } else if (kind === 'sheet') { %>
+        <div class="doc-reader__sheets" data-reader-body aria-label="<%= module.title %>"><%- html %></div>
+      <% } else if (kind === 'cad') { %>
+        <div class="doc-reader__drawing" data-reader-body aria-label="<%= module.title %>"><%- html %></div>
+      <% } else if (kind === 'font') { %>
+        <style>@font-face { font-family: "sz-font-<%= module.id %>"; src: url('/training-file/<%= module.id %>'); font-display: block; }</style>
+        <div class="doc-reader__specimen" data-reader-body style="font-family: 'sz-font-<%= module.id %>', sans-serif" aria-label="<%= module.title %>">
+          <p class="doc-reader__specimen-big">Aa Bb Cc</p>
+          <p class="doc-reader__specimen-set">ABCDEFGHIJKLMNOPQRSTUVWXYZ</p>
+          <p class="doc-reader__specimen-set">abcdefghijklmnopqrstuvwxyz</p>
+          <p class="doc-reader__specimen-set">0123456789 &amp;!?@#%()[]{}+-=/</p>
+          <% [12, 16, 24, 36, 48, 64].forEach(function (size) { %><p class="doc-reader__specimen-line" style="font-size:<%= size %>px"><span class="doc-reader__specimen-size"><%= size %> px</span> The quick brown fox jumps over the lazy dog.</p><% }); %>
+          <p class="doc-reader__specimen-para">Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump! Sphinx of black quartz, judge my vow. Amazingly few discotheques provide jukeboxes.</p>
+        </div>
       <% } else if (kind === 'slides') { %>
         <div class="doc-reader__slides" data-reader-body aria-label="<%= module.title %>">
           <% slides.forEach(function (s) { %>

@@ -72,7 +72,7 @@ test('the reading page shows each file as it was uploaded, with the progress lin
   assert.match(pdf.text, /data-doc-progress/); assert.match(pdf.text, /Reading progress/); assert.match(pdf.text, /data-tracked="true"/);
   assert.doesNotMatch(pdf.text, /I have read this/);
   const docx = await get(agent, `/training-read/${mods['Word notes'].id}`);
-  assert.match(docx.text, /data-kind="docx"/); assert.match(docx.text, /<article class="doc-reader__paper"[^>]*><h1>CRM Closing Reasons<\/h1>/);
+  assert.match(docx.text, /data-kind="docx"/); assert.match(docx.text, /<article class="doc-reader__paper doc-reader__paper--docx"[^>]*><h1>CRM Closing Reasons<\/h1>/);
   const slides = await get(agent, `/training-read/${mods['Slides'].id}`);
   assert.match(slides.text, /data-kind="slides"/); assert.match(slides.text, /Slide 2 of 2/); assert.match(slides.text, /Cabins 2/);
   // an old .doc cannot be drawn: it says so and keeps the by-hand button for the learner

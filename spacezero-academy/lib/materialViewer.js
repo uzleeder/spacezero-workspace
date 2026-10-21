@@ -54,22 +54,32 @@ function refusesPageNavigation(req) {
 const VIEW_ONLY_PAGE = '<!doctype html><meta charset="utf-8"><title>View only</title><body style="font-family:system-ui;max-width:520px;margin:15vh auto;padding:0 16px"><h1>View only</h1><p>This material can be read or watched inside SpaceZero Workspace. It cannot be opened as a separate file or downloaded.</p><p><a href="javascript:history.back()">Go back</a></p></body>';
 
 // ---- The reading page for TRAINING material (progress-tracked): the file as it was uploaded -------------------------------
-// pdf    -> the pages themselves, drawn page by page (PDF.js) exactly as in the PDF
-// docx   -> the document with its headings, lists, tables and pictures
-// slides -> one card per slide with its title, text and pictures (PPTX)
-// image  -> the picture
+// pdf    -> the pages themselves, drawn page by page (PDF.js): .pdf and PDF-based .ai
+// image  -> the picture (png jpg gif webp bmp avif and svg)
+// docx   -> a Word / OpenDocument text document with its headings, lists, tables and pictures on a paper-like page
+// slides -> one card per slide: .pptx and .odp
+// sheet  -> every sheet as a table: .xlsx .ods .csv .tsv
+// epub   -> the e-book, chapter after chapter
+// text   -> .txt .md .rtf and .html (as text)
+// font   -> a specimen page set in the font itself: .ttf .otf .woff .woff2
+// cad    -> the drawing as vector lines: .dxf
 // Old .doc / .ppt cannot be drawn by a browser or in the app: 'unsupported' (the learner then confirms by hand).
+const READER_BY_EXT = {
+  '.png': 'image', '.jpg': 'image', '.jpeg': 'image', '.gif': 'image', '.webp': 'image', '.bmp': 'image', '.avif': 'image', '.svg': 'image',
+  '.pdf': 'pdf', '.ai': 'pdf', '.docx': 'docx', '.odt': 'docx', '.pptx': 'slides', '.odp': 'slides',
+  '.xlsx': 'sheet', '.ods': 'sheet', '.csv': 'sheet', '.tsv': 'sheet', '.epub': 'epub',
+  '.txt': 'text', '.md': 'text', '.rtf': 'text', '.html': 'text', '.htm': 'text',
+  '.ttf': 'font', '.otf': 'font', '.woff': 'font', '.woff2': 'font', '.dxf': 'cad',
+};
 function readerKind({ type, storagePath, mimeType }) {
   if (!storagePath) return 'none';
   const ext = path.extname(String(storagePath)).toLowerCase();
+  if (READER_BY_EXT[ext]) return READER_BY_EXT[ext];
   const mime = String(mimeType || '').toLowerCase();
-  if (type === 'IMAGE' || mime.startsWith('image/') || ['.png', '.jpg', '.jpeg', '.webp', '.gif'].includes(ext)) return 'image';
-  if (ext === '.pdf' || mime === 'application/pdf' || type === 'PDF') return 'pdf';
-  if (ext === '.docx') return 'docx';
-  if (ext === '.pptx') return 'slides';
+  if (type === 'IMAGE' || mime.startsWith('image/')) return 'image';
+  if (mime === 'application/pdf' || type === 'PDF') return 'pdf';
   return 'unsupported';
 }
-
 const MAX_HTML = 20 * 1024 * 1024;
 
 /** A DOCX as HTML: headings, lists, tables, bold / italic and pictures kept. Links are made inert; nothing is executable. */
@@ -121,4 +131,17 @@ async function slidesData(storagePath) {
     return slides.length ? slides : null;
   } catch { return null; }
 }
-module.exports = { viewerKind, readableText, paragraphs, refusesPageNavigation, VIEW_ONLY_PAGE, readerKind, docxHtml, slidesData };
+/** What the reading page shows for a file of this kind: { html } or { slides }; both null when it cannot be read. */
+async function readerContent(kind, storagePath) {
+  const render = require('./documentRender');
+  const ext = path.extname(String(storagePath)).toLowerCase();
+  if (kind === 'docx') return { html: ext === '.odt' ? render.odtHtml(storagePath) : await docxHtml(storagePath) };
+  if (kind === 'slides') return { slides: ext === '.odp' ? render.odpSlides(storagePath) : await slidesData(storagePath) };
+  if (kind === 'sheet') return { html: render.sheetsHtml(storagePath) };
+  if (kind === 'epub') return { html: render.epubHtml(storagePath) };
+  if (kind === 'text') return { html: render.textHtml(storagePath) };
+  if (kind === 'cad') return { html: render.dxfSvg(storagePath) };
+  return {};
+}
+
+module.exports = { viewerKind, readableText, paragraphs, refusesPageNavigation, VIEW_ONLY_PAGE, readerKind, readerContent, docxHtml, slidesData };

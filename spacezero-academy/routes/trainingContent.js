@@ -3,7 +3,9 @@ const router = require('express').Router();
 const { unlimitedUpload, withCleanup } = require('../lib/uploads');
 const { prisma } = require('../lib/prisma');
 const { requireSession, requireRole } = require('../lib/authMiddleware');
-const { validateUpload, saveUpload, resolveStoragePath } = require('../lib/storage');
+const { validateUpload, saveUpload, resolveStoragePath, sampleOf } = require('../lib/storage');
+const { classify, EXT } = require('../lib/sourceFiles');
+const EXT_KNOWN = (file) => Boolean(EXT[require('node:path').extname((file && file.originalname) || '').toLowerCase()]);
 const { safeParse } = require('../lib/practiceEngine');
 const { logAudit } = require('../lib/audit');
 const { mediaGate, MEDIA_TYPES, DOC_TYPES, MIN_READ_MS, durationOf, advanceProgress } = require('../lib/mediaProgress');
@@ -95,9 +97,8 @@ router.get('/training-read/:moduleId', requireSession, async (req, res) => {
   if (!module || !course || !module.storagePath || MEDIA_TYPES.includes(module.contentType)) return res.status(404).send('Not found');
   await noteOpened(req.profile, module); // opening a document starts its clock
   const kind = viewer.readerKind({ type: module.contentType, storagePath: module.storagePath });
-  const html = kind === 'docx' ? await viewer.docxHtml(module.storagePath) : null;
-  const slides = kind === 'slides' ? await viewer.slidesData(module.storagePath) : null;
-  const readable = kind === 'docx' ? html : kind === 'slides' ? slides : true;
+  const { html = null, slides = null } = await viewer.readerContent(kind, module.storagePath);
+  const readable = ['pdf', 'image', 'font'].includes(kind) ? true : kind === 'slides' ? slides : html;
   const progress = await prisma.mediaProgress.findUnique({ where: { profileId_trainingModuleId: { profileId: req.profile.id, trainingModuleId: module.id } } });
   res.set('Cache-Control', 'private, no-store');
   res.render('training-read', {
@@ -130,7 +131,7 @@ router.get('/training-course/:id', requireSession, async (req, res) => {
   const canFinish = Boolean(gate.unlocked && completion && !completion.submitted && completion.total === 0);
   const canSubmit = Boolean(gate.unlocked && completion && !completion.submitted && completion.total > 0 && completion.passedAll);
   const passedIds = new Set(completion ? completion.rows.filter((r) => r.passed).map((r) => r.assessment.id) : []);
-  res.render('training-content', { readerKind: viewer.readerKind, title: course.title, canFinish, canSubmit, completion, passedIds, finishId: mineRecipient ? mineRecipient.id : null, isLearner, doneIds, requiredIds, DOC_TYPES, minReadSeconds: Math.round(MIN_READ_MS / 1000), material: typeof req.query.material === 'string' ? req.query.material : '', course: { ...course, modules: shownModules }, gate, assessments: assessments.filter((a) => {
+  res.render('training-content', { nounFor: require('../lib/fileTypes').nounFor, readerKind: viewer.readerKind, title: course.title, canFinish, canSubmit, completion, passedIds, finishId: mineRecipient ? mineRecipient.id : null, isLearner, doneIds, requiredIds, DOC_TYPES, minReadSeconds: Math.round(MIN_READ_MS / 1000), material: typeof req.query.material === 'string' ? req.query.material : '', course: { ...course, modules: shownModules }, gate, assessments: assessments.filter((a) => {
     if (safeParse(a.configJson, {})?.targetedRetake === true) return a.createdById === req.profile.id;
     // Only practice the learner can really open: the same rule the practice page applies (an assignment of this version, for
     // the whole training or for exactly this practice) - otherwise \"Start\" would lead to a page that is not found.
@@ -145,9 +146,14 @@ router.post('/admin/training/:id/modules/:moduleId/file', requireRole('ADMIN'), 
   if (course.publishedVersion) return res.status(409).send('This training was sent to Training. Change its material by creating a new version in AI Practice.');
   const module = course.modules.find(m => m.id === req.params.moduleId);
   if (!module) return res.status(404).send('Not found');
-  const error = validateUpload(module.contentType, req.file);
+  // a file of one of the newer kinds (spreadsheet, e-book, font, CAD, text ...) is checked from its real content and keeps its extension
+  const kind = req.file ? classify(req.file) : { error: 'Choose a file.' };
+  if (kind.error && !kind.extra && !EXT_KNOWN(req.file)) return res.status(400).send(kind.error);
+  const error = kind.extra
+    ? (kind.contentType !== module.contentType ? `This item is a ${module.contentType.toLowerCase()} item: upload a file of the same kind.` : require('../lib/fileTypes').validateContent(kind.extra, req.file, sampleOf(req.file)))
+    : validateUpload(module.contentType, req.file);
   if (error) return res.status(400).send(error);
-  const saved = await saveUpload(req.file, 'training');
+  const saved = await saveUpload(req.file, 'training', kind.extra ? { ext: kind.extra.ext } : {});
   let durationSeconds;
   if (MEDIA_TYPES.includes(module.contentType)) {
     try { durationSeconds = await probeMedia(saved.storagePath); } catch { return res.status(400).send('Cannot read media duration. Please upload a valid recording.'); }
@@ -171,6 +177,8 @@ router.get('/training-file/:id', requireSession, async (req, res) => {
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'training.file_read', targetTable: 'TrainingModule', targetId: module.id });
   res.setHeader('Content-Disposition', req.query.download === '1' ? 'attachment' : 'inline');
   res.setHeader('Cache-Control', 'private, no-store');
+  // SVG and HTML files could run code if opened as a page: nothing in them may execute, load or submit anything.
+  if (/\.(svg|html?)$/i.test(module.storagePath)) res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'");
   res.sendFile(resolveStoragePath(module.storagePath));
 });
 router.post('/training-media/:id/progress', requireSession, async (req, res) => {
