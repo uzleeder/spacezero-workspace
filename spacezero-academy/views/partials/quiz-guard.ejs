@@ -1,12 +1,14 @@
 <%#
-  Quiz protection for everyone except Admins (who preview and review): no copying, cutting, pasting or dragging, no
-  context menu, no print, the quiz is hidden whenever the window is not the active one (screenshot and snipping
-  tools take focus), PrintScreen and the usual capture shortcuts clear the clipboard and hide the page, and a faint
-  watermark with the learner's own name runs across the page, so a photo or screenshot that does leak is traceable.
-  A web page cannot stop a phone camera or the operating system itself - this is a deterrent plus a trace.
+  Quiz protection for everyone except Admins (to see the learner's view, use Login as a learner).
+  - the question text is painted by the stylesheet (see lib/quizGuard.js), so it is not page text that can be copied,
+    selected, found or saved;
+  - no copying, cutting, pasting or dragging, no context menu, no print;
+  - the quiz is hidden whenever the window is not the active one (screenshot and snipping tools take focus), and for a moment after PrintScreen / the capture shortcuts (which also empty the clipboard);
+  - attempts are written to the audit log.
+  A web page cannot stop a phone camera or the operating system itself - this is protection plus a trace.
 %>
-<% if (typeof profile !== 'undefined' && profile && profile.role !== 'ADMIN') { %>
-  <div class="quiz-watermark" data-quiz-watermark="<%= profile.fullName %> · @<%= profile.username %> · <%= new Date().toISOString().slice(0, 16).replace('T', ' ') %> UTC" aria-hidden="true"></div>
+<% if (typeof guarded !== 'undefined' && guarded && typeof profile !== 'undefined' && profile) { %>
   <div class="quiz-cover" data-quiz-cover hidden role="alert"><div><p style="font-weight:600;margin:0 0 6px">Quiz hidden</p><p class="text-sm" style="margin:0">The quiz is hidden while this window is not active. Click here to continue.</p></div></div>
+  <% if (typeof assessment !== 'undefined' && assessment) { %><meta name="quiz-guard-url" content="/assessments/<%= assessment.id %>/guard-event"><% } %>
   <script src="<%= asset('/static/js/protect-quiz.js') %>" defer></script>
 <% } %>

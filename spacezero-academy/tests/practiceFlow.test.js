@@ -72,7 +72,7 @@ test('Quiz -> Completed -> "Practice completed. Continue to the next practice." 
   assert.match(passed.text, new RegExp(`data-practice-flow data-next-url="/assessments/${role.id}/roleplay"`));
   assert.match(passed.text, new RegExp(`href="/assessments/${role.id}/roleplay" data-flow-continue>Continue to the next practice<`));
   assert.match(passed.text, /Continuing automatically in/); assert.match(passed.text, /Stay on this page/); // cancellable auto-advance
-  assert.doesNotMatch(passed.text, /Continue — finish & submit the training/); // the next practice comes first
+  assert.doesNotMatch(passed.text, /Continue — see your training/); // the next practice comes first
   const page = await get(agent, `/training-course/${course.id}`);
   assert.match(page.text, /✓ Completed/); assert.match(page.text, /1 of 2 practices passed/);
   const flow = await practiceFlowFor(agent.id, quiz);
@@ -121,7 +121,7 @@ test('a training with ONE practice keeps the normal completion flow (no "next pr
   const passed = await post(agent, `/assessments/${only.id}/submit`, answers(only, true));
   assert.equal(passed.status, 200); assert.match(passed.text, /Passed/);
   assert.doesNotMatch(passed.text, /Continue to the next practice/); assert.doesNotMatch(passed.text, /data-practice-flow/);
-  assert.match(passed.text, /Continue — finish &amp; submit the training/);
+  assert.match(passed.text, /Continue — see your training/);
   // scoring / passing are exactly as before: the attempt is the usual one
   const attempt = await prisma.trainingAttempt.findFirst({ where: { assessmentId: only.id, profileId: agent.id } });
   assert.equal(attempt.status, 'COMPLETED'); assert.equal(attempt.score, 100);

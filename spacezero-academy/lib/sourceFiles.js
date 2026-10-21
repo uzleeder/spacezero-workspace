@@ -7,7 +7,7 @@ const fsp = require('fs/promises');
 const path = require('path');
 const crypto = require('crypto');
 const { prisma } = require('./prisma');
-const { validateUpload, saveUpload, resolveStoragePath } = require('./storage');
+const { validateUpload, saveUpload, resolveStoragePath, sampleOf } = require('./storage');
 const { probeMedia } = require('./mediaProbe');
 
 const clip = (v, n) => String(v ?? '').trim().slice(0, n);
@@ -19,13 +19,22 @@ const EXT = {
   '.doc': ['DOC', 'application/msword'], '.docx': ['DOC', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
   '.png': ['IMAGE', 'image/png'], '.jpg': ['IMAGE', 'image/jpeg'], '.jpeg': ['IMAGE', 'image/jpeg'], '.webp': ['IMAGE', 'image/webp'], '.gif': ['IMAGE', 'image/gif'],
 };
-const ACCEPT = Object.keys(EXT).join(',');
+const fileTypes = require('./fileTypes');
+// Every kind of file the app can show: the original set plus audio, video, pictures, vectors, documents, e-books, presentations,
+// spreadsheets, fonts and CAD drawings (see lib/fileTypes.js).
+const ACCEPT = [...new Set([...Object.keys(EXT), ...fileTypes.ALL_EXTENSIONS])].join(',');
 const MEDIA = ['VIDEO', 'AUDIO'];
 
 /** The kind of source a file is, from its extension. The extension only chooses which checks run — the content is always verified. */
 function classify(file) {
-  const entry = EXT[path.extname(file.originalname || '').toLowerCase()];
-  if (!entry) return { error: `"${file.originalname}" is not a supported file type.` };
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const entry = EXT[ext];
+  if (!entry) {
+    const extra = fileTypes.lookup(file.originalname);
+    if (extra) return { contentType: extra.contentType, extra };          // one of the newer kinds: checked by lib/fileTypes.js
+    const hint = fileTypes.hint(file.originalname);
+    return { error: hint ? `"${file.originalname}": ${hint}.` : `"${file.originalname}" is not a supported file type.` };
+  }
   const [contentType, mime] = entry;
   // Browsers sometimes send a generic type; the extension picks the expected one and the magic-byte check still has to agree.
   if (!file.mimetype || file.mimetype === 'application/octet-stream') file.mimetype = mime;
@@ -39,9 +48,10 @@ async function storeFiles(files, { subdir = 'training' } = {}) {
     for (const [i, file] of files.entries()) {
       const kind = classify(file);
       if (kind.error) throw new Error(kind.error);
-      const problem = validateUpload(kind.contentType, file);
-      if (problem) throw new Error(`${file.originalname}: ${problem}`);
-      const stored = await saveUpload(file, subdir);
+      // the original kinds keep their own checks; the newer kinds are checked from the real content by lib/fileTypes.js
+      const problem = kind.extra ? fileTypes.validateContent(kind.extra, file, sampleOf(file)) : validateUpload(kind.contentType, file);
+      if (problem) throw new Error(kind.extra ? problem : `${file.originalname}: ${problem}`);
+      const stored = await saveUpload(file, subdir, kind.extra ? { ext: kind.extra.ext } : {});
       saved.push(stored.storagePath);
       let seconds = null;
       if (MEDIA.includes(kind.contentType)) {

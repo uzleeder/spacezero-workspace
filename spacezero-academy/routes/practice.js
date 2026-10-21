@@ -13,6 +13,8 @@ const { z } = require('zod');
 const { Type } = require('@google/genai');
 const { openSession, findSession, claimSession, releaseSession, waitWhileBusy } = require('../lib/practiceSessions');
 const { mediaGate } = require('../lib/mediaProgress');
+const quizGuard = require('../lib/quizGuard');
+const { logAudit } = require('../lib/audit');
 const { displayOptions } = require('../lib/shuffleOptions');
 const { practiceFlowFor, startUrl } = require('../lib/trainingCompletion');
 const { keyFor } = require('../lib/answerKey');
@@ -22,12 +24,29 @@ const { claim, release } = require('../lib/inFlightLock');
 
 router.use('/assessments/:id', requireSession, async (req, res, next) => {
   res.set('Cache-Control', 'private, no-store'); // a quiz page is never kept in the browser cache
+  res.locals.guarded = quizGuard.isGuarded(req);        // everyone but Admins (an Admin adds ?guard=1 to see the learner's view)
+  res.locals.gt = quizGuard.textHelper(res.locals.guarded); // question text: painted by the stylesheet, not page text
   const loaded = await loadAssignedAssessment(req.profile, req.params.id);
-  if (!loaded) return res.status(404).render('not-found', { layout: false });
+  if (!loaded) return res.status(404).render('error', { layout: false, message: 'This practice is not part of a training assigned to you, so it cannot be opened. Open it from your own training.', action: { label: 'Open My Training', href: '/training' } });
   if (loaded.assessment.courseId && !(await mediaGate(req.profile.id, loaded.assessment.courseId, loaded.assessment.version)).unlocked) return res.status(403).send(`<!doctype html><meta charset="utf-8"><title>Finish the material first</title><body style="font-family:system-ui;max-width:560px;margin:15vh auto;padding:0 16px"><h1>Finish the material first</h1><p>Watch, listen to and read all of the required material of this training before you start the practice or the quiz.</p><p><a href="/training-course/${loaded.assessment.courseId}">Go to the training material →</a></p></body>`);
   next();
 });
 
+// The browser reports an attempt to copy, paste, print, capture or open developer tools while a guarded quiz page is open.
+// It only writes to the audit log (who, which practice, what) - nothing about scoring changes. Capped per person per hour.
+const guardEventCounts = new Map();
+router.post('/assessments/:id/guard-event', async (req, res) => {
+  const event = String(req.body.event || '');
+  if (!quizGuard.ALLOWED_EVENTS.has(event)) return res.status(400).json({ error: 'Unknown event' });
+  const hour = Math.floor(Date.now() / 3600000);
+  const key = `${req.profile.id}:${hour}`;
+  const used = guardEventCounts.get(key) || 0;
+  if (used >= 40) return res.status(204).end();
+  guardEventCounts.set(key, used + 1);
+  for (const k of guardEventCounts.keys()) if (!k.endsWith(`:${hour}`)) guardEventCounts.delete(k);
+  await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'quiz.protection_event', targetTable: 'Assessment', targetId: req.params.id, metadata: { event } });
+  res.status(204).end();
+});
 async function loadAssignedAssessment(profile, assessmentId) {
   const assessment = await prisma.assessment.findFirst({
     where: { id: assessmentId, organizationId: profile.organizationId, status: 'APPROVED' },

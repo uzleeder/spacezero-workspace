@@ -11,7 +11,7 @@
     var picked = Array.isArray(given) ? given : (given ? [given] : []); %>
     <div class="card mt-24">
       <div class="card-body">
-        <p style="font-weight:500;color:var(--navy-950)"><%= i + 1 %>. <%= q.prompt %></p>
+        <p style="font-weight:500;color:var(--navy-950)"><%= i + 1 %>. <%- gt(q.prompt) %></p>
 
         <% if (q.type === 'TRUE_FALSE') { %>
           <div class="mt-16" style="display:flex;flex-direction:column;gap:8px">
@@ -22,13 +22,13 @@
         <% } else if ((q.type === 'MCQ' || q.type === 'SCENARIO' || q.type === 'SHORT_ANSWER') && q.options && q.options.length > 0) { %>
           <div class="mt-16" style="display:flex;flex-direction:column;gap:8px">
             <% q.options.forEach(function (o) { %>
-              <label class="checkbox-row"><input type="radio" name="q_<%= q.id %>" value="<%= o %>" required <%= picked.includes(o) ? 'checked' : '' %> /> <%= o %></label>
+              <label class="checkbox-row"><input type="radio" name="q_<%= q.id %>" value="<%= o %>" required <%= picked.includes(o) ? 'checked' : '' %> /> <%- gt(o) %></label>
             <% }); %>
           </div>
         <% } else if (q.type === 'MULTI_SELECT' || q.type === 'MATCHING') { %>
           <div class="mt-16" style="display:flex;flex-direction:column;gap:8px">
             <% q.options.forEach(function (o) { %>
-              <label class="checkbox-row"><input type="checkbox" name="q_<%= q.id %>" value="<%= o %>" <%= picked.includes(o) ? 'checked' : '' %> /> <%= o %></label>
+              <label class="checkbox-row"><input type="checkbox" name="q_<%= q.id %>" value="<%= o %>" <%= picked.includes(o) ? 'checked' : '' %> /> <%- gt(o) %></label>
             <% }); %>
           </div>
         <% } else if (q.type === 'ORDERING') { %>

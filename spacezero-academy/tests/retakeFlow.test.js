@@ -61,7 +61,7 @@ test('passing the smart retake passes the original practice: the training can be
   assert.equal(JSON.parse(retake.configJson).retakeOf, quiz.id);
   const result = await answerAll(learner, retake, 'Right');
   assert.equal(result.status, 200);
-  assert.match(result.text, /Continue — finish &amp; submit the training/);
+  assert.match(result.text, /Continue — see your training/);
 
   const complete = await post(learner, `/training/${recipient.id}/complete`);
   assert.equal(complete.status, 302);

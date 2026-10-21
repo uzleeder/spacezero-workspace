@@ -98,10 +98,10 @@ async function moveFile(from, to) {
   await chmod(to, 0o600).catch(() => undefined);
 }
 
-async function saveUpload(file, subdir) {
+async function saveUpload(file, subdir, options = {}) {
   const dir = resolveStoragePath(subdir);
   await mkdir(dir, { recursive: true });
-  const ext = ({ 'application/pdf': '.pdf', 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/gif': '.gif', 'video/mp4': '.mp4', 'video/webm': '.webm', 'video/quicktime': '.mov', 'audio/mpeg': '.mp3', 'audio/mp3': '.mp3', 'audio/wav': '.wav', 'audio/ogg': '.ogg', 'audio/webm': '.webm', 'audio/mp4': '.m4a', 'audio/x-m4a': '.m4a', 'audio/m4a': '.m4a', 'application/msword': '.doc', 'application/vnd.ms-powerpoint': '.ppt', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx' })[file.mimetype] || '.bin';
+  const ext = (options.ext && /^\.[a-z0-9]{1,8}$/.test(options.ext) ? options.ext : null) || ({ 'application/pdf': '.pdf', 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/gif': '.gif', 'video/mp4': '.mp4', 'video/webm': '.webm', 'video/quicktime': '.mov', 'audio/mpeg': '.mp3', 'audio/mp3': '.mp3', 'audio/wav': '.wav', 'audio/ogg': '.ogg', 'audio/webm': '.webm', 'audio/mp4': '.m4a', 'audio/x-m4a': '.m4a', 'audio/m4a': '.m4a', 'application/msword': '.doc', 'application/vnd.ms-powerpoint': '.ppt', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx' })[file.mimetype] || '.bin';
   const id = crypto.randomUUID();
   const filename = `${id}${ext}`;
   const target = path.join(dir, filename);
@@ -119,4 +119,4 @@ function resolveStoragePath(storagePath) {
   return resolved;
 }
 
-module.exports = { validateUpload, saveUpload, resolveStoragePath, STORAGE_ROOT };
+module.exports = { validateUpload, saveUpload, resolveStoragePath, sampleOf, STORAGE_ROOT };
