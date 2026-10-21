@@ -29,11 +29,14 @@
     percentEl.textContent = shown + '%';
     track.setAttribute('aria-valuenow', String(shown));
   }
-  function finish() {
+  function finish(next) {
     done = true; reached = 100; paint();
     label.textContent = '✓ Finished';
-    if (note) { note.firstChild.nodeValue = 'You read it to the end - this item is finished. '; }
-    if (back) back.hidden = false;
+    if (note) { note.firstChild.nodeValue = 'You read it to the end - this item is finished. ' + ((next && next.message) || '') + ' '; }
+    if (back) {
+      if (next && next.url) { back.setAttribute('href', next.url); back.textContent = next.label; }
+      back.hidden = false;
+    }
   }
 
   // ---- how far down the document the learner has seen: the bottom of the viewport against the document's own box ----
@@ -55,7 +58,7 @@
         sending = false;
         if (!data) return;
         lastSent = reached;
-        if (data.completed) { finish(); return; }
+        if (data.completed) { finish(data.next); return; }
         if (data.waitMs > 0) {
           // at the end but too soon: say so and try again when the minimum time has passed
           var seconds = Math.ceil(data.waitMs / 1000);
@@ -71,8 +74,9 @@
     saveTimer = setTimeout(function () { saveTimer = null; send(false); }, 2000);
   }
 
+  var ready = kind !== 'html';   // a framed page counts only once the frame has been made as tall as the page
   function update() {
-    if (done) return;
+    if (done || !ready) return;
     var now = seenPercent();
     if (now > reached) {
       reached = Math.min(100, now);
@@ -144,8 +148,33 @@
     }).catch(failed);
   }
 
+  // ---- HTML: the page in a frame, made as tall as the page itself so the whole window scrolls through it ----
+  function startFrame() {
+    var guard = document.querySelector('[data-protect]');
+    function fit() {
+      var doc;
+      try { doc = body.contentDocument; } catch (e) { return; }
+      if (!doc || !doc.body || doc.readyState !== 'complete' || doc.location.href === 'about:blank') return;
+      if (guard && doc.head && !doc.getElementById('sz-protect')) {
+        var style = doc.createElement('style'); style.id = 'sz-protect';
+        style.textContent = '*{-webkit-user-select:none;user-select:none}';
+        doc.head.appendChild(style);
+        doc.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+        doc.addEventListener('copy', function (e) { e.preventDefault(); });
+      }
+      body.style.height = Math.max(doc.documentElement.scrollHeight, doc.body ? doc.body.scrollHeight : 0, 320) + 'px';
+      pages = Math.max(1, Math.round(body.offsetHeight / 900)); root.setAttribute('data-pages', String(pages));
+      ready = true;
+      update();
+    }
+    body.addEventListener('load', function () { fit(); setTimeout(fit, 300); });
+    window.addEventListener('resize', fit);
+    fit();
+  }
+
   paint();
   if (kind === 'pdf') startPdf();
+  else if (kind === 'html') startFrame();
   else if (kind !== 'slides' && kind !== 'image') { pages = Math.max(1, Math.round((body ? body.scrollHeight : 900) / 900)); root.setAttribute('data-pages', String(pages)); } // text, sheets, e-books, fonts, drawings: about one page per screenful
   // a short document or picture that fits on one screen is already fully in view: it still waits for the minimum time
   window.addEventListener('load', function () { update(); setTimeout(update, 600); });

@@ -78,6 +78,11 @@ router.post('/employees/:id/personal-test-profile', requireAdmin, async (req, re
 router.get('/employees', requireAdmin, async (req, res) => {
   const admin = req.profile;
   const str = (v) => (typeof v === 'string' ? v : '');
+  // The role / status filters go straight into the database query, which only accepts known values: anything else
+  // (a mistyped or hand-edited address) is "no filter", not an error page.
+  const known = (v, allowed) => (allowed.includes(str(v)) ? str(v) : '');
+  const roleFilter = known(req.query.role, ['ADMIN', 'SUPERVISOR', 'TRAVEL_AGENT', 'FLIGHT_EXPERT']);
+  const statusFilter = known(req.query.status, ['INVITED', 'ACTIVE', 'DISABLED', 'ARCHIVED']);
   const teamId = str(req.query.teamId);
   const supervisorId = str(req.query.supervisorId);
   const setupQuery = parseSetupQuery(req.query);
@@ -85,8 +90,8 @@ router.get('/employees', requireAdmin, async (req, res) => {
   const found = await prisma.profile.findMany({
     where: {
       organizationId: admin.organizationId,
-      role: str(req.query.role) || undefined,
-      status: str(req.query.status) || undefined,
+      role: roleFilter || undefined,
+      status: statusFilter || undefined,
       // In AND so it does not replace the OR that excludeOtherAdminsTestProfiles() spreads in below
       // (a top-level OR here was silently overwritten, so the search box matched everyone).
       ...(str(req.query.q).trim() ? { AND: [{ OR: [{ fullName: containsText(req.query.q) }, { email: containsText(req.query.q) }, { username: containsText(req.query.q) }] }] } : {}),
@@ -128,8 +133,8 @@ router.get('/employees', requireAdmin, async (req, res) => {
     STATUS_TONE,
     STATUS_LABEL,
     q: str(req.query.q),
-    role: str(req.query.role),
-    status: str(req.query.status),
+    role: roleFilter,
+    status: statusFilter,
     teamId,
     supervisorId,
     setup: setupQuery.setup,

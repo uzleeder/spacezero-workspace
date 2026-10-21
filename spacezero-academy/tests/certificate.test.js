@@ -76,6 +76,18 @@ test('an admin can view any certificate in their organization', async () => {
   assert.equal(res.status, 200);
 });
 
+test('a certificate keeps the same number when an earlier certificate is deleted, and two issued together differ', async () => {
+  const cookie = await loginAs(owner);
+  const numberOf = async (id) => (await request(app).get(`/certificates/${id}`).set('Cookie', cookie)).text.match(/SZ-\d{4}-[0-9A-Z]{8}/)[0];
+  const issuedAt = new Date();
+  const earlier = await prisma.certificate.create({ data: { profileId: otherAgent.id, title: 'Earlier', issuedAt: new Date(Date.now() - 86400000) } });
+  const twin = await prisma.certificate.create({ data: { profileId: owner.id, title: 'Twin', courseId: 'twin-course', issuedAt } });
+  const first = await numberOf(certificate.id); const second = await numberOf(twin.id);
+  assert.notEqual(first, second);                                              // the same moment, different numbers
+  await prisma.certificate.delete({ where: { id: earlier.id } });              // deleting an earlier one changes nothing
+  assert.equal(await numberOf(certificate.id), first); assert.equal(await numberOf(twin.id), second);
+});
+
 test('a nonexistent certificate id returns 404, not a crash', async () => {
   const cookie = await loginAs(owner);
   const res = await request(app).get('/certificates/does-not-exist').set('Cookie', cookie);

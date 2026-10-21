@@ -113,7 +113,7 @@ async function generateQuestionAssessment({ course, analysis, actor, type, level
           prompt: q.prompt,
           // The AI writes the correct answer first; stir the choices so it is not always "A".
           optionsJson: q.options ? JSON.stringify(shuffleOptions(q.type, q.options)) : null,
-          correctAnswerJson: JSON.stringify(q.correctAnswer),
+          correctAnswerJson: JSON.stringify(require('./correctAnswers').toStored(q.type, q.options, q.correctAnswer)), // multi-answer types: the list, never a comma-joined string
           explanation: q.explanation || null,
           skillIdsJson: JSON.stringify(q.skillNames || []),
           sourceRefJson: q.sourceTitle ? JSON.stringify({ title: q.sourceTitle, location: q.sourceLocation || '' }) : null,

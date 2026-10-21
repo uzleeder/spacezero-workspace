@@ -26,7 +26,7 @@ async function allowedCourse(actor, id) {
 
 /** A learner opening read-material starts its clock; the server later checks they really spent time with it. */
 async function noteOpened(profile, module) {
-  if (profile.role === 'ADMIN' || !DOC_TYPES.includes(module.contentType)) return;
+  if (profile.role === 'ADMIN' || !DOC_TYPES.includes(module.contentType) || require('../lib/requestContext').readOnly()) return; // an Admin looking at the account records nothing
   const mine = await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId: profile.id, assignment: { courseId: module.courseId } }, select: { id: true } });
   if (!mine) return; // previewing (a supervisor who owns the course) records nothing
   await prisma.mediaProgress.upsert({ where: { profileId_trainingModuleId: { profileId: profile.id, trainingModuleId: module.id } }, create: { profileId: profile.id, trainingModuleId: module.id }, update: {} });
@@ -85,8 +85,27 @@ router.post('/training-material/:moduleId/progress', requireSession, async (req,
     await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'training.material_completed', targetTable: 'TrainingModule', targetId: module.id });
     await autoFinishForProfile(req.profile.id, { assignment: { courseId: course.id } }).catch((err) => console.error('auto-finish failed', err.message)); // it may have been the last thing left
   }
-  res.json({ percent: data.percentComplete, completed: Boolean(row.completedAt || finishing), waitMs: reached >= 99 && !row.completedAt && !finishing ? waitMs : 0 });
+  const completed = Boolean(row.completedAt || finishing);
+  res.json({ percent: data.percentComplete, completed, waitMs: reached >= 99 && !row.completedAt && !finishing ? waitMs : 0, ...(completed ? { next: await nextStep(req.profile, course, module) } : {}) });
 });
+
+/** Where the learner goes once a document is finished: the practice and quizzes when everything required is done, else the next item still to do. */
+async function nextStep(profile, course, module) {
+  const back = `/training-course/${course.id}`;
+  if (profile.role === 'ADMIN') return { url: course.origin === 'AI_PRACTICE' && course.status !== 'PUBLISHED' ? `/ai-practice/${course.id}` : back, label: 'Back →', unlocked: false, message: '' };
+  const gate = await mediaGate(profile.id, course.id);
+  if (gate.unlocked) {
+    const quizzes = await prisma.assessment.count({ where: { courseId: course.id, status: 'APPROVED' } });
+    return quizzes
+      ? { url: `${back}#practice`, label: 'Open the practice and quizzes →', unlocked: true, message: 'All required material is finished - the practice and quizzes are now open.' }
+      : { url: back, label: 'Back to the training →', unlocked: true, message: 'All required material is finished.' };
+  }
+  const left = gate.modules.filter((m) => m.id !== module.id && !gate.finished(m));
+  const next = left.find((m) => m.storagePath && DOC_TYPES.includes(m.contentType)) || left[0];
+  if (!next) return { url: back, label: 'Back to the training →', unlocked: false, message: '' };
+  const readable = next.storagePath && DOC_TYPES.includes(next.contentType);
+  return { url: readable ? `/training-read/${next.id}` : `${back}#m-${next.id}`, label: `Next: ${next.title} →`, unlocked: false, message: `${left.length} required item${left.length === 1 ? '' : 's'} left before the practice and quizzes open.` };
+}
 
 // The reading page for one document: the file as it was uploaded (PDF pages, the Word document, the slides, the picture),
 // shown inside the app, with a line at the bottom that fills as the learner reads and finishes the item at the end.
@@ -98,19 +117,21 @@ router.get('/training-read/:moduleId', requireSession, async (req, res) => {
   await noteOpened(req.profile, module); // opening a document starts its clock
   const kind = viewer.readerKind({ type: module.contentType, storagePath: module.storagePath });
   const { html = null, slides = null } = await viewer.readerContent(kind, module.storagePath);
-  const readable = ['pdf', 'image', 'font'].includes(kind) ? true : kind === 'slides' ? slides : html;
+  const readable = ['pdf', 'image', 'font', 'html'].includes(kind) ? true : kind === 'slides' ? slides : html;
   const progress = await prisma.mediaProgress.findUnique({ where: { profileId_trainingModuleId: { profileId: req.profile.id, trainingModuleId: module.id } } });
   res.set('Cache-Control', 'private, no-store');
+  const finished = Boolean(progress && progress.completedAt);
   res.render('training-read', {
     title: module.title, module, course, kind: readable ? kind : 'unsupported', html, slides, protect: req.profile.role !== 'ADMIN',
-    tracked: req.profile.role !== 'ADMIN' && Boolean(await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId: req.profile.id, assignment: { courseId: course.id } }, select: { id: true } })),
+    next: finished ? await nextStep(req.profile, course, module) : { url: `/training-course/${course.id}`, label: 'Back to the training →', unlocked: false, message: '' },
+    tracked: req.profile.role !== 'ADMIN' && !require('../lib/requestContext').readOnly() && Boolean(await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId: req.profile.id, assignment: { courseId: course.id } }, select: { id: true } })),
     saved: { percent: progress ? Math.round(progress.percentComplete) : 0, done: Boolean(progress && progress.completedAt) },
   });
 });
 router.get('/training-course/:id', requireSession, async (req, res) => {
   const course = await allowedCourse(req.profile, req.params.id);
   if (!course) return res.status(404).send('Not found');
-  await autoFinishForProfile(req.profile.id, { assignment: { courseId: course.id } }).catch((err) => console.error('auto-finish failed', err.message)); // already done = finished
+  if (!require('../lib/requestContext').readOnly()) await autoFinishForProfile(req.profile.id, { assignment: { courseId: course.id } }).catch((err) => console.error('auto-finish failed', err.message)); // already done = finished
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'training.content_read', targetTable: 'TrainingCourse', targetId: course.id });
   // Each learner sees the version they were assigned; the Admin sees the version that is in Training.
   const mine = req.profile.role === 'ADMIN' ? [] : await prisma.trainingAssignment.findMany({ where: { courseId: course.id, recipients: { some: { profileId: req.profile.id } } }, select: { courseVersion: true, assessmentId: true } });
@@ -178,7 +199,10 @@ router.get('/training-file/:id', requireSession, async (req, res) => {
   res.setHeader('Content-Disposition', req.query.download === '1' ? 'attachment' : 'inline');
   res.setHeader('Cache-Control', 'private, no-store');
   // SVG and HTML files could run code if opened as a page: nothing in them may execute, load or submit anything.
-  if (/\.(svg|html?)$/i.test(module.storagePath)) res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'");
+  // The reading page frames an HTML file so it looks as it was written; the frame may be measured by the page around it
+  // (allow-same-origin) but still runs no script, submits no form and loads nothing from outside.
+  if (/\.html?$/i.test(module.storagePath) && req.query.frame === '1') res.setHeader('Content-Security-Policy', "sandbox allow-same-origin; default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; frame-ancestors 'self'");
+  else if (/\.(svg|html?)$/i.test(module.storagePath)) res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'");
   res.sendFile(resolveStoragePath(module.storagePath));
 });
 router.post('/training-media/:id/progress', requireSession, async (req, res) => {

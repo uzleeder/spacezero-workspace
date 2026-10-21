@@ -1255,6 +1255,14 @@ html[data-theme="dark"] .doc-progress__row { color: #f4f1ff; }
 .doc-progress__note { margin: 8px 0 0; font-size: 12.5px; color: var(--text-muted, #6b7487); }
 html[data-theme="dark"] .doc-progress__note { color: #b4afd1; }
 .doc-progress__note [hidden] { display: none; }
+/* a slide drawn as it was made (lib/slideRender.js): one canvas, shapes placed by percentage, text sized in container-width units */
+.doc-reader__slide--drawn { min-height: 0; padding: 0; background: transparent; box-shadow: none; }
+.doc-reader__slide--drawn .doc-reader__slide-no { margin: 0 0 8px; color: #aab1c5; }
+.sc-canvas { position: relative; width: 100%; container-type: inline-size; overflow: hidden; border-radius: 6px; box-shadow: 0 6px 24px rgba(8, 6, 28, .35); font-family: Calibri, "Segoe UI", Arial, sans-serif; color: #1c2233; user-select: none; }
+.sc-shape { position: absolute; box-sizing: border-box; }
+.sc-shape p { overflow-wrap: anywhere; }
+.sc-shape img { max-width: none; max-height: none; margin: 0; object-fit: fill; }
+.doc-reader__frame { display: block; width: 100%; min-height: 320px; border: 0; background: #fff; border-radius: 6px; box-shadow: 0 6px 24px rgba(8, 6, 28, .35); }
 @media (max-width: 640px) { .doc-reader__paper { padding: 28px 20px; } .doc-reader__slide { padding: 20px; } }
 @media print { .doc-progress { display: none; } }
 /* the same line, small, under "Read" on the training page */

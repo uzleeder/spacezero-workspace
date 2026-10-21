@@ -79,7 +79,9 @@ test('generated questions are saved with stirred choices (the correct answer is 
     if (!original) { assert.equal(row.optionsJson, null); return; }
     const saved = JSON.parse(row.optionsJson);
     assert.deepEqual([...saved].sort(), [...original].sort());                     // same choices
-    assert.equal(JSON.parse(row.correctAnswerJson), aiQuestions[i].correctAnswer);   // same answer
+    const savedAnswer = JSON.parse(row.correctAnswerJson);                            // same answer (multi-answer types are saved as a list)
+    if (Array.isArray(savedAnswer)) assert.deepEqual(savedAnswer, require('../lib/correctAnswers').listOf(aiQuestions[i].correctAnswer, original));
+    else assert.equal(savedAnswer, aiQuestions[i].correctAnswer);
     if (row.type === 'TRUE_FALSE') { assert.deepEqual(saved, original); return; }
     withOptions += 1;
     assert.notDeepEqual(saved, original);

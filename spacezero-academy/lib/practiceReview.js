@@ -60,7 +60,7 @@ function readQuestionForm(body, fixedType = null) {
   const matched = correct.map((c) => options.find((o) => o.toLowerCase() === c.toLowerCase())).filter(Boolean);
   if (!correct.length || matched.length !== correct.length) return { error: 'The correct answer must be one of the options (copy it exactly).' };
   if (type === 'MCQ' && matched.length !== 1) return { error: 'A single-choice question has exactly one correct answer.' };
-  return { data: { ...base, optionsJson: JSON.stringify(options), correctAnswerJson: JSON.stringify(type === 'MCQ' ? matched[0] : matched.join(',')) } };
+  return { data: { ...base, optionsJson: JSON.stringify(options), correctAnswerJson: JSON.stringify(type === 'MCQ' ? matched[0] : matched) } };
 }
 
 /** An edit to an approved practice sends it back to review. */
@@ -89,7 +89,7 @@ const persistQuestionData = (q) => ({
   prompt: q.prompt,
   // The AI writes the correct answer first; stir the choices so it is not always "A".
   optionsJson: q.options ? JSON.stringify(shuffleOptions(q.type, q.options)) : null,
-  correctAnswerJson: JSON.stringify(q.correctAnswer),
+  correctAnswerJson: JSON.stringify(require('./correctAnswers').toStored(q.type, q.options, q.correctAnswer)),
   explanation: q.explanation || null,
   skillIdsJson: JSON.stringify(q.skillNames || []),
   sourceRefJson: q.sourceTitle ? JSON.stringify({ title: q.sourceTitle, location: q.sourceLocation || '' }) : null,

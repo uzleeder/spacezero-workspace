@@ -38,10 +38,14 @@
             <div style="flex:1">
               <p style="font-weight:500;color:var(--navy-950)"><%= i + 1 %>. <%- gt(q.prompt) %></p>
               <% if (!result.isCorrect) { %>
-                <p class="text-sm text-muted mt-16">Correct answer: <%- gt(Array.isArray(q.correctAnswer) ? q.correctAnswer.join(', ') : q.correctAnswer) %></p>
+                <% if (showAnswers) { %>
+                  <p class="text-sm text-muted mt-16">Correct answer: <%- gt(Array.isArray(q.correctAnswer) ? q.correctAnswer.join(', ') : q.correctAnswer) %></p>
+                <% } else { %>
+                  <p class="text-sm text-muted mt-16">Not correct. Go back over the material for this one — the answers are shown once you pass.</p>
+                <% } %>
               <% } %>
               <% if (q.explanation) { %><p class="text-sm text-muted" style="margin-top:4px"><%- gt(q.explanation) %></p><% } %>
-              <% if (result.feedback) { %><p class="text-sm text-muted" style="margin-top:4px"><%- gt(result.feedback) %></p><% } %>
+              <% if (result.feedback && showAnswers) { %><p class="text-sm text-muted" style="margin-top:4px"><%- gt(result.feedback) %></p><% } %>
             </div>
           </div>
         </li>

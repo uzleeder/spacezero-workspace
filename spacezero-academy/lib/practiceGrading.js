@@ -9,35 +9,31 @@ const { z } = require('zod');
 const { Type } = require('@google/genai');
 const { generateStructured } = require('./gemini');
 const { safeParse } = require('./practiceEngine');
+const { correctOf } = require('./correctAnswers');
 
 function normalize(value) {
   return String(value ?? '').trim().toLowerCase();
 }
 
-// Gemini's correctAnswer field is schema-typed as a single STRING (see questionGeminiSchema in
-// lib/practiceEngine.js) — for multi-value question types it's instructed to comma-separate
-// multiple answers into that one string, rather than returning an array. Normalize both shapes
-// (a real array, or a comma-joined string) into an array here so grading isn't fooled by either.
-function toArray(value) {
-  if (Array.isArray(value)) return value;
-  if (typeof value === 'string') return value.split(',').map((v) => v.trim()).filter(Boolean);
-  return value == null ? [] : [value];
-}
+// A learner's answer to a multi-answer question arrives as a list of option texts (or one text).
+const toArray = (value) => (Array.isArray(value) ? value : value == null || value === '' ? [] : [value]);
 
 function gradeObjective(question, learnerAnswer) {
-  const correct = safeParse(question.correctAnswerJson, null);
+  // For the multi-answer types this is the real list of option texts, even when an option contains a comma and the
+  // answer was stored as one comma-joined string (lib/correctAnswers.js reads it back through the options).
+  const correct = correctOf(question);
   if (question.type === 'MCQ' || question.type === 'TRUE_FALSE') {
     const isCorrect = normalize(learnerAnswer) === normalize(correct);
     return { isCorrect, scorePercent: isCorrect ? 100 : 0 };
   }
   if (question.type === 'MULTI_SELECT' || question.type === 'MATCHING') {
-    const correctSet = new Set(toArray(correct).map(normalize));
+    const correctSet = new Set(correct.map(normalize));
     const answerSet = new Set(toArray(learnerAnswer).filter(Boolean).map(normalize));
     const isCorrect = correctSet.size === answerSet.size && [...correctSet].every((v) => answerSet.has(v));
     return { isCorrect, scorePercent: isCorrect ? 100 : 0 };
   }
   if (question.type === 'ORDERING') {
-    const correctArr = toArray(correct).map(normalize);
+    const correctArr = correct.map(normalize);
     const answerArr = toArray(learnerAnswer).map(normalize);
     const isCorrect = correctArr.length === answerArr.length && correctArr.every((v, i) => v === answerArr[i]);
     return { isCorrect, scorePercent: isCorrect ? 100 : 0 };

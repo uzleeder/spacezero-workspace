@@ -17,6 +17,7 @@ const { liveVersion } = require('../lib/courseVersions');
 const trainingCategories = require('../lib/trainingCategories');
 const { hasCapability } = require('../lib/supervisorCapabilities');
 const trainingEmails = require('../lib/trainingEmails');
+const { openCopies, dropEmptyAssignments } = require('../lib/assignmentMerge');
 const { trainingDeadline, formatDeadline } = require('../lib/trainingDeadline');
 const { containsText } = require('../lib/textSearch');
 
@@ -224,7 +225,14 @@ router.post('/assignments', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm
   if (!course) return rerenderError('Course not found.');
   if (!await canAssignCourse(actor, course)) return res.status(403).render('forbidden');
 
+  // Someone who already has this training open is not given a second copy: their open copy moves onto the new assignment
+  // (progress kept, the new due date and settings apply) and untouched leftovers of earlier duplicates are removed.
+  const everyone = [...new Set(populated.flatMap((g) => g.recipients))];
+  const moved = [];
   await prisma.$transaction(async (tx) => {
+    const open = await openCopies(tx, { organizationId: actor.organizationId, courseId: data.courseId, assessmentId, profileIds: everyone });
+    const handled = new Set();
+    const oldAssignments = new Set();
     for (const group of populated) {
       const assignment = await tx.trainingAssignment.create({
         data: {
@@ -242,13 +250,28 @@ router.post('/assignments', requireRole('ADMIN', 'SUPERVISOR'), mayUseAssignForm
           minimumScore,
         },
       });
+      const fresh = [];
       for (const profileId of group.recipients) {
-        const recipient = await tx.trainingAssignmentRecipient.create({ data: { assignmentId: assignment.id, profileId } });
-        await tx.trainingAttempt.create({ data: { recipientId: recipient.id, profileId, status: 'NOT_STARTED', attemptNumber: 1 } });
-        await trainingEmails.enqueueAssignment(tx, recipient.id);
+        if (handled.has(profileId)) continue;                       // already placed by an earlier group of this same assignment
+        handled.add(profileId);
+        const copy = open.get(profileId);
+        if (copy) {
+          oldAssignments.add(copy.keep.assignmentId);
+          await tx.trainingAssignmentRecipient.update({ where: { id: copy.keep.id }, data: { assignmentId: assignment.id } });
+          for (const extra of copy.extras) { oldAssignments.add(extra.assignmentId); await tx.trainingAssignmentRecipient.delete({ where: { id: extra.id } }); }
+          moved.push(copy.keep.id);
+        } else fresh.push(profileId);
+      }
+      // a few queries per group, not per person: a company-wide assignment finishes well inside the transaction limit
+      if (fresh.length) {
+        const created = await tx.trainingAssignmentRecipient.createManyAndReturn({ data: fresh.map((profileId) => ({ assignmentId: assignment.id, profileId })), select: { id: true, profileId: true } });
+        await tx.trainingAttempt.createMany({ data: created.map((r) => ({ recipientId: r.id, profileId: r.profileId, status: 'NOT_STARTED', attemptNumber: 1 })) });
+        await tx.trainingEmailSchedule.createMany({ data: created.map((r) => ({ recipientId: r.id, nextSendAt: new Date() })) });
       }
     }
-  });
+    await dropEmptyAssignments(tx, [...oldAssignments]);
+  }, { timeout: 60000, maxWait: 15000 });
+  if (moved.length) await trainingEmails.queueAgain(moved);           // they hear about the new due date, once
 
   const recipientIds = [...new Set(populated.flatMap((g) => g.recipients))];
   await logAudit({

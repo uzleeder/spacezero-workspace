@@ -27,7 +27,7 @@ const notices = { 'open-first': 'Open the material first, then confirm.', 'too-f
   const isMedia = ['VIDEO','AUDIO','CALL_RECORDING'].includes(module.contentType);
   // A document the reading page can draw (PDF, Word, slides, picture) finishes by itself when it is read to the end; anything
   // else (a note, an old .doc / .ppt) is confirmed by hand.
-  const trackable = Boolean(module.storagePath) && ['pdf', 'docx', 'slides', 'image', 'sheet', 'epub', 'text', 'font', 'cad'].includes(readerKind({ type: module.contentType, storagePath: module.storagePath }));
+  const trackable = Boolean(module.storagePath) && ['pdf', 'docx', 'slides', 'image', 'sheet', 'epub', 'text', 'html', 'font', 'cad'].includes(readerKind({ type: module.contentType, storagePath: module.storagePath }));
   const readPercent = Math.round((gate.modules.find(function (m) { return m.id === module.id; }) || { mediaProgress: [] }).mediaProgress.map(function (r) { return r.percentComplete; })[0] || 0);
 %>
 <section class="card mt-24" id="m-<%= module.id %>"><div class="card-body<%= protect ? ' no-copy' : '' %>" <%- protect ? 'data-protect' : '' %>>

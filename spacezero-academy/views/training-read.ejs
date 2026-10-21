@@ -4,7 +4,8 @@
   Locals: module, course, kind (pdf | docx | slides | image | unsupported), html (docx), slides (pptx), protect, tracked, saved.
 %>
 <%- include('partials/page-header', { pageTitle: module.title, pageDescription: course.title }) %>
-<div style="margin-bottom:12px"><a href="/training-course/<%= course.id %>" class="text-sm link-gold">← Back to the training</a></div>
+<% const draftSource = course.origin === 'AI_PRACTICE' && course.status !== 'PUBLISHED'; %>
+<div style="margin-bottom:12px"><a href="<%= draftSource ? '/ai-practice/' + course.id : '/training-course/' + course.id %>" class="text-sm link-gold">← <%= draftSource ? 'Back to the source material' : 'Back to the training' %></a></div>
 
 <%
   const pageCount = kind === 'slides' && slides ? slides.length : 1;
@@ -22,6 +23,8 @@
         <p class="text-sm text-muted doc-reader__loading" data-reader-loading>Opening the document…</p>
       <% } else if (kind === 'docx' || kind === 'epub' || kind === 'text') { %>
         <article class="doc-reader__paper doc-reader__paper--<%= kind %>" data-reader-body aria-label="<%= module.title %>"><%- html %></article>
+      <% } else if (kind === 'html') { %>
+        <iframe class="doc-reader__frame" data-reader-body sandbox="allow-same-origin" referrerpolicy="no-referrer" title="<%= module.title %>" src="/training-file/<%= module.id %>?frame=1"></iframe>
       <% } else if (kind === 'sheet') { %>
         <div class="doc-reader__sheets" data-reader-body aria-label="<%= module.title %>"><%- html %></div>
       <% } else if (kind === 'cad') { %>
@@ -39,12 +42,19 @@
       <% } else if (kind === 'slides') { %>
         <div class="doc-reader__slides" data-reader-body aria-label="<%= module.title %>">
           <% slides.forEach(function (s) { %>
+            <% if (s.html) { %>
+            <section class="doc-reader__slide doc-reader__slide--drawn" aria-label="Slide <%= s.number %> of <%= slides.length %>">
+              <p class="doc-reader__slide-no">Slide <%= s.number %> of <%= slides.length %></p>
+              <%- s.html %>
+            </section>
+            <% } else { %>
             <section class="doc-reader__slide">
               <p class="doc-reader__slide-no">Slide <%= s.number %> of <%= slides.length %></p>
               <% if (s.title) { %><h2><%= s.title %></h2><% } %>
               <% s.images.forEach(function (src) { %><img src="<%= src %>" alt="" draggable="false"><% }); %>
               <% if (s.lines.length) { %><ul><% s.lines.forEach(function (line) { %><li><%= line %></li><% }); %></ul><% } %>
             </section>
+            <% } %>
           <% }); %>
         </div>
       <% } else if (kind === 'image') { %>
@@ -77,7 +87,7 @@
     <div class="doc-progress__track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<%= saved.done ? 100 : saved.percent %>" data-progress-track>
       <div class="doc-progress__fill" data-progress-fill style="width:<%= saved.done ? 100 : saved.percent %>%"></div>
     </div>
-    <p class="doc-progress__note" data-progress-note><%= saved.done ? 'This item is finished.' : (tracked ? 'Read to the end — the line fills as you read and finishes this item by itself.' : '') %> <a href="/training-course/<%= course.id %>" class="link-gold" data-progress-back <%= saved.done ? '' : 'hidden' %>>Back to the training →</a></p>
+    <p class="doc-progress__note" data-progress-note><%= saved.done ? 'This item is finished. ' + next.message : (tracked ? 'Read to the end — the line fills as you read and finishes this item by itself.' : '') %> <a href="<%= next.url %>" class="btn btn-gold btn-sm" data-progress-back <%= saved.done ? '' : 'hidden' %>><%= next.label %></a></p>
   </div>
 <% } %>
 
