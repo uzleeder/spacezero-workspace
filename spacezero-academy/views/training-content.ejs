@@ -102,4 +102,5 @@ const notices = { 'open-first': 'Open the material first, then confirm.', 'too-f
 <script src="<%= asset('/static/js/player-skin.js') %>" defer></script>
 <script src="<%= asset('/static/js/media-progress.js') %>" defer></script>
 <% if (protect) { %><script src="<%= asset('/static/js/protect-materials.js') %>" defer></script><% } %>
+<% if (isLearner) { %><script src="<%= asset('/static/js/focus-pause.js') %>" defer></script><% } %>
 <script src="<%= asset('/static/js/ai-practice.js') %>" defer></script>
