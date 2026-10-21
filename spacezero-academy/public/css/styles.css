@@ -1217,7 +1217,9 @@ html[data-theme="dark"] .notif-menu-seeall:hover { color: #fff; }
 /* ---- Quiz protection (views/partials/quiz-guard.ejs, public/js/protect-quiz.js): learners cannot select, copy, drag or print a quiz ---- */
 body.quiz-guarded, body.quiz-guarded * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-user-drag: none; }
 body.quiz-guarded input, body.quiz-guarded textarea { -webkit-user-select: text; user-select: text; }
-.quiz-watermark { position: fixed; inset: 0; z-index: 9990; pointer-events: none; opacity: .1; background-repeat: repeat; }
+.quiz-watermark { position: fixed; inset: 0; z-index: 9990; pointer-events: none; opacity: .16; background-repeat: repeat; }
+/* Question text for guarded readers is painted from an attribute: it is not page text, so it cannot be selected, copied, found or saved. */
+.gt::before { content: attr(data-t); white-space: pre-wrap; }
 .quiz-cover { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; background: #13112a; color: #f4f1ff; cursor: pointer; }
 .quiz-cover[hidden] { display: none; }
 @media print { body.quiz-guarded > * { display: none !important; } body.quiz-guarded::after { content: "Printing is disabled for quizzes."; display: block; padding: 24px; font: 16px sans-serif; } }

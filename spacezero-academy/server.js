@@ -123,6 +123,8 @@ app.use(async (req, res, next) => {
   res.locals.unreadNotifications = unread;
   res.locals.notificationPreview = preview;
   res.locals.formatRelativeTime = formatRelativeTime;
+  res.locals.guarded = false;                                    // quiz pages turn this on (routes/practice.js)
+  res.locals.gt = require('./lib/quizGuard').textHelper(false);  // question text helper: plain unless guarded
   res.locals.theme = themeFor(req); // dark unless this browser chose light (lib/theme.js)
   next();
 });

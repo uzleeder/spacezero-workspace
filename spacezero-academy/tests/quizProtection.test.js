@@ -45,7 +45,7 @@ test('a learner\'s quiz and role-play pages carry the guard, the watermark with 
 });
 
 test('Admins are not restricted: the guard renders for learners and supervisors only', async () => {
-  const render = (profile) => ejs.renderFile(path.join(root, 'views/partials/quiz-guard.ejs'), { profile, asset: (p) => p });
+  const render = (profile) => ejs.renderFile(path.join(root, 'views/partials/quiz-guard.ejs'), { profile, guarded: Boolean(profile) && profile.role !== 'ADMIN', asset: (p) => p });
   assert.equal((await render({ role: 'ADMIN', fullName: 'A', username: 'a' })).trim(), '');
   for (const r of ['TRAVEL_AGENT', 'FLIGHT_EXPERT', 'SUPERVISOR']) assert.match(await render({ role: r, fullName: 'Pat Doe', username: 'pat' }), /data-quiz-watermark="Pat Doe · @pat/);
   assert.equal((await render(undefined)).trim(), '');
@@ -60,7 +60,7 @@ test('the guard script blocks copy, cut, paste (by any route), drag, the context
   for (const piece of [
     "'copy', 'cut', 'paste', 'dragstart', 'dragover', 'drop', 'contextmenu'",   // clipboard, drag and drop, menu
     'insertFrom(Paste|Drop|Yank)',                                              // pasting by menu / middle click / drag
-    "'c', 'x', 'v', 's', 'p', 'u'",                                             // Ctrl/Cmd + C X V S P U
+    "['c', 'x'].indexOf(key)", "key === 'v'", "['s', 'u'].indexOf(key)", "key === 'p'",     // Ctrl/Cmd + C X V S P U
     "key === 'insert'",                                                         // Shift+Insert / Ctrl+Insert
     "key === 'f12'",                                                            // developer tools
     "'3', '4', '5', 's'",                                                       // macOS / Windows capture shortcuts
@@ -69,6 +69,7 @@ test('the guard script blocks copy, cut, paste (by any route), drag, the context
     "window.addEventListener('blur'", "document.addEventListener('visibilitychange'", // hidden without focus
     "window.addEventListener('beforeprint'",
     'MutationObserver',                                                         // the watermark is put back if removed
+    'report(',                                                                  // attempts are reported
   ]) assert.ok(js.includes(piece), piece);
   const css = read('public/css/styles.css');
   assert.match(css, /body\.quiz-guarded, body\.quiz-guarded \* \{ -webkit-user-select: none; user-select: none;/);
@@ -76,4 +77,32 @@ test('the guard script blocks copy, cut, paste (by any route), drag, the context
   assert.match(css, /@media print \{ body\.quiz-guarded > \* \{ display: none !important; \}/);
   assert.match(css, /\.quiz-watermark \{ position: fixed; inset: 0; z-index: 9990; pointer-events: none;/);
   assert.doesNotThrow(() => new Function(js)); // it parses
+});
+
+test('the question text is not page text for a learner: it is painted by the stylesheet', async () => {
+  const learner = await get(agent, `/assessments/${quiz.id}/take`);
+  assert.equal(learner.status, 200);
+  assert.match(learner.text, /<span class="gt" data-t="Which\?"><\/span>/);        // the prompt
+  assert.match(learner.text, /<span class="gt" data-t="A"><\/span>/);              // an option
+  assert.doesNotMatch(learner.text, />\s*1\. Which\?\s*</);                         // not as text
+  assert.match(learner.text, /<meta name="quiz-guard-url" content="\/assessments\/[^"]+\/guard-event">/);
+  assert.match(read('public/css/styles.css'), /\.gt::before \{ content: attr\(data-t\); white-space: pre-wrap; \}/);
+  // the helper itself: plain, escaped text for an unguarded reader, painted text (escaped attribute) for a guarded one
+  const { textHelper } = require('../lib/quizGuard');
+  assert.equal(textHelper(false)('a <b> & "c"'), 'a &lt;b&gt; &amp; &quot;c&quot;');
+  assert.equal(textHelper(true)('a <b> & "c"'), '<span class="gt" data-t="a &lt;b&gt; &amp; &quot;c&quot;"></span>');
+});
+test('copy / paste / capture attempts are written to the audit log; unknown events are refused; the number per hour is capped', async () => {
+  const post = (body) => request(app).post(`/assessments/${quiz.id}/guard-event`).set('Cookie', cookies[agent.id]).type('form').send(body);
+  const count = () => prisma.auditLog.count({ where: { actorId: agent.id, action: 'quiz.protection_event' } });
+  const before = await count();
+  for (const event of ['copy', 'paste', 'capture', 'devtools', 'focus-lost']) assert.equal((await post({ event })).status, 204, event);
+  assert.equal(await count(), before + 5);
+  const row = await prisma.auditLog.findFirst({ where: { actorId: agent.id, action: 'quiz.protection_event' }, orderBy: { createdAt: 'desc' } });
+  assert.equal(row.targetId, quiz.id); assert.ok(JSON.parse(row.metadataJson).event);
+  assert.equal((await post({ event: 'drop table' })).status, 400);
+  assert.equal((await post({})).status, 400);
+  for (let i = 0; i < 45; i++) await post({ event: 'copy' });
+  assert.ok(await count() <= before + 40);                                          // capped per person per hour
+  assert.notEqual((await request(app).post(`/assessments/${quiz.id}/guard-event`).type('form').send({ event: 'copy' })).status, 204); // needs a session
 });

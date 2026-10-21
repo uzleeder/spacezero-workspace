@@ -1,22 +1,40 @@
 'use strict';
-// Quiz protection (see views/partials/quiz-guard.ejs): a deterrent for honest use and a trace for the rest. It cannot
-// stop a phone camera or the operating system, and nothing here touches the answers, the timer or the scoring.
+// Quiz protection (see views/partials/quiz-guard.ejs and lib/quizGuard.js): protection for honest use and a trace for the
+// rest. It cannot stop a phone camera or the operating system, and nothing here touches the answers, the timer or the scoring.
 (function () {
   var cover = document.querySelector('[data-quiz-cover]');
   var mark = document.querySelector('[data-quiz-watermark]');
   if (!cover || !mark) return;
   document.body.classList.add('quiz-guarded');
+  var meta = document.querySelector('meta[name="quiz-guard-url"]');
+  var reportUrl = meta ? meta.getAttribute('content') : '';
 
   function typing(target) { return target && target.closest && target.closest('input, textarea, [contenteditable="true"]'); }
 
+  // ---- attempts are reported (audit log): once per kind every 20 seconds, at most 25 per page ----
+  var sentAt = {}; var sentTotal = 0;
+  function report(kind) {
+    if (!reportUrl || !window.fetch || sentTotal >= 25) return;
+    var now = Date.now();
+    if (sentAt[kind] && now - sentAt[kind] < 20000) return;
+    sentAt[kind] = now; sentTotal += 1;
+    try {
+      fetch(reportUrl, { method: 'POST', credentials: 'same-origin', keepalive: true, headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'event=' + encodeURIComponent(kind) }).catch(function () {});
+    } catch (e) { /* reporting is best effort */ }
+  }
+
   // ---- no copying, cutting, pasting, dragging, selecting (the page) or context menu ----
+  var kindOf = { copy: 'copy', cut: 'cut', paste: 'paste', contextmenu: 'context-menu' };
   ['copy', 'cut', 'paste', 'dragstart', 'dragover', 'drop', 'contextmenu'].forEach(function (name) {
-    document.addEventListener(name, function (event) { event.preventDefault(); }, true);
+    document.addEventListener(name, function (event) {
+      event.preventDefault();
+      if (kindOf[name]) report(kindOf[name]);
+    }, true);
   });
   document.addEventListener('selectstart', function (event) { if (!typing(event.target)) event.preventDefault(); }, true);
   // typed answers must be typed: pasting by any route (menu, middle click, drag and drop) is refused
   document.addEventListener('beforeinput', function (event) {
-    if (/^insertFrom(Paste|Drop|Yank)/.test(String(event.inputType || ''))) event.preventDefault();
+    if (/^insertFrom(Paste|Drop|Yank)/.test(String(event.inputType || ''))) { event.preventDefault(); report('paste'); }
   }, true);
 
   // ---- hiding ----
@@ -27,7 +45,7 @@
     if (ms) setTimeout(function () { delete reasons[why]; refresh(); }, ms);
   }
   function show(why) { delete reasons[why]; refresh(); }
-  window.addEventListener('blur', function () { hide('blur'); });
+  window.addEventListener('blur', function () { hide('blur'); report('focus-lost'); });
   window.addEventListener('focus', function () { show('blur'); });
   document.addEventListener('visibilitychange', function () { if (document.hidden) hide('hidden'); else show('hidden'); });
   cover.addEventListener('click', function () { reasons = {}; refresh(); window.focus(); });
@@ -40,26 +58,29 @@
   document.addEventListener('keydown', function (event) {
     var key = String(event.key || '').toLowerCase();
     var mod = event.ctrlKey || event.metaKey;
-    var block = false;
-    if (mod && ['c', 'x', 'v', 's', 'p', 'u'].indexOf(key) !== -1) block = true;
+    var block = false; var kind = '';
+    if (mod && ['c', 'x'].indexOf(key) !== -1) { block = true; kind = key === 'c' ? 'copy' : 'cut'; }
+    if (mod && key === 'v') { block = true; kind = 'paste'; }
+    if (mod && ['s', 'u'].indexOf(key) !== -1) block = true;
+    if (mod && key === 'p') { block = true; kind = 'print'; }
     if (mod && !typing(event.target) && key === 'a') block = true;
-    if (event.shiftKey && key === 'insert') block = true;           // Shift+Insert paste
-    if (event.ctrlKey && key === 'insert') block = true;            // Ctrl+Insert copy
-    if (key === 'f12' || (mod && event.shiftKey && ['i', 'j', 'c'].indexOf(key) !== -1)) block = true; // developer tools
-    if (event.metaKey && event.shiftKey && ['3', '4', '5', 's'].indexOf(key) !== -1) { block = true; hide('capture', 2500); clearClipboard(); } // Windows Snip / macOS capture
-    if (block) { event.preventDefault(); event.stopPropagation(); }
+    if (event.shiftKey && key === 'insert') { block = true; kind = 'paste'; }   // Shift+Insert paste
+    if (event.ctrlKey && key === 'insert') { block = true; kind = 'copy'; }     // Ctrl+Insert copy
+    if (key === 'f12' || (mod && event.shiftKey && ['i', 'j', 'c'].indexOf(key) !== -1)) { block = true; kind = 'devtools'; }
+    if (event.metaKey && event.shiftKey && ['3', '4', '5', 's'].indexOf(key) !== -1) { block = true; kind = 'capture'; hide('capture', 2500); clearClipboard(); } // Windows Snip / macOS capture
+    if (block) { event.preventDefault(); event.stopPropagation(); if (kind) report(kind); }
   }, true);
   document.addEventListener('keyup', function (event) {
-    if (event.key === 'PrintScreen' || event.key === 'Print') { clearClipboard(); hide('capture', 2500); }
+    if (event.key === 'PrintScreen' || event.key === 'Print') { clearClipboard(); hide('capture', 2500); report('capture'); }
   }, true);
-  window.addEventListener('beforeprint', function () { hide('print'); });
+  window.addEventListener('beforeprint', function () { hide('print'); report('print'); });
   window.addEventListener('afterprint', function () { show('print'); });
 
   // ---- the watermark: the learner's own name, tiled across the whole page, put back if it is removed ----
   function paintMark() {
     var dark = document.documentElement.getAttribute('data-theme') !== 'light';
     var text = (mark.getAttribute('data-quiz-watermark') || '').replace(/[<>&"]/g, '');
-    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="360" height="200"><text x="20" y="110" transform="rotate(-24 180 100)" font-family="Arial,sans-serif" font-size="15" fill="' + (dark ? '#ffffff' : '#000000') + '">' + text + '</text></svg>';
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="150"><text x="14" y="86" transform="rotate(-24 150 75)" font-family="Arial,sans-serif" font-size="14" fill="' + (dark ? '#ffffff' : '#000000') + '">' + text + '</text></svg>';
     mark.style.backgroundImage = 'url("data:image/svg+xml;utf8,' + encodeURIComponent(svg) + '")';
   }
   paintMark();
