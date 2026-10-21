@@ -14,7 +14,7 @@ const clip = (v, n) => String(v ?? '').trim().slice(0, n);
 
 const EXT = {
   '.mp4': ['VIDEO', 'video/mp4'], '.webm': ['VIDEO', 'video/webm'], '.mov': ['VIDEO', 'video/quicktime'],
-  '.mp3': ['AUDIO', 'audio/mpeg'], '.wav': ['AUDIO', 'audio/wav'], '.ogg': ['AUDIO', 'audio/ogg'],
+  '.mp3': ['AUDIO', 'audio/mpeg'], '.wav': ['AUDIO', 'audio/wav'], '.ogg': ['AUDIO', 'audio/ogg'], '.m4a': ['AUDIO', 'audio/mp4'],
   '.pdf': ['PDF', 'application/pdf'], '.ppt': ['PPT', 'application/vnd.ms-powerpoint'], '.pptx': ['PPT', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
   '.doc': ['DOC', 'application/msword'], '.docx': ['DOC', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
   '.png': ['IMAGE', 'image/png'], '.jpg': ['IMAGE', 'image/jpeg'], '.jpeg': ['IMAGE', 'image/jpeg'], '.webp': ['IMAGE', 'image/webp'], '.gif': ['IMAGE', 'image/gif'],

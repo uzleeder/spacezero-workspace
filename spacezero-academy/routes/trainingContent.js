@@ -72,12 +72,13 @@ router.get('/training-course/:id', requireSession, async (req, res) => {
   if (!course) return res.status(404).send('Not found');
   await autoFinishForProfile(req.profile.id, { assignment: { courseId: course.id } }).catch((err) => console.error('auto-finish failed', err.message)); // already done = finished
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'training.content_read', targetTable: 'TrainingCourse', targetId: course.id });
-  // Each learner sees the version they were assigned; the Admin sees the version that is in Training.
-  const mine = req.profile.role === 'ADMIN' ? [] : await prisma.trainingAssignment.findMany({ where: { courseId: course.id, recipients: { some: { profileId: req.profile.id } } }, select: { courseVersion: true } });
-  const versions = mine.length ? mine.map((m) => m.courseVersion) : [Math.max(1, course.publishedVersion || 0)];
-  const assessments = await prisma.assessment.findMany({ where: { courseId: course.id, status: 'APPROVED', OR: [{ version: { in: versions } }, { configJson: { contains: 'targetedRetake' } }] }, orderBy: { createdAt: 'asc' } });
-  const gate = await mediaGate(req.profile.id, course.id, versions[0]);
-  const shownModules = require('../lib/courseVersions').modulesFor(course.modules, versions[0]);
+  // Each learner sees the version of their latest assignment - the same one the practice lock and the progress
+  // saves use (lib/courseVersions.js learnerVersion); the Admin sees the version that is in Training.
+  const mineRecipient = req.profile.role === 'ADMIN' ? null : await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId: req.profile.id, assignment: { courseId: course.id } }, orderBy: { createdAt: 'desc' }, include: { assignment: true, attempts: true } });
+  const version = mineRecipient ? mineRecipient.assignment.courseVersion : Math.max(1, course.publishedVersion || 0);
+  const assessments = await prisma.assessment.findMany({ where: { courseId: course.id, status: 'APPROVED', OR: [{ version }, { configJson: { contains: 'targetedRetake' } }] }, orderBy: { createdAt: 'asc' } });
+  const gate = await mediaGate(req.profile.id, course.id, version);
+  const shownModules = require('../lib/courseVersions').modulesFor(course.modules, version);
   // Text notes are read on this very page: opening the page starts their clock.
   if (req.profile.role !== 'ADMIN') for (const m of shownModules) if (m.contentType === 'NOTE') await noteOpened(req.profile, m);
   const isLearner = Boolean(await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId: req.profile.id, assignment: { courseId: course.id } }, select: { id: true } }));
@@ -85,7 +86,6 @@ router.get('/training-course/:id', requireSession, async (req, res) => {
   const doneIds = new Set(progressRows.filter((p) => p.completedAt).map((p) => p.trainingModuleId));
   const requiredIds = new Set(gate.modules.map((m) => m.id));
   // Training without practice is finished from the training page itself (the list only ever says Start).
-  const mineRecipient = req.profile.role === 'ADMIN' ? null : await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId: req.profile.id, assignment: { courseId: course.id } }, orderBy: { createdAt: 'desc' }, include: { assignment: true, attempts: true } });
   // Where the learner stands on submitting this training: every practice/quiz passed -> "Submit training".
   const completion = mineRecipient ? await completionState(mineRecipient) : null;
   const canFinish = Boolean(gate.unlocked && completion && !completion.submitted && completion.total === 0);

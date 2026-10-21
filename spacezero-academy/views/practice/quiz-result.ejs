@@ -11,15 +11,18 @@
         <p class="text-sm text-muted">Passing score: <%= assessment.passingScore %>% · Attempt #<%= attempt.attemptNumber %></p>
       </div>
     </div>
-    <% if (!passed && Object.keys(graded.skillBreakdown || {}).length > 0) { %>
+    <% if (!passed && assessment.courseId) { %>
+      <% var weakest = Object.entries(graded.skillBreakdown || {}).filter(function (e) { return e[1] < assessment.passingScore; }); %>
       <div class="mt-24">
-        <p class="text-sm text-muted">Weakest areas:
-          <% Object.entries(graded.skillBreakdown).filter(function (e) { return e[1] < assessment.passingScore; }).forEach(function (e) { %>
-            <span class="badge badge-danger" style="margin-left:4px"><%= e[0] %> — <%= e[1] %>%</span>
-          <% }); %>
-        </p>
+        <% if (weakest.length) { %>
+          <p class="text-sm text-muted">Weakest areas:
+            <% weakest.forEach(function (e) { %>
+              <span class="badge badge-danger" style="margin-left:4px"><%= e[0] %> — <%= e[1] %>%</span>
+            <% }); %>
+          </p>
+        <% } %>
         <form method="post" action="/assessments/<%= assessment.id %>/remediate" class="mt-16">
-          <button type="submit" class="btn btn-gold">Practice these skills now</button>
+          <button type="submit" class="btn btn-gold"><%= Object.keys(graded.skillBreakdown || {}).length ? 'Practice these skills now' : 'Practice this again' %></button>
         </form>
       </div>
     <% } %>

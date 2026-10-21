@@ -40,7 +40,9 @@ start.addEventListener('click', async () => {
     recorder.onstop = () => {
       clearTimeout(timer); stream.getTracks().forEach(t => t.stop());
       const blob = new Blob(chunks, { type: recorder.mimeType });
-      const file = new File([blob], 'response.webm', { type: recorder.mimeType });
+      // iPhone / Safari record MP4 audio, Chrome / Firefox WebM or Ogg: the name follows what was recorded.
+      const extension = /mp4|m4a|aac/.test(recorder.mimeType) ? 'm4a' : /ogg/.test(recorder.mimeType) ? 'ogg' : 'webm';
+      const file = new File([blob], `response.${extension}`, { type: recorder.mimeType });
       const transfer = new DataTransfer(); transfer.items.add(file);
       fileInput.files = transfer.files;
       showPreview(blob);

@@ -10,6 +10,8 @@ const { generateStructured } = require('./gemini');
 const { shuffleOptions } = require('./shuffleOptions');
 const { rulesFor, sourceKindOf } = require('./practiceRules');
 const { QUESTION_TYPES, LEVEL_GUIDANCE, TYPE_GUIDANCE, questionZodSchema, questionGeminiSchema, roleplayZodSchema, roleplayGeminiSchema, safeParse } = require('./practiceEngine');
+const { fitToOptions } = require('./answerKey');
+const { catalogNamesFor, toCatalog } = require('./skillCatalog');
 
 const QUESTION_ASSESSMENTS = ['QUIZ', 'TECHNICAL', 'PROCESS_SIM', 'PRODUCT_KNOWLEDGE'];
 const CONFIG_ASSESSMENTS = ['ROLEPLAY', 'VOICE'];
@@ -60,7 +62,8 @@ function readQuestionForm(body, fixedType = null) {
   const matched = correct.map((c) => options.find((o) => o.toLowerCase() === c.toLowerCase())).filter(Boolean);
   if (!correct.length || matched.length !== correct.length) return { error: 'The correct answer must be one of the options (copy it exactly).' };
   if (type === 'MCQ' && matched.length !== 1) return { error: 'A single-choice question has exactly one correct answer.' };
-  return { data: { ...base, optionsJson: JSON.stringify(options), correctAnswerJson: JSON.stringify(type === 'MCQ' ? matched[0] : matched.join(',')) } };
+  // Several correct answers are saved as a list: joining them with commas would split an option that contains one.
+  return { data: { ...base, optionsJson: JSON.stringify(options), correctAnswerJson: JSON.stringify(type === 'MCQ' ? matched[0] : matched) } };
 }
 
 /** An edit to an approved practice sends it back to review. */
@@ -75,25 +78,38 @@ async function reopenIfApproved(tx, assessment) {
 async function courseContext(assessment) {
   const course = assessment.course;
   const analysis = course ? await prisma.trainingAnalysis.findUnique({ where: { courseId: course.id } }) : null;
+  // Questions are tagged with the organization's skill catalog names, so their results reach the Skill Graph.
+  const catalog = await catalogNamesFor(course);
   return {
     analysis,
+    catalog,
     title: course ? course.title : assessment.title,
-    text: analysis
-      ? `Critical knowledge: ${analysis.criticalKnowledgeJson}\nPractical behaviors: ${analysis.practicalBehaviorsJson}\nCommon mistakes: ${analysis.commonMistakesJson}\nRelevant skills: ${analysis.extractedSkillsJson}`
-      : '',
+    text: [
+      analysis ? `Critical knowledge: ${analysis.criticalKnowledgeJson}\nPractical behaviors: ${analysis.practicalBehaviorsJson}\nCommon mistakes: ${analysis.commonMistakesJson}\nSkills the material teaches: ${analysis.extractedSkillsJson}` : '',
+      catalog.length ? `Skill catalog (tag questions only with these exact names): ${JSON.stringify(catalog)}` : '',
+    ].filter(Boolean).join('\n'),
   };
 }
 
-const persistQuestionData = (q) => ({
-  type: q.type,
-  prompt: q.prompt,
-  // The AI writes the correct answer first; stir the choices so it is not always "A".
-  optionsJson: q.options ? JSON.stringify(shuffleOptions(q.type, q.options)) : null,
-  correctAnswerJson: JSON.stringify(q.correctAnswer),
-  explanation: q.explanation || null,
-  skillIdsJson: JSON.stringify(q.skillNames || []),
-  sourceRefJson: q.sourceTitle ? JSON.stringify({ title: q.sourceTitle, location: q.sourceLocation || '' }) : null,
-});
+/**
+ * A question the AI wrote, ready to save, with its correct answer fitted to its own options (lib/answerKey.js).
+ * `strict` refuses an answer that matches none of the options, so a replacement nobody could answer is never saved;
+ * otherwise it is kept as written and Admin review flags it.
+ */
+const persistQuestionData = (q, { strict = false, catalog = [] } = {}) => {
+  const fitted = fitToOptions(q);
+  if (fitted.problem && strict) throw Object.assign(new Error('The AI wrote a question whose correct answer is not one of its options. Nothing was changed — try again.'), { userFacing: true });
+  return {
+    type: q.type,
+    prompt: q.prompt,
+    // The AI writes the correct answer first; stir the choices so it is not always "A".
+    optionsJson: q.options ? JSON.stringify(shuffleOptions(q.type, q.options)) : null,
+    correctAnswerJson: JSON.stringify(fitted.problem ? q.correctAnswer : fitted.correctAnswer),
+    explanation: q.explanation || null,
+    skillIdsJson: JSON.stringify(toCatalog(q.skillNames || [], catalog)), // the catalog's spelling, so results match a skill
+    sourceRefJson: q.sourceTitle ? JSON.stringify({ title: q.sourceTitle, location: q.sourceLocation || '' }) : null,
+  };
+};
 
 const sameChoices = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && [...a].sort().join('\u0000') === [...b].sort().join('\u0000');
 
@@ -102,13 +118,14 @@ async function regenerateQuestion({ assessment, question, instruction }) {
   const ctx = await courseContext(assessment);
   const others = assessment.questions.filter((q) => q.id !== question.id).map((q) => q.prompt);
   const result = await generateStructured({
-    systemInstruction: `${rulesFor({ kind: sourceKindOf(ctx.analysis), type: assessment.type })}\n\nYou are rewriting ONE question of a ${assessment.type.replace('_', ' ')} practice assessment for travel agency employees. ${TYPE_GUIDANCE[assessment.type] || ''} Stay strictly within the training material given — never invent company rules. Keep the question type "${question.type}" unless the instruction clearly needs another. For MCQ/MULTI_SELECT/MATCHING/ORDERING put the choices in "options" and the correct one(s) in "correctAnswer" (comma-separate multiple).`,
+    systemInstruction: `${rulesFor({ kind: sourceKindOf(ctx.analysis), type: assessment.type })}\n\nYou are rewriting ONE question of a ${assessment.type.replace('_', ' ')} practice assessment for travel agency employees. ${TYPE_GUIDANCE[assessment.type] || ''} Stay strictly within the training material given — never invent company rules. Keep the question type "${question.type}" unless the instruction clearly needs another. For MCQ/MULTI_SELECT/MATCHING/ORDERING put the choices in "options" and the correct one(s) in "correctAnswer", copied exactly from the options (comma-separate multiple).`,
     contents: [{ role: 'user', parts: [{ text: `Course: ${ctx.title}\n${ctx.text}\nDifficulty: ${LEVEL_GUIDANCE[assessment.level] || LEVEL_GUIDANCE[3]}\n\nQuestion to replace: ${question.prompt}\nOptions: ${question.optionsJson || 'none'}\nCurrent correct answer: ${question.correctAnswerJson}\n\nDo NOT repeat any of these other questions:\n${others.map((p) => `- ${p}`).join('\n') || '(none)'}\n\nAdmin instruction: ${instruction || 'Write a better replacement for this question.'}` }] }],
     responseSchema: oneQuestionGemini,
     zodSchema: oneQuestionZod,
   });
+  const data = persistQuestionData(result.data, { strict: true, catalog: ctx.catalog });
   return prisma.$transaction(async (tx) => {
-    await tx.question.update({ where: { id: question.id }, data: persistQuestionData(result.data) });
+    await tx.question.update({ where: { id: question.id }, data });
     await reopenIfApproved(tx, assessment);
     return result;
   });
@@ -130,7 +147,7 @@ async function reviseWithPrompt({ assessment, instruction }) {
       zodSchema: roleplayZodSchema,
     });
     await prisma.$transaction(async (tx) => {
-      await tx.assessment.update({ where: { id: assessment.id }, data: { configJson: JSON.stringify({ ...config, ...result.data }) } });
+      await tx.assessment.update({ where: { id: assessment.id }, data: { configJson: JSON.stringify({ ...config, ...result.data, rubricSkills: toCatalog(result.data.rubricSkills, ctx.catalog) }) } });
       await reopenIfApproved(tx, assessment);
     });
     return { changed: 1, kind: 'scenario' };
@@ -150,7 +167,7 @@ async function reviseWithPrompt({ assessment, instruction }) {
   await prisma.$transaction(async (tx) => {
     for (const [i, q] of next.entries()) {
       const existing = assessment.questions[i];
-      const data = { ...persistQuestionData(q), displayOrder: i };
+      const data = { ...persistQuestionData(q, { catalog: ctx.catalog }), displayOrder: i };
       // A question the AI left as it was keeps the order it already has (otherwise every revision would "change" every question).
       if (existing && sameChoices(safeParse(existing.optionsJson, null), q.options)) data.optionsJson = existing.optionsJson;
       if (existing) {

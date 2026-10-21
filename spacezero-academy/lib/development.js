@@ -8,6 +8,7 @@
 const { prisma } = require('./prisma');
 const { getSetting } = require('./orgSettings');
 const { getSkillRows } = require('./skillIntel');
+const { trainingStatusFrom, newestFirst } = require('./trainingCompletion');
 
 const DAY_MS = 86400000;
 const parse = (v, fallback) => { try { return v ? JSON.parse(v) : fallback; } catch { return fallback; } };
@@ -38,15 +39,16 @@ async function loadLearning(profile) {
   const recipients = await prisma.trainingAssignmentRecipient.findMany({
     where: { profileId: profile.id, assignment: { organizationId: profile.organizationId, course: { status: 'PUBLISHED', archivedAt: null } } },
     include: {
-      attempts: { select: { id: true, status: true, attemptNumber: true, score: true, assessmentId: true, completedAt: true } },
+      attempts: { select: { id: true, status: true, attemptNumber: true, score: true, assessmentId: true, completedAt: true, createdAt: true } },
       assignment: { include: { course: { include: { assessments: { where: { status: 'APPROVED', archivedAt: null }, include: { questions: { select: { skillIdsJson: true } } } } } } } },
     },
   });
   return recipients.map((r) => {
-    const latest = [...r.attempts].sort((a, b) => b.attemptNumber - a.attemptNumber)[0] || null;
+    const latest = [...r.attempts].sort(newestFirst)[0] || null;
     const course = r.assignment.course;
     const accessible = course.assessments.filter((a) => (!r.assignment.assessmentId || r.assignment.assessmentId === a.id) && (a.version === r.assignment.courseVersion || parse(a.configJson, {})?.targetedRetake === true) && !(parse(a.configJson, {})?.targetedRetake === true && a.createdById !== profile.id));
-    return { recipient: r, course, assignment: r.assignment, status: latest ? latest.status : 'NOT_STARTED', latest, accessible };
+    // The same status My Training shows (lib/trainingCompletion.js), not "the attempt with the highest number".
+    return { recipient: r, course, assignment: r.assignment, status: trainingStatusFrom(r, course.assessments), latest, accessible };
   });
 }
 
