@@ -1,0 +1,4 @@
+<%# Compact setup status for dense lists: a coloured dot plus the percentage (or "Not started"); the full wording is in the tooltip and for screen readers. %>
+<% const tone = setup.notStarted ? 'muted' : setup.fullySetUp ? 'success' : setup.hasIssue ? 'danger' : 'warning'; %>
+<% const full = setup.notStarted ? 'Setup Not Started' : setup.percent + '% — ' + (setup.hasIssue && !setup.fullySetUp ? 'Setup Issue' : setup.label); %>
+<span class="setup-mini setup-mini--<%= tone %>" title="<%= full %><%= setup.notStarted ? '' : ' · ' + setup.completed + ' of ' + setup.required + ' required items completed' %>"><span class="setup-mini__dot" aria-hidden="true"></span><span aria-hidden="true"><%= setup.notStarted ? 'Not started' : setup.fullySetUp ? 'Ready' : setup.percent + '%' %></span><span class="visually-hidden"><%= full %></span></span>

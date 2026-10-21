@@ -1,4 +1,5 @@
-<div class="tabs no-print">
+<%# `sticky` pins the tab bar under the topbar while the page scrolls (Employees & Teams area). %>
+<div class="tabs no-print<%= typeof sticky !== 'undefined' && sticky ? ' tabs--sticky' : '' %>">
   <% tabs.forEach(function (t) { %>
     <% const active = currentPath === t.href || currentPath.indexOf(t.href + '/') === 0; %>
     <a class="tab-link<%= active ? ' active' : '' %>" href="<%= t.href %>"><%= t.label %></a>
