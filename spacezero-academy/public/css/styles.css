@@ -1222,3 +1222,43 @@ body.quiz-guarded input, body.quiz-guarded textarea { -webkit-user-select: text;
 .quiz-cover { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; background: #13112a; color: #f4f1ff; cursor: pointer; }
 .quiz-cover[hidden] { display: none; }
 @media print { body.quiz-guarded > * { display: none !important; } body.quiz-guarded::after { content: "Printing is disabled for quizzes."; display: block; padding: 24px; font: 16px sans-serif; } }
+
+/* ---- Document reader (views/training-read.ejs, public/js/doc-reader.js): the file as uploaded + a line that fills as you read ---- */
+.doc-reader { margin-top: 4px; }
+.doc-reader__pages { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.doc-reader__page { position: relative; max-width: 100%; background: #fff; border-radius: 6px; box-shadow: 0 6px 24px rgba(8, 6, 28, .35); overflow: hidden; }
+.doc-reader__page canvas { display: block; }
+.doc-reader__loading { text-align: center; padding: 32px 0; }
+.doc-reader__paper { max-width: 860px; margin: 0 auto; padding: 48px 56px; background: #fff; color: #1c2233; border-radius: 6px; box-shadow: 0 6px 24px rgba(8, 6, 28, .35); font: 16px/1.65 Georgia, "Times New Roman", serif; overflow-wrap: anywhere; }
+.doc-reader__paper h1, .doc-reader__paper h2, .doc-reader__paper h3, .doc-reader__paper h4 { color: #101823; font-family: inherit; line-height: 1.25; margin: 1.2em 0 .5em; }
+.doc-reader__paper h1 { font-size: 28px; } .doc-reader__paper h2 { font-size: 22px; } .doc-reader__paper h3 { font-size: 18px; }
+.doc-reader__paper p { margin: 0 0 .9em; } .doc-reader__paper ul, .doc-reader__paper ol { margin: 0 0 1em 1.4em; padding: 0; }
+.doc-reader__paper img { max-width: 100%; height: auto; }
+.doc-reader__paper table { border-collapse: collapse; width: 100%; margin: 0 0 1em; font-size: 15px; }
+.doc-reader__paper th, .doc-reader__paper td { border: 1px solid #cdd3de; padding: 8px 10px; vertical-align: top; }
+.doc-reader__paper .reader-link { color: #2f5fb3; text-decoration: underline; }
+.doc-reader__slides { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+.doc-reader__slide { width: min(100%, 920px); min-height: 360px; background: #fff; color: #1c2233; border-radius: 6px; box-shadow: 0 6px 24px rgba(8, 6, 28, .35); padding: 28px 36px 32px; box-sizing: border-box; }
+.doc-reader__slide h2 { font-size: 26px; line-height: 1.25; margin: 0 0 14px; color: #101823; }
+.doc-reader__slide ul { margin: 0 0 0 1.3em; padding: 0; font-size: 18px; line-height: 1.55; } .doc-reader__slide li { margin: 0 0 6px; }
+.doc-reader__slide img { display: block; max-width: 100%; max-height: 380px; margin: 0 auto 14px; object-fit: contain; }
+.doc-reader__slide-no { font: 600 11px/1 var(--font-sans, system-ui); letter-spacing: .12em; text-transform: uppercase; color: #6b7487; margin: 0 0 14px; }
+.doc-reader__image { display: flex; justify-content: center; } .doc-reader__image img { max-width: 100%; height: auto; border-radius: 6px; box-shadow: 0 6px 24px rgba(8, 6, 28, .35); }
+/* the line under the file: sticks to the bottom of the screen while reading */
+.doc-progress { position: sticky; bottom: 0; z-index: 20; margin-top: 16px; padding: 12px 18px 14px; border: 1px solid var(--border-subtle, rgba(16, 24, 35, .12)); border-radius: 12px 12px 0 0; background: var(--surface-1, #fff); box-shadow: 0 -8px 24px rgba(8, 6, 28, .18); }
+html[data-theme="dark"] .doc-progress { background: #1b1935; border-color: rgba(255, 255, 255, .12); }
+.doc-progress__row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 13px; font-weight: 600; color: var(--navy-950, #101823); }
+html[data-theme="dark"] .doc-progress__row { color: #f4f1ff; }
+.doc-progress__percent { font-variant-numeric: tabular-nums; color: var(--gold-500, #dca878); }
+.doc-progress__track { height: 8px; margin-top: 8px; border-radius: 99px; background: rgba(127, 127, 127, .25); overflow: hidden; }
+.doc-progress__fill { height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, #c9925f, var(--gold-500, #dca878)); transition: width .25s ease; }
+.doc-progress__note { margin: 8px 0 0; font-size: 12.5px; color: var(--text-muted, #6b7487); }
+html[data-theme="dark"] .doc-progress__note { color: #b4afd1; }
+.doc-progress__note [hidden] { display: none; }
+@media (max-width: 640px) { .doc-reader__paper { padding: 28px 20px; } .doc-reader__slide { padding: 20px; } }
+@media print { .doc-progress { display: none; } }
+/* the same line, small, under "Read" on the training page */
+.read-line { display: flex; align-items: center; gap: 10px; margin-top: 12px; max-width: 420px; }
+.read-line__track { flex: 1; height: 6px; border-radius: 99px; background: rgba(127, 127, 127, .25); overflow: hidden; }
+.read-line__fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #c9925f, var(--gold-500, #dca878)); }
+.read-line__percent { font: 600 12px/1 var(--font-sans, system-ui); font-variant-numeric: tabular-nums; color: var(--gold-500, #dca878); min-width: 36px; text-align: right; }

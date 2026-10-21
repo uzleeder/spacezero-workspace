@@ -25,6 +25,10 @@ const notices = { 'open-first': 'Open the material first, then confirm.', 'too-f
   const isDone = doneIds.has(module.id);
   const isDoc = DOC_TYPES.includes(module.contentType);
   const isMedia = ['VIDEO','AUDIO','CALL_RECORDING'].includes(module.contentType);
+  // A document the reading page can draw (PDF, Word, slides, picture) finishes by itself when it is read to the end; anything
+  // else (a note, an old .doc / .ppt) is confirmed by hand.
+  const trackable = Boolean(module.storagePath) && ['pdf', 'docx', 'slides', 'image'].includes(readerKind({ type: module.contentType, storagePath: module.storagePath }));
+  const readPercent = Math.round((gate.modules.find(function (m) { return m.id === module.id; }) || { mediaProgress: [] }).mediaProgress.map(function (r) { return r.percentComplete; })[0] || 0);
 %>
 <section class="card mt-24" id="m-<%= module.id %>"><div class="card-body<%= protect ? ' no-copy' : '' %>" <%- protect ? 'data-protect' : '' %>>
   <div class="row-between" style="gap:12px;flex-wrap:wrap">
@@ -40,14 +44,16 @@ const notices = { 'open-first': 'Open the material first, then confirm.', 'too-f
   <% } else if (module.contentType === 'NOTE') { %>
     <div style="white-space:pre-wrap;margin-top:8px"><%= module.description || '' %></div>
   <% } else if (module.storagePath) { %>
-    <a class="btn btn-secondary mt-16" href="/training-read/<%= module.id %>">Read <%= module.contentType === 'PDF' ? 'the PDF' : module.contentType === 'PPT' ? 'the slides' : module.contentType === 'IMAGE' ? 'the image' : 'the document' %></a>
+    <a class="btn btn-secondary mt-16" href="/training-read/<%= module.id %>"><% const noun = module.contentType === 'PDF' ? 'the PDF' : module.contentType === 'PPT' ? 'the slides' : module.contentType === 'IMAGE' ? 'the image' : 'the document'; %><%= isDone ? 'Read ' + noun + ' again' : (readPercent > 0 ? 'Continue reading ' + noun : 'Read ' + noun) %></a>
+    <% if (isLearner) { %><div class="read-line" data-read-line><div class="read-line__track"><div class="read-line__fill" style="width:<%= isDone ? 100 : readPercent %>%"></div></div><span class="read-line__percent"><%= isDone ? 100 : readPercent %>%</span></div><% } %>
   <% } else if (module.externalUrl && /^https?:\/\//i.test(module.externalUrl)) { %>
     <a class="btn btn-secondary mt-16" href="/training-link/<%= module.id %>" target="_blank" rel="noopener noreferrer">Open reference link</a>
   <% } else { %>
     <p class="text-muted">Material has not been uploaded yet.</p>
   <% } %>
 
-  <% if (isLearner && isDoc && isRequired && !isDone) { %>
+  <% if (isLearner && trackable && isRequired && !isDone) { %><p class="text-sm text-muted" style="margin-top:8px">Open it and read to the end — the line fills as you read, and this item finishes by itself.</p><% } %>
+  <% if (isLearner && isDoc && isRequired && !isDone && !trackable) { %>
     <form method="post" action="/training-material/<%= module.id %>/acknowledge" class="mt-16" data-once>
       <button type="submit" class="btn btn-gold">I have read this</button>
       <span class="text-sm text-muted" style="margin-left:8px">Available after you have opened it and spent a little time with it.</span>
