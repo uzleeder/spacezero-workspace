@@ -42,17 +42,35 @@ async function mayDeleteCourse(actor, course) {
   return (await deletableCourseIds(actor, [course])).has(course.id);
 }
 
+/** Storage paths of the voice recordings (answers and unsent drafts) that belong to this training's practice. */
+async function voiceFilesOf(courseId, assessmentIds) {
+  const paths = new Set();
+  const take = (json, pick) => { try { const p = pick(JSON.parse(json || 'null')); if (typeof p === 'string' && p) paths.add(p); } catch { /* not JSON: nothing to remove */ } };
+  const attempts = await prisma.trainingAttempt.findMany({ where: { OR: [{ recipient: { assignment: { courseId } } }, { assessmentId: { in: assessmentIds } }], answersJson: { contains: 'storagePath' } }, select: { answersJson: true } });
+  for (const a of attempts) take(a.answersJson, (v) => v && v.recording && v.recording.storagePath);
+  const sessions = await prisma.practiceSession.findMany({ where: { assessmentId: { in: assessmentIds }, dataJson: { contains: 'storagePath' } }, select: { dataJson: true } });
+  for (const s of sessions) take(s.dataJson, (v) => v && v.draft && v.draft.storagePath);
+  return [...paths];
+}
+
 async function deleteCourse(actor, course) {
   const impact = await deletionImpact(course);
   const assessmentIds = (await prisma.assessment.findMany({ where: { courseId: course.id }, select: { id: true } })).map((a) => a.id);
   const modules = await prisma.trainingModule.findMany({ where: { courseId: course.id }, select: { storagePath: true } });
+  // Voice-practice recordings (kept on disk, only pointed at from the attempt / the open session) go with the attempts:
+  // otherwise they would stay on the server with nothing left that refers to them.
+  const recordings = await voiceFilesOf(course.id, assessmentIds);
+  // The attempts themselves go, but the log keeps who had how many and their best score, so the loss can be traced afterwards.
+  const history = await prisma.trainingAttempt.groupBy({ by: ['profileId'], where: { OR: [{ recipient: { assignment: { courseId: course.id } } }, { assessmentId: { in: assessmentIds } }] }, _count: { _all: true }, _max: { score: true } });
+  const attemptsByPerson = history.slice(0, 300).map((h) => ({ profileId: h.profileId, attempts: h._count._all, bestScore: h._max.score }));
   await prisma.$transaction([
     prisma.practiceSession.deleteMany({ where: { assessmentId: { in: assessmentIds } } }),
     prisma.aiTask.deleteMany({ where: { courseId: course.id } }),
     prisma.trainingCourse.delete({ where: { id: course.id } }), // cascades assignments, recipients, attempts, assessments, modules, versions
   ]);
   for (const m of modules) await releaseFile(m.storagePath);
-  await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'training.course_deleted', targetTable: 'TrainingCourse', targetId: course.id, metadata: { title: course.title, ...impact } });
+  for (const path of recordings) await require('node:fs/promises').unlink(require('./storage').resolveStoragePath(path)).catch(() => undefined);
+  await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'training.course_deleted', targetTable: 'TrainingCourse', targetId: course.id, metadata: { title: course.title, ...impact, attemptsByPerson } });
   return impact;
 }
 

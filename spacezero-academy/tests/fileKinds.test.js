@@ -145,6 +145,10 @@ test('the reading page shows every kind and tracks reading; the raw svg / html f
   const raw = await get(agent, `/training-file/${svgModule.id}`).set('Sec-Fetch-Dest', 'image');
   assert.equal(raw.status, 200); assert.match(raw.headers['content-security-policy'], /sandbox/); assert.match(raw.headers['content-type'], /svg/);
   const htmlModule = await make('a.html', 'DOC');
+  const framed = await get(agent, `/training-read/${htmlModule.id}`);
+  assert.match(framed.text, /data-kind="html"/); assert.match(framed.text, /<iframe[^>]*sandbox="allow-same-origin"[^>]*src="\/training-file\/[^"?]+\?frame=1"/); assert.doesNotMatch(framed.text, /alert\(1\)/);
+  const frameFile = await get(agent, `/training-file/${htmlModule.id}?frame=1`).set('Sec-Fetch-Dest', 'iframe');
+  assert.equal(frameFile.status, 200); assert.match(frameFile.headers['content-security-policy'], /^sandbox allow-same-origin; default-src 'none'/); assert.doesNotMatch(frameFile.headers['content-security-policy'], /allow-scripts/);
   assert.match((await get(agent, `/training-file/${htmlModule.id}`).set('Sec-Fetch-Dest', 'empty')).headers['content-security-policy'], /sandbox; default-src 'none'/);
   const page = (await get(agent, `/training-course/${course.id}`)).text;
   assert.match(page, />Read the spreadsheet</); assert.match(page, />Read the e-book</); assert.match(page, />Read the font</); assert.match(page, />Read the drawing</);

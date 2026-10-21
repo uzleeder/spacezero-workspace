@@ -12,7 +12,7 @@ const { logAudit } = require('../lib/audit');
 const { signMedia, verifyMedia } = require('../lib/signedUrl');
 const { recordCallEvidence } = require('../lib/callEvidence');
 const { reportSchema } = require('../lib/callIntelligence');
-const { isRateLimited, AI_RATE_LIMIT } = require('../lib/rateLimit');
+const { takeAiSlot } = require('../lib/rateLimit');
 const upload = unlimitedUpload(); // any size and number: streamed to disk (lib/uploads.js)
 const manage = requireRole('ADMIN'); // calls live inside AI Practice, which is Admin-only
 async function loadBatch(actor, id) {
@@ -51,7 +51,7 @@ router.post('/ai-practice/calls/:id/analyze', manage, async (req, res) => {
   const targetAgentId = req.body.targetAgentId || null;
   if (purpose === 'INDIVIDUAL' && !targetAgentId) return fail('Choose the employee these calls are about.');
   if (targetAgentId && !(await canViewProfile(actor, targetAgentId))) return res.status(403).send('Choose an employee you manage.');
-  if (await isRateLimited(`ai:${actor.id}`, AI_RATE_LIMIT)) return fail('Too many AI requests in a short time. Please wait a few minutes and try again.');
+  if (!(await takeAiSlot(actor))) return fail('Too many AI requests in a short time. Please wait a few minutes and try again.');
   const mode = purpose === 'INDIVIDUAL' || (purpose === 'AUTO' && targetAgentId) ? 'INDIVIDUAL_AGENT' : 'BEST_PRACTICE';
   // Idempotent: only the first request moves a saved batch into processing.
   const started = await prisma.callBatch.updateMany({ where: { id: batch.id, status: 'UPLOADED', analysisRequestedAt: null }, data: { analysisRequestedAt: new Date(), mode, purpose, targetAgentId: mode === 'INDIVIDUAL_AGENT' ? targetAgentId : null } });
@@ -95,7 +95,7 @@ router.post('/ai-practice/calls/:id/retry', manage, async (req, res) => {
   if (!batch) return res.status(404).send('Not found');
   const stalled = ['TRANSCRIBING', 'ANALYZING', 'AGGREGATING', 'GENERATING_PRACTICE'].includes(batch.status) && Date.now() - batch.updatedAt.getTime() > 15 * 60 * 1000;
   if (batch.status !== 'FAILED' && !stalled) return res.status(409).send('Only failed or stalled processing can be retried.');
-  if (await isRateLimited(`ai:${req.profile.id}`, AI_RATE_LIMIT)) return res.status(429).send('Too many AI requests in a short time. Please wait a few minutes and try again.');
+  if (!(await takeAiSlot(req.profile))) return res.status(429).send('Too many AI requests in a short time. Please wait a few minutes and try again.');
   // Transcripts that already exist are kept: the pipeline skips recordings that are TRANSCRIBED and continues from there.
   await prisma.callBatch.update({ where: { id: batch.id }, data: { status: 'UPLOADED', errorMessage: null, analysisRequestedAt: batch.analysisRequestedAt || new Date() } });
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'ai_practice.analysis_retried', targetTable: 'CallBatch', targetId: batch.id });

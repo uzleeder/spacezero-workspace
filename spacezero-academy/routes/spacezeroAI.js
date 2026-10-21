@@ -5,7 +5,7 @@
 // audit-safe error display (never a stack trace, matching the app's own error page convention).
 const router = require('express').Router();
 const { requireSession } = require('../lib/authMiddleware');
-const { isRateLimited, recordAttempt, AI_RATE_LIMIT } = require('../lib/rateLimit');
+const { takeAiSlot } = require('../lib/rateLimit');
 const { answerQuestion, quickLinksFor } = require('../lib/spacezeroAI');
 
 function render(res, { question, result, error, role }, status = 200) {
@@ -21,10 +21,9 @@ router.post('/assistant/ask', requireSession, async (req, res) => {
   const question = String(req.body.question || '').trim().slice(0, 500);
   if (!question) return render(res, { question: '', result: null, error: 'Ask a question first.', role: actor.role }, 400);
 
-  if (await isRateLimited(`ai:${actor.id}`, AI_RATE_LIMIT)) {
+  if (!(await takeAiSlot(actor, { learner: actor.role !== 'ADMIN' }))) {
     return render(res, { question, result: null, error: 'Too many questions in a short time. Please wait a few minutes and try again.', role: actor.role }, 429);
   }
-  await recordAttempt(`ai:${actor.id}`, true);
 
   const result = await answerQuestion(actor, question);
   render(res, { question, result, error: null, role: actor.role });

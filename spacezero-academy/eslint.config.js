@@ -16,6 +16,11 @@ module.exports = [
     },
   },
   {
+    // browser scripts kept in docs/ (they run in a page, not in Node)
+    files: ['docs/**/*.js'],
+    languageOptions: { sourceType: 'script', globals: { ...globals.browser } },
+  },
+  {
     ignores: ['node_modules/**', 'generated/**', 'public/**', 'storage/**', 'prisma/migrations/**'],
   },
 ];

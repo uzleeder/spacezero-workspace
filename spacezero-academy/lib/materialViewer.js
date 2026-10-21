@@ -60,7 +60,8 @@ const VIEW_ONLY_PAGE = '<!doctype html><meta charset="utf-8"><title>View only</t
 // slides -> one card per slide: .pptx and .odp
 // sheet  -> every sheet as a table: .xlsx .ods .csv .tsv
 // epub   -> the e-book, chapter after chapter
-// text   -> .txt .md .rtf and .html (as text)
+// text   -> .txt .md .rtf
+// html   -> .html .htm, drawn as the page it is in a frame where nothing can run (routes/trainingContent.js sends it with a sandbox policy)
 // font   -> a specimen page set in the font itself: .ttf .otf .woff .woff2
 // cad    -> the drawing as vector lines: .dxf
 // Old .doc / .ppt cannot be drawn by a browser or in the app: 'unsupported' (the learner then confirms by hand).
@@ -68,7 +69,7 @@ const READER_BY_EXT = {
   '.png': 'image', '.jpg': 'image', '.jpeg': 'image', '.gif': 'image', '.webp': 'image', '.bmp': 'image', '.avif': 'image', '.svg': 'image',
   '.pdf': 'pdf', '.ai': 'pdf', '.docx': 'docx', '.odt': 'docx', '.pptx': 'slides', '.odp': 'slides',
   '.xlsx': 'sheet', '.ods': 'sheet', '.csv': 'sheet', '.tsv': 'sheet', '.epub': 'epub',
-  '.txt': 'text', '.md': 'text', '.rtf': 'text', '.html': 'text', '.htm': 'text',
+  '.txt': 'text', '.md': 'text', '.rtf': 'text', '.html': 'html', '.htm': 'html',
   '.ttf': 'font', '.otf': 'font', '.woff': 'font', '.woff2': 'font', '.dxf': 'cad',
 };
 function readerKind({ type, storagePath, mimeType }) {
@@ -136,7 +137,8 @@ async function readerContent(kind, storagePath) {
   const render = require('./documentRender');
   const ext = path.extname(String(storagePath)).toLowerCase();
   if (kind === 'docx') return { html: ext === '.odt' ? render.odtHtml(storagePath) : await docxHtml(storagePath) };
-  if (kind === 'slides') return { slides: ext === '.odp' ? render.odpSlides(storagePath) : await slidesData(storagePath) };
+  // a .pptx is drawn as it was made (positions, pictures, colours); a file that cannot be drawn that way falls back to its text and pictures
+  if (kind === 'slides') return { slides: ext === '.odp' ? render.odpSlides(storagePath) : require('./slideRender').renderPptx(storagePath) || await slidesData(storagePath) };
   if (kind === 'sheet') return { html: render.sheetsHtml(storagePath) };
   if (kind === 'epub') return { html: render.epubHtml(storagePath) };
   if (kind === 'text') return { html: render.textHtml(storagePath) };

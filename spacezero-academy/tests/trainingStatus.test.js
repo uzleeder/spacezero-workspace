@@ -49,6 +49,8 @@ async function statusesOf(learner, recipient) {
 before(async () => {
   org = await prisma.organization.create({ data: { name: 'Training status tests' } });
   admin = await person('ADMIN');
+  await require('../lib/orgSettings').setSetting(org.id, 'training.retakeWaitMinutes', 0, admin.id); // these tests fail and retry straight away
+  await require('../lib/orgSettings').setSetting(org.id, 'training.maxAttemptsPerPractice', 20, admin.id); // some of them fail one practice several times
 });
 after(async () => { await prisma.$disconnect(); });
 

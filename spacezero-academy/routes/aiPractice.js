@@ -31,7 +31,7 @@ const { ensureWorkspace } = require('../lib/aiPracticeBackfill');
 const { relevanceFor } = require('../lib/practiceRelevance');
 const { reviseWithPrompt } = require('../lib/practiceReview');
 const { safeParse } = require('../lib/practiceEngine');
-const { isRateLimited, AI_RATE_LIMIT } = require('../lib/rateLimit');
+const { takeAiSlot } = require('../lib/rateLimit');
 const { hasCapability } = require('../lib/supervisorCapabilities');
 const { claim, release } = require('../lib/inFlightLock');
 
@@ -90,7 +90,7 @@ const back = (res, id, params = {}) => res.redirect(`/ai-practice/${id}${Object.
 // Gemini calls are the most expensive operation in the app; every route that triggers one (directly
 // or via the job queue) checks this first. Returns true (and already responded) when rate limited.
 async function aiGate(res, actor, courseId) {
-  if (!(await isRateLimited(`ai:${actor.id}`, AI_RATE_LIMIT))) return false;
+  if (await takeAiSlot(actor)) return false; // counted here: the request is about to start AI work
   back(res, courseId, { error: 'Too many AI requests in a short time. Please wait a few minutes and try again.' });
   return true;
 }

@@ -23,13 +23,10 @@ router.get('/certificates/:id', requireSession, async (req, res) => {
 
   const course = cert.courseId ? await prisma.trainingCourse.findUnique({ where: { id: cert.courseId } }) : null;
 
-  const priorCount = await prisma.certificate.count({
-    where: {
-      profile: { organizationId: cert.profile.organizationId },
-      issuedAt: { lte: cert.issuedAt },
-    },
-  });
-  const certificateNumber = `SZ-${String(priorCount).padStart(4, '0')}-${cert.issuedAt.getFullYear()}`;
+  // The number belongs to the certificate itself (the end of its own unique id), so it never changes: it used to be
+  // "how many certificates were issued up to this one", which moved whenever an earlier certificate was deleted and
+  // was the same for two certificates issued at the same moment.
+  const certificateNumber = `SZ-${cert.issuedAt.getFullYear()}-${cert.id.slice(-8).toUpperCase()}`;
 
   const programLabel =
     course && course.roleKey === 'TRAVEL_AGENT'

@@ -23,6 +23,7 @@ before(async () => {
     return p;
   };
   admin = await mk('ADMIN', 'admin'); agent = await mk('TRAVEL_AGENT', 'agent'); other = await mk('TRAVEL_AGENT', 'other');
+  await require('../lib/orgSettings').setSetting(org.id, 'training.retakeWaitMinutes', 0, admin.id); // these tests fail and retry straight away
   course = await prisma.trainingCourse.create({ data: { organizationId: org.id, title: 'Submit course', createdById: admin.id, status: 'PUBLISHED', passingScore: 70 } });
   const assignment = await prisma.trainingAssignment.create({ data: { organizationId: org.id, courseId: course.id, assignedById: admin.id, scope: 'INDIVIDUAL' } });
   recipient = await prisma.trainingAssignmentRecipient.create({ data: { assignmentId: assignment.id, profileId: agent.id } });

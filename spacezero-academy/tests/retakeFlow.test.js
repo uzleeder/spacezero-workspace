@@ -48,6 +48,7 @@ const answerAll = async (learner, assessment, value) => {
 before(async () => {
   org = await prisma.organization.create({ data: { name: 'Retake flow tests' } });
   admin = await person();
+  await require('../lib/orgSettings').setSetting(org.id, 'training.retakeWaitMinutes', 0, admin.id); // these tests fail and retry straight away
   await prisma.profile.update({ where: { id: admin.id }, data: { role: 'ADMIN' } });
 });
 after(async () => { mock.restoreAll(); await prisma.$disconnect(); });
@@ -61,7 +62,7 @@ test('passing the smart retake passes the original practice: the training can be
   assert.equal(JSON.parse(retake.configJson).retakeOf, quiz.id);
   const result = await answerAll(learner, retake, 'Right');
   assert.equal(result.status, 200);
-  assert.match(result.text, /Continue — see your training/);
+  assert.match(result.text, /Continue — finish &amp; submit the training/);
 
   const complete = await post(learner, `/training/${recipient.id}/complete`);
   assert.equal(complete.status, 302);
