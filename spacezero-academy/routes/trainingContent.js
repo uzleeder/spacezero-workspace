@@ -73,7 +73,7 @@ router.get('/training-course/:id', requireSession, async (req, res) => {
   await autoFinishForProfile(req.profile.id, { assignment: { courseId: course.id } }).catch((err) => console.error('auto-finish failed', err.message)); // already done = finished
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'training.content_read', targetTable: 'TrainingCourse', targetId: course.id });
   // Each learner sees the version they were assigned; the Admin sees the version that is in Training.
-  const mine = req.profile.role === 'ADMIN' ? [] : await prisma.trainingAssignment.findMany({ where: { courseId: course.id, recipients: { some: { profileId: req.profile.id } } }, select: { courseVersion: true } });
+  const mine = req.profile.role === 'ADMIN' ? [] : await prisma.trainingAssignment.findMany({ where: { courseId: course.id, recipients: { some: { profileId: req.profile.id } } }, select: { courseVersion: true, assessmentId: true } });
   const versions = mine.length ? mine.map((m) => m.courseVersion) : [Math.max(1, course.publishedVersion || 0)];
   const assessments = await prisma.assessment.findMany({ where: { courseId: course.id, status: 'APPROVED', OR: [{ version: { in: versions } }, { configJson: { contains: 'targetedRetake' } }] }, orderBy: { createdAt: 'asc' } });
   const gate = await mediaGate(req.profile.id, course.id, versions[0]);
@@ -91,7 +91,12 @@ router.get('/training-course/:id', requireSession, async (req, res) => {
   const canFinish = Boolean(gate.unlocked && completion && !completion.submitted && completion.total === 0);
   const canSubmit = Boolean(gate.unlocked && completion && !completion.submitted && completion.total > 0 && completion.passedAll);
   const passedIds = new Set(completion ? completion.rows.filter((r) => r.passed).map((r) => r.assessment.id) : []);
-  res.render('training-content', { title: course.title, canFinish, canSubmit, completion, passedIds, finishId: mineRecipient ? mineRecipient.id : null, isLearner, doneIds, requiredIds, DOC_TYPES, minReadSeconds: Math.round(MIN_READ_MS / 1000), material: typeof req.query.material === 'string' ? req.query.material : '', course: { ...course, modules: shownModules }, gate, assessments: assessments.filter(a => safeParse(a.configJson, {})?.targetedRetake !== true || a.createdById === req.profile.id) });
+  res.render('training-content', { title: course.title, canFinish, canSubmit, completion, passedIds, finishId: mineRecipient ? mineRecipient.id : null, isLearner, doneIds, requiredIds, DOC_TYPES, minReadSeconds: Math.round(MIN_READ_MS / 1000), material: typeof req.query.material === 'string' ? req.query.material : '', course: { ...course, modules: shownModules }, gate, assessments: assessments.filter((a) => {
+    if (safeParse(a.configJson, {})?.targetedRetake === true) return a.createdById === req.profile.id;
+    // Only practice the learner can really open: the same rule the practice page applies (an assignment of this version, for
+    // the whole training or for exactly this practice) - otherwise \"Start\" would lead to a page that is not found.
+    return !isLearner || mine.some((m) => m.courseVersion === a.version && (!m.assessmentId || m.assessmentId === a.id));
+  }) });
 });
 
 // Training sources belong to AI Practice, which is Admin-only.

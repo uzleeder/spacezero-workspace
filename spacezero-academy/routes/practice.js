@@ -23,7 +23,7 @@ router.use('/assessments/:id', requireSession, async (req, res, next) => {
   res.locals.guarded = quizGuard.isGuarded(req);        // everyone but Admins (an Admin adds ?guard=1 to see the learner's view)
   res.locals.gt = quizGuard.textHelper(res.locals.guarded); // question text: painted by the stylesheet, not page text
   const loaded = await loadAssignedAssessment(req.profile, req.params.id);
-  if (!loaded) return res.status(404).render('not-found', { layout: false });
+  if (!loaded) return res.status(404).render('error', { layout: false, message: 'This practice is not part of a training assigned to you, so it cannot be opened. Open it from your own training.', action: { label: 'Open My Training', href: '/training' } });
   if (loaded.assessment.courseId && !(await mediaGate(req.profile.id, loaded.assessment.courseId, loaded.assessment.version)).unlocked) return res.status(403).send(`<!doctype html><meta charset="utf-8"><title>Finish the material first</title><body style="font-family:system-ui;max-width:560px;margin:15vh auto;padding:0 16px"><h1>Finish the material first</h1><p>Watch, listen to and read all of the required material of this training before you start the practice or the quiz.</p><p><a href="/training-course/${loaded.assessment.courseId}">Go to the training material →</a></p></body>`);
   next();
 });

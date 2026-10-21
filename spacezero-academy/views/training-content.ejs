@@ -72,7 +72,7 @@ const notices = { 'open-first': 'Open the material first, then confirm.', 'too-f
           <p style="font-weight:500;color:var(--navy-950)"><% if (assessments.length > 1) { %><span class="text-muted">Practice <%= ai + 1 %> of <%= assessments.length %> · </span><% } %><%= a.title %></p>
           <p class="text-sm text-muted">Level <%= a.level %> · Passing score <%= a.passingScore %>%<% if (passedIds.has(a.id)) { %> · <span class="badge badge-success">✓ Completed</span><% } else if (upNext && upNext.id === a.id && assessments.length > 1) { %> · <span class="badge badge-warning">Up next</span><% } %></p>
         </div>
-        <a class="btn <%= passedIds.has(a.id) ? 'btn-secondary' : 'btn-gold' %>" href="<%= a.type === 'ROLEPLAY' ? '/assessments/' + a.id + '/roleplay' : '/assessments/' + a.id + '/take' %>"><%= passedIds.has(a.id) ? 'Practice again' : (upNext && upNext.id === a.id && assessments.length > 1 ? 'Start next practice' : 'Start') %></a>
+        <% if (!isLearner) { %><span class="text-sm text-muted">Opens for the people this training is assigned to</span><% } else { %><a class="btn <%= passedIds.has(a.id) ? 'btn-secondary' : 'btn-gold' %>" href="<%= a.type === 'ROLEPLAY' ? '/assessments/' + a.id + '/roleplay' : '/assessments/' + a.id + '/take' %>"><%= passedIds.has(a.id) ? 'Practice again' : (upNext && upNext.id === a.id && assessments.length > 1 ? 'Start next practice' : 'Start') %></a><% } %>
       </div></section>
     <% }); %>
   <% } %>

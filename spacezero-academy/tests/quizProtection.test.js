@@ -106,3 +106,11 @@ test('copy / paste / capture attempts are written to the audit log; unknown even
   assert.ok(await count() <= before + 40);                                          // capped per person per hour
   assert.notEqual((await request(app).post(`/assessments/${quiz.id}/guard-event`).type('form').send({ event: 'copy' })).status, 204); // needs a session
 });
+
+test('the quiz is never covered only because the page opened while another window had focus, and a developer\'s localhost never hides it', () => {
+  const js = read('public/js/protect-quiz.js');
+  assert.ok(!js.includes('if (!document.hasFocus()) hide('), 'no hiding at load for lack of focus');
+  assert.match(js, /var development = \/\^\(localhost\|127\\\.0\\\.0\\\.1\|\\\[::1\\\]\)\$\/\.test\(location\.hostname\) && !\/\[\?&\]strict=1\/\.test\(location\.search\);/);
+  assert.ok(js.includes("if (!development) hide('blur')"));
+  assert.ok(js.includes("['pointerdown', 'keydown', 'touchstart']"), 'any interaction clears the cover');
+});

@@ -45,11 +45,16 @@
     if (ms) setTimeout(function () { delete reasons[why]; refresh(); }, ms);
   }
   function show(why) { delete reasons[why]; refresh(); }
-  window.addEventListener('blur', function () { hide('blur'); report('focus-lost'); });
+  // The quiz is hidden when the window LOSES focus (a screenshot or snipping tool, another program, another tab) - never
+  // just because it was opened while another window had focus, and never on a developer's own machine (localhost), where
+  // the window is almost always beside an editor; add ?strict=1 to the address there to test the hiding.
+  var development = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) && !/[?&]strict=1/.test(location.search);
+  window.addEventListener('blur', function () { report('focus-lost'); if (!development) hide('blur'); });
   window.addEventListener('focus', function () { show('blur'); });
-  document.addEventListener('visibilitychange', function () { if (document.hidden) hide('hidden'); else show('hidden'); });
+  document.addEventListener('visibilitychange', function () { if (document.hidden) { if (!development) hide('hidden'); } else show('hidden'); });
+  // any click, tap or key press means the learner is in this window: never leave the quiz covered
+  ['pointerdown', 'keydown', 'touchstart'].forEach(function (name) { document.addEventListener(name, function () { show('blur'); show('hidden'); }, true); });
   cover.addEventListener('click', function () { reasons = {}; refresh(); window.focus(); });
-  if (!document.hasFocus()) hide('blur');
 
   // ---- keyboard: copy / paste / save / print / view-source / developer tools / capture shortcuts ----
   function clearClipboard() {
