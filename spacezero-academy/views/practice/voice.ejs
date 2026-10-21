@@ -12,7 +12,7 @@
 <label class="checkbox-row mt-16"><input name="authorized" value="yes" type="checkbox" required> I agree to record my voice and send it to Google Gemini for transcription and practice feedback.</label>
 <div class="mt-16"><button type="button" class="btn btn-secondary" id="record-start">Start recording</button> <button type="button" class="btn btn-secondary" id="record-stop" disabled>Stop recording</button></div>
 <audio id="voice-preview" class="mt-16" controls <%= hasDraft ? '' : 'hidden' %> <% if (hasDraft) { %>src="/assessments/<%= assessment.id %>/voice/draft?v=<%= encodeURIComponent(draft.savedAt) %>"<% } %>></audio><p id="voice-status" role="status" aria-live="polite"><%= hasDraft ? 'Saved — you can close this page and carry on later.' : '' %></p>
-<div class="field mt-16"><label for="recording">Or upload an audio response (up to 20 MB)</label><input id="recording" type="file" name="recording" accept="audio/webm,audio/wav,audio/mpeg,audio/ogg" <%= hasDraft ? '' : 'required' %>></div>
+<div class="field mt-16"><label for="recording">Or upload an audio response (up to 20 MB)</label><input id="recording" type="file" name="recording" accept="audio/webm,audio/wav,audio/mpeg,audio/ogg,audio/mp4,audio/x-m4a,.m4a" <%= hasDraft ? '' : 'required' %>></div>
 <button class="btn btn-gold mt-16" id="voice-submit"><%= typeof error !== 'undefined' && error && hasDraft ? 'Try again' : 'Submit for feedback' %></button></form>
 <% if (hasDraft) { %>
 <form method="post" action="/assessments/<%= assessment.id %>/voice/draft/discard" class="mt-16" data-once onsubmit="return confirm('Discard the saved recording?')"><button type="submit" class="btn btn-ghost btn-sm">Discard saved recording</button></form>

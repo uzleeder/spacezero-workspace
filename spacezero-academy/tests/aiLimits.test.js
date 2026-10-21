@@ -35,7 +35,7 @@ before(async () => {
   const a = await prisma.trainingAssignment.create({ data: { organizationId: org.id, courseId: course.id, assignedById: admin.id, scope: 'INDIVIDUAL' } });
   const recipient = await prisma.trainingAssignmentRecipient.create({ data: { assignmentId: a.id, profileId: agent.id } });
   await prisma.trainingAttempt.create({ data: { recipientId: recipient.id, profileId: agent.id, assessmentId: written.id, status: 'RETAKE_REQUIRED', score: 30, attemptNumber: 1, completedAt: new Date(Date.now() - 20 * 60000), skillBreakdownJson: JSON.stringify({ 'Fare rules': 30 }) } });
-  targeted = await prisma.assessment.create({ data: { organizationId: org.id, courseId: course.id, createdVia: 'AI_TRAINING_ANALYSIS', type: 'QUIZ', status: 'APPROVED', title: 'Targeted', createdById: agent.id, version: 1, configJson: JSON.stringify({ targetedRetake: true, focusSkills: ['Fare rules'] }) } });
+  targeted = await prisma.assessment.create({ data: { organizationId: org.id, courseId: course.id, createdVia: 'AI_TRAINING_ANALYSIS', type: 'QUIZ', status: 'APPROVED', title: 'Targeted', createdById: agent.id, version: 1, configJson: JSON.stringify({ targetedRetake: true, retakeOf: written.id, focusSkills: ['Fare rules'] }) } });
 });
 after(async () => { await prisma.$disconnect(); });
 
@@ -66,7 +66,7 @@ test('"Practice these skills now" reuses the practice already prepared and is li
   await prisma.assessment.update({ where: { id: targeted.id }, data: { archivedAt: new Date() } });   // nothing prepared any more: a new one needs the AI
   for (let i = 0; i < 5; i++) await prisma.rateLimitAttempt.create({ data: { bucketKey: `remediate:${agent.id}`, succeeded: true } });
   const limited = await post(agent, `/assessments/${written.id}/remediate`);
-  assert.equal(limited.status, 409); assert.match(limited.text, /several focused practices today/);
+  assert.equal(limited.status, 429); assert.match(limited.text, /several focused practices today/);
   assert.equal(geminiCalls, before);
 
   await get(agent, `/assessments/${roleplay.id}/roleplay`);

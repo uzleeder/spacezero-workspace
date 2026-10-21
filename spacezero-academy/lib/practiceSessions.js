@@ -1,9 +1,19 @@
 'use strict';
 const { prisma } = require('./prisma');
-async function openSession(profileId, assessment, initialData) {
-  const existing = await prisma.practiceSession.findFirst({ where: { profileId, assessmentId: assessment.id, completedAttemptId: null }, orderBy: { createdAt: 'desc' } });
-  if (existing) return existing;
-  return prisma.practiceSession.create({ data: { profileId, assessmentId: assessment.id, dataJson: JSON.stringify(initialData) } });
+// One opening at a time per learner and practice (this app runs as one process): two requests opening the same
+// practice at once - a double tap on a form that carries no session id - share one session instead of each
+// creating its own (and each recording an attempt).
+const opening = new Map();
+function openSession(profileId, assessment, initialData) {
+  const key = `${profileId}:${assessment.id}`;
+  const run = (opening.get(key) || Promise.resolve()).catch(() => undefined).then(async () => {
+    const existing = await prisma.practiceSession.findFirst({ where: { profileId, assessmentId: assessment.id, completedAttemptId: null }, orderBy: { createdAt: 'desc' } });
+    if (existing) return existing;
+    return prisma.practiceSession.create({ data: { profileId, assessmentId: assessment.id, dataJson: JSON.stringify(initialData) } });
+  });
+  opening.set(key, run);
+  run.finally(() => { if (opening.get(key) === run) opening.delete(key); }).catch(() => undefined);
+  return run;
 }
 // A turn is claimed while the AI answers. A claim that was never released (the server restarted, the
 // request died) frees itself after this long, so a practice can never stay stuck.
@@ -20,4 +30,14 @@ async function claimSession(profileId, assessmentId, id) {
   return result.count ? prisma.practiceSession.findUnique({ where: { id } }) : null;
 }
 async function releaseSession(id, data) { return prisma.practiceSession.update({ where: { id }, data: { busy: false, ...data } }); }
-module.exports = { openSession, findSession, claimSession, releaseSession };
+/** Waits briefly while another request holds the session (the first of two taps on Submit); returns the row as it then is. */
+async function waitWhileBusy(profileId, assessmentId, id, { timeoutMs = 15000, everyMs = 250 } = {}) {
+  const until = Date.now() + timeoutMs;
+  let row = await findSession(profileId, assessmentId, id);
+  while (row && row.busy && !row.completedAttemptId && Date.now() < until) {
+    await new Promise((resolve) => setTimeout(resolve, everyMs));
+    row = await findSession(profileId, assessmentId, id);
+  }
+  return row;
+}
+module.exports = { openSession, findSession, claimSession, releaseSession, waitWhileBusy };

@@ -15,6 +15,7 @@ const { logAudit } = require('./audit');
 const { createNotificationForMany } = require('./notifications');
 const { coversSkill } = require('./development');
 const { liveVersion } = require('./courseVersions');
+const { isSubmitted, retakeTarget } = require('./trainingCompletion');
 
 const KINDS = ['COURSE', 'PRACTICE', 'RETAKE', 'REMEDIATION'];
 const KIND_LABEL = { COURSE: 'Training', PRACTICE: 'Practice', RETAKE: 'Retake', REMEDIATION: 'Skill remediation' };
@@ -64,9 +65,9 @@ async function bulkAssign(actor, allowedIds, input) {
 
   // ---- retakes re-open the latest attempt of an existing assignment (history of scores is untouched)
   if (kind === 'RETAKE') {
-    const recipients = await prisma.trainingAssignmentRecipient.findMany({ where: { profileId: { in: targetIds }, assignment: { courseId: course.id } }, include: { attempts: { orderBy: { attemptNumber: 'desc' }, take: 1 } } });
-    const ready = recipients.filter((r) => r.attempts[0]);
-    for (const r of ready) await prisma.trainingAttempt.update({ where: { id: r.attempts[0].id }, data: { status: 'RETAKE_REQUIRED', retakeRequestedById: actor.id, retakeRequestedAt: new Date() } });
+    const recipients = await prisma.trainingAssignmentRecipient.findMany({ where: { profileId: { in: targetIds }, assignment: { courseId: course.id } }, include: { attempts: true } });
+    const ready = recipients.filter((r) => r.attempts.length);
+    for (const r of ready) await prisma.trainingAttempt.update({ where: { id: retakeTarget(r.attempts).id }, data: { status: 'RETAKE_REQUIRED', retakeRequestedById: actor.id, retakeRequestedAt: new Date() } });
     await trainingEmails.queueAgain(ready.map(r => r.id));
     trainingEmails.kick();
     await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'training.bulk_retake', targetTable: 'TrainingCourse', targetId: course.id, metadata: { requested: targetIds.length, retakes: ready.length } });
@@ -77,9 +78,9 @@ async function bulkAssign(actor, allowedIds, input) {
   // ---- everything else: one assignment, one tracked recipient per employee (skipping people who already have this open)
   const existing = await prisma.trainingAssignmentRecipient.findMany({
     where: { profileId: { in: targetIds }, assignment: { courseId: course.id, assessmentId: assessment ? assessment.id : null } },
-    include: { attempts: { select: { status: true, attemptNumber: true }, orderBy: { attemptNumber: 'desc' }, take: 1 } },
+    include: { attempts: { select: { status: true, assessmentId: true, attemptNumber: true, createdAt: true } } },
   });
-  const open = new Set(existing.filter((r) => !r.attempts[0] || r.attempts[0].status !== 'COMPLETED').map((r) => r.profileId));
+  const open = new Set(existing.filter((r) => !isSubmitted(r.attempts)).map((r) => r.profileId)); // a passed practice is not a finished training
   const recipients = targetIds.filter((id) => !open.has(id));
   if (!recipients.length) return { kind, created: 0, skipped: targetIds.length, assignmentId: null, course };
 

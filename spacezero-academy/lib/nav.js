@@ -26,7 +26,7 @@ const NAV_SECTIONS = [
         href: '/admin/employees',
         label: 'Employees & Teams',
         roles: ['ADMIN', 'SUPERVISOR'],
-        activeAlso: ['/admin/teams', '/employees', '/leave', '/admin/call-reviews', '/call-reviews'],
+        activeAlso: ['/admin/teams', '/admin/intelligence', '/employees', '/leave', '/admin/call-reviews', '/call-reviews'],
         hrefByRole: { SUPERVISOR: '/team' },
         activeAlsoByRole: { SUPERVISOR: ['/team-skills', '/employees', '/leave', '/call-reviews'] },
       },

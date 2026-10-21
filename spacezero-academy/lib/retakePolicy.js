@@ -21,10 +21,8 @@ async function retakeBlock(recipientId, assessment, now = Date.now()) {
   const [minutes, max] = await Promise.all([getSetting(assessment.organizationId, 'training.retakeWaitMinutes'), getSetting(assessment.organizationId, 'training.maxAttemptsPerPractice')]);
   const failed = attempts.filter((a) => a.status !== 'COMPLETED').length;
   if (failed >= max) {
-    // "Practice these skills now" needs a weak skill to point at; without one the way on is a retake asked for by the supervisor.
-    let breakdown = {}; try { breakdown = JSON.parse(attempts[0].skillBreakdownJson || '{}') || {}; } catch { /* no breakdown */ }
-    const canRemediate = Object.values(breakdown).some((score) => typeof score === 'number' && score < assessment.passingScore);
-    return { reason: 'used_up', waitMs: 0, minutes, failed, max, canRemediate };
+    // "Practice these skills now" always opens a new retake (it aims at the weak skills, else at the practice's own material).
+    return { reason: 'used_up', waitMs: 0, minutes, failed, max, canRemediate: true };
   }
   const waitMs = Math.max(0, attempts[0].completedAt.getTime() + minutes * 60000 - now);
   return waitMs > 0 ? { reason: 'wait', waitMs, minutes, failed, max } : null;

@@ -1,6 +1,7 @@
-<%# Readiness is always shown as percentage + text, never colour alone. %>
+<%# Readiness is always shown as percentage + text, never colour alone. `extraTitle` (optional) is appended to the tooltip. %>
+<% const titleExtra = typeof extraTitle !== 'undefined' && extraTitle ? ' · ' + extraTitle : ''; %>
 <% if (setup.notStarted) { %>
-<span class="badge" title="This employee has not been activated yet"><%= '○' %> Setup Not Started</span>
+<span class="badge" title="This employee has not been activated yet<%= titleExtra %>"><%= '○' %> Setup Not Started</span>
 <% } else { %>
-<span class="badge <%= setup.fullySetUp ? 'badge-success' : setup.hasIssue ? 'badge-danger' : 'badge-warning' %>" title="<%= setup.completed %> of <%= setup.required %> required items completed<%= setup.awaitingVerification ? ', ' + setup.awaitingVerification + ' awaiting verification' : '' %>"><%= setup.fullySetUp ? '●' : setup.hasIssue ? '▲' : '○' %> <%= setup.percent %>% — <%= setup.hasIssue && !setup.fullySetUp ? 'Setup Issue' : setup.label %></span>
+<span class="badge <%= setup.fullySetUp ? 'badge-success' : setup.hasIssue ? 'badge-danger' : 'badge-warning' %>" title="<%= setup.completed %> of <%= setup.required %> required items completed<%= setup.awaitingVerification ? ', ' + setup.awaitingVerification + ' awaiting verification' : '' %><%= titleExtra %>"><%= setup.fullySetUp ? '●' : setup.hasIssue ? '▲' : '○' %> <%= setup.percent %>% — <%= setup.hasIssue && !setup.fullySetUp ? 'Setup Issue' : setup.label %></span>
 <% } %>

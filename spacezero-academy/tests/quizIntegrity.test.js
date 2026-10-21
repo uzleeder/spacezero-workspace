@@ -10,7 +10,7 @@ const request = require('supertest');
 const { prisma } = require('../lib/prisma');
 const { generateToken } = require('../lib/tokens');
 const { gradeAttempt } = require('../lib/practiceGrading');
-const { listOf, toStored } = require('../lib/correctAnswers');
+const { listOf, fitToOptions } = require('../lib/answerKey');
 const app = require('../server');
 
 let org, admin, agent, tester, course, quiz, questions = {}, cookies = {}, adminCookie;
@@ -45,8 +45,8 @@ test('multi-answer questions grade correctly when an option contains a comma, wh
   const options = ['Doha, Qatar', 'Dubai, UAE', 'Paris, France'];
   assert.deepEqual(listOf('Doha, Qatar,Dubai, UAE', options), ['Doha, Qatar', 'Dubai, UAE']);
   assert.deepEqual(listOf('A,B', ['A', 'B', 'C']), ['A', 'B']);
-  assert.deepEqual(toStored('MULTI_SELECT', options, 'Doha, Qatar, Dubai, UAE'), ['Doha, Qatar', 'Dubai, UAE']);
-  assert.equal(toStored('MCQ', options, 'Doha, Qatar'), 'Doha, Qatar');
+  assert.deepEqual(fitToOptions({ type: 'MULTI_SELECT', options, correctAnswer: 'Doha, Qatar,Dubai, UAE' }).correctAnswer, ['Doha, Qatar', 'Dubai, UAE']);
+  assert.equal(fitToOptions({ type: 'MCQ', options, correctAnswer: 'Doha, Qatar' }).correctAnswer, 'Doha, Qatar');
   const q = await prisma.question.findUnique({ where: { id: questions.multi.id } });
   assert.equal((await gradeAttempt([q], { [q.id]: ['Doha, Qatar', 'Dubai, UAE'] })).overallScore, 100);   // the learner who answered correctly passes
   assert.equal((await gradeAttempt([q], { [q.id]: ['Doha, Qatar'] })).overallScore, 0);

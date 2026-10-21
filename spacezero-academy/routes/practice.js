@@ -11,15 +11,18 @@ const { generateText, generateStructured } = require('../lib/gemini');
 const { recordAssessmentAttempt } = require('../lib/practiceAttempts');
 const { z } = require('zod');
 const { Type } = require('@google/genai');
-const { openSession, findSession, claimSession, releaseSession } = require('../lib/practiceSessions');
+const { openSession, findSession, claimSession, releaseSession, waitWhileBusy } = require('../lib/practiceSessions');
 const { mediaGate } = require('../lib/mediaProgress');
 const quizGuard = require('../lib/quizGuard');
 const { logAudit } = require('../lib/audit');
 const { displayOptions } = require('../lib/shuffleOptions');
-const { practiceFlowFor } = require('../lib/trainingCompletion');
+const { practiceFlowFor, startUrl } = require('../lib/trainingCompletion');
+const { keyFor } = require('../lib/answerKey');
+const { retakeOf } = require('../lib/courseVersions');
+const { focusSkillsFor, retakeSource, preparedRetake } = require('../lib/retakes');
+const { claim, release } = require('../lib/inFlightLock');
 const { retakeBlock } = require('../lib/retakePolicy');
 const { takeAiSlot, isRateLimited, recordAttempt } = require('../lib/rateLimit');
-const { correctOf } = require('../lib/correctAnswers');
 
 router.use('/assessments/:id', requireSession, async (req, res, next) => {
   res.set('Cache-Control', 'private, no-store'); // a quiz page is never kept in the browser cache
@@ -53,11 +56,16 @@ async function loadAssignedAssessment(profile, assessmentId) {
     where: { id: assessmentId, organizationId: profile.organizationId, status: 'APPROVED' },
     include: { questions: { orderBy: { displayOrder: 'asc' } }, course: true },
   });
-  if (!assessment || (safeParse(assessment.configJson, {})?.targetedRetake === true && assessment.createdById !== profile.id)) return null;
+  const config = (assessment && safeParse(assessment.configJson, {})) || {};
+  if (!assessment || (config.targetedRetake === true && assessment.createdById !== profile.id)) return null;
   let recipient = null;
   if (assessment.courseId) {
+    // A retake belongs to the assignment of the practice it retakes (same version; an assignment of the whole
+    // training or of that practice). An older retake that does not record its practice accepts any assignment
+    // of the training - otherwise a practice-specific assignment could never open it.
+    const olderRetake = config.targetedRetake === true && !config.retakeOf;
     recipient = await prisma.trainingAssignmentRecipient.findFirst({
-      where: { profileId: profile.id, assignment: { courseId: assessment.courseId, organizationId: profile.organizationId, OR: [{ assessmentId: null }, { assessmentId: assessment.id }], ...(safeParse(assessment.configJson, {})?.targetedRetake === true ? {} : { courseVersion: assessment.version }) } },
+      where: { profileId: profile.id, assignment: { courseId: assessment.courseId, organizationId: profile.organizationId, ...(olderRetake ? {} : { courseVersion: assessment.version, OR: [{ assessmentId: null }, { assessmentId: config.retakeOf || assessment.id }] }) } },
       orderBy: { createdAt: 'desc' },
       include: { assignment: true },
     });
@@ -95,14 +103,38 @@ router.get('/assessments/:id/take', requireSession, async (req, res) => {
     const state = JSON.parse(session.dataJson);
     return res.render('practice/process', { title: assessment.title, assessment, session, state, node: config.nodes.find(n => n.id === state.currentId) });
   }
-  res.render('practice/quiz', {
-    title: assessment.title,
-    assessment,
-    // Older quizzes were saved in the AI's order (correct answer first); every learner sees a stirred,
-    // stable order (the same on a refresh). Grading compares the answer text, so order never matters.
-    questions: assessment.questions.map((q) => ({ ...q, options: displayOptions(q, safeParse(q.optionsJson, [])) })),
-  });
+  // One practice session per sitting: its id travels with the form, so the same answers sent twice (a double
+  // tap, a refresh of the result page) show the result already saved instead of recording a second attempt.
+  const session = await openSession(req.profile.id, assessment, {});
+  res.render('practice/quiz', { title: assessment.title, assessment, questions: quizQuestions(assessment), sessionId: session.id, answers: {}, error: null });
 });
+
+// Older quizzes were saved in the AI's order (correct answer first); every learner sees a stirred,
+// stable order (the same on a refresh). Grading compares the answer text, so order never matters.
+const quizQuestions = (assessment) => assessment.questions.map((q) => ({ ...q, options: displayOptions(q, safeParse(q.optionsJson, [])) }));
+
+async function renderQuizResult(res, actor, assessment, recipient, { graded, passed, attempt }) {
+  res.render('practice/quiz-result', {
+    title: `Result — ${assessment.title}`,
+    assessment,
+    // A failed attempt never shows the answers: reading them off and resubmitting would pass any quiz on the second try.
+    // They (and the explanations) are shown once the practice is passed.
+    questions: assessment.questions.map((q) => ({ ...q, options: safeParse(q.optionsJson, []), correctAnswer: passed ? keyFor(q).answers : null, explanation: passed ? q.explanation : null })),
+    showAnswers: passed,
+    graded,
+    passed,
+    attempt,
+    flow: recipient ? await practiceFlowFor(actor.id, assessment, recipient.id).catch(() => null) : null,
+  });
+}
+
+/** The result a finished sitting already has (kept with its session), shown again instead of grading twice. */
+async function renderSavedQuizResult(res, actor, assessment, recipient, row) {
+  const saved = safeParse(row.dataJson, {}) || {};
+  if (!saved.graded) return res.redirect(`/assessments/${assessment.id}/take`);
+  const attempt = (await prisma.trainingAttempt.findFirst({ where: { id: row.completedAttemptId, profileId: actor.id } })) || { score: saved.graded.overallScore, attemptNumber: 1 };
+  return renderQuizResult(res, actor, assessment, recipient, { graded: saved.graded, passed: saved.passed, attempt });
+}
 
 router.post('/assessments/:id/submit', requireSession, async (req, res) => {
   const actor = req.profile;
@@ -118,17 +150,25 @@ router.post('/assessments/:id/submit', requireSession, async (req, res) => {
     answers[q.id] = Array.isArray(raw) ? raw : raw || '';
   }
 
+  // A form opened before sittings existed carries no session id: it uses the open sitting (or starts one).
+  const sessionId = typeof req.body.sessionId === 'string' ? req.body.sessionId : (await openSession(actor.id, assessment, {})).id;
+  const showQuiz = (status, error) => res.status(status).render('practice/quiz', { title: assessment.title, assessment, questions: quizQuestions(assessment), sessionId, answers, error });
+  const session = await claimSession(actor.id, assessment.id, sessionId);
+  if (!session) {
+    // The same sitting sent again: once the first submission is saved, its result is shown - never a second attempt.
+    const row = await waitWhileBusy(actor.id, assessment.id, sessionId);
+    if (row && row.completedAttemptId) return renderSavedQuizResult(res, actor, assessment, recipient, row);
+    if (row) return showQuiz(409, 'Your answers are still being graded. Wait a moment, then press Submit again.');
+    return res.redirect(`/assessments/${assessment.id}/take`);
+  }
+  res.on('finish', () => releaseSession(session.id, {}).catch(() => undefined));
+
   let graded;
-  try { graded = await gradeAttempt(assessment.questions, answers); }
-  catch (err) {
-    // The AI that marks written answers is down: nothing is recorded, and the quiz comes back with every answer filled in
-    // so the learner only has to press Submit again - never an error page that throws their answers away.
-    console.error('quiz grading failed:', err.message);
-    return res.status(503).render('practice/quiz', {
-      title: assessment.title, assessment, answers,
-      error: 'The AI that marks written answers is not available right now. Nothing was lost: your answers are kept below. Press Submit again in a minute.',
-      questions: assessment.questions.map((q) => ({ ...q, options: displayOptions(q, safeParse(q.optionsJson, [])) })),
-    });
+  try {
+    graded = await gradeAttempt(assessment.questions, answers);
+  } catch {
+    // Nothing is saved and nothing is lost: the quiz comes back with every answer still filled in.
+    return showQuiz(503, 'Your written answers could not be graded right now. Nothing was lost — check your answers and press Submit again in a moment.');
   }
   const passed = graded.overallScore >= assessment.passingScore;
 
@@ -144,18 +184,9 @@ router.post('/assessments/:id/submit', requireSession, async (req, res) => {
       })
     : { score: graded.overallScore, attemptNumber: 1 };
 
-  res.render('practice/quiz-result', {
-    title: `Result — ${assessment.title}`,
-    assessment,
-    // A failed attempt never shows the answers: reading them off and resubmitting would pass any quiz on the second try.
-    // They (and the explanations) are shown once the practice is passed.
-    questions: assessment.questions.map((q) => ({ ...q, options: safeParse(q.optionsJson, []), correctAnswer: passed ? correctOf(q) : null, explanation: passed ? q.explanation : null })),
-    showAnswers: passed,
-    graded,
-    passed,
-    attempt,
-    flow: recipient ? await practiceFlowFor(actor.id, assessment, recipient.id).catch(() => null) : null,
-  });
+  // The sitting is finished; its result stays with it, so the same answers sent again show this result.
+  await releaseSession(session.id, { completedAttemptId: attempt.id || 'completed', dataJson: JSON.stringify({ graded, passed }) });
+  await renderQuizResult(res, actor, assessment, recipient, { graded, passed, attempt });
 });
 
 // ---------------------------------------------------------------------------
@@ -311,15 +342,14 @@ router.post('/assessments/:id/roleplay/finish', requireSession, async (req, res)
   let scoring;
   try {
     scoring = await generateStructured({
-    systemInstruction: `Score this sales role-play call transcript against these rubric skills: ${(config.rubricSkills || []).join(', ')}. Be a strict, realistic evaluator — do not inflate scores. Give an overall score 0-100 and a 0-100 score per rubric skill, plus 2-4 sentences of specific feedback. ${DEBRIEF_INSTRUCTION}${scorerContext(config) ? `\n${scorerContext(config)}` : ''}`,
-    contents: [{ role: 'user', parts: [{ text: transcriptText }] }],
-    responseSchema: roleplayScoreGeminiSchema,
-    zodSchema: roleplayScoreZodSchema,
+      systemInstruction: `Score this sales role-play call transcript against these rubric skills: ${(config.rubricSkills || []).join(', ')}. Be a strict, realistic evaluator — do not inflate scores. Give an overall score 0-100 and a 0-100 score per rubric skill, plus 2-4 sentences of specific feedback. ${DEBRIEF_INSTRUCTION}${scorerContext(config) ? `\n${scorerContext(config)}` : ''}`,
+      contents: [{ role: 'user', parts: [{ text: transcriptText }] }],
+      responseSchema: roleplayScoreGeminiSchema,
+      zodSchema: roleplayScoreZodSchema,
     });
-  } catch (err) {
-    // The conversation is saved on the session: the page comes back with it, and Finish can simply be pressed again.
-    console.error('role-play scoring failed:', err.message);
-    return res.status(503).render('practice/roleplay', { title: assessment.title, assessment, config, session, error: 'The AI could not score this conversation just now. Your conversation is saved - press Finish again in a minute.' });
+  } catch {
+    // The conversation stays saved: Finish simply scores it again once the AI is back.
+    return res.status(503).render('practice/roleplay', { title: assessment.title, assessment, config, session, error: 'Scoring is unavailable right now. Your conversation is saved — press Finish again in a moment.' });
   }
 
   const skillBreakdown = Object.fromEntries(scoring.data.skillScores.map((s) => [s.skill, s.score]));
@@ -353,9 +383,14 @@ router.post('/assessments/:id/roleplay/finish', requireSession, async (req, res)
 
 // ---------------------------------------------------------------------------
 // Smart Retake (spec section 9): identify WHY the learner failed from the last
-// attempt's skill breakdown and generate targeted remediation for only the weak
-// skills, at a higher level — never a blanket repeat of the whole assessment.
+// attempt's skill breakdown and generate targeted remediation for the weak skills
+// (lib/retakes.js), at a higher level. Passing it passes the practice it retakes.
 // ---------------------------------------------------------------------------
+
+/** Why no retake opened, with the ways forward: try again, retake the practice as it is, or go back. */
+function renderRetakeProblem(res, assessment, status, message) {
+  return res.status(status).render('practice/retake-unavailable', { title: `Retake — ${assessment.title}`, assessment, message, practiceUrl: startUrl(assessment) });
+}
 
 router.post('/assessments/:id/remediate', requireSession, async (req, res) => {
   const actor = req.profile;
@@ -369,44 +404,41 @@ router.post('/assessments/:id/remediate', requireSession, async (req, res) => {
   });
   if (!lastAttempt || lastAttempt.status !== 'RETAKE_REQUIRED') return res.redirect('/training');
 
-  const breakdown = safeParse(lastAttempt.skillBreakdownJson, {});
-  const focusSkills = Object.entries(breakdown || {}).filter(([, score]) => typeof score === 'number' && Number.isFinite(score) && score >= 0 && score < assessment.passingScore).map(([skill]) => skill);
-  if (!focusSkills.length) return res.redirect('/training');
+  // A retake of a retake still stands in for the same original practice.
+  const originalId = retakeOf(assessment) || assessment.id;
+  const ready = await preparedRetake(actor, assessment, originalId, lastAttempt);
+  if (ready) return res.redirect(startUrl(ready));
+  const lockKey = `retake:${actor.id}:${originalId}`;
+  if (!claim(lockKey)) return renderRetakeProblem(res, assessment, 409, 'Your retake is already being prepared. Wait a moment, then press "Try again" to open it.');
+  try {
+    const focusSkills = focusSkillsFor(safeParse(lastAttempt.skillBreakdownJson, {}), assessment.passingScore);
+    const course = await prisma.trainingCourse.findUnique({ where: { id: assessment.courseId }, include: { analysis: true, modules: true } });
+    if (!course) return res.status(404).render('not-found', { layout: false });
+    // Written from the learner's own version of the material, stamped with that version (its material gate and assignment).
+    const version = loaded.recipient ? loaded.recipient.assignment.courseVersion : assessment.version;
+    const source = retakeSource(course, assessment, version);
+    const common = { course, analysis: source, actor, level: Math.min(5, (assessment.level || 3) + 1), focusSkills: focusSkills.length ? focusSkills : null, status: 'APPROVED', retakeOf: originalId, version };
+    // Each new set of questions is an AI job: a few a day per person, and inside the shared AI limits.
+    const remediationBucket = `remediate:${actor.id}`;
+    if (await isRateLimited(remediationBucket, { maxAttempts: 5, windowMs: 24 * 60 * 60 * 1000 }) || !(await takeAiSlot(actor, { learner: true }))) return renderRetakeProblem(res, assessment, 429, 'You have already prepared several focused practices today. Try again later, or retake the practice as it is.');
+    await recordAttempt(remediationBucket, true);
+    let newAssessment;
+    try {
+      newAssessment = assessment.type === 'PROCESS_SIM' && safeParse(assessment.configJson, {}).nodes
+        ? await require('../lib/processSimulation').generateProcessAssessment(common)
+        : ['ROLEPLAY', 'VOICE'].includes(assessment.type)
+        ? await generateRoleplayAssessment({ ...common, type: assessment.type })
+        : await generateQuestionAssessment({ ...common, type: assessment.type, questionCount: Math.min(15, Math.max(3, focusSkills.length ? focusSkills.length * 2 : assessment.questions.length)) });
+    } catch {
+      return renderRetakeProblem(res, assessment, 503, 'Your retake could not be prepared right now. Nothing was lost — press "Try again" in a moment, or retake the practice as it is.');
+    }
 
-  const goBack = (message) => res.status(409).render('error', { layout: false, heading: 'Practice not available yet', message, action: { label: 'Back to the training', href: `/training-course/${assessment.courseId}` } });
-  const course = await prisma.trainingCourse.findUnique({ where: { id: assessment.courseId }, include: { analysis: true } });
-  if (!course || !course.analysis) return res.redirect('/training');
-
-  // Pressing the button twice, or coming back to it, opens the practice that was already prepared from this result - it
-  // is never generated (and paid for) again.
-  const prepared = (await prisma.assessment.findMany({ where: { courseId: course.id, createdById: actor.id, status: 'APPROVED', archivedAt: null, createdAt: { gte: lastAttempt.completedAt || lastAttempt.createdAt }, configJson: { contains: 'targetedRetake' } }, orderBy: { createdAt: 'desc' }, include: { _count: { select: { attempts: true } } } })).find((a) => a.type === assessment.type && a._count.attempts === 0);
-  if (prepared) return res.redirect(prepared.type === 'ROLEPLAY' ? `/assessments/${prepared.id}/roleplay` : `/assessments/${prepared.id}/take`);
-
-  // Each new set of questions is an AI job: a few a day per person, and inside the shared AI limits.
-  const remediationBucket = `remediate:${actor.id}`;
-  if (await isRateLimited(remediationBucket, { maxAttempts: 5, windowMs: 24 * 60 * 60 * 1000 }) || !(await takeAiSlot(actor, { learner: true }))) return goBack('You have already prepared several focused practices today. Try again later, or go over the material first.');
-  await recordAttempt(remediationBucket, true);
-  const nextLevel = Math.min(5, (assessment.level || 3) + 1);
-  const newAssessment = assessment.type === 'PROCESS_SIM' && safeParse(assessment.configJson, {}).nodes
-    ? await require('../lib/processSimulation').generateProcessAssessment({ course, analysis: course.analysis, actor, level: nextLevel, focusSkills, status: 'APPROVED' })
-    : ['ROLEPLAY', 'VOICE'].includes(assessment.type)
-    ? await generateRoleplayAssessment({ course, analysis: course.analysis, actor, level: nextLevel, focusSkills, status: 'APPROVED', type: assessment.type })
-    : await generateQuestionAssessment({
-        course,
-        analysis: course.analysis,
-        actor,
-        type: assessment.type,
-        level: nextLevel,
-        questionCount: Math.min(15, Math.max(3, focusSkills.length * 2)),
-        focusSkills,
-        status: 'APPROVED',
-      });
-
-  // Targeted retake practice the learner asks for after failing is auto-approved — it is
-  // scoped to skills they already have real evidence on, not new company-wide training that
-  // needs Admin/Supervisor review before assignment.
-
-  res.redirect(assessment.type === 'ROLEPLAY' ? `/assessments/${newAssessment.id}/roleplay` : `/assessments/${newAssessment.id}/take`);
+    // Retake practice the learner asks for after failing is auto-approved — it is scoped to their own
+    // result on a practice they were assigned, not new company-wide training that needs review.
+    res.redirect(startUrl(newAssessment));
+  } finally {
+    release(lockKey);
+  }
 });
 
 const voiceUpload = require('multer')({ storage: require('multer').memoryStorage(), limits: { fileSize: 20 * 1024 * 1024, files: 1 } });

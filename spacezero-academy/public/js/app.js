@@ -430,3 +430,34 @@
   window.addEventListener('scroll', function () { menus.forEach(function (menu) { menu.open = false; }); }, true);
   window.addEventListener('resize', function () { menus.forEach(function (menu) { if (menu.open) place(menu); }); });
 })();
+
+// Side panels: <button data-dialog-open="id"> opens <dialog class="drawer" id="id">. Esc, a
+// [data-dialog-close] button or a click on the dimmed backdrop closes it; data-open-on-load opens it
+// as the page loads (e.g. a form that came back with errors).
+(function () {
+  document.querySelectorAll('[data-dialog-open]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var dialog = document.getElementById(btn.getAttribute('data-dialog-open'));
+      if (dialog && dialog.showModal && !dialog.open) dialog.showModal();
+    });
+  });
+  document.querySelectorAll('dialog.drawer').forEach(function (dialog) {
+    dialog.addEventListener('click', function (e) { if (e.target === dialog) dialog.close(); });
+    dialog.querySelectorAll('[data-dialog-close]').forEach(function (btn) {
+      btn.addEventListener('click', function () { dialog.close(); });
+    });
+    if (dialog.hasAttribute('data-open-on-load') && dialog.showModal) dialog.showModal();
+  });
+})();
+
+// Table rows with data-href open that page when clicked anywhere, except on the row's own links,
+// buttons and form controls, which keep doing their own thing.
+(function () {
+  document.querySelectorAll('tr[data-href]').forEach(function (row) {
+    row.addEventListener('click', function (e) {
+      if (e.target.closest('a, button, input, select, textarea, label, summary')) return;
+      if (window.getSelection && String(window.getSelection())) return; // selecting text, not opening
+      window.location.href = row.getAttribute('data-href');
+    });
+  });
+})();

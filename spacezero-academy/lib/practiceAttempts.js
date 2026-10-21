@@ -1,19 +1,15 @@
 'use strict';
 
 // Wires a completed practice/assessment attempt into the real Skill Graph (spec section 14):
-// writes SkillEvidence for every skill the attempt touched (matched by name against the
-// organization's existing Skill rows — unmatched AI-suggested skill names are still shown to
+// writes SkillEvidence for every skill the attempt touched (matched by name, ignoring case, against
+// the catalog skills of the learner's role - lib/skillCatalog.js; unmatched names are still shown to
 // the learner/reviewer but don't write evidence against a skill that doesn't exist), then
 // recomputes EmployeeSkill.currentScore via lib/scoring.js's transparent weighting.
 const { prisma } = require('./prisma');
 const { recomputeSkillScore, evidenceWeight } = require('./scoring');
 const { getSetting } = require('./orgSettings');
 const { createNotification } = require('./notifications');
-
-async function findMatchingSkillId(organizationId, skillName) {
-  const skill = await prisma.skill.findFirst({ where: { organizationId, name: { equals: skillName } } });
-  return skill ? skill.id : null;
-}
+const { skillMatcher } = require('./skillCatalog');
 
 /**
  * Records one TrainingAttempt against an Assessment for a learner who already has a
@@ -40,8 +36,9 @@ async function recordAssessmentAttempt({ actor, assessment, recipientId, score, 
     },
   });
 
+  const skillIdOf = await skillMatcher(assessment.organizationId, actor.role);
   for (const [skillName, skillScore] of Object.entries(skillBreakdown || {})) {
-    const skillId = await findMatchingSkillId(assessment.organizationId, skillName);
+    const skillId = skillIdOf(skillName);
     if (!skillId) continue;
     const employeeSkill = await prisma.employeeSkill.upsert({
       where: { profileId_skillId: { profileId: actor.id, skillId } },

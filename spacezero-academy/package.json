@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node --watch server.js",
+    "dev": "node --env-file-if-exists=.env --watch server.js",
     "start": "node server.js",
     "db:seed": "node prisma/seed.js",
     "lint": "eslint .",

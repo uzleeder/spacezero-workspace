@@ -3,29 +3,35 @@ const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { resolveStoragePath } = require('./storage');
 
-const run = promisify(execFile);
+// Which ffprobe to run: FFPROBE_PATH, else the bundled ffprobe-static binary, else one installed on the computer
+// (Homebrew, then the PATH). The bundled "darwin/arm64" build is an Intel binary that an Apple Silicon Mac without
+// Rosetta cannot start - every upload used to fail there. Only a binary that cannot START is skipped; a file
+// ffprobe ran on and could not read is still an error. The first binary that starts is remembered.
+const bundled = () => { try { return require('ffprobe-static').path; } catch { return null; } };
+const candidates = () => [...new Set([process.env.FFPROBE_PATH, bundled(), '/opt/homebrew/bin/ffprobe', '/usr/local/bin/ffprobe', '/usr/bin/ffprobe', 'ffprobe'].filter(Boolean))];
+// A spawn failure (missing, not executable, wrong CPU type) has a string code; a run that exited badly has a number.
+const couldNotStart = (err) => Boolean(err) && typeof err.code === 'string';
+let working = null;
 
-// Which ffprobe to try, in order: the one named by FFPROBE_PATH (the production image uses the system one), the one
-// bundled with the app, and the system's own. The bundled "arm64" binary is really an x86-64 program on Apple Silicon
-// Macs (it cannot even start: "spawn Unknown system error -86"), so a program that fails to START is skipped and the next
-// is tried - a program that starts and says the FILE is bad is the answer, and is not retried.
-function candidates() {
-  let bundled = null;
-  try { bundled = require('ffprobe-static').path; } catch { /* not installed here: the system one is used */ }
-  return [...new Set([process.env.FFPROBE_PATH, bundled, 'ffprobe'].filter(Boolean))];
+async function runFfprobe(args, options) {
+  const order = working ? [working, ...candidates().filter((c) => c !== working)] : candidates();
+  for (const bin of order) {
+    try {
+      const out = await promisify(execFile)(bin, args, options);
+      working = bin;
+      return out;
+    } catch (err) {
+      if (!couldNotStart(err)) throw err;
+      if (bin === working) working = null;
+    }
+  }
+  throw new Error('ffprobe could not be started. Install ffmpeg (for example "brew install ffmpeg") or set FFPROBE_PATH.');
 }
-const failedToStart = (err) => /^spawn/.test(String(err.syscall || '')) || ['ENOENT', 'EACCES', 'EBADARCH', 'ENOEXEC'].includes(err.code) || err.errno === -86;
 
 async function probeMedia(storagePath) {
-  const args = ['-v', 'error', '-show_entries', 'format=duration', '-of', 'json', resolveStoragePath(storagePath)];
-  let stdout; let lastError;
-  for (const program of candidates()) {
-    try { ({ stdout } = await run(program, args, { timeout: 30000, maxBuffer: 1024 * 1024, windowsHide: true })); lastError = null; break; }
-    catch (err) { lastError = err; if (!failedToStart(err)) break; }
-  }
-  if (lastError) throw lastError;
+  const { stdout } = await runFfprobe(['-v', 'error', '-show_entries', 'format=duration', '-of', 'json', resolveStoragePath(storagePath)], { timeout: 30000, maxBuffer: 1024 * 1024, windowsHide: true });
   const duration = Number(JSON.parse(stdout).format?.duration);
   if (!Number.isFinite(duration) || duration <= 0 || duration > 8 * 3600) throw new Error('Recording must have a valid duration of up to 8 hours.');
   return duration;
 }
-module.exports = { probeMedia, candidates };
+module.exports = { probeMedia, candidates, couldNotStart };

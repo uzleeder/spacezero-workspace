@@ -8,6 +8,7 @@
 const { prisma } = require('./prisma');
 const engine = require('./skillEngine');
 const { aggregatesFor, historyFor } = require('./skillIntel');
+const { trainingStatuses, newestFirst } = require('./trainingCompletion');
 
 const DAY_MS = 86400000;
 const WEAK = 70; // the 70% line is used for attention, alongside (not instead of) the configurable status bands
@@ -23,11 +24,13 @@ async function loadPeople(organizationId, profileIds) {
 async function loadLearning(profileIds, now) {
   const recipients = await prisma.trainingAssignmentRecipient.findMany({
     where: { profileId: { in: profileIds }, assignment: { course: { status: 'PUBLISHED', archivedAt: null } } },
-    include: { attempts: { select: { status: true, attemptNumber: true, score: true, assessmentId: true, createdAt: true } }, assignment: { select: { dueDate: true, course: { select: { id: true, title: true, mandatory: true } } } } },
+    include: { attempts: { select: { status: true, attemptNumber: true, score: true, assessmentId: true, createdAt: true, completedAt: true } }, assignment: { select: { dueDate: true, courseId: true, courseVersion: true, assessmentId: true, requiredAttempts: true, minimumScore: true, course: { select: { id: true, title: true, mandatory: true } } } } },
   });
-  return recipients.map((r) => {
-    const latest = [...r.attempts].sort((a, b) => b.attemptNumber - a.attemptNumber)[0] || null;
-    const status = latest ? latest.status : 'NOT_STARTED';
+  // The same status My Training shows (lib/trainingCompletion.js), not "the attempt with the highest number".
+  const statuses = await trainingStatuses(recipients);
+  return recipients.map((r, i) => {
+    const latest = [...r.attempts].sort(newestFirst)[0] || null;
+    const status = statuses[i];
     const due = r.assignment.dueDate;
     return { profileId: r.profileId, course: r.assignment.course, status, latest, due, overdue: Boolean(due && due < now && status !== 'COMPLETED'), retake: status === 'RETAKE_REQUIRED' || status === 'FAILED' };
   });
