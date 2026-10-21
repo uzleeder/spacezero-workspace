@@ -559,7 +559,7 @@ test('an impersonated session (HTTP) can never open the vault, even for the empl
   // Same supervisor session: allowed normally, refused the moment it is an admin's "view as" session.
   assert.equal((await post(supA, `/credentials/${cred.id}/reveal`, { password: PASSWORD })).status, 200);
   const impersonated = await request(app).post(`/credentials/${cred.id}/reveal`).set('Cookie', viaLoginAs(supA)).type('form').send({ password: PASSWORD });
-  assert.equal(impersonated.status, 404);
+  assert.ok([403, 404].includes(impersonated.status), `status ${impersonated.status}`);   // refused: look-only while viewing as someone else (or not found)
   const asAgent = await request(app).get(`/employees/${agentA.id}/credentials`).set('Cookie', viaLoginAs(agentA));
   assert.ok(denied(asAgent));
   assert.doesNotMatch(asAgent.text, /Credentials<\/a>/);

@@ -12,6 +12,7 @@ const { readinessFor } = require('../lib/readiness');
 const { requireRole } = require('../lib/authMiddleware');
 const { supervisedProfileIds, isSupervisorOfAgent } = require('../lib/authz');
 const { getTrainingSummaries, getMyTrainingList } = require('../lib/training');
+const { retakeTarget } = require('../lib/trainingCompletion');
 const { loadProfileOverview } = require('../lib/profileOverview');
 const { tabsForRequest } = require('../lib/employeeTabs');
 const { loadSetupForProfiles } = require('../lib/employeeSetup');
@@ -75,9 +76,9 @@ router.post('/training/:recipientId/retake', requireRole('ADMIN', 'SUPERVISOR'),
     if (actor.role === 'SUPERVISOR' && !(await isSupervisorOfAgent(actor.id, recipient.profileId))) {
       return res.status(403).render('forbidden');
     }
-    // The submission (course-level attempt) is what a retake reopens; practice attempts alone would leave the training completed.
-    const latest = (await prisma.trainingAttempt.findFirst({ where: { recipientId: recipient.id, assessmentId: null }, orderBy: { attemptNumber: 'desc' } }))
-      || (await prisma.trainingAttempt.findFirst({ where: { recipientId: recipient.id }, orderBy: { attemptNumber: 'desc' } }));
+    // The submission (course-level attempt) is what a retake reopens; practice attempts alone would leave the training
+    // completed. The same rule as the bulk retake (lib/trainingCompletion.js retakeTarget).
+    const latest = retakeTarget(await prisma.trainingAttempt.findMany({ where: { recipientId: recipient.id } }));
     if (latest) {
       await prisma.trainingAttempt.update({
         where: { id: latest.id },

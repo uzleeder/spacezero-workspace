@@ -1,6 +1,6 @@
 <%- include('../partials/page-header', { pageTitle: 'Call reviews', pageDescription: 'Every call review across the organization.' }) %>
 
-<%- include('../partials/management-tabs', { tabs: tabsets.employees }) %>
+<%- include('../partials/management-tabs', { tabs: tabsets.employees, sticky: true }) %>
 
 <div class="card mt-24">
   <% if (reviews.length === 0) { %>

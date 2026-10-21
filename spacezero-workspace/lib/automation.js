@@ -20,6 +20,7 @@ const { registerJobType } = require('./jobQueue');
 const { runOnboarding } = require('./onboarding');
 const { coversSkill, estimateMinutes } = require('./development');
 const { liveVersion } = require('./courseVersions');
+const { isSubmitted, trainingStatuses } = require('./trainingCompletion');
 const { runPassportReminders } = require('./passport');
 
 const DAY_MS = 86400000;
@@ -61,8 +62,8 @@ async function autoAssign({ organizationId, courseId, assessmentId, profileId, a
     const ok = await prisma.assessment.findFirst({ where: { id: assessmentId, courseId, status: 'APPROVED', archivedAt: null, version: liveVersion(course) } });
     if (!ok) return null;
   }
-  const existing = await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId, assignment: { courseId, assessmentId: assessmentId || null } }, include: { attempts: { select: { status: true }, orderBy: { attemptNumber: 'desc' }, take: 1 } } });
-  if (existing && (!existing.attempts[0] || existing.attempts[0].status !== 'COMPLETED')) return null; // already open
+  const existing = await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId, assignment: { courseId, assessmentId: assessmentId || null } }, include: { attempts: { select: { status: true, assessmentId: true, attemptNumber: true, createdAt: true } } } });
+  if (existing && !isSubmitted(existing.attempts)) return null; // already open (a passed practice is not a finished training)
   const floor = await getSetting(organizationId, 'training.minPassingScore');
   const assigned = await prisma.$transaction(async (tx) => {
     const assignment = await tx.trainingAssignment.create({ data: { organizationId, courseId, assessmentId: assessmentId || null, assignedById, scope: 'INDIVIDUAL', notes: note, courseVersion: liveVersion(course), minimumScore: Math.max(floor, course.passingScore) } });
@@ -191,8 +192,9 @@ async function ruleMatches(rule, person, skillRows, now) {
     because.push(`${row.skill.name} is ${Math.round(row.currentScore)}% (${row.confidenceLevel.toLowerCase()} evidence confidence)`);
   }
   if (c.retakeOutstanding) {
-    const outstanding = await prisma.trainingAssignmentRecipient.count({ where: { profileId: person.id, attempts: { some: { status: 'RETAKE_REQUIRED' } } } });
-    if (!outstanding) return null;
+    // Outstanding = a training whose status is Retake required now; a failure that was later passed is not.
+    const candidates = await prisma.trainingAssignmentRecipient.findMany({ where: { profileId: person.id, attempts: { some: { status: 'RETAKE_REQUIRED' } } }, include: { assignment: true, attempts: true } });
+    if (!(await trainingStatuses(candidates)).includes('RETAKE_REQUIRED')) return null;
     because.push('a retake is outstanding');
   }
   if (!because.length && !Number.isFinite(c.minAgeDays) && !c.skillId && !c.retakeOutstanding) return null; // an empty rule would match everybody: never
@@ -233,10 +235,10 @@ async function runNotifications(organizationId, now) {
   const out = { dueSoon: 0, overdue: 0, supervisor: 0, admin: 0 };
   const recipients = await prisma.trainingAssignmentRecipient.findMany({
     where: { assignment: { organizationId, dueDate: { not: null }, course: { status: 'PUBLISHED', archivedAt: null } }, profile: { status: 'ACTIVE' } },
-    include: { assignment: { select: { dueDate: true, course: { select: { title: true } } } }, attempts: { select: { status: true, attemptNumber: true }, orderBy: { attemptNumber: 'desc' }, take: 1 }, profile: { select: { id: true, fullName: true } } },
+    include: { assignment: { select: { dueDate: true, course: { select: { title: true } } } }, attempts: { select: { status: true, assessmentId: true, attemptNumber: true, createdAt: true } }, profile: { select: { id: true, fullName: true } } },
   });
   for (const r of recipients) {
-    if (r.attempts[0] && r.attempts[0].status === 'COMPLETED') continue;
+    if (isSubmitted(r.attempts)) continue; // finished; a passed practice alone does not stop due/overdue reminders
     const due = r.assignment.dueDate; const title = r.assignment.course.title;
     if (due < now) {
       if (await notifyOnce(r.profileId, `overdue:${r.id}`, { type: 'training.overdue', title: 'Training overdue', body: `"${title}" was due ${due.toISOString().slice(0, 10)}.`, link: '/training' })) out.overdue += 1;

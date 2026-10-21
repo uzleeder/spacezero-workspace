@@ -37,6 +37,7 @@ before(async () => {
     return p;
   };
   admin = await mk('ADMIN', 'admin'); agent = await mk('TRAVEL_AGENT', 'agent');
+  await require('../lib/orgSettings').setSetting(org.id, 'training.retakeWaitMinutes', 0, admin.id); // these tests fail and retry straight away
   course = await prisma.trainingCourse.create({ data: { organizationId: org.id, title: 'Flow course', createdById: admin.id, status: 'PUBLISHED' } });
   quiz = await practice(course.id, 'QUIZ', 'Flow quiz');
   role = await practice(course.id, 'ROLEPLAY', 'Flow role-play', { configJson: JSON.stringify({ customerPersonality: 'calm', scenarioBrief: 'A client calls.', openingLine: 'Hello.', rubricSkills: ['Opening', 'Discovery', 'Closing'] }) });

@@ -5,7 +5,7 @@
   var wrap = directory.querySelector('.table-wrap');
   var heading = directory.querySelector('.employee-directory__heading');
   var topbar = document.querySelector('.topbar');
-  var toolbar = document.querySelector('.employee-directory-toolbar');
+  var toolbar = document.querySelector('.tabs--sticky');
   var source = wrap && wrap.querySelector('thead');
   var copy;
   if (source) {
@@ -17,7 +17,6 @@
   }
   function measure() {
     var topHeight = topbar ? topbar.getBoundingClientRect().height : 0;
-    if (toolbar) toolbar.style.setProperty('--toolbar-top', topHeight + 'px');
     directory.style.setProperty('--directory-top', (topHeight + (toolbar ? toolbar.getBoundingClientRect().height : 0)) + 'px');
     if (!source) return;
     copy.style.width = wrap.querySelector('table').getBoundingClientRect().width + 'px';
@@ -28,6 +27,45 @@
     heading.scrollLeft = wrap.scrollLeft;
   }
   measure();
+
+  // Live search: as you type, only the rows whose name, username or e-mail contain every word stay
+  // visible ("an" keeps Daniel and Hannah, "dan ort" keeps Daniel Ortiz). The address bar follows along,
+  // so Apply filters, refresh and sharing the link keep the search.
+  var search = document.querySelector('[data-live-search]');
+  var rows = wrap ? wrap.querySelectorAll('tbody tr[data-search]') : [];
+  var empty = directory.querySelector('[data-live-empty]');
+  if (search && rows.length) {
+    var loadedWith = search.value.trim().toLowerCase(); // the server already narrowed the list to this
+    var reload;
+    var apply = function () {
+      var value = search.value.trim().toLowerCase();
+      // Rows the server left out (page opened with a search) can only come back from the server.
+      if (loadedWith && value.indexOf(loadedWith) === -1) {
+        clearTimeout(reload);
+        reload = setTimeout(function () { search.form.requestSubmit ? search.form.requestSubmit() : search.form.submit(); }, 400);
+        return;
+      }
+      var words = value.split(/\s+/).filter(Boolean);
+      var shown = 0;
+      rows.forEach(function (row) {
+        var text = row.getAttribute('data-search');
+        var match = words.every(function (w) { return text.indexOf(w) !== -1; });
+        row.hidden = !match;
+        row.classList.toggle('is-alt', match && shown % 2 === 1); // keep the stripes even among visible rows
+        if (match) shown += 1;
+      });
+      wrap.querySelector('table').classList.toggle('is-filtered', words.length > 0);
+      wrap.hidden = shown === 0;
+      heading.parentElement.hidden = shown === 0; // the pinned column labels have no columns to label
+      if (empty) empty.hidden = shown > 0;
+      var url = new URL(window.location.href);
+      if (value) url.searchParams.set('q', search.value.trim()); else url.searchParams.delete('q');
+      window.history.replaceState(null, '', url);
+      if (shown) measure();
+    };
+    search.addEventListener('input', apply);
+  }
+
   if (window.ResizeObserver) {
     var observer = new ResizeObserver(measure);
     observer.observe(directory);
@@ -37,18 +75,20 @@
   } else window.addEventListener('resize', measure);
 }());
 
-// "See more" pill next to the quick filters: shows/hides the search + filter bar below, instead
-// of it always taking up space. Starts open server-side when a filter is already applied.
+// Searching or applying filters sends only the fields that are filled in, so the address bar reads
+// "?role=TRAVEL_AGENT&teamId=…" instead of a long list of empty "&status=&teamId=&…".
 (function () {
   'use strict';
-  var toggle = document.querySelector('[data-employee-filters-toggle]');
-  var panel = document.getElementById('employee-filters-panel');
-  if (!toggle || !panel) return;
-  toggle.addEventListener('click', function () {
-    var opening = panel.hasAttribute('hidden');
-    if (opening) panel.removeAttribute('hidden'); else panel.setAttribute('hidden', '');
-    toggle.setAttribute('aria-expanded', opening ? 'true' : 'false');
-    toggle.classList.toggle('btn-gold', opening);
-    toggle.classList.toggle('btn-secondary', !opening);
+  var form = document.querySelector('form.mgmt-toolbar');
+  if (!form) return;
+  form.addEventListener('submit', function () {
+    form.querySelectorAll('input[name], select[name]').forEach(function (field) {
+      var empty = (field.type === 'checkbox' || field.type === 'radio') ? !field.checked : field.value === '';
+      if (empty) field.disabled = true;
+    });
+  });
+  // Coming back with the browser's Back button may restore the page as it was left, fields disabled.
+  window.addEventListener('pageshow', function () {
+    form.querySelectorAll('[disabled]').forEach(function (field) { field.disabled = false; });
   });
 }());

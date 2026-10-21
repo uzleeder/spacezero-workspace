@@ -1,0 +1,16 @@
+<%- include('../partials/page-header', { pageTitle: 'Retake — ' + assessment.title }) %>
+
+<div class="form-alert error mt-16" role="alert"><%= message %></div>
+
+<div class="card mt-24" style="margin-bottom:40px">
+  <div class="card-body">
+    <p>Your result is saved. You can try preparing the retake again, or retake the practice as it is now.</p>
+    <div class="mt-16" style="display:flex;gap:8px;flex-wrap:wrap">
+      <form method="post" action="/assessments/<%= assessment.id %>/remediate">
+        <button type="submit" class="btn btn-gold">Try again</button>
+      </form>
+      <a href="<%= practiceUrl %>" class="btn btn-secondary">Retake the practice as it is</a>
+      <a href="/training-course/<%= assessment.courseId %>#practice" class="btn btn-secondary">Back to the training</a>
+    </div>
+  </div>
+</div>

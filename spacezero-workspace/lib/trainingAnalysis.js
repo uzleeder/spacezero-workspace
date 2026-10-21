@@ -24,6 +24,8 @@ const EXT_MIME = {
   '.doc': 'application/msword', '.ppt': 'application/vnd.ms-powerpoint',
   '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.flac': 'audio/flac', '.opus': 'audio/ogg', '.oga': 'audio/ogg', '.weba': 'audio/webm', '.m4v': 'video/mp4', '.ogv': 'video/ogg',
+  '.bmp': 'image/bmp', '.avif': 'image/avif',
 };
 
 function guessMimeType(storagePath) {

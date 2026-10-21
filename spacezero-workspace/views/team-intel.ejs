@@ -1,5 +1,5 @@
 <%- include('partials/page-header', { pageTitle: 'Team Intelligence', pageDescription: 'Who needs your attention, why, and what to assign.' }) %>
-<%- include('partials/management-tabs', { tabs: tabsets.employees }) %>
+<%- include('partials/management-tabs', { tabs: tabsets.employees, sticky: true }) %>
 
 <% if (typeof error !== 'undefined' && error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
 

@@ -80,6 +80,7 @@ app.use(attachProfile);
 app.use(require('./lib/privateUploads').privateUploads);
 app.use('/static/uploads', express.static(require('./lib/uploadRoot').UPLOAD_ROOT, { dotfiles: 'deny', fallthrough: false, cacheControl: false, setHeaders: (res) => res.setHeader('Cache-Control', 'private, max-age=600') })); // avatars/thumbnails: the viewer's own browser may reuse them for a few minutes (each fetch costs an authorization query)
 app.use(attachImpersonation);
+app.use(require('./lib/impersonation').blockWritesWhileViewingAs); // an Admin looking at an employee's account writes nothing in their name
 app.use(require('./lib/objectAccess').objectAccess);
 
 // The one-time "initial System Configuration Access" seeding only needs to be attempted once per
@@ -123,6 +124,8 @@ app.use(async (req, res, next) => {
   res.locals.unreadNotifications = unread;
   res.locals.notificationPreview = preview;
   res.locals.formatRelativeTime = formatRelativeTime;
+  res.locals.guarded = false;                                    // quiz pages turn this on (routes/practice.js)
+  res.locals.gt = require('./lib/quizGuard').textHelper(false);  // question text helper: plain unless guarded
   res.locals.theme = themeFor(req); // dark unless this browser chose light (lib/theme.js)
   next();
 });

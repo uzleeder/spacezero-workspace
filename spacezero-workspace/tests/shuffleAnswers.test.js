@@ -10,11 +10,12 @@ const aiQuestions = Array.from({ length: 12 }, (_, i) => ({
   type: ['MCQ', 'MULTI_SELECT', 'SCENARIO', 'ORDERING', 'TRUE_FALSE', 'SHORT_ANSWER'][i % 6],
   prompt: `Question ${i + 1}`,
   options: ['TRUE_FALSE', 'SHORT_ANSWER'].includes(['MCQ', 'MULTI_SELECT', 'SCENARIO', 'ORDERING', 'TRUE_FALSE', 'SHORT_ANSWER'][i % 6]) ? (i % 6 === 4 ? ['True', 'False'] : undefined) : [`Right ${i}`, `Wrong ${i}a`, `Wrong ${i}b`, `Wrong ${i}c`, 'All of the above'],
-  correctAnswer: `Right ${i}`,
+  correctAnswer: i % 6 === 4 ? 'True' : `Right ${i}`,
 }));
 mock.method(require('../lib/gemini'), 'generateStructured', async () => ({ modelVersion: 'test', data: { questions: aiQuestions } }));
 const { generateQuestionAssessment } = require('../lib/practiceEngine');
 const { shuffleOptions, displayOptions, shuffleChoices } = require('../lib/shuffleOptions');
+const { keyFor } = require('../lib/answerKey');
 const { prisma } = require('../lib/prisma');
 const { generateToken } = require('../lib/tokens');
 const app = require('../server');
@@ -79,7 +80,7 @@ test('generated questions are saved with stirred choices (the correct answer is 
     if (!original) { assert.equal(row.optionsJson, null); return; }
     const saved = JSON.parse(row.optionsJson);
     assert.deepEqual([...saved].sort(), [...original].sort());                     // same choices
-    assert.equal(JSON.parse(row.correctAnswerJson), aiQuestions[i].correctAnswer);   // same answer
+    assert.deepEqual(keyFor(row).answers, [aiQuestions[i].correctAnswer]);           // same answer (several are saved as a list)
     if (row.type === 'TRUE_FALSE') { assert.deepEqual(saved, original); return; }
     withOptions += 1;
     assert.notDeepEqual(saved, original);

@@ -25,13 +25,14 @@ router.get('/login', (req, res) => {
 });
 
 router.post('/login', async (req, res) => {
+  const keepNext = String(req.body.next || '').slice(0, 500); // a typo must not forget where the person was going (the redirect still goes through safeRedirect)
   const parsed = LoginSchema.safeParse({ identifier: req.body.identifier, password: req.body.password });
   if (!parsed.success) {
-    return res.render('auth/login', { layout: false, error: 'Please fill in all fields.', reset: false, next: '' });
+    return res.render('auth/login', { layout: false, error: 'Please fill in all fields.', reset: false, next: keepNext });
   }
   const companyCode = String(req.body.companyCode || '').trim().toLowerCase();
   if (!VALID_COMPANY_CODES.has(companyCode)) {
-    return res.render('auth/login', { layout: false, error: 'Invalid company code.', reset: false, next: '' });
+    return res.render('auth/login', { layout: false, error: 'Invalid company code.', reset: false, next: keepNext });
   }
   const { identifier, password } = parsed.data;
   const { ip, userAgent } = clientMeta(req);
@@ -42,7 +43,7 @@ router.post('/login', async (req, res) => {
       layout: false,
       error: 'Too many attempts. Please try again in 15 minutes.',
       reset: false,
-      next: '',
+      next: keepNext,
     });
   }
 
@@ -52,7 +53,7 @@ router.post('/login', async (req, res) => {
 
   const fail = (msg) => {
     return recordAttempt(bucketKey, false).then(() =>
-      res.render('auth/login', { layout: false, error: msg, reset: false, next: '' })
+      res.render('auth/login', { layout: false, error: msg, reset: false, next: keepNext })
     );
   };
 

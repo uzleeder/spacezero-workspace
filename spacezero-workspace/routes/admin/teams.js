@@ -9,6 +9,8 @@ const { TeamSchema } = require('../../lib/validation');
 const { logAudit } = require('../../lib/audit');
 const { loadSetupForProfiles } = require('../../lib/employeeSetup');
 
+const SUPERVISED_ROLES = ['TRAVEL_AGENT', 'FLIGHT_EXPERT'];
+
 /** Teams with their supervisor and agents, each with setup readiness. The relationships are the ones that drive authorization. */
 async function loadHierarchy(admin) {
   const teams = await prisma.team.findMany({
@@ -28,8 +30,9 @@ async function loadHierarchy(admin) {
       return {
         team,
         supervisors: members.filter((p) => p.role === 'SUPERVISOR'),
-        agents: members.filter((p) => p.role === 'TRAVEL_AGENT').map((p) => ({ profile: p, supervisor: supervisorOf.get(p.id) || null })),
-        others: members.filter((p) => !['SUPERVISOR', 'TRAVEL_AGENT'].includes(p.role)),
+        // Agents and Flight Experts both report to a supervisor, so both are listed (and checked) the same way.
+        agents: members.filter((p) => SUPERVISED_ROLES.includes(p.role)).map((p) => ({ profile: p, supervisor: supervisorOf.get(p.id) || null })),
+        others: members.filter((p) => p.role !== 'SUPERVISOR' && !SUPERVISED_ROLES.includes(p.role)),
       };
     }),
   };

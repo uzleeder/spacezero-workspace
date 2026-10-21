@@ -10,6 +10,9 @@ const { prisma } = require('./prisma');
 const { generateStructured } = require('./gemini');
 const { shuffleOptions } = require('./shuffleOptions');
 const { rulesFor, sourceKindOf } = require('./practiceRules');
+const { fitToOptions } = require('./answerKey');
+const { retakeConfig } = require('./courseVersions');
+const { catalogNamesFor, toCatalog } = require('./skillCatalog');
 
 const QUESTION_TYPES = ['MCQ', 'MULTI_SELECT', 'ORDERING', 'MATCHING', 'SCENARIO', 'SHORT_ANSWER', 'TRUE_FALSE'];
 
@@ -20,18 +23,19 @@ const TYPE_GUIDANCE = {
   PRODUCT_KNOWLEDGE: 'Write questions that require identifying, comparing, or recommending real products (aircraft, cabins, seats, airlines, lounges) covered in the material — comparisons, "which is more appropriate for this traveler", and identification questions. Favor MCQ, MATCHING (product to feature), and SCENARIO ("recommend the best option for this traveler").',
 };
 
-const questionZodSchema = z.object({
-  questions: z.array(z.object({
-    type: z.enum(QUESTION_TYPES),
-    prompt: z.string(),
-    options: z.array(z.string()).optional(),
-    correctAnswer: z.union([z.string(), z.array(z.string())]),
-    explanation: z.string().optional(),
-    skillNames: z.array(z.string()).max(4).optional(),
-    sourceTitle: z.string().optional(),
-    sourceLocation: z.string().optional(),
-  })).min(3).max(15),
+const questionItemZod = z.object({
+  type: z.enum(QUESTION_TYPES),
+  prompt: z.string(),
+  options: z.array(z.string()).optional(),
+  correctAnswer: z.union([z.string(), z.array(z.string())]),
+  explanation: z.string().optional(),
+  skillNames: z.array(z.string()).max(4).optional(),
+  sourceTitle: z.string().optional(),
+  sourceLocation: z.string().optional(),
 });
+const questionZodSchema = z.object({ questions: z.array(questionItemZod).min(3).max(15) });
+// A rewrite of only the questions whose correct answer was not one of their options (see answerableQuestions).
+const repairZodSchema = z.object({ questions: z.array(questionItemZod).min(1).max(15) });
 
 const questionGeminiSchema = {
   type: Type.OBJECT,
@@ -65,28 +69,62 @@ const LEVEL_GUIDANCE = {
   5: 'Level 5 (Difficult Scenario): can the learner handle complications, objections, errors or edge cases?',
 };
 
+// A retake of the whole practice (there were no weak skills to aim at): the same material again, never the same items.
+const RETAKE_INSTRUCTION = 'This is a RETAKE of a practice the learner did not pass. Test the same material again with NEW questions or situations at a HIGHER difficulty than a first attempt - vary the scenarios and wording; never repeat an item word for word.';
+
+/**
+ * The AI's questions with every correct answer fitted to the question's own options (lib/answerKey.js). A
+ * question whose answer matches none of its options could never be answered correctly: the AI is asked once
+ * to rewrite just those, and any it still gets wrong is left out rather than saved.
+ */
+async function answerableQuestions(questions, { systemInstruction, contents }) {
+  const fit = (q) => { const fitted = fitToOptions(q); return fitted.problem ? null : { ...q, correctAnswer: fitted.correctAnswer }; };
+  const result = questions.map(fit);
+  const broken = questions.filter((_q, i) => !result[i]);
+  if (broken.length) {
+    const rewritten = await generateStructured({
+      systemInstruction,
+      contents: [
+        ...contents,
+        { role: 'model', parts: [{ text: JSON.stringify({ questions }) }] },
+        { role: 'user', parts: [{ text: `In these questions the correct answer is not one of the options, so nobody could answer them correctly. Rewrite each one (same type, testing the same thing) so its "correctAnswer" is copied exactly from its own "options". Return only these rewritten questions, in the same order:\n${JSON.stringify(broken)}` }] },
+      ],
+      responseSchema: questionGeminiSchema,
+      zodSchema: repairZodSchema,
+    }).then((r) => r.data.questions).catch(() => []);
+    let next = 0;
+    for (let i = 0; i < result.length; i += 1) {
+      if (result[i]) continue;
+      result[i] = rewritten[next] ? fit(rewritten[next]) : null;
+      next += 1;
+    }
+  }
+  const kept = result.filter(Boolean);
+  if (!kept.length) throw new Error('The AI wrote no question whose correct answer is one of its options. Please retry.');
+  return kept;
+}
+
 /**
  * Generates a QUIZ/TECHNICAL/PROCESS_SIM/PRODUCT_KNOWLEDGE Assessment + its Question rows from
  * an approved TrainingAnalysis, and saves them in DRAFT-reviewable (AI_GENERATED) status.
  */
-async function generateQuestionAssessment({ course, analysis, actor, type, level = 3, questionCount = 6, focusSkills = null, status = 'AI_GENERATED' }) {
-  const skillNames = focusSkills && focusSkills.length ? focusSkills : safeParse(analysis.extractedSkillsJson, []);
+async function generateQuestionAssessment({ course, analysis, actor, type, level = 3, questionCount = 6, focusSkills = null, status = 'AI_GENERATED', retakeOf = null, version = null }) {
+  // Questions are tagged with the organization's skill catalog names, so their results reach the Skill Graph.
+  const catalog = await catalogNamesFor(course);
+  const skillNames = focusSkills && focusSkills.length ? focusSkills : catalog.length ? catalog : safeParse(analysis.extractedSkillsJson, []);
   const focusInstruction = focusSkills && focusSkills.length
     ? `This is TARGETED RETAKE practice — the learner previously scored poorly on exactly these skills: ${JSON.stringify(focusSkills)}. Write every question to test ONLY these skills, at a HIGHER difficulty than a first attempt (vary the scenarios/wording so it isn't the same question repeated, but it must test the same underlying competency). Do NOT write questions about unrelated skills the learner already demonstrated.`
-    : '';
+    : retakeOf ? RETAKE_INSTRUCTION : '';
   const contents = [{
     role: 'user',
     parts: [{
-      text: `Course: ${course.title}\nCritical knowledge: ${analysis.criticalKnowledgeJson}\nPractical behaviors: ${analysis.practicalBehaviorsJson}\nCommon mistakes: ${analysis.commonMistakesJson}\nRelevant skills: ${JSON.stringify(skillNames)}\nSource map: ${JSON.stringify((safeParse(analysis.sourceReferencesJson, {}) || {}).facts || [])}\n\nGenerate ${questionCount} questions at difficulty ${LEVEL_GUIDANCE[level] || LEVEL_GUIDANCE[3]}`,
+      text: `Course: ${course.title}\nCritical knowledge: ${analysis.criticalKnowledgeJson}\nPractical behaviors: ${analysis.practicalBehaviorsJson}\nCommon mistakes: ${analysis.commonMistakesJson}\nRelevant skills (tag questions only with these exact names): ${JSON.stringify(skillNames)}${catalog.length && !(focusSkills && focusSkills.length) ? `\nSkills the material teaches: ${analysis.extractedSkillsJson || '[]'}` : ''}\nSource map: ${JSON.stringify((safeParse(analysis.sourceReferencesJson, {}) || {}).facts || [])}\n\nGenerate ${questionCount} questions at difficulty ${LEVEL_GUIDANCE[level] || LEVEL_GUIDANCE[3]}`,
     }],
   }];
 
-  const result = await generateStructured({
-    systemInstruction: `${rulesFor({ kind: sourceKindOf(analysis), type })}\n\nYou are writing a ${type.replace('_', ' ')} practice assessment for travel agency employees, based strictly on the training material summarized below. ${TYPE_GUIDANCE[type]} ${focusInstruction} Every question must be answerable from the given material — never invent company rules. For MCQ/MULTI_SELECT/MATCHING/ORDERING, put the answer choices in "options" and the correct one(s) in "correctAnswer" (comma-separate multiple correct answers). Tag each question with the 1-4 most relevant skill names from the provided list where applicable. Where you can, set sourceTitle and sourceLocation to the source and the page, slide, timestamp or section that teaches the answer (from the source map below); leave them empty rather than guessing.`,
-    contents,
-    responseSchema: questionGeminiSchema,
-    zodSchema: questionZodSchema,
-  });
+  const systemInstruction = `${rulesFor({ kind: sourceKindOf(analysis), type })}\n\nYou are writing a ${type.replace('_', ' ')} practice assessment for travel agency employees, based strictly on the training material summarized below. ${TYPE_GUIDANCE[type]} ${focusInstruction} Every question must be answerable from the given material — never invent company rules. For MCQ/MULTI_SELECT/MATCHING/ORDERING, put the answer choices in "options" and the correct one(s) in "correctAnswer", copied exactly from the options (comma-separate multiple correct answers). Tag each question with the 1-4 most relevant skill names from the provided list where applicable. Where you can, set sourceTitle and sourceLocation to the source and the page, slide, timestamp or section that teaches the answer (from the source map below); leave them empty rather than guessing.`;
+  const result = await generateStructured({ systemInstruction, contents, responseSchema: questionGeminiSchema, zodSchema: questionZodSchema });
+  const questions = await answerableQuestions(result.data.questions, { systemInstruction, contents });
 
   return prisma.$transaction(async (tx) => {
     const assessment = await tx.assessment.create({
@@ -95,17 +133,18 @@ async function generateQuestionAssessment({ course, analysis, actor, type, level
         courseId: course.id,
         createdVia: 'AI_TRAINING_ANALYSIS',
         type,
-        title: focusSkills && focusSkills.length ? `${course.title} — Targeted retake (${focusSkills.join(', ')})` : `${course.title} — ${type.replace('_', ' ')}`,
+        title: focusSkills && focusSkills.length ? `${course.title} — Targeted retake (${focusSkills.join(', ')})` : retakeOf ? `${course.title} — Retake` : `${course.title} — ${type.replace('_', ' ')}`,
         level,
         passingScore: course.passingScore,
         status,
-        configJson: focusSkills?.length ? JSON.stringify({ targetedRetake: true, focusSkills }) : null,
+        configJson: focusSkills?.length || retakeOf ? JSON.stringify(retakeConfig({ focusSkills, retakeOf })) : null,
         createdById: actor.id,
         modelVersion: result.modelVersion,
+        ...(version ? { version } : {}),
       },
     });
 
-    for (const [i, q] of result.data.questions.entries()) {
+    for (const [i, q] of questions.entries()) {
       await tx.question.create({
         data: {
           assessmentId: assessment.id,
@@ -115,7 +154,7 @@ async function generateQuestionAssessment({ course, analysis, actor, type, level
           optionsJson: q.options ? JSON.stringify(shuffleOptions(q.type, q.options)) : null,
           correctAnswerJson: JSON.stringify(q.correctAnswer),
           explanation: q.explanation || null,
-          skillIdsJson: JSON.stringify(q.skillNames || []),
+          skillIdsJson: JSON.stringify(toCatalog(q.skillNames || [], catalog)), // the catalog's spelling, so results match a skill
           sourceRefJson: q.sourceTitle ? JSON.stringify({ title: q.sourceTitle, location: q.sourceLocation || '' }) : null,
           displayOrder: i,
         },
@@ -155,11 +194,16 @@ const CUSTOMER_PERSONALITIES = ['busy executive', 'price-sensitive traveler', 's
  * Generates a ROLEPLAY Assessment's scenario config (no Question rows — the practice itself is
  * a live turn-based chat scored from the transcript at the end).
  */
-async function generateRoleplayAssessment({ course, analysis, actor, level = 3, focusSkills = null, status = 'AI_GENERATED', type = 'ROLEPLAY' }) {
+async function generateRoleplayAssessment({ course, analysis, actor, level = 3, focusSkills = null, status = 'AI_GENERATED', type = 'ROLEPLAY', retakeOf = null, version = null }) {
   const personality = CUSTOMER_PERSONALITIES[Math.floor(Math.random() * CUSTOMER_PERSONALITIES.length)];
+  // The rubric uses the organization's skill catalog names, so the role-play's result reaches the Skill Graph.
+  const catalog = await catalogNamesFor(course);
+  const rubricFrom = catalog.length
+    ? `skills copied exactly from this skill catalog: ${JSON.stringify(catalog)}`
+    : 'GENERAL skill categories (from: Opening, Discovery, Listening, Confidence, Call control, Client engagement, Product knowledge, Price presentation, Objection handling, Professionalism, Closing, Next-step creation)';
   const result = await generateStructured({
-    systemInstruction: `${rulesFor({ kind: sourceKindOf(analysis), type })}\n\nYou are designing a realistic client role-play for travel agency employees, based on this training material. The learner plays the travel agent; the AI plays the customer. The customer personality must be: "${personality}". The simulated customer must react naturally and must NOT be artificially easy — ${LEVEL_GUIDANCE[level] || LEVEL_GUIDANCE[3]}. Fill the fields like this: scenarioBrief = ONLY the client situation the learner will read (who is calling and what they ask for; no hints, no technique, no budget). openingLine = the customer's realistic first message. rubricSkills = 3-6 GENERAL skill categories (from: Opening, Discovery, Listening, Confidence, Call control, Client engagement, Product knowledge, Price presentation, Objection handling, Professionalism, Closing, Next-step creation) - never technique-specific wording. hiddenContext = what only the customer knows and reveals gradually: the real budget, the hidden objection, and what unlocks it. expectedTechnique = the technique or behaviour from the training that a good agent would use here and how to recognise it - used only to evaluate the learner afterwards.`,
-    contents: [{ role: 'user', parts: [{ text: `Course: ${course.title}\nCritical knowledge: ${analysis.criticalKnowledgeJson}\nPractical behaviors: ${analysis.practicalBehaviorsJson}\n${focusSkills?.length ? `Targeted retake: focus the scenario and rubric ONLY on these weak skills: ${JSON.stringify(focusSkills)}. Use a new situation to test the same competencies.` : ''}` }] }],
+    systemInstruction: `${rulesFor({ kind: sourceKindOf(analysis), type })}\n\nYou are designing a realistic client role-play for travel agency employees, based on this training material. The learner plays the travel agent; the AI plays the customer. The customer personality must be: "${personality}". The simulated customer must react naturally and must NOT be artificially easy — ${LEVEL_GUIDANCE[level] || LEVEL_GUIDANCE[3]}. Fill the fields like this: scenarioBrief = ONLY the client situation the learner will read (who is calling and what they ask for; no hints, no technique, no budget). openingLine = the customer's realistic first message. rubricSkills = 3-6 ${rubricFrom} - never technique-specific wording. hiddenContext = what only the customer knows and reveals gradually: the real budget, the hidden objection, and what unlocks it. expectedTechnique = the technique or behaviour from the training that a good agent would use here and how to recognise it - used only to evaluate the learner afterwards.`,
+    contents: [{ role: 'user', parts: [{ text: `Course: ${course.title}\nCritical knowledge: ${analysis.criticalKnowledgeJson}\nPractical behaviors: ${analysis.practicalBehaviorsJson}\n${focusSkills?.length ? `Targeted retake: focus the scenario and rubric ONLY on these weak skills: ${JSON.stringify(focusSkills)}. Use a new situation to test the same competencies.` : retakeOf ? RETAKE_INSTRUCTION : ''}` }] }],
     responseSchema: roleplayGeminiSchema,
     zodSchema: roleplayZodSchema,
   });
@@ -176,7 +220,8 @@ async function generateRoleplayAssessment({ course, analysis, actor, level = 3, 
       status,
       createdById: actor.id,
       modelVersion: result.modelVersion,
-      configJson: JSON.stringify({ ...result.data, ...(focusSkills?.length ? { targetedRetake: true, focusSkills } : {}) }),
+      configJson: JSON.stringify({ ...result.data, rubricSkills: toCatalog(result.data.rubricSkills, catalog), ...retakeConfig({ focusSkills, retakeOf }) }),
+      ...(version ? { version } : {}),
     },
   });
 }

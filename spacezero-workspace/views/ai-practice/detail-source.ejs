@@ -15,7 +15,7 @@
               <% if (m.contentType === 'NOTE' && m.description) { %><p class="text-sm" style="margin-top:4px;white-space:pre-wrap"><%= m.description.length > 300 ? m.description.slice(0, 300) + '…' : m.description %></p><% } %>
             </div>
             <div style="display:flex;gap:6px">
-              <% if (m.storagePath) { %><a class="btn btn-secondary btn-sm" href="/training-file/<%= m.id %>" target="_blank" rel="noopener">View</a><% } %>
+              <% if (m.storagePath) { %><a class="btn btn-secondary btn-sm" href="<%= ['VIDEO', 'AUDIO'].includes(m.contentType) ? '/training-file/' : '/training-read/' %><%= m.id %>">View</a><% } %>
               <% if (editable) { %><form method="post" action="/ai-practice/<%= course.id %>/sources/<%= m.id %>/remove" data-once><button class="btn btn-secondary btn-sm" data-confirm-msg="Remove this from the source?">Remove</button></form><% } %>
             </div>
           </li>
