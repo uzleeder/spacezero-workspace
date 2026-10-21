@@ -38,7 +38,24 @@ async function attachImpersonation(req, res, next) {
     console.error('[attachImpersonation] failed to load admin session:', err.message || err);
     req.impersonation = null;
   }
-  next();
+  // Everything this request calls can tell who is really behind it (the audit log) and whether it must leave no records.
+  // An Admin's own test account is a sandbox to try the learner's side with; a real employee's account is only looked at.
+  const realEmployee = Boolean(req.impersonation && !(req.profile.testOwnerAdminId && req.profile.testOwnerAdminId === req.impersonation.adminId));
+  if (req.impersonation) req.impersonation.readOnly = realEmployee;
+  if (!req.impersonation) return next();
+  require('./requestContext').run({ impersonatorId: req.impersonation.adminId, readOnly: realEmployee }, next);
+}
+
+// While an Admin views a real employee's account, nothing may be written in that employee's name: no quiz or practice is
+// submitted, no material is marked read, no training finished, no Standard signed. Reading is unrestricted; ending the
+// view, signing out and the light / dark switch still work. (An Admin's own test accounts are not restricted.)
+const STILL_ALLOWED = new Set(['/end-impersonation', '/logout', '/theme']);
+function blockWritesWhileViewingAs(req, res, next) {
+  // (the Setup page explains in its own words why an Admin cannot confirm or save an employee's own items, so it answers itself)
+  if (!req.impersonation || !req.impersonation.readOnly || ['GET', 'HEAD', 'OPTIONS'].includes(req.method) || STILL_ALLOWED.has(req.path) || /^\/employees\/[^/]+\/setup(\/|$)/.test(req.path)) return next();
+  const message = `You are viewing ${req.profile.fullName}'s account as an Admin. This is look-only: nothing can be submitted, finished or signed in their name. Use "Return to admin" at the top of the page to carry on as yourself.`;
+  if (req.is('json') || /json/.test(req.get('accept') || '')) return res.status(403).json({ error: message, viewOnly: true });
+  return res.status(403).render('error', { layout: false, heading: 'Look-only while viewing as someone else', message });
 }
 
 async function startImpersonation(req, res, targetProfile) {
@@ -104,4 +121,4 @@ async function endImpersonation(req, res) {
   return true;
 }
 
-module.exports = { ADMIN_SESSION_COOKIE, attachImpersonation, startImpersonation, endImpersonation };
+module.exports = { ADMIN_SESSION_COOKIE, attachImpersonation, blockWritesWhileViewingAs, startImpersonation, endImpersonation };

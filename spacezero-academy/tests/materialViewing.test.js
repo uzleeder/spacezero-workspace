@@ -147,7 +147,8 @@ test('Training material: documents open on a reading page inside the app (Word a
   assert.match(word.text, /Training paragraph one\./); assert.match(word.text, /data-protect/); assert.match(word.text, /Viewing in-browser only/);
   assert.doesNotMatch(word.text, /download=1/);
   const viewerPdf = await get(agent, `/training-read/${modules.pdf.id}`);
-  assert.match(viewerPdf.text, /<iframe src="\/training-file\/[^"]+#toolbar=0/);
+  // a PDF is drawn page by page by the app's own reader (no browser viewer with a save / print toolbar), with a progress line
+  assert.match(viewerPdf.text, /data-kind="pdf"/); assert.doesNotMatch(viewerPdf.text, /<iframe/); assert.match(viewerPdf.text, /data-doc-progress/);
   // opening a document starts its reading clock, exactly as before
   assert.ok(await prisma.mediaProgress.findFirst({ where: { profileId: agent.id, trainingModuleId: modules.docx.id } }));
   // an Admin sees a Download link and no protection; someone outside the course gets nothing

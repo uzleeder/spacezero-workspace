@@ -48,6 +48,7 @@ const answerAll = async (learner, assessment, value) => {
 before(async () => {
   org = await prisma.organization.create({ data: { name: 'Retake flow tests' } });
   admin = await person();
+  await require('../lib/orgSettings').setSetting(org.id, 'training.retakeWaitMinutes', 0, admin.id); // these tests fail and retry straight away
   await prisma.profile.update({ where: { id: admin.id }, data: { role: 'ADMIN' } });
 });
 after(async () => { mock.restoreAll(); await prisma.$disconnect(); });
