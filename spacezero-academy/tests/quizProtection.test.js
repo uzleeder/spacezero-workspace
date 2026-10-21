@@ -1,6 +1,6 @@
 'use strict';
 // Quizzes cannot be copied, pasted into, printed or casually captured by learners; Admins (who preview and review) are not
-// restricted. A web page cannot stop a phone camera, so the protection is a deterrent plus a trace (the watermark).
+// restricted. A web page cannot stop a phone camera, so the protection is a deterrent plus a trace (the audit log).
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -33,11 +33,11 @@ before(async () => {
 });
 after(async () => { await prisma.$disconnect(); });
 
-test('a learner\'s quiz and role-play pages carry the guard, the watermark with their own name, and are never cached', async () => {
+test('a learner\'s quiz and role-play pages carry the guard (and no text written across the background), and are never cached', async () => {
   for (const url of [`/assessments/${quiz.id}/take`, `/assessments/${role.id}/roleplay`]) {
     const page = await get(agent, url);
     assert.equal(page.status, 200, url);
-    assert.match(page.text, /data-quiz-watermark="QP agent · @qp_[^"]+ · \d{4}-\d\d-\d\d \d\d:\d\d UTC"/, url);
+    assert.doesNotMatch(page.text, /watermark/i, url);                          // nothing is written across the background
     assert.match(page.text, /data-quiz-cover hidden/);
     assert.match(page.text, /\/static\/js\/protect-quiz\.js\?v=/);
     assert.match(page.headers['cache-control'], /no-store/);
@@ -47,7 +47,7 @@ test('a learner\'s quiz and role-play pages carry the guard, the watermark with 
 test('Admins are not restricted: the guard renders for learners and supervisors only', async () => {
   const render = (profile) => ejs.renderFile(path.join(root, 'views/partials/quiz-guard.ejs'), { profile, guarded: Boolean(profile) && profile.role !== 'ADMIN', asset: (p) => p });
   assert.equal((await render({ role: 'ADMIN', fullName: 'A', username: 'a' })).trim(), '');
-  for (const r of ['TRAVEL_AGENT', 'FLIGHT_EXPERT', 'SUPERVISOR']) assert.match(await render({ role: r, fullName: 'Pat Doe', username: 'pat' }), /data-quiz-watermark="Pat Doe · @pat/);
+  for (const r of ['TRAVEL_AGENT', 'FLIGHT_EXPERT', 'SUPERVISOR']) assert.match(await render({ role: r, fullName: 'Pat Doe', username: 'pat' }), /data-quiz-cover hidden/);
   assert.equal((await render(undefined)).trim(), '');
 });
 
@@ -68,14 +68,14 @@ test('the guard script blocks copy, cut, paste (by any route), drag, the context
     'navigator.clipboard.writeText',                                            // the clipboard is emptied
     "window.addEventListener('blur'", "document.addEventListener('visibilitychange'", // hidden without focus
     "window.addEventListener('beforeprint'",
-    'MutationObserver',                                                         // the watermark is put back if removed
     'report(',                                                                  // attempts are reported
   ]) assert.ok(js.includes(piece), piece);
   const css = read('public/css/styles.css');
   assert.match(css, /body\.quiz-guarded, body\.quiz-guarded \* \{ -webkit-user-select: none; user-select: none;/);
   assert.match(css, /body\.quiz-guarded input, body\.quiz-guarded textarea \{ -webkit-user-select: text; user-select: text; \}/); // typing still works
   assert.match(css, /@media print \{ body\.quiz-guarded > \* \{ display: none !important; \}/);
-  assert.match(css, /\.quiz-watermark \{ position: fixed; inset: 0; z-index: 9990; pointer-events: none;/);
+  assert.doesNotMatch(css, /quiz-watermark/);                                      // no background writing
+  assert.ok(!js.includes('watermark'));
   assert.doesNotThrow(() => new Function(js)); // it parses
 });
 

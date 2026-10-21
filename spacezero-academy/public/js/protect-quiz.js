@@ -3,8 +3,7 @@
 // rest. It cannot stop a phone camera or the operating system, and nothing here touches the answers, the timer or the scoring.
 (function () {
   var cover = document.querySelector('[data-quiz-cover]');
-  var mark = document.querySelector('[data-quiz-watermark]');
-  if (!cover || !mark) return;
+  if (!cover) return;
   document.body.classList.add('quiz-guarded');
   var meta = document.querySelector('meta[name="quiz-guard-url"]');
   var reportUrl = meta ? meta.getAttribute('content') : '';
@@ -81,20 +80,4 @@
   window.addEventListener('beforeprint', function () { hide('print'); report('print'); });
   window.addEventListener('afterprint', function () { show('print'); });
 
-  // ---- the watermark: the learner's own name, tiled across the whole page, put back if it is removed ----
-  function paintMark() {
-    var dark = document.documentElement.getAttribute('data-theme') !== 'light';
-    var text = (mark.getAttribute('data-quiz-watermark') || '').replace(/[<>&"]/g, '');
-    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="150"><text x="14" y="86" transform="rotate(-24 150 75)" font-family="Arial,sans-serif" font-size="14" fill="' + (dark ? '#ffffff' : '#000000') + '">' + text + '</text></svg>';
-    mark.style.backgroundImage = 'url("data:image/svg+xml;utf8,' + encodeURIComponent(svg) + '")';
-  }
-  paintMark();
-  if (window.MutationObserver) {
-    var parent = mark.parentNode;
-    new MutationObserver(function () {
-      if (!document.body.contains(mark)) parent.appendChild(mark);
-      if (!mark.style.backgroundImage) paintMark();
-    }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'hidden'] });
-    new MutationObserver(paintMark).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-  }
 })();
