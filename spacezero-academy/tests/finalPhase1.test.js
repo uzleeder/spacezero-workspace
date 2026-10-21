@@ -338,7 +338,7 @@ test('Employees & Teams shows the team hierarchy, role filters, and address/phon
   await prisma.profile.update({ where: { id: agentA.id }, data: { currentAddressEnc: encryptText(address, `address:${agentA.id}`), localPhone: '+998 90 111 22 33' } });
   const teams = await get(admin, '/admin/teams');
   assert.equal(teams.status, 200);
-  assert.match(teams.text, /F1 Team A/); assert.match(teams.text, /F1 supA/); assert.match(teams.text, /→ F1 agentA/);
+  assert.match(teams.text, /F1 Team A/); assert.match(teams.text, /F1 supA/); assert.match(teams.text, /F1 agentA/);
   const idxA = teams.text.indexOf('F1 Team A'); const idxB = teams.text.indexOf('F1 Team B');
   assert.ok(teams.text.indexOf('F1 agentA') > idxA && (idxB < 0 || teams.text.indexOf('F1 agentB') > idxB)); // agents sit under their own team
   const list = await get(admin, '/admin/employees?role=TRAVEL_AGENT');

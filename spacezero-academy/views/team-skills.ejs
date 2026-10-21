@@ -1,6 +1,6 @@
 <%- include('partials/page-header', { pageTitle: 'Employees & Teams', pageDescription: 'Aggregate Skill Graph view across your team.' }) %>
 
-<%- include('partials/management-tabs', { tabs: tabsets.employees }) %>
+<%- include('partials/management-tabs', { tabs: tabsets.employees, sticky: true }) %>
 
 <div class="card mt-24">
   <% if (rows.length === 0) { %>
