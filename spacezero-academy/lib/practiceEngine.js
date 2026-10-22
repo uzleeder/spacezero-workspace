@@ -70,7 +70,7 @@ const LEVEL_GUIDANCE = {
 };
 
 // A retake of the whole practice (there were no weak skills to aim at): the same material again, never the same items.
-const RETAKE_INSTRUCTION = 'This is a RETAKE of a practice the learner did not pass. Test the same material again with NEW questions or situations at a HIGHER difficulty than a first attempt - vary the scenarios and wording; never repeat an item word for word.';
+const RETAKE_INSTRUCTION = 'This is a RETAKE of a practice the learner did not pass. Test the same material again with NEW questions or situations at the SAME difficulty as the original practice - vary the scenarios and wording; never repeat an item word for word.';
 
 /**
  * The AI's questions with every correct answer fitted to the question's own options (lib/answerKey.js). A
@@ -108,12 +108,14 @@ async function answerableQuestions(questions, { systemInstruction, contents }) {
  * Generates a QUIZ/TECHNICAL/PROCESS_SIM/PRODUCT_KNOWLEDGE Assessment + its Question rows from
  * an approved TrainingAnalysis, and saves them in DRAFT-reviewable (AI_GENERATED) status.
  */
-async function generateQuestionAssessment({ course, analysis, actor, type, level = 3, questionCount = 6, focusSkills = null, status = 'AI_GENERATED', retakeOf = null, version = null }) {
+// passingScore: the pass mark to give it (a retake keeps the original practice's); minQuestions: fewer usable questions than
+// this after the answer checks and nothing is saved (a retake set that would be too thin to show what the learner knows).
+async function generateQuestionAssessment({ course, analysis, actor, type, level = 3, questionCount = 6, focusSkills = null, status = 'AI_GENERATED', retakeOf = null, version = null, passingScore = null, minQuestions = 1 }) {
   // Questions are tagged with the organization's skill catalog names, so their results reach the Skill Graph.
   const catalog = await catalogNamesFor(course);
   const skillNames = focusSkills && focusSkills.length ? focusSkills : catalog.length ? catalog : safeParse(analysis.extractedSkillsJson, []);
   const focusInstruction = focusSkills && focusSkills.length
-    ? `This is TARGETED RETAKE practice — the learner previously scored poorly on exactly these skills: ${JSON.stringify(focusSkills)}. Write every question to test ONLY these skills, at a HIGHER difficulty than a first attempt (vary the scenarios/wording so it isn't the same question repeated, but it must test the same underlying competency). Do NOT write questions about unrelated skills the learner already demonstrated.`
+    ? `This is TARGETED RETAKE practice — the learner previously scored poorly on exactly these skills: ${JSON.stringify(focusSkills)}. Write every question to test ONLY these skills, at the SAME difficulty as the original practice (vary the scenarios/wording so it isn't the same question repeated, but it must test the same underlying competency). Do NOT write questions about unrelated skills the learner already demonstrated.`
     : retakeOf ? RETAKE_INSTRUCTION : '';
   const contents = [{
     role: 'user',
@@ -125,6 +127,7 @@ async function generateQuestionAssessment({ course, analysis, actor, type, level
   const systemInstruction = `${rulesFor({ kind: sourceKindOf(analysis), type })}\n\nYou are writing a ${type.replace('_', ' ')} practice assessment for travel agency employees, based strictly on the training material summarized below. ${TYPE_GUIDANCE[type]} ${focusInstruction} Every question must be answerable from the given material — never invent company rules. For MCQ/MULTI_SELECT/MATCHING/ORDERING, put the answer choices in "options" and the correct one(s) in "correctAnswer", copied exactly from the options (comma-separate multiple correct answers). Tag each question with the 1-4 most relevant skill names from the provided list where applicable. Where you can, set sourceTitle and sourceLocation to the source and the page, slide, timestamp or section that teaches the answer (from the source map below); leave them empty rather than guessing.`;
   const result = await generateStructured({ systemInstruction, contents, responseSchema: questionGeminiSchema, zodSchema: questionZodSchema });
   const questions = await answerableQuestions(result.data.questions, { systemInstruction, contents });
+  if (questions.length < minQuestions) throw new Error(`Only ${questions.length} usable questions were written; at least ${minQuestions} are needed.`);
 
   return prisma.$transaction(async (tx) => {
     const assessment = await tx.assessment.create({
@@ -135,7 +138,7 @@ async function generateQuestionAssessment({ course, analysis, actor, type, level
         type,
         title: focusSkills && focusSkills.length ? `${course.title} — Targeted retake (${focusSkills.join(', ')})` : retakeOf ? `${course.title} — Retake` : `${course.title} — ${type.replace('_', ' ')}`,
         level,
-        passingScore: course.passingScore,
+        passingScore: passingScore ?? course.passingScore,
         status,
         configJson: focusSkills?.length || retakeOf ? JSON.stringify(retakeConfig({ focusSkills, retakeOf })) : null,
         createdById: actor.id,
@@ -194,7 +197,7 @@ const CUSTOMER_PERSONALITIES = ['busy executive', 'price-sensitive traveler', 's
  * Generates a ROLEPLAY Assessment's scenario config (no Question rows — the practice itself is
  * a live turn-based chat scored from the transcript at the end).
  */
-async function generateRoleplayAssessment({ course, analysis, actor, level = 3, focusSkills = null, status = 'AI_GENERATED', type = 'ROLEPLAY', retakeOf = null, version = null }) {
+async function generateRoleplayAssessment({ course, analysis, actor, level = 3, focusSkills = null, status = 'AI_GENERATED', type = 'ROLEPLAY', retakeOf = null, version = null, passingScore = null }) {
   const personality = CUSTOMER_PERSONALITIES[Math.floor(Math.random() * CUSTOMER_PERSONALITIES.length)];
   // The rubric uses the organization's skill catalog names, so the role-play's result reaches the Skill Graph.
   const catalog = await catalogNamesFor(course);
@@ -216,7 +219,7 @@ async function generateRoleplayAssessment({ course, analysis, actor, level = 3, 
       type,
       title: `${course.title} — ${type === 'VOICE' ? 'Voice practice' : 'Role-play'}`,
       level,
-      passingScore: course.passingScore,
+      passingScore: passingScore ?? course.passingScore,
       status,
       createdById: actor.id,
       modelVersion: result.modelVersion,

@@ -1,31 +1,44 @@
 'use strict';
 
-// How often a failed practice can be tried again. Without a limit anyone could resubmit the same quiz straight away and
-// pass it by trial and error (or by reading the answers off the result), so after a failed attempt the learner waits a
-// few minutes, and after a few failed attempts of the SAME practice a new, targeted set of questions is needed
-// ("Practice these skills now") instead of the same ones again. Both numbers are organization settings.
+// How soon a failed practice can be tried again. Without a pause anyone could resubmit straight away and pass by trial
+// and error, so after a failed try the learner waits a few minutes (an organization setting) before ANY next try of
+// that practice - the original quiz or a new set of questions made from it ("Try again"): the wait is counted across
+// the whole family, whichever button is pressed. A supervisor's or Admin's retake request gives a fresh start.
 const { prisma } = require('./prisma');
 const { getSetting } = require('./orgSettings');
+const { retakeOf } = require('./courseVersions');
+
+/** The original practice of an assessment and the ids of it and every new set made from it (a retake of a retake included). */
+async function practiceFamily(assessment) {
+  const originalId = retakeOf(assessment) || assessment.id;
+  const sets = assessment.courseId
+    ? await prisma.assessment.findMany({ where: { courseId: assessment.courseId, configJson: { contains: originalId } }, select: { id: true, configJson: true } })
+    : [];
+  return { originalId, ids: [originalId, ...sets.filter((a) => a.id !== originalId && retakeOf(a) === originalId).map((a) => a.id)] };
+}
+
+/** The tries of a practice family that still count (newest first): only those made after a retake request. */
+async function familyTries(recipientId, assessment) {
+  const family = await practiceFamily(assessment);
+  if (!recipientId) return { ...family, tries: [] };
+  const all = await prisma.trainingAttempt.findMany({ where: { recipientId, assessmentId: { in: family.ids }, status: { not: 'NOT_STARTED' } }, select: { id: true, status: true, completedAt: true, createdAt: true, attemptNumber: true, assessmentId: true, skillBreakdownJson: true } });
+  const at = (t) => new Date(t.completedAt || t.createdAt).getTime();
+  all.sort((a, b) => at(b) - at(a) || b.attemptNumber - a.attemptNumber);
+  const reopened = await prisma.trainingAttempt.findFirst({ where: { recipientId, retakeRequestedAt: { not: null } }, orderBy: { retakeRequestedAt: 'desc' }, select: { retakeRequestedAt: true } });
+  return { ...family, tries: reopened ? all.filter((t) => at(t) > reopened.retakeRequestedAt.getTime()) : all };
+}
 
 /**
- * Whether this learner may start / submit this practice right now.
- * Returns null when they may; otherwise { reason: 'wait' | 'used_up', waitMs, minutes, failed, max }.
+ * Whether this learner may start / submit / prepare a new set of this practice right now.
+ * Returns null when they may; otherwise { reason: 'wait', waitMs, until, minutes }.
  */
 async function retakeBlock(recipientId, assessment, now = Date.now()) {
   if (!recipientId) return null;
-  const all = await prisma.trainingAttempt.findMany({ where: { recipientId, assessmentId: assessment.id, completedAt: { not: null } }, orderBy: [{ completedAt: 'desc' }, { attemptNumber: 'desc' }], select: { status: true, completedAt: true, skillBreakdownJson: true } });
-  // A supervisor or Admin who asks for a retake gives the learner a fresh start: only tries made after the request count.
-  const reopened = await prisma.trainingAttempt.findFirst({ where: { recipientId, retakeRequestedAt: { not: null } }, orderBy: { retakeRequestedAt: 'desc' }, select: { retakeRequestedAt: true } });
-  const attempts = reopened ? all.filter((a) => a.completedAt > reopened.retakeRequestedAt) : all;
-  if (!attempts.length || attempts[0].status === 'COMPLETED') return null;      // never tried, or already passed: nothing to hold back
-  const [minutes, max] = await Promise.all([getSetting(assessment.organizationId, 'training.retakeWaitMinutes'), getSetting(assessment.organizationId, 'training.maxAttemptsPerPractice')]);
-  const failed = attempts.filter((a) => a.status !== 'COMPLETED').length;
-  if (failed >= max) {
-    // "Practice these skills now" always opens a new retake (it aims at the weak skills, else at the practice's own material).
-    return { reason: 'used_up', waitMs: 0, minutes, failed, max, canRemediate: true };
-  }
-  const waitMs = Math.max(0, attempts[0].completedAt.getTime() + minutes * 60000 - now);
-  return waitMs > 0 ? { reason: 'wait', waitMs, minutes, failed, max } : null;
+  const tries = (await familyTries(recipientId, assessment)).tries.filter((t) => t.completedAt); // the wait runs from a finished try
+  if (!tries.length || tries[0].status === 'COMPLETED') return null;             // never tried, or the newest try passed
+  const minutes = await getSetting(assessment.organizationId, 'training.retakeWaitMinutes');
+  const until = tries[0].completedAt.getTime() + minutes * 60000;
+  return until > now ? { reason: 'wait', waitMs: until - now, until: new Date(until), minutes } : null;
 }
 
-module.exports = { retakeBlock };
+module.exports = { practiceFamily, familyTries, retakeBlock };

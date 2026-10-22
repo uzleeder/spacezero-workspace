@@ -1,36 +1,10 @@
 <%- include('../partials/quiz-guard') %>
 <%- include('../partials/page-header', { pageTitle: 'Result — ' + assessment.title }) %>
-<%- include('../partials/practice-flow') %>
-
-<div class="card mt-24">
-  <div class="card-body">
-    <div style="display:flex;align-items:center;gap:12px">
-      <span class="badge <%= passed ? 'badge-success' : 'badge-danger' %>" style="font-size:16px;padding:8px 16px"><%= graded.overallScore %>%</span>
-      <div>
-        <p style="font-weight:600;color:var(--navy-950)"><%= passed ? 'Passed' : 'Retake required' %></p>
-        <p class="text-sm text-muted">Passing score: <%= assessment.passingScore %>% · Attempt #<%= attempt.attemptNumber %></p>
-      </div>
-    </div>
-    <% if (!passed && assessment.courseId) { %>
-      <% var weakest = Object.entries(graded.skillBreakdown || {}).filter(function (e) { return e[1] < assessment.passingScore; }); %>
-      <div class="mt-24">
-        <% if (weakest.length) { %>
-          <p class="text-sm text-muted">Weakest areas:
-            <% weakest.forEach(function (e) { %>
-              <span class="badge badge-danger" style="margin-left:4px"><%= e[0] %> — <%= e[1] %>%</span>
-            <% }); %>
-          </p>
-        <% } %>
-        <form method="post" action="/assessments/<%= assessment.id %>/remediate" class="mt-16">
-          <button type="submit" class="btn btn-gold"><%= Object.keys(graded.skillBreakdown || {}).length ? 'Practice these skills now' : 'Practice this again' %></button>
-        </form>
-      </div>
-    <% } %>
-  </div>
-</div>
+<% var weakest = passed ? [] : Object.entries(graded.skillBreakdown || {}).filter(function (e) { return e[1] < assessment.passingScore; }); %>
+<%- include('../partials/result-summary', { score: graded.overallScore, weakest: weakest }) %>
 
 <div class="card mt-24" style="margin-bottom:40px">
-  <div class="card-header"><h2>Review</h2></div>
+  <div class="card-header"><h2>Your answers</h2></div>
   <div class="card-body">
     <ul class="divide-list">
       <% questions.forEach(function (q, i) { %>
@@ -55,9 +29,4 @@
       <% }); %>
     </ul>
   </div>
-</div>
-
-<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:40px">
-  <% if (assessment.courseId) { %><a href="/training-course/<%= assessment.courseId %>#practice" class="btn <%= passed ? 'btn-gold' : 'btn-secondary' %>"><%= passed && !(typeof flow !== 'undefined' && flow && flow.next) ? 'Continue — finish & submit the training' : 'Back to the training' %></a><% } %>
-  <a href="/training" class="btn btn-secondary">Back to My Training</a>
 </div>

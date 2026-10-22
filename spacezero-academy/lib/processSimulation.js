@@ -18,7 +18,7 @@ function validateGraph(config) {
   walk(parsed.startId, new Set());
   return parsed;
 }
-async function generateProcessAssessment({ course, analysis, actor, level = 3, focusSkills = null, status = 'AI_GENERATED', retakeOf = null, version = null }) {
+async function generateProcessAssessment({ course, analysis, actor, level = 3, focusSkills = null, status = 'AI_GENERATED', retakeOf = null, version = null, passingScore = null }) {
   // The simulation's skills are the organization's catalog names, so its result reaches the Skill Graph.
   const catalog = await catalogNamesFor(course);
   const skills = focusSkills || (catalog.length ? catalog : JSON.parse(analysis.extractedSkillsJson || '[]'));
@@ -27,6 +27,6 @@ async function generateProcessAssessment({ course, analysis, actor, level = 3, f
   config.skills = toCatalog(config.skills, catalog);
   // The AI lists the best action first; stir each step's choices (nextId travels with each choice, so the flow is unchanged).
   config.nodes = config.nodes.map((n) => ({ ...n, options: shuffleChoices(n.options) }));
-  return prisma.assessment.create({ data: { organizationId: course.organizationId, courseId: course.id, createdById: actor.id, createdVia: 'AI_TRAINING_ANALYSIS', type: 'PROCESS_SIM', title: `${course.title} — Workflow simulation`, level, passingScore: course.passingScore, status, configJson: JSON.stringify({ ...config, ...retakeConfig({ focusSkills, retakeOf }) }), modelVersion: result.modelVersion, ...(version ? { version } : {}) } });
+  return prisma.assessment.create({ data: { organizationId: course.organizationId, courseId: course.id, createdById: actor.id, createdVia: 'AI_TRAINING_ANALYSIS', type: 'PROCESS_SIM', title: `${course.title} — Workflow simulation`, level, passingScore: passingScore ?? course.passingScore, status, configJson: JSON.stringify({ ...config, ...retakeConfig({ focusSkills, retakeOf }) }), modelVersion: result.modelVersion, ...(version ? { version } : {}) } });
 }
 module.exports = { generateProcessAssessment, validateGraph };

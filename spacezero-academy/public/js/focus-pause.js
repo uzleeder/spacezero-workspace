@@ -2,7 +2,8 @@
 // Training video and audio only play while the learner is actually in this window: switching to another tab, another
 // program or minimising the browser pauses it, and it stays paused until the learner comes back and presses play
 // (it never resumes by itself). Learning has to be watched, not left running in the background. Progress saving,
-// the no-skipping rule and the finished check are unchanged - paused time simply does not move the position.
+// the no-skipping rule and the finished check are unchanged - paused time simply does not move the position. A video
+// already watched to the end (data-done) is review: it keeps playing.
 (function () {
   var media = document.querySelectorAll('video[data-learning-media], audio[data-learning-media]');
   if (!media.length) return;
@@ -22,7 +23,7 @@
     return note;
   }
   function leave(el) {
-    if (el.paused || el.ended) return;
+    if (el.paused || el.ended || el.dataset.done === 'true') return;
     el.pause();
     noteFor(el).hidden = false;
   }
@@ -35,6 +36,7 @@
   Array.prototype.forEach.call(media, function (el) {
     // pressing play while the window is not the active one (or the tab is hidden) does not start it
     el.addEventListener('play', function () {
+      if (el.dataset.done === 'true') return;
       if (document.hidden || (document.hasFocus && !document.hasFocus())) { el.pause(); noteFor(el).hidden = false; return; }
       if (el.__focusNote) el.__focusNote.hidden = true;
     });

@@ -1,55 +1,78 @@
-<%- include('partials/page-header', { pageTitle: 'My Training', pageDescription: 'Training and practice assigned to you.' }) %>
-<%- include('partials/management-tabs', { tabs: tabsets.learner }) %>
+<%# My Training: ONE path through the learner's training (lib/myTraining.js pathOf). One main button, on the current
+    step; finished steps fold into "✓ N completed"; only the next 3 locked steps show, the rest fold into "+N more". %>
+<%- include('partials/page-header', { pageTitle: 'My Training', pageDescription: 'Finish each training to unlock the next.' }) %>
 
-<%
-const href = function (status, category) { return '/training?status=' + status + (category ? '&category=' + category : ''); };
-const when = function (d) { return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); };
-const emptyText = { overdue: 'Nothing is overdue. Nice work.', todo: 'Nothing is waiting for you to start.', inprogress: 'Nothing is in progress right now.', completed: 'Completed training will appear here.' };
-%>
-
-<% if (list.length === 0) { %>
-  <div class="card mt-24"><div class="card-body"><%- include('partials/empty-state', { title: 'No training assigned yet', description: 'Your admin or supervisor will assign training here.' }) %></div></div>
+<% if (!path.total) { %>
+  <div class="card mt-24" data-path-empty><div class="card-body"><%- include('partials/empty-state', profile.role === 'ADMIN'
+    ? { title: 'Nothing is assigned to you', description: 'Training you assign to others is in Manage Training.' }
+    : { title: 'No training assigned yet', description: 'When training is assigned to you, it shows up here.' }) %></div></div>
 <% } else { %>
-  <nav class="status-tabs mt-24" aria-label="Training status">
-    <% view.statusTabs.forEach(function (s) { %>
-      <a href="<%= href(s.key, view.category) %>" class="status-tab<%= s.key === 'overdue' ? ' status-tab--overdue' : '' %><%= view.status === s.key ? ' active' : '' %>" title="<%= s.hint %>" <%- view.status === s.key ? 'aria-current="page"' : '' %>><span><%= s.label %></span><span class="category-count"><%= s.count %></span></a>
-    <% }); %>
-  </nav>
-  <nav class="category-tabs mt-16" aria-label="Training category">
-    <% view.categoryTabs.forEach(function (c) { %>
-      <a href="<%= href(view.status, c.key) %>" class="category-tab<%= view.category === c.key ? ' active' : '' %>" <%- view.category === c.key ? 'aria-current="page"' : '' %>><span><%= c.label %></span><span class="category-count"><%= c.count %></span></a>
-    <% }); %>
-  </nav>
-
-  <div class="card mt-16" style="margin-bottom:40px">
-    <% if (view.cards.length === 0) { %>
-      <div class="card-body"><%- include('partials/empty-state', { title: emptyText[view.status], description: view.category ? 'Nothing here in this category. Choose All to see everything.' : '' }) %></div>
-    <% } else { %>
-      <% view.cards.forEach(function (c) { const r = c.row; %>
-        <div class="training-card<%= c.group === 'overdue' ? ' training-card--overdue' : '' %> row-between" style="gap:12px;flex-wrap:wrap" data-training-card data-group="<%= c.group %>">
-          <div style="min-width:0;flex:1">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <a href="/training-course/<%= r.assignment.courseId %>" style="font-weight:600;color:var(--navy-950)"><%= r.assignment.course.title %></a>
-              <span class="badge <%= c.category ? 'badge-navy' : '' %>" data-category-badge><%= categoryLabel(c.category) %></span>
-              <% if (c.group === 'overdue') { %><span class="badge badge-danger" data-overdue-badge>Overdue</span><% } %>
-              <% if (c.retake) { %><span class="badge badge-danger">Retake required</span><% } %>
-            </div>
-            <p class="text-sm text-muted" style="margin-top:4px">
-              <%= r.assignment.course.modules.length %> module<%= r.assignment.course.modules.length === 1 ? '' : 's' %>
-              <% if (c.dueDate) { %> · due <%= when(c.dueDate) %><% } else { %> · no due date<% } %>
-              <% if (c.group === 'completed' && r.latestAttempt && r.latestAttempt.completedAt) { %> · completed <%= when(new Date(r.latestAttempt.completedAt)) %><% if (r.latestAttempt.score != null) { %> · score <%= Math.round(r.latestAttempt.score) %>%<% } %><% } %>
-            </p>
-            <% if (c.group === 'overdue') { %><p class="text-sm" style="margin-top:2px"><span class="overdue-label">Overdue — <%= c.overdueText %></span></p><% } %>
-          </div>
-          <% if (r.status === 'NOT_STARTED' || r.status === 'RETAKE_REQUIRED') { %>
-            <form method="post" action="/training/<%= r.id %>/start"><button type="submit" class="btn <%= c.group === 'overdue' ? 'btn-gold' : 'btn-secondary' %> btn-sm"><%= r.status === 'RETAKE_REQUIRED' ? 'Start retake' : 'Start' %></button></form>
-          <% } else if (r.status !== 'COMPLETED') { %>
-            <a class="btn btn-gold btn-sm" href="/training-course/<%= r.assignment.courseId %>">Continue</a>
-          <% } else { %>
-            <a class="btn btn-secondary btn-sm" href="/training-course/<%= r.assignment.courseId %>">Review</a>
-          <% } %>
-        </div>
-      <% }); %>
-    <% } %>
+<div class="path" data-path>
+  <div class="path-progress">
+    <p class="path-progress__label"><strong><%= path.doneCount %> of <%= path.total %></strong> completed</p>
+    <div class="read-line" role="progressbar" aria-label="Training completed" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<%= path.percent %>"><div class="read-line__track"><div class="read-line__fill" style="width:<%= path.percent %>%"></div></div><span class="read-line__percent"><%= path.percent %>%</span></div>
   </div>
+
+  <% if (!path.current) { %>
+    <section class="card next-card mt-24 path-finished" data-path-done>
+      <div class="card-body">
+        <span class="path-marker path-marker--done" aria-hidden="true"><%- include('partials/icon', { name: 'check' }) %></span>
+        <div><h2>You've completed all your training</h2><p class="text-sm text-muted">New training shows up here as soon as it is assigned.</p></div>
+      </div>
+    </section>
+  <% } %>
+
+  <ol class="path-steps">
+    <% if (path.completed.length) { %>
+      <li class="path-step path-step--done">
+        <span class="path-marker path-marker--done" aria-hidden="true"><%- include('partials/icon', { name: 'check' }) %></span>
+        <details class="path-fold" data-fold="completed"<%= path.current ? '' : ' open' %>>
+          <summary><%= path.doneCount %> completed</summary>
+          <ol class="path-fold__list">
+            <% path.completed.forEach(function (s) { %>
+              <li data-step="done"><a href="<%= s.href %>"><%= s.title %></a><span><%= s.completedText %></span></li>
+            <% }); %>
+          </ol>
+        </details>
+      </li>
+    <% } %>
+
+    <% if (path.current) { const c = path.current; %>
+      <li class="path-step path-step--current" aria-current="step">
+        <span class="path-marker path-marker--current" aria-hidden="true"><%= c.number %></span>
+        <section class="card next-card path-current" data-current-step aria-labelledby="current-step-title">
+          <div class="card-body">
+            <p class="label">Step <%= c.number %> of <%= path.total %></p>
+            <h2 id="current-step-title"><%= c.title %></h2>
+            <% if (c.progressText) { %><p class="path-current__progress"><%= c.progressText %></p><% } %>
+            <% if (c.dueText) { %><p class="path-due<%= c.overdue ? ' path-due--late' : '' %>"><%= c.dueText %></p><% } %>
+            <a class="btn btn-gold path-current__action" href="<%= c.resumeHref %>" data-main-action><%= path.action %></a>
+            <% if (c.retake) { %><p class="path-current__hint">Pass the quiz again to finish this step</p><% } %>
+          </div>
+        </section>
+      </li>
+    <% } %>
+
+    <% path.upcomingShown.forEach(function (s) { %>
+      <li class="path-step path-step--locked" data-step="locked">
+        <span class="path-marker path-marker--locked" aria-hidden="true"><%- include('partials/icon', { name: 'lock' }) %></span>
+        <div class="path-locked"><p class="path-locked__title"><%= s.title %></p><p class="path-locked__meta">Step <%= s.number %><% if (s.dueText) { %> · <span class="<%= s.overdue ? 'path-due--late' : '' %>"><%= s.dueText %></span><% } %></p></div>
+      </li>
+    <% }); %>
+
+    <% if (path.upcomingMore.length) { %>
+      <li class="path-step path-step--locked">
+        <span class="path-marker path-marker--locked" aria-hidden="true"><%- include('partials/icon', { name: 'lock' }) %></span>
+        <details class="path-fold" data-fold="more">
+          <summary>+<%= path.upcomingMore.length %> more</summary>
+          <ol class="path-fold__list">
+            <% path.upcomingMore.forEach(function (s) { %>
+              <li data-step="locked"><span class="path-fold__title"><%= s.title %></span><span>Step <%= s.number %><% if (s.dueText) { %> · <span class="<%= s.overdue ? 'path-due--late' : '' %>"><%= s.dueText %></span><% } %></span></li>
+            <% }); %>
+          </ol>
+        </details>
+      </li>
+    <% } %>
+  </ol>
+</div>
 <% } %>

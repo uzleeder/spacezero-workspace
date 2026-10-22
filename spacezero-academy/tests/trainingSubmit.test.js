@@ -33,15 +33,16 @@ before(async () => {
 });
 after(async () => { await prisma.$disconnect(); });
 
-// the course titles in the My Training list itself (the page header's notification preview also mentions courses)
-const listed = (html) => [...html.matchAll(/<a href="\/training-course\/[^"]+" style="font-weight:600[^>]*>([^<]+)</g)].map((m) => m[1]);
+// My Training's path: the course titles in the completed fold, and the title of the current step (the one with the button)
+const completedIn = (html) => [...((html.split('data-fold="completed"')[1] || '').split('</details>')[0]).matchAll(/<a href="\/training-course\/[^"]+">([^<]+)</g)].map((m) => m[1]);
+const currentIn = (html) => ((html.split('data-current-step')[1] || '').match(/<h2[^>]*>([^<]+)</) || [])[1] || null;
 const status = async () => (await getMyTrainingList(agent.id)).find((r) => r.id === recipient.id).status;
 
 test('before the quiz is passed there is no Submit button, and a direct submission is refused', async () => {
   const page = await get(agent, `/training-course/${course.id}`);
   assert.equal(page.status, 200);
   assert.doesNotMatch(page.text, /<button[^>]*>Submit training</);
-  assert.match(page.text, /0 of 1 practice passed\. Still to pass: Final quiz/);
+  assert.match(page.text, /Step 1 of 2/); assert.match(page.text, /data-step-next>Start quiz</); // the quiz is the step to do
   assert.equal((await post(agent, `/training/${recipient.id}/complete`)).status, 403);
   assert.equal(await prisma.certificate.count({ where: { profileId: agent.id } }), 0);
 });
@@ -49,7 +50,7 @@ test('before the quiz is passed there is no Submit button, and a direct submissi
 test('a failed quiz still does not allow submitting', async () => {
   await post(agent, `/training/${recipient.id}/start`);
   const failed = await post(agent, `/assessments/${assessment.id}/submit`, answers(false));
-  assert.equal(failed.status, 200); assert.match(failed.text, /Retake required/);
+  assert.equal(failed.status, 200); assert.match(failed.text, /Not passed yet/);
   assert.doesNotMatch((await get(agent, `/training-course/${course.id}`)).text, /<button[^>]*>Submit training</);
   assert.equal((await post(agent, `/training/${recipient.id}/complete`)).status, 403);
 });
@@ -57,7 +58,7 @@ test('a failed quiz still does not allow submitting', async () => {
 test('passing the last quiz finishes the training by itself: Completed at once, certificate and notice, nothing left to press', async () => {
   const passed = await post(agent, `/assessments/${assessment.id}/submit`, answers(true));
   assert.equal(passed.status, 200); assert.match(passed.text, /Passed/);
-  assert.match(passed.text, new RegExp(`href="/training-course/${course.id}#practice"`));
+  assert.match(passed.text, new RegExp(`href="/training-course/${course.id}"`));
   // no Submit button to find: it is already submitted
   assert.equal(await status(), 'COMPLETED');
   const attempts = await prisma.trainingAttempt.findMany({ where: { recipientId: recipient.id }, orderBy: { attemptNumber: 'asc' } });
@@ -68,12 +69,12 @@ test('passing the last quiz finishes the training by itself: Completed at once, 
   assert.equal(await prisma.certificate.count({ where: { profileId: agent.id, courseId: course.id } }), 1);
   assert.equal(await prisma.notification.count({ where: { profileId: agent.id, type: 'training.completed', body: { contains: 'Submit course' } } }), 1);
   const page = await get(agent, `/training-course/${course.id}`);
-  assert.match(page.text, /✓ Training submitted/);
+  assert.match(page.text, /<h2 class="step-title">Training complete<\/h2>/);
   assert.doesNotMatch(page.text, /<button[^>]*>Submit training</);
-  // it sits under Completed on My Training and is not Overdue
-  const completed = await get(agent, '/training?status=completed');
-  assert.deepEqual(listed(completed.text), ['Submit course']);
-  assert.deepEqual(listed((await get(agent, '/training?status=overdue')).text), []);
+  // it sits in the completed fold of My Training, and nothing is left to do
+  const path = (await get(agent, '/training')).text;
+  assert.deepEqual(completedIn(path), ['Submit course']);
+  assert.equal(currentIn(path), null);
 });
 
 test('practising AGAIN afterwards never reopens a finished training, however the attempt goes', async () => {
@@ -82,7 +83,7 @@ test('practising AGAIN afterwards never reopens a finished training, however the
   assert.equal(await status(), 'COMPLETED');
   assert.equal(await prisma.certificate.count({ where: { profileId: agent.id, courseId: course.id } }), 1);
   assert.equal(await prisma.notification.count({ where: { profileId: agent.id, type: 'training.completed' } }), 1);
-  assert.deepEqual(listed((await get(agent, '/training?status=inprogress')).text), []);
+  assert.equal(currentIn((await get(agent, '/training')).text), null);
 });
 
 test('a training that was passed before this rule existed (still sitting in Overdue) is finished when the person opens My Training, and by the sweep for everyone else', async () => {
@@ -98,11 +99,12 @@ test('a training that was passed before this rule existed (still sitting in Over
   const mine = await make(agent); const theirs = await make(other);
   const statusOf = async (who, r) => (await getMyTrainingList(who.id)).find((x) => x.id === r.id).status;
   assert.equal(await statusOf(agent, mine), 'IN_PROGRESS');   // passed, never submitted: the old rule left it Overdue
-  const { buildMyTraining } = require('../lib/myTraining');
-  assert.equal(buildMyTraining(await getMyTrainingList(agent.id), { status: 'overdue' }).cards.some((c) => c.row.id === mine.id), true);
-  assert.ok(listed((await get(agent, '/training?status=completed')).text).includes('Passed long ago')); // opening My Training finishes it
+  const { pathOf } = require('../lib/myTraining');
+  assert.equal(pathOf(await getMyTrainingList(agent.id)).current.id, mine.id);   // the old rule left it as the step to do
+  const opened = (await get(agent, '/training')).text;
+  assert.ok(completedIn(opened).includes('Passed long ago')); // opening My Training finishes it
   assert.equal(await statusOf(agent, mine), 'COMPLETED');
-  assert.equal(listed((await get(agent, '/training?status=overdue')).text).includes('Passed long ago'), false);
+  assert.notEqual(currentIn(opened), 'Passed long ago');
   assert.equal(await statusOf(other, theirs), 'IN_PROGRESS');   // somebody who has not logged in
   assert.ok(await autoFinishAll() >= 1);
   assert.equal(await statusOf(other, theirs), 'COMPLETED');

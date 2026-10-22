@@ -1,8 +1,8 @@
 'use strict';
 // Watching a required video/audio all the way to the END (100%, played in order, never skipped)
-// finishes it, and the moment the server reports that, the practice/quiz of the training must be
-// open: on the course page, on the quiz route itself, and the page markup must let the browser swap
-// the locked section for the open one without a reload. Before the end the quiz stays locked.
+// finishes it, and the moment the server reports that, the step's Next button opens in the browser (no
+// reload) and the practice/quiz of the training is open: on the training page and on the quiz route
+// itself. Before the end Next waits and the quiz stays locked.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const request = require('supertest');
@@ -39,7 +39,7 @@ before(async () => {
 });
 after(async () => { await prisma.$disconnect(); });
 
-test('before the end of the video the quiz stays locked, even at 90%; the page marks the parts the browser swaps', async () => {
+test('before the end of the video the quiz stays locked, even at 90%; Next waits for the end of the video', async () => {
   assert.equal((await progress({ position: 0, speed: 1, action: 'start' })).status, 200);
   const early = await watched(18);
   assert.equal(early.status, 200);
@@ -48,18 +48,18 @@ test('before the end of the video the quiz stays locked, even at 90%; the page m
 
   const page = await get(`/training-course/${course.id}`);
   assert.equal(page.status, 200);
-  assert.match(page.text, /Locked until you finish the material/);
-  assert.match(page.text, /data-gate-region/);
-  assert.match(page.text, /data-next-card/);
-  assert.match(page.text, /data-module-badge/);
+  assert.match(page.text, /Step 1 of 3/);
+  assert.match(page.text, /class="btn btn-gold is-waiting" aria-disabled="true" role="link" data-step-next data-unlock-on="media"/);
+  assert.match(page.text, /Next opens when you reach the end/);
   assert.match(page.text, /data-done="false"/);
+  assert.doesNotMatch(page.text, new RegExp(`/assessments/${assessment.id}/take`));
 
   assert.equal((await watched(36)).body.completedAt, null, '60% is not enough');
   assert.equal((await watched(43)).body.completedAt, null, '70% is not enough any more');
   const ninety = await watched(54);
   assert.equal(ninety.body.completedAt, null, '90% is not enough either - the quiz opens only after 100%');
   assert.equal(ninety.body.unlocked, false);
-  assert.match((await get(`/training-course/${course.id}`)).text, /Locked until you finish the material/);
+  assert.match((await get(`/training-course/${course.id}?step=2`)).text, /Step 1 of 3/); // the quiz step is still locked
   assert.equal((await get(`/assessments/${assessment.id}/take`)).status, 403);
 });
 
@@ -69,19 +69,19 @@ test('at 100% the server reports the item finished AND unlocked, and the quiz op
   assert.ok(done.body.completedAt, 'finished once the end is reached');
   assert.equal(done.body.unlocked, true);
 
-  const page = await get(`/training-course/${course.id}`);
-  assert.doesNotMatch(page.text, /Locked until you finish the material/);
-  assert.match(page.text, /All required material finished/);
-  assert.match(page.text, /Unlock quiz/);
-  assert.match(page.text, new RegExp(`href="/assessments/${assessment.id}/take"`));
-  assert.match(page.text, /data-done="true"/);
+  const page = await get(`/training-course/${course.id}`);                // the training moves on to the quiz
+  assert.match(page.text, /Step 2 of 3/); assert.match(page.text, /Unlock quiz/);
+  assert.match(page.text, new RegExp(`href="/assessments/${assessment.id}/take" data-step-next>Start quiz<`));
+  const video = await get(`/training-course/${course.id}?step=1`);       // and the video step shows it done
+  assert.match(video.text, /data-done="true"/); assert.match(video.text, /✓ Done/);
   assert.equal((await get(`/assessments/${assessment.id}/take`)).status, 200);
 });
 
-test('the player script unlocks in place the moment the server reports completion', async () => {
+test('the player script opens Next in place the moment the server reports completion', async () => {
   const js = (await request(app).get('/static/js/media-progress.js')).text;
   assert.match(js, /data\.completedAt && !announced/, 'reacts to the first completed save');
-  assert.match(js, /refreshGate/);
+  assert.match(js, /dispatchEvent\(new Event\('sz-unlock'\)\)/, 'tells the step it is done');
+  assert.match((await request(app).get('/static/js/training-steps.js')).text, /addEventListener\('sz-unlock', open\)/, 'the step opens Next on it');
   assert.doesNotMatch(js, /window\.location\.reload\(\)/, 'no reload that would interrupt the video');
   assert.doesNotMatch(js, /70%/, 'no 70% wording any more');
 });

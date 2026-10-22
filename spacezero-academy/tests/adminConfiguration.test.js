@@ -190,7 +190,8 @@ test('NAVIGATION: Company Standards & Workflow, SpaceZero AI, Settings are in th
   const iStandards = labels.indexOf('Company Standards & Workflow');
   const iAssistant = labels.indexOf('SpaceZero AI');
   const iSettings = labels.indexOf('Settings');
-  const iTraining = labels.indexOf('Training');
+  const iTraining = labels.indexOf('Manage Training');
+  assert.ok(iTraining >= 0, labels.join(' > '));
   assert.ok(iTraining < iStandards && iStandards < iAssistant && iAssistant < iSettings, labels.join(' > '));
 });
 

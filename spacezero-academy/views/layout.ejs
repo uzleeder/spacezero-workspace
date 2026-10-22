@@ -120,6 +120,7 @@
               <%- include('partials/avatar', { profile: profile, size: 'sm' }) %>
             </summary>
             <div class="user-menu-panel" role="menu">
+              <% (tabsets.learner || []).forEach(function (t) { %><a href="<%= t.href %>" role="menuitem"><%= t.label %></a><% }); %>
               <a href="/profile" role="menuitem">Profile &amp; Settings</a>
               <form method="post" action="/logout"><button type="submit" role="menuitem">Log out</button></form>
             </div>

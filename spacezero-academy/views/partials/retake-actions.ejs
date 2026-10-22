@@ -1,0 +1,19 @@
+<%#
+  The way on after a failed practice - the same on the result, on the training step and on the wait page: while the wait
+  after a failed try lasts (lib/retakePolicy.js), "You can try again in X minutes" with Review the material; then ONE
+  Try again, a new set of questions on what was missed (POST /assessments/:id/remediate). public/js/retake-countdown.js
+  counts down and swaps them without a reload.
+  Locals: retakeId (the practice the form posts for), until (Date or null: the end of the wait), reviewHref, back { href, label }.
+%>
+<% const waiting = Boolean(until && until.getTime() > Date.now());
+   const minutesLeft = waiting ? Math.max(1, Math.ceil((until.getTime() - Date.now()) / 60000)) : 0; %>
+<div data-retake-scope data-retake-until="<%= waiting ? until.toISOString() : '' %>">
+  <div class="step-actions">
+    <a class="step-prev" href="<%= back.href %>"><%= back.label %></a>
+    <a class="btn btn-gold" href="<%= reviewHref %>" data-retake-review<%= waiting ? '' : ' hidden' %>>Review the material</a>
+    <form method="post" action="/assessments/<%= retakeId %>/remediate" data-once data-retake-try<%= waiting ? ' hidden' : '' %>><button type="submit" class="btn btn-gold" data-result-next>Try again</button></form>
+  </div>
+  <p class="step-wait" data-retake-wait role="status"<%= waiting ? '' : ' hidden' %>>You can try again in <strong data-retake-left><%= minutesLeft %> minute<%= minutesLeft === 1 ? '' : 's' %></strong>. Go over the material in the meantime.</p>
+  <p class="step-wait" data-retake-ready<%= waiting ? ' hidden' : '' %>>You get a new set of questions on what you missed.</p>
+</div>
+<script src="<%= asset('/static/js/retake-countdown.js') %>" defer></script>

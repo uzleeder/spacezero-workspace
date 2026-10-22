@@ -113,5 +113,5 @@ test('the reading page draws the slides in place and a finished item leads on to
   const again = await get(agent, `/training-read/${modules.Page.id}`);                  // reopened later: the same way on
   assert.match(again.text, /href="\/training-course\/[^"]+#practice"/); assert.match(again.text, /now open/);
   const open = await get(agent, `/training-course/${course.id}`);
-  assert.doesNotMatch(open.text, /Locked until you finish/); assert.match(open.text, />Start</);   // the quiz is open
+  assert.match(open.text, /data-step-next>Start quiz</);                                // the training is on the quiz now: it is open
 });

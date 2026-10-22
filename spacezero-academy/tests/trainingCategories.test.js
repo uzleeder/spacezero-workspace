@@ -1,13 +1,13 @@
 'use strict';
 // ONE shared Training Category (Product / Sales / System & Workflow) across the Training Catalog, Assignments,
-// My Training and AI Practice -> Training; and My Training organised by STATUS then CATEGORY on one page.
+// My Training and AI Practice -> Training; and My Training as ONE path through the learner's training.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const request = require('supertest');
 const { prisma } = require('../lib/prisma');
 const { generateToken } = require('../lib/tokens');
 const categories = require('../lib/trainingCategories');
-const { buildMyTraining, groupOf, overdueText } = require('../lib/myTraining');
+const { pathOf, overdueText, dueText } = require('../lib/myTraining');
 const versions = require('../lib/courseVersions');
 const app = require('../server');
 
@@ -15,7 +15,6 @@ const DAY = 86400000;
 let org, admin, sup, agent, cookies = {}, courses = {};
 const get = (p, url) => request(app).get(url).set('Cookie', cookies[p.id]);
 const post = (p, url, body = {}) => request(app).post(url).set('Cookie', cookies[p.id]).type('form').send(body);
-const names = (html, re = /data-training-card[\s\S]*?<a href="\/training-course\/[^"]+"[^>]*>([^<]+)</g) => [...html.matchAll(re)].map((m) => m[1]);
 
 before(async () => {
   org = await prisma.organization.create({ data: { name: 'Training categories tests' } });
@@ -115,86 +114,122 @@ test('Assignments: the same category filter (All / Product / Sales / System & Wo
   assert.equal((await get(sup, '/assignments?category=SALES')).status, 403);
 });
 
-test('buildMyTraining: status groups, overdue first with the days spelled out, and the category filter', () => {
+test('pathOf: ONE path in a fixed order - completed, then overdue (most overdue first), then started, then by due date, then no due date in assignment order', () => {
   const now = new Date('2026-10-15T12:00:00Z');
-  const row = (title, trainingCategory, status, dueDays, extra = {}) => ({ id: title, status, createdAt: new Date('2026-10-01'), latestAttempt: extra.latestAttempt || null, assignment: { dueDate: dueDays === null ? null : new Date(now.getTime() + dueDays * DAY), course: { title, trainingCategory, modules: [] } } });
+  const progress = (done, items, passed, practices) => ({ items: { done, total: items }, practices: { passed, total: practices } });
+  const at = (days) => new Date(now.getTime() + days * DAY);
+  const row = (title, status, dueDays, extra = {}) => ({
+    id: title, status, createdAt: extra.assigned || at(-20), progress: extra.progress || progress(0, 0, 0, 0),
+    attempts: extra.started ? [{ status: 'IN_PROGRESS', startedAt: extra.started, createdAt: extra.started }] : [{ status: 'NOT_STARTED', startedAt: null, createdAt: at(-20) }],
+    latestAttempt: extra.latestAttempt || null,
+    assignment: { courseId: 'c-' + title, dueDate: dueDays === null ? null : at(dueDays), course: { title } },
+  });
   const list = [
-    row('A overdue 3d', 'PRODUCT', 'NOT_STARTED', -3), row('B overdue 10d', 'SALES', 'IN_PROGRESS', -10), row('C todo soon', 'PRODUCT', 'NOT_STARTED', 2), row('D todo later', 'SALES', 'NOT_STARTED', 20),
-    row('E in progress', 'SYSTEM_WORKFLOW', 'IN_PROGRESS', 5), row('F retake', 'PRODUCT', 'RETAKE_REQUIRED', null), row('G done', 'PRODUCT', 'COMPLETED', -30, { latestAttempt: { completedAt: new Date('2026-09-20') } }),
-    row('H legacy', null, 'NOT_STARTED', null),
+    row('No due, assigned later', 'NOT_STARTED', null, { assigned: at(-5) }),
+    row('No due, assigned first', 'NOT_STARTED', null, { assigned: at(-30) }),
+    row('Due in 20 days', 'NOT_STARTED', 20),
+    row('Overdue 3 days', 'NOT_STARTED', -3, { progress: progress(0, 4, 0, 1) }),
+    row('Overdue 10 days', 'NOT_STARTED', -10),
+    row('Started second', 'IN_PROGRESS', 5, { started: at(-2) }),
+    row('Started first, retake', 'RETAKE_REQUIRED', -1, { started: at(-8), progress: progress(3, 3, 0, 1) }),
+    row('Done recently', 'COMPLETED', -30, { latestAttempt: { completedAt: at(-1), score: 92 } }),
+    row('Done long ago', 'COMPLETED', null, { latestAttempt: { completedAt: at(-40), score: null } }),
   ];
-  assert.equal(groupOf(list[6], now), 'completed'); // a completed training is never overdue, however old its due date
-  let v = buildMyTraining(list, {}, now);
-  assert.equal(v.status, 'overdue');                                   // lands on what needs attention
-  assert.deepEqual(v.statusTabs.map((s) => [s.key, s.count]), [['overdue', 2], ['todo', 3], ['inprogress', 2], ['completed', 1]]);
-  assert.deepEqual(v.cards.map((c) => c.row.id), ['B overdue 10d', 'A overdue 3d']); // most overdue first
-  assert.deepEqual(v.cards.map((c) => c.overdueText), ['10 days overdue', '3 days overdue']);
-  // the legacy training (no category) gets its own chip, so it never vanishes from every filter
-  assert.deepEqual(v.categoryTabs.map((c) => [c.label, c.count]), [['All', 2], ['Product', 1], ['Sales', 1], ['System & Workflow', 0], ['Uncategorized', 0]]);
-  assert.deepEqual(buildMyTraining(list, { status: 'todo', category: 'UNCATEGORIZED' }, now).cards.map((c) => c.row.id), ['H legacy']);
-  assert.equal(buildMyTraining(list.filter((r) => r.assignment.course.trainingCategory), {}, now).categoryTabs.some((c) => c.key === 'UNCATEGORIZED'), false); // no chip when there is nothing to show
-  v = buildMyTraining(list, { status: 'overdue', category: 'SALES' }, now);
-  assert.deepEqual(v.cards.map((c) => c.row.id), ['B overdue 10d']); assert.equal(v.counts.overdue, 1);
-  v = buildMyTraining(list, { status: 'todo' }, now);
-  assert.deepEqual(v.cards.map((c) => c.row.id), ['C todo soon', 'D todo later', 'H legacy']); // by due date; no due date last
-  assert.deepEqual(buildMyTraining(list, { status: 'todo', category: 'PRODUCT' }, now).cards.map((c) => c.row.id), ['C todo soon']);
-  assert.ok(buildMyTraining(list, { status: 'todo' }, now).cards.some((c) => c.category === null)); // uncategorized shows under All only
-  assert.equal(buildMyTraining(list, { status: 'todo', category: 'SALES' }, now).cards.some((c) => c.row.id === 'H legacy'), false);
-  v = buildMyTraining(list, { status: 'inprogress' }, now);
-  assert.deepEqual(v.cards.map((c) => [c.row.id, c.retake]), [['E in progress', false], ['F retake', true]]); // a retake is started-but-not-completed
-  assert.deepEqual(buildMyTraining(list, { status: 'completed' }, now).cards.map((c) => c.row.id), ['G done']);
-  assert.equal(buildMyTraining(list, { status: 'junk', category: 'junk' }, now).status, 'overdue'); // unknown values fall back
-  assert.equal(buildMyTraining(list.filter((r) => r.status !== 'NOT_STARTED' || r.assignment.dueDate === null), {}, now).status, 'overdue');
-  assert.equal(buildMyTraining([], {}, now).status, 'todo');
+  const path = pathOf(list, now);
+  assert.deepEqual(path.steps.map((s) => s.title), [
+    'Done long ago', 'Done recently',                 // completed: oldest completion first
+    'Overdue 10 days', 'Overdue 3 days', 'Started first, retake', // overdue first, started or not: the most overdue first
+    'Started second',                                 // then what is already started
+    'Due in 20 days',                                 // then by due date
+    'No due, assigned first', 'No due, assigned later', // then no due date, in the order assigned
+  ]);
+  assert.deepEqual(path.steps.map((s) => s.number), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.deepEqual([path.total, path.doneCount, path.percent], [9, 2, 22]);
+  // the current step: the most overdue training, though others were started before it
+  assert.equal(path.current.title, 'Overdue 10 days');
+  assert.equal(path.action, 'Start next training');
+  assert.deepEqual([path.current.dueText, path.current.overdue], ['10 days overdue', true]);
+  // a started training moved back keeps all its progress and opens where the learner stopped
+  const moved = path.steps.find((s) => s.title === 'Started first, retake');
+  assert.deepEqual([moved.started, moved.retake, moved.progressText, moved.resumeHref], [true, true, '3 of 3 items done · 0 of 1 practice passed', '/training-course/c-Started first, retake']);
+  // the next 3 locked steps show; the rest fold into "+N more"
+  assert.deepEqual(path.upcomingShown.map((s) => s.title), ['Overdue 3 days', 'Started first, retake', 'Started second']);
+  assert.deepEqual(path.upcomingMore.map((s) => s.title), ['Due in 20 days', 'No due, assigned first', 'No due, assigned later']);
+  assert.equal(path.steps.find((s) => s.title === 'Overdue 3 days').progressText, '4 items · 1 practice'); // not started: what it holds
+  assert.deepEqual(path.completed.map((s) => s.completedText), ['Completed Sep 5 · ', 'Completed Oct 14 · Score 92%'].map((t) => t.replace(/ · $/, '')));
+  // the same list in another order gives the same path (it never depends on how the list arrives)
+  assert.deepEqual(pathOf([...list].reverse(), now).steps.map((s) => s.title), path.steps.map((s) => s.title));
+  // the main button in each state
+  const only = (...titles) => list.filter((r) => titles.includes(r.id));
+  assert.equal(pathOf(only('Due in 20 days', 'Overdue 3 days'), now).action, 'Start training');            // the very first
+  assert.equal(pathOf(only('Done recently', 'Due in 20 days'), now).action, 'Start next training');        // between trainings
+  assert.equal(pathOf(only('Done recently', 'Started second'), now).action, 'Continue');                   // in progress
+  const done = pathOf(only('Done recently', 'Done long ago'), now);
+  assert.deepEqual([done.current, done.action, done.percent], [null, null, 100]);                          // all completed: no button
+  const none = pathOf([], now);
+  assert.deepEqual([none.total, none.current, none.action], [0, null, null]);                              // nothing assigned
   assert.equal(overdueText(new Date(now.getTime() - DAY), now), '1 day overdue');
-  assert.equal(overdueText(new Date(now.getTime() - 3600000), now), 'Overdue since today');
+  assert.equal(overdueText(new Date(now.getTime() - 3600000), now), 'Overdue today');
+  assert.equal(dueText(now, now), 'Due today');
+  assert.equal(dueText(new Date(now.getTime() + DAY), now), 'Due tomorrow');
+  assert.equal(dueText(new Date('2027-01-05T12:00:00Z'), now), 'Due Jan 5, 2027');
 });
 
-test('My Training page: Overdue / To Do / In Progress / Completed, then All / Product / Sales / System & Workflow, on one page', async () => {
-  const assign = async (course, dueDays, attempt) => {
+test('My Training page: one path with one main button, the completed fold, 3 locked steps and "+N more"', async () => {
+  const assign = async (title, dueDays, attempt) => {
+    const course = await prisma.trainingCourse.create({ data: { organizationId: org.id, title, createdById: admin.id, status: 'PUBLISHED', trainingCategory: 'PRODUCT' } });
     const a = await prisma.trainingAssignment.create({ data: { organizationId: org.id, courseId: course.id, assignedById: admin.id, scope: 'INDIVIDUAL', dueDate: dueDays === null ? null : new Date(Date.now() + dueDays * DAY) } });
     const r = await prisma.trainingAssignmentRecipient.create({ data: { assignmentId: a.id, profileId: agent.id } });
-    if (attempt) await prisma.trainingAttempt.create({ data: { recipientId: r.id, profileId: agent.id, attemptNumber: 1, completedAt: attempt.status === 'COMPLETED' ? new Date() : null, score: attempt.score ?? null, status: attempt.status } });
-    return r;
+    await prisma.trainingAttempt.create({ data: { recipientId: r.id, profileId: agent.id, attemptNumber: 1, status: attempt || 'NOT_STARTED', startedAt: attempt ? new Date() : null, completedAt: attempt === 'COMPLETED' ? new Date() : null, score: attempt === 'COMPLETED' ? 92 : null } });
   };
   await prisma.trainingAssignmentRecipient.deleteMany({ where: { profileId: agent.id } });
-  const mkc = (t, c) => prisma.trainingCourse.create({ data: { organizationId: org.id, title: t, createdById: admin.id, status: 'PUBLISHED', trainingCategory: c } });
-  await assign(await mkc('Late product course', 'PRODUCT'), -4);
-  await assign(await mkc('Late sales course', 'SALES'), -1);
-  await assign(await mkc('Fresh system course', 'SYSTEM_WORKFLOW'), 9);
-  await assign(await mkc('Started sales course', 'SALES'), 3, { status: 'IN_PROGRESS' });
-  await assign(await mkc('Finished product course', 'PRODUCT'), -60, { status: 'COMPLETED', score: 92 });
-  await assign(await mkc('Uncategorized old course', null), null);
+  await assign('Finished course', -60, 'COMPLETED');
+  await assign('Started course', 3, 'IN_PROGRESS');
+  for (let i = 1; i <= 6; i += 1) await assign('Later course ' + i, 10 + i);
+  await assign('Late course', -4);
 
-  let page = await get(agent, '/training');
+  const page = await get(agent, '/training');
   assert.equal(page.status, 200);
-  assert.match(page.text, /status-tab status-tab--overdue active/); // lands on Overdue
-  for (const label of ['Overdue', 'To Do', 'In Progress', 'Completed']) assert.match(page.text, new RegExp(`<span>${label}</span><span class="category-count">\\d+<`));
-  assert.deepEqual(names(page.text), ['Late product course', 'Late sales course']);   // the most overdue first
-  assert.match(page.text, /class="training-card training-card--overdue/);
-  assert.match(page.text, /data-overdue-badge>Overdue</);                              // the word, not only a colour
-  assert.match(page.text, /Overdue — 4 days overdue/);
-  assert.match(page.text, /Overdue — 1 day overdue/);
-  for (const label of ['All', 'Product', 'Sales', 'System &amp; Workflow']) assert.match(page.text, new RegExp(`<span>${label}</span><span class="category-count">\\d+<`));
-  assert.match(page.text, /data-category-badge>Product Training</);
+  assert.match(page.text, /<strong>1 of 9<\/strong> completed/);
+  assert.match(page.text, /aria-valuenow="11"/);
+  // exactly one main button, on the current step - the overdue training, ahead of the one already started
+  assert.equal((page.text.match(/class="btn /g) || []).length, 1);
+  const current = page.text.split('data-current-step')[1].split('</section>')[0];
+  assert.match(current, /Step 2 of 9/);
+  assert.match(current, /Late course/);
+  assert.match(current, /4 days overdue/);
+  assert.match(current, /data-main-action>Start next training</);
+  // the completed fold, folded while there is something to do
+  assert.match(page.text, /<details class="path-fold" data-fold="completed">\s*<summary>1 completed<\/summary>/);
+  assert.match(page.text, /href="\/training-course\/[^"]+">Finished course<\/a><span>Completed [A-Z][a-z]{2} \d+ · Score 92%/);
+  // the next 3 locked steps (the started one waits behind the overdue one), the rest behind "+4 more" - all locked, none a link
+  const locked = [...page.text.matchAll(/class="path-locked__title">([^<]+)</g)].map((m) => m[1]);
+  assert.deepEqual(locked, ['Started course', 'Later course 1', 'Later course 2']);
+  assert.match(page.text, /<summary>\+4 more<\/summary>/);
+  assert.deepEqual([...page.text.split('data-fold="more"')[1].matchAll(/class="path-fold__title">([^<]+)</g)].map((m) => m[1]), ['Later course 3', 'Later course 4', 'Later course 5', 'Later course 6']);
+  // no tabs, filters or category chips on the path
+  assert.doesNotMatch(page.text, /status-tab|category-tab|segmented|class="tabs/);
+});
 
-  page = await get(agent, '/training?status=overdue&category=SALES');
-  assert.deepEqual(names(page.text), ['Late sales course']);
-  page = await get(agent, '/training?status=todo');
-  assert.deepEqual(names(page.text), ['Fresh system course', 'Uncategorized old course']);
-  assert.match(page.text, /data-category-badge>Uncategorized</);
-  assert.deepEqual(names((await get(agent, '/training?status=todo&category=SYSTEM_WORKFLOW')).text), ['Fresh system course']);
-  assert.deepEqual(names((await get(agent, '/training?status=inprogress')).text), ['Started sales course']);
-  assert.match((await get(agent, '/training?status=inprogress')).text, /Continue</);
-  page = await get(agent, '/training?status=completed');
-  assert.deepEqual(names(page.text), ['Finished product course']);
-  assert.match(page.text, /score 92%/);
-  assert.doesNotMatch(page.text, /data-overdue-badge/); // completed history is never flagged overdue
-  assert.match((await get(agent, '/training?status=completed&category=SALES')).text, /Completed training will appear here|Nothing here in this category/);
-  assert.equal((await get(agent, '/training?status=zzz&category=zzz')).status, 200);
-  // starting still works from the card
-  const todo = await get(agent, '/training?status=todo');
-  assert.match(todo.text, /action="\/training\/[^"]+\/start"/);
+test('My Training for every role: the same path; Skill Graph and Notes in the user menu; management stays under Manage Training', async () => {
+  const menu = (html) => html.split('class="user-menu-panel"')[1].split('</div>')[0];
+  const agentPage = (await get(agent, '/training')).text;
+  assert.match(menu(agentPage), /href="\/training" role="menuitem">My Training</);
+  assert.match(menu(agentPage), /href="\/skill-graph" role="menuitem">Skill Graph</);
+  assert.match(menu(agentPage), /href="\/notes" role="menuitem">Notes</);
+  assert.match(menu(agentPage), /Profile &amp; Settings/);
+  assert.doesNotMatch((await get(agent, '/notes')).text, /class="tabs/); // the tab bar is gone from Notes and Skill Graph too
+  assert.doesNotMatch((await get(agent, '/skill-graph')).text, /class="tabs/);
+  const supPage = (await get(sup, '/training')).text;
+  assert.match(menu(supPage), /href="\/training" role="menuitem">My Training</);
+  assert.doesNotMatch(menu(supPage), /\/notes/);                       // Notes is for Travel Agents and Flight Experts only
+  assert.match(supPage, /<span>Manage Training<\/span>/);
+  assert.match(supPage, /No training assigned yet/);
+  const fresh = await prisma.profile.create({ data: { organizationId: org.id, fullName: 'Fresh admin', username: 'tc_' + org.id + '_fresh', email: 'tc_' + org.id + '_fresh@example.invalid', role: 'ADMIN', status: 'ACTIVE', employmentStartDate: new Date() } });
+  const t = generateToken(); await prisma.session.create({ data: { profileId: fresh.id, tokenHash: t.hash, expiresAt: new Date(Date.now() + 3600000) } }); cookies[fresh.id] = 'sz_session=' + t.raw;
+  const adminPage = (await get(fresh, '/training')).text;
+  assert.match(adminPage, /Nothing is assigned to you/);
+  assert.match(adminPage, /<span>Manage Training<\/span>/);
 });
 
 test('AI Practice -> Training: the upload, the review step and the send screen require / carry the category', async () => {

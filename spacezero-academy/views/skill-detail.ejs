@@ -2,7 +2,6 @@
   <%- include('partials/employee-frame') %>
 <% } else { %>
   <%- include('partials/page-header', { pageTitle: row.skill.name, pageDescription: (row.category) + ' · why this score is what it is' }) %>
-  <%- include('partials/management-tabs', { tabs: tabsets.learner }) %>
 <% } %>
 <p class="mt-16"><a class="link-gold text-sm" href="<%= mode === 'employee' ? '/employees/' + employee.id + '/skills' : '/skill-graph' %>">← Back to Skill DNA</a></p>
 
