@@ -68,6 +68,24 @@ router.post('/teams/:id/archive', requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// Full delete: the team is removed completely, active or archived. The people in it are NOT deleted - they simply stop
+// belonging to it. Training assigned to the team stays with the people it reached; setup requirements aimed at the team
+// go with it; plain team references (supervisor links, leave requests) are cleared so nothing points at a team that no
+// longer exists.
+router.post('/teams/:id/delete', requireAdmin, async (req, res) => {
+  const admin = req.profile;
+  const team = await prisma.team.findFirst({ where: { id: req.params.id, organizationId: admin.organizationId }, include: { _count: { select: { memberships: true, trainingAssignments: true } } } });
+  if (!team) return res.status(404).json({ error: 'Not found' });
+  await prisma.$transaction([
+    prisma.setupRequirementTarget.deleteMany({ where: { teamId: team.id } }),
+    prisma.supervisorAssignment.updateMany({ where: { teamId: team.id }, data: { teamId: null } }),
+    prisma.leaveRequest.updateMany({ where: { teamId: team.id }, data: { teamId: null } }),
+    prisma.team.delete({ where: { id: team.id } }), // memberships go with it; the team's assignments keep their recipients (their team link is cleared)
+  ]);
+  await logAudit({ organizationId: admin.organizationId, actorId: admin.id, action: 'team.deleted', targetTable: 'Team', targetId: team.id, metadata: { name: team.name, members: team._count.memberships, assignments: team._count.trainingAssignments } });
+  res.json({ ok: true });
+});
+
 router.get('/teams/:id', requireAdmin, async (req, res) => {
   const admin = req.profile;
   const team = await prisma.team.findFirst({

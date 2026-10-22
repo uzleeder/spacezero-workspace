@@ -1,0 +1,17 @@
+<%# The line under the document that fills as the learner reads (public/js/doc-reader.js). %>
+<% if (kind !== 'unsupported') { %>
+  <div class="doc-progress" data-doc-progress role="status" aria-live="polite">
+    <div class="doc-progress__row">
+      <span class="doc-progress__label" data-progress-label><%= saved.done ? '✓ Finished' : (tracked ? 'Reading progress' : 'Preview — progress is not recorded') %></span>
+      <span class="doc-progress__percent" data-progress-percent><%= saved.done ? 100 : saved.percent %>%</span>
+    </div>
+    <div class="doc-progress__track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<%= saved.done ? 100 : saved.percent %>" data-progress-track>
+      <div class="doc-progress__fill" data-progress-fill style="width:<%= saved.done ? 100 : saved.percent %>%"></div>
+    </div>
+    <% if (typeof inStep !== 'undefined' && inStep) { %>
+    <p class="doc-progress__note" data-progress-note><%= saved.done ? 'This item is finished.' : (tracked ? 'Read to the end. The line fills as you read, then Next opens.' : '') %> </p>
+    <% } else { %>
+    <p class="doc-progress__note" data-progress-note><%= saved.done ? 'This item is finished. ' + next.message : (tracked ? 'Read to the end — the line fills as you read and finishes this item by itself.' : '') %> <a href="<%= next.url %>" class="btn btn-gold btn-sm" data-progress-back <%= saved.done ? '' : 'hidden' %>><%= next.label %></a></p>
+    <% } %>
+  </div>
+<% } %>

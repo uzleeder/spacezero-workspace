@@ -1,0 +1,55 @@
+<%# The document reader (public/js/doc-reader.js): the file as uploaded. Used by the reading page and by a document step of the training page (inStep). %>
+<div class="doc-reader" data-doc-reader
+     data-kind="<%= kind %>" data-tracked="<%= tracked ? 'true' : 'false' %>" data-saved="<%= saved.percent %>" data-done="<%= saved.done ? 'true' : 'false' %>"
+     data-progress-url="/training-material/<%= module.id %>/progress" data-file-url="/training-file/<%= module.id %>" data-pages="<%= kind === 'slides' && slides ? slides.length : 1 %>"<%- typeof inStep !== 'undefined' && inStep ? ' data-in-step' : '' %>>
+  <% if (kind === 'pdf') { %>
+    <div class="doc-reader__pages" data-reader-body aria-label="<%= module.title %>"></div>
+    <p class="text-sm text-muted doc-reader__loading" data-reader-loading>Opening the document…</p>
+  <% } else if (kind === 'docx' || kind === 'epub' || kind === 'text') { %>
+    <article class="doc-reader__paper doc-reader__paper--<%= kind %>" data-reader-body aria-label="<%= module.title %>"><%- html %></article>
+  <% } else if (kind === 'html') { %>
+    <iframe class="doc-reader__frame" data-reader-body sandbox="allow-same-origin" referrerpolicy="no-referrer" title="<%= module.title %>" src="/training-file/<%= module.id %>?frame=1"></iframe>
+  <% } else if (kind === 'sheet') { %>
+    <div class="doc-reader__sheets" data-reader-body aria-label="<%= module.title %>"><%- html %></div>
+  <% } else if (kind === 'cad') { %>
+    <div class="doc-reader__drawing" data-reader-body aria-label="<%= module.title %>"><%- html %></div>
+  <% } else if (kind === 'font') { %>
+    <style>@font-face { font-family: "sz-font-<%= module.id %>"; src: url('/training-file/<%= module.id %>'); font-display: block; }</style>
+    <div class="doc-reader__specimen" data-reader-body style="font-family: 'sz-font-<%= module.id %>', sans-serif" aria-label="<%= module.title %>">
+      <p class="doc-reader__specimen-big">Aa Bb Cc</p>
+      <p class="doc-reader__specimen-set">ABCDEFGHIJKLMNOPQRSTUVWXYZ</p>
+      <p class="doc-reader__specimen-set">abcdefghijklmnopqrstuvwxyz</p>
+      <p class="doc-reader__specimen-set">0123456789 &amp;!?@#%()[]{}+-=/</p>
+      <% [12, 16, 24, 36, 48, 64].forEach(function (size) { %><p class="doc-reader__specimen-line" style="font-size:<%= size %>px"><span class="doc-reader__specimen-size"><%= size %> px</span> The quick brown fox jumps over the lazy dog.</p><% }); %>
+      <p class="doc-reader__specimen-para">Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump! Sphinx of black quartz, judge my vow. Amazingly few discotheques provide jukeboxes.</p>
+    </div>
+  <% } else if (kind === 'slides') { %>
+    <div class="doc-reader__slides" data-reader-body aria-label="<%= module.title %>">
+      <% slides.forEach(function (s) { %>
+        <% if (s.html) { %>
+        <section class="doc-reader__slide doc-reader__slide--drawn" aria-label="Slide <%= s.number %> of <%= slides.length %>">
+          <p class="doc-reader__slide-no">Slide <%= s.number %> of <%= slides.length %></p>
+          <%- s.html %>
+        </section>
+        <% } else { %>
+        <section class="doc-reader__slide">
+          <p class="doc-reader__slide-no">Slide <%= s.number %> of <%= slides.length %></p>
+          <% if (s.title) { %><h2><%= s.title %></h2><% } %>
+          <% s.images.forEach(function (src) { %><img src="<%= src %>" alt="" draggable="false"><% }); %>
+          <% if (s.lines.length) { %><ul><% s.lines.forEach(function (line) { %><li><%= line %></li><% }); %></ul><% } %>
+        </section>
+        <% } %>
+      <% }); %>
+    </div>
+  <% } else if (kind === 'image') { %>
+    <div class="doc-reader__image" data-reader-body><img src="/training-file/<%= module.id %>" alt="<%= module.title %>" draggable="false"></div>
+  <% } else { %>
+    <div class="form-alert info" data-reader-unsupported>This file cannot be shown page by page here. <%= protect ? 'Ask an administrator to upload it as a PDF, DOCX or PPTX file.' : '' %></div>
+    <% if (tracked && !saved.done && !(typeof inStep !== 'undefined' && inStep)) { %>
+      <form method="post" action="/training-material/<%= module.id %>/acknowledge" class="mt-16" data-once>
+        <button type="submit" class="btn btn-gold">I have read this</button>
+        <span class="text-sm text-muted" style="margin-left:8px">Available after you have had a little time with it.</span>
+      </form>
+    <% } %>
+  <% } %>
+</div>

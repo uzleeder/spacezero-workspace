@@ -31,19 +31,24 @@ before(async () => {
 });
 after(async () => { await prisma.$disconnect(); });
 
+// the practices that are steps of the training page (the bar of steps names every step)
+const stepTitles = (html) => [...html.matchAll(/<span class="visually-hidden">Step \d+: ([^<(]+?)(?: \((?:done|locked)\))?<\/span>/g)].map((m) => m[1]);
 const startLinks = (html) => [...html.matchAll(/href="\/assessments\/([a-z0-9]+)\/(?:take|roleplay)"/g)].map((m) => m[1]);
 
-test('a learner assigned the whole training sees every practice and each Start opens', async () => {
+test('a learner assigned the whole training has every practice as a step, one at a time, and each one opens', async () => {
   const page = await get(whole, `/training-course/${course.id}`);
   assert.equal(page.status, 200);
-  assert.deepEqual(startLinks(page.text).sort(), [quiz.id, technical.id, workflow.id].sort());
-  for (const id of startLinks(page.text)) assert.equal((await get(whole, `/assessments/${id}/take`)).status, 200, id);
+  const titles = stepTitles(page.text);
+  for (const p of [quiz, technical, workflow]) assert.ok(titles.includes(p.title), p.title);
+  assert.equal(startLinks(page.text).length, 1);                                 // only the current step has a Start
+  for (const p of [quiz, technical, workflow]) assert.equal((await get(whole, `/assessments/${p.id}/take`)).status, 200, p.title);
 });
 
 test('a learner assigned ONE practice sees only that one - never a Start that leads to "Page not found"', async () => {
   const page = await get(partial, `/training-course/${course.id}`);
   assert.deepEqual(startLinks(page.text), [technical.id]);
-  assert.doesNotMatch(page.text, /Practice \d of 3/);                           // not the whole set of three
+  const titles = stepTitles(page.text);                                             // not the whole set of three
+  assert.ok(titles.includes(technical.title)); assert.ok(!titles.includes(quiz.title)); assert.ok(!titles.includes(workflow.title));
   assert.equal((await get(partial, `/assessments/${technical.id}/take`)).status, 200);
   // the practice they were not given is refused with an explanation, not a bare "not found"
   const refused = await get(partial, `/assessments/${quiz.id}/take`).set('Accept', 'text/html');
@@ -56,6 +61,6 @@ test('an Admin looking at the training sees the practices without a Start button
   const page = await get(admin, `/training-course/${course.id}`);
   assert.equal(page.status, 200);
   assert.equal(startLinks(page.text).length, 0);
-  assert.match(page.text, /Opens for the people this training is assigned to/);
+  assert.match(page.text, /opens for the people this training is assigned to/);
   assert.ok(sup); // (a Supervisor without access to the course gets no page at all)
 });

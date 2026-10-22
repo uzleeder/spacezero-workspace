@@ -8,7 +8,7 @@ const prompts = [];
 mock.method(require('../lib/gemini'), 'generateStructured', async (input) => {
   prompts.push(input);
   return { modelVersion: 'test', data: {
-    questions: Array.from({ length: 3 }, () => ({ type: 'MCQ', prompt: 'Choose', options: ['A', 'B'], correctAnswer: 'A', skillNames: ['Discovery'] })),
+    questions: Array.from({ length: 8 }, () => ({ type: 'MCQ', prompt: 'Choose', options: ['A', 'B'], correctAnswer: 'A', skillNames: ['Discovery'] })),
     customerPersonality: 'busy', scenarioBrief: 'New scenario', openingLine: 'Hello', rubricSkills: ['Discovery'],
   } };
 });

@@ -56,10 +56,10 @@ test('multi-answer questions grade correctly when an option contains a comma, wh
   await prisma.question.delete({ where: { id: stored.id } });
 });
 
-test('a failed quiz does not show the answers; the next try waits, and tries run out', async () => {
+test('a failed quiz does not show the answers; every next try waits, and tries never run out', async () => {
   const first = await submit(as(agent), wrong());
   assert.equal(first.status, 200);
-  assert.match(first.text, /Retake required/);
+  assert.match(first.text, /Not passed yet/);
   assert.doesNotMatch(first.text, /Correct answer/); assert.doesNotMatch(first.text, /Because Doha/); assert.doesNotMatch(first.text, /Doha, Qatar/);
 
   const again = await submit(as(agent), right());                                          // straight away: refused, nothing recorded
@@ -74,9 +74,10 @@ test('a failed quiz does not show the answers; the next try waits, and tries run
   await rewind(agent, 11);
   assert.equal((await submit(as(agent), wrong())).status, 200);                             // the third failed try
   await rewind(agent, 11);
-  const used = await request(app).get(`/assessments/${quiz.id}/take`).set('Cookie', as(agent));
-  assert.equal(used.status, 429); assert.match(used.text, /All 3 tries of this practice are used/); assert.match(used.text, /Practice these skills now/);
-  assert.equal((await submit(as(agent), right())).status, 429);
+  assert.equal((await request(app).get(`/assessments/${quiz.id}/take`).set('Cookie', as(agent))).status, 200); // no limit on tries: after the wait it opens
+  assert.equal((await submit(as(agent), wrong())).status, 200);                             // a fourth failed try is accepted
+  const waiting = await request(app).get(`/assessments/${quiz.id}/take`).set('Cookie', as(agent));
+  assert.equal(waiting.status, 429); assert.match(waiting.text, /You can try again in/); assert.match(waiting.text, />Review the material</);
 
   // a retake asked for by the supervisor / Admin gives a fresh start
   const latest = await prisma.trainingAttempt.findFirst({ where: { profileId: agent.id, assessmentId: quiz.id }, orderBy: { attemptNumber: 'desc' } });
@@ -88,7 +89,7 @@ test('a failed quiz does not show the answers; the next try waits, and tries run
 test('passing shows the answers, and a passed practice is never held back', async () => {
   const passer = tester;                                                                    // fresh learner (also has the test-account flag, which changes nothing here)
   const ok = await submit(as(passer), right());
-  assert.match(ok.text, /Passed/); assert.doesNotMatch(ok.text, /Retake required/);
+  assert.match(ok.text, /Passed/); assert.doesNotMatch(ok.text, /Not passed yet/);
   assert.equal((await request(app).get(`/assessments/${quiz.id}/take`).set('Cookie', as(passer))).status, 200);
 });
 

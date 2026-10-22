@@ -136,12 +136,22 @@ test('raw files: a non-Admin cannot open one as a page or download it; embedding
   assert.equal((await get(admin, tUrl, { 'Sec-Fetch-Dest': 'document' })).status, 200);
 });
 
-test('Training material: documents open on a reading page inside the app (Word as text, PDF in a viewer), view-only for employees', async () => {
-  const page = await get(agent, `/training-course/${course.id}`);
-  assert.equal(page.status, 200);
-  assert.match(page.text, new RegExp(`href="/training-read/${modules.pdf.id}"`)); assert.match(page.text, new RegExp(`href="/training-read/${modules.docx.id}"`));
-  assert.doesNotMatch(page.text, new RegExp(`href="/training-file/${modules.docx.id}"`));
-  assert.match(page.text, /data-protect/);
+// The step of the training page that shows this piece of material (the training page goes one step at a time).
+const stepWith = async (who, title) => {
+  for (let n = 1; n <= 30; n += 1) {
+    const page = await get(who, `/training-course/${course.id}?step=${n}`);
+    if (page.text.includes(`<h2 class="step-title">${title}</h2>`)) return page;
+  }
+  return { text: '' };
+};
+
+test('Training material: documents are read inside the app, in their own step (Word as text, PDF in the reader), view-only for employees', async () => {
+  const pdfStep = await stepWith(agent, modules.pdf.title);
+  assert.match(pdfStep.text, /data-doc-reader\s+data-kind="pdf"/); assert.doesNotMatch(pdfStep.text, /<iframe/); assert.match(pdfStep.text, /data-protect/);
+  const docxStep = await stepWith(agent, modules.docx.title);
+  assert.match(docxStep.text, /Training paragraph one\./);
+  assert.doesNotMatch(docxStep.text, new RegExp(`href="/training-file/${modules.docx.id}"`)); // no raw file to save
+  // the reading page of a document still works on its own
   const word = await get(agent, `/training-read/${modules.docx.id}`);
   assert.equal(word.status, 200);
   assert.match(word.text, /Training paragraph one\./); assert.match(word.text, /data-protect/); assert.match(word.text, /Viewing in-browser only/);
@@ -179,14 +189,15 @@ test('required training video: the progress line cannot be scrubbed by a learner
   const required = await prisma.trainingModule.create({ data: { courseId: course.id, title: 'MV required video', contentType: 'VIDEO', storagePath: saved.storagePath, required: true, displayOrder: 9, sourceRefJson: '{"durationSeconds":60}' } });
   const optional = await prisma.trainingModule.create({ data: { courseId: course.id, title: 'MV optional video', contentType: 'VIDEO', storagePath: saved.storagePath, required: false, displayOrder: 10, sourceRefJson: '{"durationSeconds":60}' } });
   const tag = (html, id) => (html.match(new RegExp(`<video[^>]*src="/training-file/${id}"[^>]*>`)) || [''])[0];
-  const learner = await get(agent, `/training-course/${course.id}`);
+  const learner = await get(agent, `/training-course/${course.id}`);            // the required video is the learner's step
   assert.match(tag(learner.text, required.id), /data-lock/);        // required: locked for the learner
-  assert.doesNotMatch(tag(learner.text, optional.id), /data-lock/); // optional / reference: free to move around
   assert.match(learner.text, /skipping ahead is switched off/);
-  assert.doesNotMatch(tag((await get(admin, `/training-course/${course.id}`)).text, required.id), /data-lock/); // Admins preview freely
+  assert.doesNotMatch(tag((await stepWith(admin, 'MV required video')).text, required.id), /data-lock/); // Admins preview freely
   // finished material opens up again
   await prisma.mediaProgress.upsert({ where: { profileId_trainingModuleId: { profileId: agent.id, trainingModuleId: required.id } }, create: { profileId: agent.id, trainingModuleId: required.id, completedAt: new Date(), percentComplete: 100 }, update: { completedAt: new Date(), percentComplete: 100 } });
-  assert.match(tag((await get(agent, `/training-course/${course.id}`)).text, required.id), /data-done="true"/);
+  assert.match(tag((await stepWith(agent, 'MV required video')).text, required.id), /data-done="true"/);
+  const optionalTag = tag((await stepWith(agent, 'MV optional video')).text, optional.id);
+  assert.ok(optionalTag); assert.doesNotMatch(optionalTag, /data-lock/); // optional / reference: free to move around
   // the player honours it: locked only while data-lock is present and not done; finishing unlocks; arrow keys do not seek while locked
   const js = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'player-skin.js'), 'utf8');
   assert.doesNotThrow(() => new vm.Script(js));

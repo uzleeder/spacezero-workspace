@@ -117,10 +117,10 @@ test('quiz: the same sitting submitted twice at once, or again from a refreshed 
   const [first, second] = await Promise.all([post(learner, `/assessments/${a.id}/submit`, answers), post(learner, `/assessments/${a.id}/submit`, answers)]);
   assert.equal(first.status, 200);
   assert.equal(second.status, 200);
-  assert.match(second.text, /Attempt #1/);
+  assert.match(second.text, /Attempt 1/);
   const refreshed = await post(learner, `/assessments/${a.id}/submit`, answers);
   assert.equal(refreshed.status, 200);
-  assert.match(refreshed.text, /Attempt #1/);
+  assert.match(refreshed.text, /Attempt 1/);
   assert.equal(await attemptsOf(a), 1);
   assert.equal(await prisma.skillEvidence.count({ where: { assessmentId: a.id } }), 1);
 

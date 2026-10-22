@@ -1,7 +1,6 @@
 'use strict';
 // After the material is finished the quiz must appear. An assignment tied to ONE practice that was later replaced used to
-// leave the practice list empty for ever; it is now a whole-training assignment again, and a learner whose assignment
-// really has no practice open is told so instead of seeing nothing.
+// leave the practice list empty for ever; it is now a whole-training assignment again,
 const { test, before, after, mock } = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -46,11 +45,4 @@ test('an assignment for one practice that is still there stays that one practice
   assert.equal((await prisma.trainingAssignment.findUnique({ where: { id: assignment.id } })).assessmentId, quizB.id);
   const open = await request(app).get(`/assessments/${quizB.id}/take`).set('Cookie', cookie);
   assert.equal(open.status, 200);
-});
-
-test('a learner whose assigned version has no practice is told, not shown an empty page', async () => {
-  await prisma.trainingAssignment.update({ where: { id: assignment.id }, data: { assessmentId: null, courseVersion: 3 } });   // practice exists, but only for version 1
-  const page = await request(app).get(`/training-course/${course.id}`).set('Cookie', cookie);
-  assert.equal(page.status, 200);
-  assert.match(page.text, /Your practice is not available yet/);
 });

@@ -14,7 +14,7 @@ const { teamIntelligence } = require('../lib/teamIntel');
 const { readinessFor } = require('../lib/readiness');
 const { attentionFor } = require('../lib/attention');
 
-const REQUIRED_KINDS = ['OVERDUE', 'RETAKE', 'DUE_SOON', 'ASSIGNED', 'IN_PROGRESS'];
+const REQUIRED_KINDS = ['PATH', 'OVERDUE', 'RETAKE', 'DUE_SOON', 'ASSIGNED', 'IN_PROGRESS']; // PATH = the current step of My Training
 
 /** Everything the learner-facing parts of a dashboard need, for ANY role (supervisors and admins are learners too). */
 async function myDevelopment(profile) {

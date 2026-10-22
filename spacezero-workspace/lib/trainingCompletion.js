@@ -134,6 +134,28 @@ async function submitTraining(recipient) {
 }
 
 /**
+ * Starts an assigned training: its course-level attempt moves from Not started to In progress, and a retake a manager
+ * asked for opens a new attempt. Opening the training does the same as pressing Start, so a training the learner has
+ * looked at never stays under To do. Anything else (already started, submitted) changes nothing.
+ * recipient: a TrainingAssignmentRecipient loaded with { attempts }.
+ */
+async function startTraining(recipient) {
+  const key = `start-training:${recipient.id}`;
+  if (!claim(key)) return null; // a double open or a double tap starts it once
+  try {
+    const latest = courseAttempt(recipient.attempts);
+    if (latest && latest.status === 'NOT_STARTED') {
+      return await prisma.trainingAttempt.update({ where: { id: latest.id }, data: { status: 'IN_PROGRESS', startedAt: new Date() } });
+    }
+    if (latest && latest.status === 'RETAKE_REQUIRED') {
+      const highest = recipient.attempts.reduce((max, t) => Math.max(max, t.attemptNumber), 0);
+      return await prisma.trainingAttempt.create({ data: { recipientId: recipient.id, profileId: recipient.profileId, attemptNumber: highest + 1, status: 'IN_PROGRESS', startedAt: new Date() } });
+    }
+    return null;
+  } finally { release(key); }
+}
+
+/**
  * Is this unfinished training DONE except for the final submission? Every required material is finished and every
  * practice/quiz is passed (a training with no practice counts once its required material is finished). The same rule
  * as the training page and POST /training/:id/complete. `assessments` = the course's approved assessments.
@@ -241,6 +263,6 @@ async function practiceFlowFor(profileId, assessment, recipientId) {
 }
 
 module.exports = {
-  completionState, completionFromAssessments, submitTraining, finishTraining, isReadyToFinish, autoFinishForProfile, autoFinishAll, practiceFlowFor, startUrl,
+  completionState, completionFromAssessments, submitTraining, startTraining, finishTraining, isReadyToFinish, autoFinishForProfile, autoFinishAll, practiceFlowFor, startUrl,
   courseAttempt, isSubmitted, retakeTarget, newestFirst, trainingStatusFrom, assessmentsByCourse, trainingStatuses,
 };

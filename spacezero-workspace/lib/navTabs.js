@@ -26,6 +26,8 @@ const trainingTabs = (can) => [
   ...(!can || can('training.assign') ? [{ label: 'Assignments', href: '/assignments' }] : []),
 ];
 
+// The learner's own pages, listed in the top-right user menu (views/layout.ejs) next to "Profile & Settings":
+// My Training for everyone, Skill Graph and Notes for Travel Agents and Flight Experts (Notes is theirs only).
 function learnerTabs(role) {
   const base = [{ label: 'My Training', href: '/training' }];
   if (role === 'TRAVEL_AGENT' || role === 'FLIGHT_EXPERT') {

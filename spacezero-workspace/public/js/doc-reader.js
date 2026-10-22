@@ -32,6 +32,12 @@
   function finish(next) {
     done = true; reached = 100; paint();
     label.textContent = '✓ Finished';
+    if (root.hasAttribute('data-in-step')) {
+      // a step of the training page: its own Next button leads on (public/js/training-steps.js)
+      if (note) { note.firstChild.nodeValue = 'You read it to the end. Press Next to continue. '; }
+      document.dispatchEvent(new CustomEvent('sz-step-done'));
+      return;
+    }
     if (note) { note.firstChild.nodeValue = 'You read it to the end - this item is finished. ' + ((next && next.message) || '') + ' '; }
     if (back) {
       if (next && next.url) { back.setAttribute('href', next.url); back.textContent = next.label; }

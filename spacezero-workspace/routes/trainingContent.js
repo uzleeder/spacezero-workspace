@@ -10,8 +10,12 @@ const { safeParse } = require('../lib/practiceEngine');
 const { logAudit } = require('../lib/audit');
 const { mediaGate, MEDIA_TYPES, DOC_TYPES, MIN_READ_MS, durationOf, advanceProgress } = require('../lib/mediaProgress');
 const { probeMedia } = require('../lib/mediaProbe');
-const { completionState, autoFinishForProfile } = require('../lib/trainingCompletion');
+const { completionState, autoFinishForProfile, startTraining } = require('../lib/trainingCompletion');
 const viewer = require('../lib/materialViewer');
+const { getMyTrainingList } = require('../lib/training');
+const { pathOf } = require('../lib/myTraining');
+const { stepsOf, stepToShow } = require('../lib/trainingSteps');
+const { retakeBlock } = require('../lib/retakePolicy');
 const upload = unlimitedUpload(); // any size: streamed to disk (lib/uploads.js)
 
 async function allowedCourse(actor, id) {
@@ -26,9 +30,9 @@ async function allowedCourse(actor, id) {
 
 /** A learner opening read-material starts its clock; the server later checks they really spent time with it. */
 async function noteOpened(profile, module) {
-  if (profile.role === 'ADMIN' || !DOC_TYPES.includes(module.contentType) || require('../lib/requestContext').readOnly()) return; // an Admin looking at the account records nothing
+  if (!DOC_TYPES.includes(module.contentType) || require('../lib/requestContext').readOnly()) return; // an Admin viewing someone else's account records nothing
   const mine = await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId: profile.id, assignment: { courseId: module.courseId } }, select: { id: true } });
-  if (!mine) return; // previewing (a supervisor who owns the course) records nothing
+  if (!mine) return; // previewing (an Admin or the supervisor who owns the course, not assigned it) records nothing
   await prisma.mediaProgress.upsert({ where: { profileId_trainingModuleId: { profileId: profile.id, trainingModuleId: module.id } }, create: { profileId: profile.id, trainingModuleId: module.id }, update: {} });
 }
 
@@ -48,13 +52,16 @@ router.post('/training-material/:moduleId/acknowledge', requireSession, async (r
   const mine = await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId: req.profile.id, assignment: { courseId: course.id } }, select: { id: true } });
   if (!mine) return res.status(404).send('Not found');
   const back = `/training-course/${course.id}`;
+  // From a step of the training page: stay on that step when it is refused, go on to the next one when it is accepted.
+  const step = Number.parseInt(req.body.step, 10);
+  const stay = Number.isInteger(step) && step > 0 ? `&step=${step}` : '';
   const row = await prisma.mediaProgress.findUnique({ where: { profileId_trainingModuleId: { profileId: req.profile.id, trainingModuleId: module.id } } });
-  if (!row) return res.redirect(`${back}?material=open-first`);              // it was never opened
-  if (Date.now() - row.startedAt.getTime() < MIN_READ_MS) return res.redirect(`${back}?material=too-fast`); // and not skimmed in a second
+  if (!row) return res.redirect(`${back}?material=open-first${stay}`);              // it was never opened
+  if (Date.now() - row.startedAt.getTime() < MIN_READ_MS) return res.redirect(`${back}?material=too-fast${stay}`); // and not skimmed in a second
   if (!row.completedAt) await prisma.mediaProgress.update({ where: { id: row.id }, data: { completedAt: new Date(), percentComplete: 100, lastActivityAt: new Date() } });
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'training.material_completed', targetTable: 'TrainingModule', targetId: module.id });
   await autoFinishForProfile(req.profile.id, { assignment: { courseId: course.id } }).catch((err) => console.error('auto-finish failed', err.message)); // it may have been the last thing left
-  res.redirect(back);
+  res.redirect(stay ? `${back}?step=${step + 1}` : back);
 });
 
 // Reading progress of a document, sent by the reading page while the learner reads (percent of the file scrolled through).
@@ -64,8 +71,8 @@ router.post('/training-material/:moduleId/progress', requireSession, async (req,
   const module = await prisma.trainingModule.findUnique({ where: { id: req.params.moduleId } });
   const course = module ? await allowedCourse(req.profile, module.courseId) : null;
   if (!module || !course || !DOC_TYPES.includes(module.contentType)) return res.status(404).json({ error: 'Not found' });
-  const mine = req.profile.role === 'ADMIN' ? null : await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId: req.profile.id, assignment: { courseId: course.id } }, select: { id: true } });
-  if (!mine) return res.json({ preview: true, percent: 0, completed: false }); // an Admin / the creator previewing records nothing
+  const mine = await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId: req.profile.id, assignment: { courseId: course.id } }, select: { id: true } });
+  if (!mine) return res.json({ preview: true, percent: 0, completed: false }); // previewing without the training assigned records nothing
   const sent = Number(req.body.percent);
   if (!Number.isFinite(sent)) return res.status(400).json({ error: 'Invalid progress' });
   const percent = Math.max(0, Math.min(100, sent));
@@ -124,7 +131,7 @@ router.get('/training-read/:moduleId', requireSession, async (req, res) => {
   res.render('training-read', {
     title: module.title, module, course, kind: readable ? kind : 'unsupported', html, slides, protect: req.profile.role !== 'ADMIN',
     next: finished ? await nextStep(req.profile, course, module) : { url: `/training-course/${course.id}`, label: 'Back to the training →', unlocked: false, message: '' },
-    tracked: req.profile.role !== 'ADMIN' && !require('../lib/requestContext').readOnly() && Boolean(await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId: req.profile.id, assignment: { courseId: course.id } }, select: { id: true } })),
+    tracked: !require('../lib/requestContext').readOnly() && Boolean(await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId: req.profile.id, assignment: { courseId: course.id } }, select: { id: true } })),
     saved: { percent: progress ? Math.round(progress.percentComplete) : 0, done: Boolean(progress && progress.completedAt) },
   });
 });
@@ -137,38 +144,62 @@ router.get('/training-course/:id', requireSession, async (req, res) => {
     await autoFinishForProfile(req.profile.id, { assignment: { courseId: course.id } }).catch((err) => console.error('auto-finish failed', err.message)); // already done = finished
   }
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'training.content_read', targetTable: 'TrainingCourse', targetId: course.id });
-  // Each learner sees the version of their latest assignment - the same one the practice lock and the progress
-  // saves use (lib/courseVersions.js learnerVersion); the Admin sees the version that is in Training.
-  const mineRecipient = req.profile.role === 'ADMIN' ? null : await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId: req.profile.id, assignment: { courseId: course.id } }, orderBy: { createdAt: 'desc' }, include: { assignment: true, attempts: true } });
+  // Each learner - an Admin who was assigned the training too - sees the version of their latest assignment, the same
+  // one the practice lock and the progress saves use (lib/courseVersions.js learnerVersion). Someone previewing it
+  // without an assignment (an Admin, the supervisor who made it) sees the version that is in Training.
+  const mineRecipient = await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId: req.profile.id, assignment: { courseId: course.id } }, orderBy: { createdAt: 'desc' }, include: { assignment: true, attempts: true } });
+  if (mineRecipient && !require('../lib/requestContext').readOnly()) await startTraining(mineRecipient); // opening the training is starting it (not while an Admin only views the account)
   const version = mineRecipient ? mineRecipient.assignment.courseVersion : Math.max(1, course.publishedVersion || 0);
-  const assessments = await prisma.assessment.findMany({ where: { courseId: course.id, status: 'APPROVED', OR: [{ version }, { configJson: { contains: 'targetedRetake' } }] }, orderBy: { createdAt: 'asc' } });
-  // what the learner is actually assigned (version + whole training or one practice): the practice list below only offers what can really be opened
-  const mine = req.profile.role === 'ADMIN' ? [] : await prisma.trainingAssignment.findMany({ where: { courseId: course.id, recipients: { some: { profileId: req.profile.id } } }, select: { courseVersion: true, assessmentId: true } });
+  // The learner's assignments of this training: which practice they can open (the filter at the end).
+  const mine = await prisma.trainingAssignment.findMany({ where: { courseId: course.id, recipients: { some: { profileId: req.profile.id } } }, select: { courseVersion: true, assessmentId: true } });
+  // The practices of this version, in order. A Smart Retake is not a step of its own: it is reached from a failed result,
+  // and passing it passes the practice it retakes (lib/trainingCompletion.js).
+  const assessments = (await prisma.assessment.findMany({ where: { courseId: course.id, status: 'APPROVED', archivedAt: null, version }, orderBy: { createdAt: 'asc' } }))
+    // Only practice the learner can really open: the same rule the practice page applies (an assignment of this version, for
+    // the whole training or for exactly this practice) - otherwise "Start" would lead to a page that is not found.
+    .filter((a) => safeParse(a.configJson, {})?.targetedRetake !== true && (!mineRecipient || mine.some((m) => m.courseVersion === a.version && (!m.assessmentId || m.assessmentId === a.id))));
   const gate = await mediaGate(req.profile.id, course.id, version);
   const shownModules = require('../lib/courseVersions').modulesFor(course.modules, version);
-  // Text notes are read on this very page: opening the page starts their clock.
-  if (req.profile.role !== 'ADMIN') for (const m of shownModules) if (m.contentType === 'NOTE') await noteOpened(req.profile, m);
-  const isLearner = Boolean(await prisma.trainingAssignmentRecipient.findFirst({ where: { profileId: req.profile.id, assignment: { courseId: course.id } }, select: { id: true } }));
+  const isLearner = Boolean(mineRecipient);
   const progressRows = isLearner ? await prisma.mediaProgress.findMany({ where: { profileId: req.profile.id, trainingModuleId: { in: shownModules.map((m) => m.id) } } }) : [];
   const doneIds = new Set(progressRows.filter((p) => p.completedAt).map((p) => p.trainingModuleId));
   const requiredIds = new Set(gate.modules.map((m) => m.id));
-  // Training without practice is finished from the training page itself (the list only ever says Start).
-  // Where the learner stands on submitting this training: every practice/quiz passed -> "Submit training".
+  // Where the learner stands on finishing this training (every practice/quiz passed); it normally finishes by itself.
   const completion = mineRecipient ? await completionState(mineRecipient) : null;
   const canFinish = Boolean(gate.unlocked && completion && !completion.submitted && completion.total === 0);
   const canSubmit = Boolean(gate.unlocked && completion && !completion.submitted && completion.total > 0 && completion.passedAll);
   const passedIds = new Set(completion ? completion.rows.filter((r) => r.passed).map((r) => r.assessment.id) : []);
-  // Only practice the learner can really open: the same rule the practice page applies (an assignment of this version, for
-  // the whole training or for exactly this practice) - otherwise "Start" would lead to a page that is not found.
-  const canOpen = (a) => {
-    if (safeParse(a.configJson, {})?.targetedRetake === true) return a.createdById === req.profile.id;
-    return !isLearner || mine.some((m) => m.courseVersion === a.version && (!m.assessmentId || m.assessmentId === a.id));
-  };
-  const shownAssessments = assessments.filter(canOpen);
-  // practice exists for this training but none of it is open to this learner: the page says so instead of showing nothing
-  const practiceUnavailable = Boolean(isLearner && gate.unlocked && !shownAssessments.length && await prisma.assessment.count({ where: { courseId: course.id, status: 'APPROVED', archivedAt: null, OR: [{ configJson: null }, { NOT: { configJson: { contains: 'targetedRetake' } } }] } }));
-  res.render('training-content', { nounFor: require('../lib/fileTypes').nounFor, readerKind: viewer.readerKind, title: course.title, canFinish, canSubmit, completion, passedIds, finishId: mineRecipient ? mineRecipient.id : null, isLearner, doneIds, requiredIds, DOC_TYPES, minReadSeconds: Math.round(MIN_READ_MS / 1000), material: typeof req.query.material === 'string' ? req.query.material : '', course: { ...course, modules: shownModules }, gate, assessments: shownAssessments, practiceUnavailable });
+
+  // ONE step at a time (lib/trainingSteps.js): ?step=N, or where the learner is.
+  const plan = stepsOf({ modules: shownModules, assessments, isLearner, doneIds, requiredIds, passedIds });
+  const index = stepToShow(plan, req.query.step);
+  const step = plan.steps[index];
+  // Opening a note, a document or a link as a step starts its reading clock (only the one on screen).
+  if (step.module && DOC_TYPES.includes(step.module.contentType) && step.kind !== 'link') await noteOpened(req.profile, step.module);
+  const opened = step.module && isLearner ? await prisma.mediaProgress.findUnique({ where: { profileId_trainingModuleId: { profileId: req.profile.id, trainingModuleId: step.module.id } } }) : null;
+  // A document - and a note, which is read the same way - finishes when it is read to the end (public/js/doc-reader.js).
+  const reader = step.kind === 'document' ? await readerFor(step.module, opened) : step.kind === 'note' ? { kind: 'note', saved: { percent: opened ? Math.round(opened.percentComplete) : 0, done: Boolean(opened && opened.completedAt) } } : null;
+  // A failed practice: the wait after a failed try (lib/retakePolicy.js), for the step's countdown.
+  const retakeWait = step.kind === 'practice' && isLearner && !step.done ? await retakeBlock(mineRecipient.id, step.assessment) : null;
+  const media = step.module && MEDIA_TYPES.includes(step.module.contentType) ? opened || progressRows.find((p) => p.trainingModuleId === step.module.id) || null : null;
+  // A finished training continues the learner's path: its finish screen offers the next step (lib/myTraining.js pathOf).
+  const pathAfter = step.kind === 'finish' && completion && completion.submitted ? pathOf(await getMyTrainingList(req.profile.id, { progress: true })) : null;
+  res.set('Cache-Control', 'private, no-store');
+  res.render('training-content', {
+    title: course.title, course: { ...course, modules: shownModules }, steps: plan.steps, current: plan.current, index, step, isLearner, reader, media, retakeWait,
+    waitSeconds: opened && !opened.completedAt ? Math.max(0, Math.ceil((MIN_READ_MS - (Date.now() - opened.startedAt.getTime())) / 1000)) : 0,
+    material: typeof req.query.material === 'string' ? req.query.material : '', minReadSeconds: Math.round(MIN_READ_MS / 1000),
+    completion, canFinish, canSubmit, finishId: mineRecipient ? mineRecipient.id : null, pathAfter,
+  });
 });
+
+/** What the in-page reader needs for a document step (the same as the reading page shows). */
+async function readerFor(module, progress) {
+  const kind = viewer.readerKind({ type: module.contentType, storagePath: module.storagePath });
+  const { html = null, slides = null } = await viewer.readerContent(kind, module.storagePath);
+  const readable = ['pdf', 'image', 'font', 'html'].includes(kind) ? true : kind === 'slides' ? slides : html;
+  return { kind: readable ? kind : 'unsupported', html, slides, saved: { percent: progress ? Math.round(progress.percentComplete) : 0, done: Boolean(progress && progress.completedAt) } };
+}
 
 // Training sources belong to AI Practice, which is Admin-only.
 router.post('/admin/training/:id/modules/:moduleId/file', requireRole('ADMIN'), withCleanup(upload.single('file')), async (req, res) => {

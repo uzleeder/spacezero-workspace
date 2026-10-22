@@ -9,6 +9,8 @@ const { prisma } = require('./prisma');
 const { getSetting } = require('./orgSettings');
 const { getSkillRows } = require('./skillIntel');
 const { trainingStatusFrom, newestFirst } = require('./trainingCompletion');
+const { getMyTrainingList } = require('./training');
+const { pathOf } = require('./myTraining');
 
 const DAY_MS = 86400000;
 const parse = (v, fallback) => { try { return v ? JSON.parse(v) : fallback; } catch { return fallback; } };
@@ -133,6 +135,17 @@ async function nextActions(profile, { now = new Date() } = {}) {
   }
 
   items.sort((a, b) => b.priority - a.priority);
+  // "What to do next" is the current step of the learner's path (lib/myTraining.js pathOf) - the same training My Training
+  // shows with its one main button - ahead of everything else, in place of that training's own entry.
+  const path = pathOf(await getMyTrainingList(profile.id, { progress: true }), now);
+  if (path.current) {
+    const c = path.current;
+    const where = [c.retake ? 'Pass the quiz again to finish this step' : '', c.dueText].filter(Boolean).join(' · ');
+    // It keeps the kind of the entry it replaces (a retake stays a RETAKE, overdue stays OVERDUE); path: true marks it.
+    const own = items.find((i) => i.course && i.course.id === c.courseId);
+    const step = { estimatedMinutes: null, skill: null, kind: own ? own.kind : 'PATH', path: true, priority: 100000, title: c.title, reason: `Step ${c.number} of ${path.total} on My Training.${where ? ` ${where}.` : ''}`, course: { id: c.courseId, title: c.title }, action: { type: 'OPEN', label: path.action, href: c.resumeHref } };
+    items.splice(0, items.length, step, ...items.filter((i) => !(i.course && i.course.id === c.courseId)));
+  }
   const summary = {
     required: learning.filter((l) => l.course.mandatory && !isDone(l)).length,
     current: learning.filter((l) => !isDone(l)).length,

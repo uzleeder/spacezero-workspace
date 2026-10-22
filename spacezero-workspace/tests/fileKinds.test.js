@@ -150,7 +150,13 @@ test('the reading page shows every kind and tracks reading; the raw svg / html f
   const frameFile = await get(agent, `/training-file/${htmlModule.id}?frame=1`).set('Sec-Fetch-Dest', 'iframe');
   assert.equal(frameFile.status, 200); assert.match(frameFile.headers['content-security-policy'], /^sandbox allow-same-origin; default-src 'none'/); assert.doesNotMatch(frameFile.headers['content-security-policy'], /allow-scripts/);
   assert.match((await get(agent, `/training-file/${htmlModule.id}`).set('Sec-Fetch-Dest', 'empty')).headers['content-security-policy'], /sandbox; default-src 'none'/);
+  // On the training page each of them is a step that shows the file right there (an Admin's preview opens every step) ...
+  const steps = (await prisma.trainingModule.count({ where: { courseId: course.id } })) + 1;
+  const kinds = [];
+  for (let n = 1; n <= steps; n += 1) { const m = (await get(admin, `/training-course/${course.id}?step=${n}`)).text.match(/data-doc-reader\s+data-kind="([a-z]+)"/); if (m) kinds.push(m[1]); }
+  for (const kind of ['sheet', 'epub', 'font', 'cad', 'text']) assert.ok(kinds.includes(kind), kind + ' in ' + kinds.join(','));
+  // ... and for the learner its Next waits for the reading line - every one of these finishes by itself, no "I have read this"
   const page = (await get(agent, `/training-course/${course.id}`)).text;
-  assert.match(page, />Read the spreadsheet</); assert.match(page, />Read the e-book</); assert.match(page, />Read the font</); assert.match(page, />Read the drawing</);
-  assert.doesNotMatch(page, /I have read this/);                                  // every one of these finishes by itself
+  assert.match(page, /data-unlock-on="document"/);
+  assert.doesNotMatch(page, /I have read this/);
 });
