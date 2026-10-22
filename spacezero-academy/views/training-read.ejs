@@ -7,68 +7,11 @@
 <% const draftSource = course.origin === 'AI_PRACTICE' && course.status !== 'PUBLISHED'; %>
 <div style="margin-bottom:12px"><a href="<%= draftSource ? '/ai-practice/' + course.id : '/training-course/' + course.id %>" class="text-sm link-gold">← <%= draftSource ? 'Back to the source material' : 'Back to the training' %></a></div>
 
-<%
-  const pageCount = kind === 'slides' && slides ? slides.length : 1;
-  const paper = kind === 'docx' || kind === 'slides' || kind === 'pdf' || kind === 'image';
-%>
 <div class="card">
   <div class="card-body<%= protect ? ' no-copy' : '' %>" <%- protect ? 'data-protect' : '' %>>
     <% if (module.description) { %><p class="text-sm" style="margin-bottom:16px"><%= module.description %></p><% } %>
 
-    <div class="doc-reader" data-doc-reader
-         data-kind="<%= kind %>" data-tracked="<%= tracked ? 'true' : 'false' %>" data-saved="<%= saved.percent %>" data-done="<%= saved.done ? 'true' : 'false' %>"
-         data-progress-url="/training-material/<%= module.id %>/progress" data-file-url="/training-file/<%= module.id %>" data-pages="<%= pageCount %>">
-      <% if (kind === 'pdf') { %>
-        <div class="doc-reader__pages" data-reader-body aria-label="<%= module.title %>"></div>
-        <p class="text-sm text-muted doc-reader__loading" data-reader-loading>Opening the document…</p>
-      <% } else if (kind === 'docx' || kind === 'epub' || kind === 'text') { %>
-        <article class="doc-reader__paper doc-reader__paper--<%= kind %>" data-reader-body aria-label="<%= module.title %>"><%- html %></article>
-      <% } else if (kind === 'html') { %>
-        <iframe class="doc-reader__frame" data-reader-body sandbox="allow-same-origin" referrerpolicy="no-referrer" title="<%= module.title %>" src="/training-file/<%= module.id %>?frame=1"></iframe>
-      <% } else if (kind === 'sheet') { %>
-        <div class="doc-reader__sheets" data-reader-body aria-label="<%= module.title %>"><%- html %></div>
-      <% } else if (kind === 'cad') { %>
-        <div class="doc-reader__drawing" data-reader-body aria-label="<%= module.title %>"><%- html %></div>
-      <% } else if (kind === 'font') { %>
-        <style>@font-face { font-family: "sz-font-<%= module.id %>"; src: url('/training-file/<%= module.id %>'); font-display: block; }</style>
-        <div class="doc-reader__specimen" data-reader-body style="font-family: 'sz-font-<%= module.id %>', sans-serif" aria-label="<%= module.title %>">
-          <p class="doc-reader__specimen-big">Aa Bb Cc</p>
-          <p class="doc-reader__specimen-set">ABCDEFGHIJKLMNOPQRSTUVWXYZ</p>
-          <p class="doc-reader__specimen-set">abcdefghijklmnopqrstuvwxyz</p>
-          <p class="doc-reader__specimen-set">0123456789 &amp;!?@#%()[]{}+-=/</p>
-          <% [12, 16, 24, 36, 48, 64].forEach(function (size) { %><p class="doc-reader__specimen-line" style="font-size:<%= size %>px"><span class="doc-reader__specimen-size"><%= size %> px</span> The quick brown fox jumps over the lazy dog.</p><% }); %>
-          <p class="doc-reader__specimen-para">Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump! Sphinx of black quartz, judge my vow. Amazingly few discotheques provide jukeboxes.</p>
-        </div>
-      <% } else if (kind === 'slides') { %>
-        <div class="doc-reader__slides" data-reader-body aria-label="<%= module.title %>">
-          <% slides.forEach(function (s) { %>
-            <% if (s.html) { %>
-            <section class="doc-reader__slide doc-reader__slide--drawn" aria-label="Slide <%= s.number %> of <%= slides.length %>">
-              <p class="doc-reader__slide-no">Slide <%= s.number %> of <%= slides.length %></p>
-              <%- s.html %>
-            </section>
-            <% } else { %>
-            <section class="doc-reader__slide">
-              <p class="doc-reader__slide-no">Slide <%= s.number %> of <%= slides.length %></p>
-              <% if (s.title) { %><h2><%= s.title %></h2><% } %>
-              <% s.images.forEach(function (src) { %><img src="<%= src %>" alt="" draggable="false"><% }); %>
-              <% if (s.lines.length) { %><ul><% s.lines.forEach(function (line) { %><li><%= line %></li><% }); %></ul><% } %>
-            </section>
-            <% } %>
-          <% }); %>
-        </div>
-      <% } else if (kind === 'image') { %>
-        <div class="doc-reader__image" data-reader-body><img src="/training-file/<%= module.id %>" alt="<%= module.title %>" draggable="false"></div>
-      <% } else { %>
-        <div class="form-alert info" data-reader-unsupported>This file cannot be shown page by page here. <%= protect ? 'Ask an administrator to upload it as a PDF, DOCX or PPTX file.' : '' %></div>
-        <% if (tracked && !saved.done) { %>
-          <form method="post" action="/training-material/<%= module.id %>/acknowledge" class="mt-16" data-once>
-            <button type="submit" class="btn btn-gold">I have read this</button>
-            <span class="text-sm text-muted" style="margin-left:8px">Available after you have had a little time with it.</span>
-          </form>
-        <% } %>
-      <% } %>
-    </div>
+    <%- include('partials/doc-reader-body') %>
 
     <% if (protect) { %>
       <p class="text-sm text-muted mt-24">Viewing in-browser only. Downloading and copying material is restricted to administrators.</p>
@@ -78,18 +21,7 @@
   </div>
 </div>
 
-<% if (kind !== 'unsupported') { %>
-  <div class="doc-progress" data-doc-progress role="status" aria-live="polite">
-    <div class="doc-progress__row">
-      <span class="doc-progress__label" data-progress-label><%= saved.done ? '✓ Finished' : (tracked ? 'Reading progress' : 'Preview — progress is not recorded') %></span>
-      <span class="doc-progress__percent" data-progress-percent><%= saved.done ? 100 : saved.percent %>%</span>
-    </div>
-    <div class="doc-progress__track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<%= saved.done ? 100 : saved.percent %>" data-progress-track>
-      <div class="doc-progress__fill" data-progress-fill style="width:<%= saved.done ? 100 : saved.percent %>%"></div>
-    </div>
-    <p class="doc-progress__note" data-progress-note><%= saved.done ? 'This item is finished. ' + next.message : (tracked ? 'Read to the end — the line fills as you read and finishes this item by itself.' : '') %> <a href="<%= next.url %>" class="btn btn-gold btn-sm" data-progress-back <%= saved.done ? '' : 'hidden' %>><%= next.label %></a></p>
-  </div>
-<% } %>
+<%- include('partials/doc-reader-progress') %>
 
 <% if (protect) { %><script src="<%= asset('/static/js/protect-materials.js') %>" defer></script><% } %>
 <% if (kind === 'pdf') { %><script src="/static/vendor/pdfjs/pdf.min.js"></script><% } %>

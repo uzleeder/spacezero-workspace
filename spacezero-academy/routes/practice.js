@@ -18,11 +18,11 @@ const { logAudit } = require('../lib/audit');
 const { displayOptions } = require('../lib/shuffleOptions');
 const { practiceFlowFor, startUrl } = require('../lib/trainingCompletion');
 const { keyFor } = require('../lib/answerKey');
-const { retakeOf } = require('../lib/courseVersions');
 const { focusSkillsFor, retakeSource, preparedRetake } = require('../lib/retakes');
 const { claim, release } = require('../lib/inFlightLock');
-const { retakeBlock } = require('../lib/retakePolicy');
+const { retakeBlock, familyTries } = require('../lib/retakePolicy');
 const { takeAiSlot, isRateLimited, recordAttempt } = require('../lib/rateLimit');
+const { getSetting } = require('../lib/orgSettings');
 
 router.use('/assessments/:id', requireSession, async (req, res, next) => {
   res.set('Cache-Control', 'private, no-store'); // a quiz page is never kept in the browser cache
@@ -32,6 +32,7 @@ router.use('/assessments/:id', requireSession, async (req, res, next) => {
   if (require('../lib/requestContext').readOnly()) return res.status(403).render('error', { layout: false, heading: 'Look-only while viewing as someone else', message: `You are viewing ${req.profile.fullName}'s account as an Admin. Practice and quizzes cannot be opened from here, because that would create records in their name. Return to admin to preview the practice yourself.` });
   const loaded = await loadAssignedAssessment(req.profile, req.params.id);
   if (!loaded) return res.status(404).render('error', { layout: false, message: 'This practice is not part of a training assigned to you, so it cannot be opened. Open it from your own training.', action: { label: 'Open My Training', href: '/training' } });
+  res.locals.retakeWaitMinutes = await getSetting(req.profile.organizationId, 'training.retakeWaitMinutes'); // the wait after a failed try, for its countdown
   if (loaded.assessment.courseId && !(await mediaGate(req.profile.id, loaded.assessment.courseId, loaded.assessment.version)).unlocked) return res.status(403).send(`<!doctype html><meta charset="utf-8"><title>Finish the material first</title><body style="font-family:system-ui;max-width:560px;margin:15vh auto;padding:0 16px"><h1>Finish the material first</h1><p>Watch, listen to and read all of the required material of this training before you start the practice or the quiz.</p><p><a href="/training-course/${loaded.assessment.courseId}">Go to the training material →</a></p></body>`);
   next();
 });
@@ -387,50 +388,58 @@ router.post('/assessments/:id/roleplay/finish', requireSession, async (req, res)
 // (lib/retakes.js), at a higher level. Passing it passes the practice it retakes.
 // ---------------------------------------------------------------------------
 
-/** Why no retake opened, with the ways forward: try again, retake the practice as it is, or go back. */
-function renderRetakeProblem(res, assessment, status, message) {
-  return res.status(status).render('practice/retake-unavailable', { title: `Retake — ${assessment.title}`, assessment, message, practiceUrl: startUrl(assessment) });
+/** No new set could be prepared: the original practice as it is - the only fallback, and the wait applies to it too. */
+function renderRetakeProblem(res, assessment, original, status, message) {
+  return res.status(status).render('practice/retake-unavailable', { title: `Retake — ${assessment.title}`, assessment, message, practiceUrl: startUrl(original) });
 }
 
+// "Try again" after a failed practice - on the result, on the training step, after Continue from My Training: ONE way.
+// It opens a new set of questions aimed at the learner's weak skills, at the same difficulty as the original practice;
+// passing it passes the original. The wait after a failed try (lib/retakePolicy.js) applies first, whichever practice
+// of the family was failed; a set prepared for the newest failure and not started yet opens again instead of a new one.
 router.post('/assessments/:id/remediate', requireSession, async (req, res) => {
   const actor = req.profile;
   const loaded = await loadAssignedAssessment(actor, req.params.id);
-  if (!loaded || !loaded.assessment.courseId) return res.status(404).render('not-found', { layout: false });
+  if (!loaded || !loaded.assessment.courseId || !loaded.recipient) return res.status(404).render('not-found', { layout: false });
   const { assessment } = loaded;
 
-  const lastAttempt = await prisma.trainingAttempt.findFirst({
-    where: { assessmentId: assessment.id, profileId: actor.id },
-    orderBy: { attemptNumber: 'desc' },
-  });
-  if (!lastAttempt || lastAttempt.status !== 'RETAKE_REQUIRED') return res.redirect('/training');
+  const { originalId, tries } = await familyTries(loaded.recipient.id, assessment);
+  const lastFailure = tries[0] && tries[0].status !== 'COMPLETED' ? tries[0] : null;
+  if (!lastFailure) return res.redirect(`/training-course/${assessment.courseId}`); // nothing failed: nothing to retake
+  if (await heldBack(res, loaded)) return;
+  // read as stored: its own pass mark, not the one raised to the assignment's minimum for this sitting
+  const original = await prisma.assessment.findUnique({ where: { id: originalId }, include: { questions: true } });
+  if (!original) return res.status(404).render('not-found', { layout: false });
 
-  // A retake of a retake still stands in for the same original practice.
-  const originalId = retakeOf(assessment) || assessment.id;
-  const ready = await preparedRetake(actor, assessment, originalId, lastAttempt);
+  const ready = await preparedRetake(actor, assessment, originalId, lastFailure);
   if (ready) return res.redirect(startUrl(ready));
   const lockKey = `retake:${actor.id}:${originalId}`;
-  if (!claim(lockKey)) return renderRetakeProblem(res, assessment, 409, 'Your retake is already being prepared. Wait a moment, then press "Try again" to open it.');
+  if (!claim(lockKey)) return renderRetakeProblem(res, assessment, original, 409, 'Your new set of questions is already being prepared. Wait a moment, then open the training again.');
   try {
-    const focusSkills = focusSkillsFor(safeParse(lastAttempt.skillBreakdownJson, {}), assessment.passingScore);
+    const focusSkills = focusSkillsFor(safeParse(lastFailure.skillBreakdownJson, {}), assessment.passingScore);
     const course = await prisma.trainingCourse.findUnique({ where: { id: assessment.courseId }, include: { analysis: true, modules: true } });
     if (!course) return res.status(404).render('not-found', { layout: false });
     // Written from the learner's own version of the material, stamped with that version (its material gate and assignment).
-    const version = loaded.recipient ? loaded.recipient.assignment.courseVersion : assessment.version;
-    const source = retakeSource(course, assessment, version);
-    const common = { course, analysis: source, actor, level: Math.min(5, (assessment.level || 3) + 1), focusSkills: focusSkills.length ? focusSkills : null, status: 'APPROVED', retakeOf: originalId, version };
+    const version = loaded.recipient.assignment.courseVersion;
+    const source = retakeSource(course, original, version);
+    // The same difficulty and pass mark as the original practice (the assignment's minimum still applies on top, as for the original).
+    const common = { course, analysis: source, actor, level: original.level || 3, passingScore: original.passingScore, focusSkills: focusSkills.length ? focusSkills : null, status: 'APPROVED', retakeOf: originalId, version };
+    // At least 8 questions (fewer only when the original itself has fewer); a set that keeps fewer than 5 good ones after the
+    // answer checks (or fewer than the original has, when that is under 5) is not offered.
+    const asked = Math.min(15, Math.max(Math.min(8, original.questions.length || 8), focusSkills.length * 2));
     // Each new set of questions is an AI job: a few a day per person, and inside the shared AI limits.
     const remediationBucket = `remediate:${actor.id}`;
-    if (await isRateLimited(remediationBucket, { maxAttempts: 5, windowMs: 24 * 60 * 60 * 1000 }) || !(await takeAiSlot(actor, { learner: true }))) return renderRetakeProblem(res, assessment, 429, 'You have already prepared several focused practices today. Try again later, or retake the practice as it is.');
+    if (await isRateLimited(remediationBucket, { maxAttempts: 5, windowMs: 24 * 60 * 60 * 1000 }) || !(await takeAiSlot(actor, { learner: true }))) return renderRetakeProblem(res, assessment, original, 429, 'You have reached today\'s limit of new question sets.');
     await recordAttempt(remediationBucket, true);
     let newAssessment;
     try {
-      newAssessment = assessment.type === 'PROCESS_SIM' && safeParse(assessment.configJson, {}).nodes
+      newAssessment = original.type === 'PROCESS_SIM' && safeParse(original.configJson, {}).nodes
         ? await require('../lib/processSimulation').generateProcessAssessment(common)
-        : ['ROLEPLAY', 'VOICE'].includes(assessment.type)
-        ? await generateRoleplayAssessment({ ...common, type: assessment.type })
-        : await generateQuestionAssessment({ ...common, type: assessment.type, questionCount: Math.min(15, Math.max(3, focusSkills.length ? focusSkills.length * 2 : assessment.questions.length)) });
+        : ['ROLEPLAY', 'VOICE'].includes(original.type)
+        ? await generateRoleplayAssessment({ ...common, type: original.type })
+        : await generateQuestionAssessment({ ...common, type: original.type, questionCount: asked, minQuestions: Math.min(5, asked) });
     } catch {
-      return renderRetakeProblem(res, assessment, 503, 'Your retake could not be prepared right now. Nothing was lost — press "Try again" in a moment, or retake the practice as it is.');
+      return renderRetakeProblem(res, assessment, original, 503, 'A new set of questions could not be prepared right now.');
     }
 
     // Retake practice the learner asks for after failing is auto-approved — it is scoped to their own
@@ -445,6 +454,7 @@ const voiceUpload = require('multer')({ storage: require('multer').memoryStorage
 router.post('/assessments/:id/process', requireSession, async (req, res) => {
   const loaded = await loadAssignedAssessment(req.profile, req.params.id);
   if (!loaded || loaded.assessment.type !== 'PROCESS_SIM' || !loaded.recipient) return res.status(404).send('Not found');
+  if (await heldBack(res, loaded)) return; // the wait after a failed try applies here as on every other practice
   const config = safeParse(loaded.assessment.configJson, {});
   if (!config.nodes) return res.status(404).send('Not found');
   const session = await claimSession(req.profile.id, loaded.assessment.id, req.body.sessionId);

@@ -84,12 +84,21 @@ test('the reading page shows each file as it was uploaded, with the progress lin
   assert.equal((await request(app).get('/static/js/doc-reader.js')).status, 200);
 });
 
-test('the training page shows the line under Read; files the reader can draw finish by themselves, the rest keep the manual button', async () => {
-  const page = (await get(agent, `/training-course/${course.id}`)).text;
-  assert.equal((page.match(/data-read-line/g) || []).length, 4);
-  assert.match(page, /line fills as you read, and this item finishes by itself/);
-  assert.equal((page.match(/I have read this/g) || []).length, 1);   // only the old .doc
-  assert.match(page, new RegExp(`/training-read/${mods['PDF guide'].id}">Read the PDF</a>`));
+test('the training page shows each document inside its own step with the line; files the reader can draw finish by themselves, an old .doc is confirmed with Next', async () => {
+  // the first step: the PDF, drawn right there, and Next waits for the reading line
+  let page = (await get(agent, `/training-course/${course.id}`)).text;
+  assert.match(page, /Step 1 of 5/);
+  assert.match(page, /data-doc-reader\s+data-kind="pdf"/); assert.match(page, /data-doc-progress/); assert.match(page, /data-tracked="true"/);
+  assert.match(page, /data-unlock-on="document"/); assert.match(page, /Read to the end: Next opens when the line is full/);
+  assert.doesNotMatch(page, /I have read this/);
+  // the old .doc cannot be drawn: once the steps before it are done, its Next is the confirmation, sent with its step
+  const before = ['PDF guide', 'Word notes', 'Slides'].map((t) => mods[t].id);
+  for (const id of before) await prisma.mediaProgress.upsert({ where: { profileId_trainingModuleId: { profileId: agent.id, trainingModuleId: id } }, create: { profileId: agent.id, trainingModuleId: id, completedAt: new Date(), percentComplete: 100 }, update: { completedAt: new Date(), percentComplete: 100 } });
+  page = (await get(agent, `/training-course/${course.id}`)).text;
+  assert.match(page, /Step 4 of 5/);
+  assert.match(page, /data-reader-unsupported/); assert.doesNotMatch(page, /I have read this/);
+  assert.match(page, new RegExp(`action="/training-material/${mods['Old Word file'].id}/acknowledge"[\\s\\S]*name="step" value="4"[\\s\\S]*>Next</button>`));
+  await prisma.mediaProgress.deleteMany({ where: { profileId: agent.id } }); // the next test starts from nothing read
 });
 
 test('progress: it only goes up, needs the end AND a fair amount of time, then finishes the item; previews and outsiders record nothing', async () => {
@@ -120,7 +129,8 @@ test('progress: it only goes up, needs the end AND a fair amount of time, then f
   assert.deepEqual((await progress(admin, id, { percent: 100 })).body, { preview: true, percent: 0, completed: false });
   assert.equal(await prisma.mediaProgress.count({ where: { profileId: admin.id } }), 0);
   assert.equal((await progress(outsider, id, { percent: 100 })).status, 404);
-  // the training page now shows the PDF as finished
-  const page = (await get(agent, `/training-course/${course.id}`)).text;
-  assert.match(page, /Read the PDF again/);
+  // the training page now shows the PDF as done, and moved on to the next step
+  assert.match((await get(agent, `/training-course/${course.id}`)).text, /Step 2 of 5/);
+  const first = (await get(agent, `/training-course/${course.id}?step=1`)).text;
+  assert.match(first, /✓ Done/); assert.match(first, new RegExp(`href="/training-course/${course.id}\\?step=2" data-step-next>Next<`));
 });

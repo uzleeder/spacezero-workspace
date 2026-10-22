@@ -90,7 +90,6 @@ const SCHEMA = {
   'leave.supervisorFinalApproval': bool, // may a supervisor approve/reject leave, or only recommend?
   'training.minPassingScore': integer(50, 100, 70), // lowest passing score a mandatory training may use
   'training.retakeWaitMinutes': integer(0, 1440, 10), // minutes a learner waits after failing a practice before trying it again
-  'training.maxAttemptsPerPractice': integer(1, 20, 3), // failed tries of one practice; after that a new, targeted set of questions is needed
   'calls.retentionDays': integer(0, 3650, 0), // 0 = keep customer calls until an Admin deletes them
   'scoring.config': scoring, // Skill Graph evidence weighting
   'skills.statusBands': bands, // Critical / Needs Improvement / Developing / Proficient / Strong

@@ -66,7 +66,7 @@ test('"Practice these skills now" reuses the practice already prepared and is li
   await prisma.assessment.update({ where: { id: targeted.id }, data: { archivedAt: new Date() } });   // nothing prepared any more: a new one needs the AI
   for (let i = 0; i < 5; i++) await prisma.rateLimitAttempt.create({ data: { bucketKey: `remediate:${agent.id}`, succeeded: true } });
   const limited = await post(agent, `/assessments/${written.id}/remediate`);
-  assert.equal(limited.status, 429); assert.match(limited.text, /several focused practices today/);
+  assert.equal(limited.status, 429); assert.match(limited.text, /limit of new question sets/);
   assert.equal(geminiCalls, before);
 
   await get(agent, `/assessments/${roleplay.id}/roleplay`);

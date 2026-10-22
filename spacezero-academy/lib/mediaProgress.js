@@ -16,15 +16,20 @@ function durationOf(module) {
   try { return Number(JSON.parse(module.sourceRefJson || '{}').durationSeconds) || 0; } catch { return 0; }
 }
 async function mediaGate(profileId, courseId, version = null) {
-  const { modulesFor, learnerVersion } = require('./courseVersions');
+  const { learnerVersion } = require('./courseVersions');
   const course = await prisma.trainingCourse.findUnique({ where: { id: courseId }, include: { modules: { include: { mediaProgress: { where: { profileId } } } } } });
   if (!course) return { unlocked: false, modules: [], done: 0, total: 0 };
   // Each learner is held to the material of the version they were assigned, never a later one.
   // Learn first, practise after: every required video, recording, document, slide deck, image or note must be
   // finished before ANY practice, quiz or assessment of the training opens.
   const v = version || await learnerVersion(profileId, courseId, course);
-  const required = modulesFor(course.modules, v).filter((m) => m.required && consumable(m));
-  const finished = (m) => Boolean(m.mediaProgress[0]?.completedAt) && (!MEDIA_TYPES.includes(m.contentType) || durationOf(m) > 0);
+  return materialState(course.modules, v, (m) => m.mediaProgress[0]);
+}
+/** The required material of one version and how much of it is finished. progressOf(module) = the learner's progress row. */
+function materialState(modules, version, progressOf) {
+  const { modulesFor } = require('./courseVersions');
+  const required = modulesFor(modules, version).filter((m) => m.required && consumable(m));
+  const finished = (m) => Boolean(progressOf(m)?.completedAt) && (!MEDIA_TYPES.includes(m.contentType) || durationOf(m) > 0);
   const done = required.filter(finished).length;
   return { unlocked: done === required.length, modules: required, done, total: required.length, finished };
 }
@@ -41,4 +46,4 @@ function advanceProgress(row, { position, speed, action }, duration, now = new D
   const COMPLETION_TOLERANCE_SECONDS = 1;
   return { watchedRangesJson: JSON.stringify([[0, end]]), lastPositionSeconds: Math.min(position, duration), playbackSpeed: speed, percentComplete: Math.min(100, end / duration * 100), lastActivityAt: now, completedAt: end >= duration - COMPLETION_TOLERANCE_SECONDS ? (row.completedAt || now) : null };
 }
-module.exports = { MEDIA_TYPES, DOC_TYPES, MIN_READ_MS, consumable, durationOf, mediaGate, advanceProgress };
+module.exports = { MEDIA_TYPES, DOC_TYPES, MIN_READ_MS, consumable, durationOf, mediaGate, materialState, advanceProgress };

@@ -1,30 +1,14 @@
 <%#
-  Shown instead of a practice that was failed a moment ago (wait) or failed too many times (used up).
-  Locals: assessment, block { reason, waitMs, minutes, failed, max }.
+  Shown instead of a practice tried again too soon after a failed try (lib/retakePolicy.js): the countdown, Review the
+  material, and Try again by itself once the wait is over. Locals: assessment, block { reason: 'wait', waitMs, until, minutes }.
 %>
-<%- include('../partials/page-header', { pageTitle: assessment.title, pageDescription: block.reason === 'wait' ? 'Take a short break before the next try' : 'All tries of this practice are used' }) %>
+<%- include('../partials/page-header', { pageTitle: assessment.title, pageDescription: 'Take a short break before the next try' }) %>
 
-<div class="card mt-24" style="margin-bottom:40px">
+<section class="card mt-24 result-card" style="margin-bottom:40px">
   <div class="card-body">
-    <% if (block.reason === 'wait') { %>
-      <h2>You can try again in <%= Math.max(1, Math.ceil(block.waitMs / 60000)) %> minute<%= Math.ceil(block.waitMs / 60000) === 1 ? '' : 's' %></h2>
-      <p class="text-sm text-muted mt-16">A short pause between tries makes the next one count: go back over the material, then come back. Try <%= block.failed + 1 %> of <%= block.max %>.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
-        <% if (assessment.courseId) { %><a class="btn btn-gold" href="/training-course/<%= assessment.courseId %>">Review the training material</a><% } %>
-        <a class="btn btn-secondary" href="/training">Back to My Training</a>
-      </div>
-    <% } else { %>
-      <h2>All <%= block.max %> tries of this practice are used</h2>
-      <% if (block.canRemediate) { %>
-        <p class="text-sm text-muted mt-16">Trying the same questions again would not show what you know. Practise the skills you missed with a new set of questions instead.</p>
-      <% } else { %>
-        <p class="text-sm text-muted mt-16">Trying the same questions again would not show what you know. Go over the material, then ask your supervisor to open another try for you.</p>
-      <% } %>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
-        <% if (block.canRemediate) { %><form method="post" action="/assessments/<%= assessment.id %>/remediate"><button type="submit" class="btn btn-gold" data-once>Practice these skills now</button></form><% } %>
-        <% if (assessment.courseId) { %><a class="btn btn-secondary" href="/training-course/<%= assessment.courseId %>">Review the training material</a><% } %>
-        <a class="btn btn-secondary" href="/training">Back to My Training</a>
-      </div>
-    <% } %>
+    <p class="step-eyebrow">Next try</p>
+    <h2 class="step-title">Go over the material first</h2>
+    <p class="step-text">A short pause between tries makes the next one count. When the wait is over, you get a new set of questions on what you missed.</p>
   </div>
-</div>
+  <%- include('../partials/retake-actions', { retakeId: assessment.id, until: block.until, reviewHref: assessment.courseId ? '/training-course/' + assessment.courseId + '?step=1' : '/training', back: { href: '/training', label: '← My Training' } }) %>
+</section>

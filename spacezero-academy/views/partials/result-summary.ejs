@@ -1,0 +1,45 @@
+<%#
+  The top of a practice result (quiz, role-play, voice, workflow): the score, passed or not, where this leaves the
+  training, and ONE main button - Continue (back to the training's next step) when passed, Try again (a new set on
+  what was missed) when not. The details (review, debrief, transcript) follow below the card as reference.
+  Locals: assessment, passed, score, attempt, flow (lib/trainingCompletion.js practiceFlowFor, may be absent),
+  weakest ([skill, score] pairs below the pass mark, may be absent), retakeWaitMinutes (set for every practice page).
+%>
+<%
+const inTraining = Boolean(assessment.courseId);
+const f = typeof flow !== 'undefined' && flow ? flow : null;
+const weak = typeof weakest !== 'undefined' && weakest ? weakest : [];
+const trainingHref = inTraining ? '/training-course/' + assessment.courseId : '/training';
+const startHref = assessment.type === 'ROLEPLAY' ? '/assessments/' + assessment.id + '/roleplay' : '/assessments/' + assessment.id + '/take';
+let where = '';
+if (passed && f && f.total > 1) where = 'Practice ' + f.position + ' of ' + f.total + ' of this training is done.' + (f.next ? ' Next: ' + f.next.title + '.' : ' That was the last one.');
+else if (passed && inTraining) where = 'This step of the training is done.';
+%>
+<section class="card mt-24 result-card" data-result="<%= passed ? 'passed' : 'not-passed' %>">
+  <div class="card-body result-summary">
+    <div class="result-score <%= passed ? 'result-score--pass' : 'result-score--fail' %>" aria-hidden="true"><%= score %>%</div>
+    <div class="result-summary__text">
+      <p class="step-eyebrow">Your result</p>
+      <h2 class="step-title"><%= passed ? 'Passed' : 'Not passed yet' %></h2>
+      <p class="step-text"><span class="visually-hidden">Score <%= score %>%. </span>You need <%= assessment.passingScore %>% to pass<% if (attempt && attempt.attemptNumber) { %> · Attempt <%= attempt.attemptNumber %><% } %></p>
+      <% if (where) { %><p class="step-text" data-result-where><%= where %></p><% } %>
+      <% if (!passed && weak.length) { %>
+        <p class="step-text">Work on:<% weak.forEach(function (e) { %> <span class="tag tag--warn"><%= e[0] %> · <%= e[1] %>%</span><% }); %></p>
+      <% } %>
+    </div>
+  </div>
+  <% if (!passed && inTraining) { %>
+    <%# the try just failed starts the wait (training.retakeWaitMinutes); the server checks it again on every try %>
+    <% const failedAt = attempt && attempt.completedAt ? new Date(attempt.completedAt).getTime() : Date.now(); %>
+    <%- include('retake-actions', { retakeId: assessment.id, until: typeof retakeWaitMinutes !== 'undefined' && retakeWaitMinutes ? new Date(failedAt + retakeWaitMinutes * 60000) : null, reviewHref: trainingHref + '?step=1', back: { href: '/training', label: '← My Training' } }) %>
+  <% } else { %>
+  <div class="step-actions">
+    <a class="step-prev" href="/training">← My Training</a>
+    <% if (passed) { %>
+      <a class="btn btn-gold" href="<%= trainingHref %>" data-result-next>Continue</a>
+    <% } else { %>
+      <a class="btn btn-gold" href="<%= startHref %>" data-result-next>Try again</a>
+    <% } %>
+  </div>
+  <% } %>
+</section>

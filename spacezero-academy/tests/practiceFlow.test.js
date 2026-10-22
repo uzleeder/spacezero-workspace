@@ -1,8 +1,8 @@
 'use strict';
 // Practice progress flow: a training with several practices guides the learner through them one by one.
-// Finishing one shows "Practice completed. Continue to the next practice." and moves on; the last one leads
-// to submitting the training; a single practice keeps the normal completion flow. Scoring, passing, retakes
-// and permissions are untouched.
+// A result has ONE main button: Continue (back to the training's next step) when passed, Try again when not.
+// After the first of two it says "Practice 1 of 2 of this training is done. Next: ..."; after the last the training
+// is finished. Scoring, passing, retakes and permissions are untouched.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const request = require('supertest');
@@ -51,31 +51,32 @@ test('startUrl: a role-play opens its conversation, everything else its take pag
   assert.equal(startUrl({ id: 'x', type: 'VOICE' }), '/assessments/x/take');
 });
 
-test('the training page numbers the practices and points at the one that is up next', async () => {
+test('the training page goes through the practices one step at a time, starting with the one that is up next', async () => {
   const page = await get(agent, `/training-course/${course.id}`);
-  assert.match(page.text, /Practice 1 of 2 · <\/span>Flow quiz/); assert.match(page.text, /Practice 2 of 2 · <\/span>Flow role-play/);
-  assert.match(page.text, /badge badge-warning">Up next</);
-  assert.match(page.text, /Start next practice/);
+  assert.match(page.text, /Step 1 of 3/); assert.match(page.text, /<h2 class="step-title">Flow quiz<\/h2>/);
+  assert.match(page.text, new RegExp(`href="/assessments/${quiz.id}/take" data-step-next>Start quiz<`));
+  assert.match(page.text, /Step 2: Flow role-play \(locked\)/);                // the role-play comes next, locked until then
 });
 
-test('a failed practice shows no "continue" banner - the normal retake flow stays', async () => {
+test('a failed practice: one main button, Try again (a new set on what was missed), and a quiet way back', async () => {
   const failed = await post(agent, `/assessments/${quiz.id}/submit`, answers(quiz, false));
-  assert.equal(failed.status, 200); assert.match(failed.text, /Retake required/);
-  assert.doesNotMatch(failed.text, /data-practice-flow/); assert.doesNotMatch(failed.text, /Continue to the next practice/);
-  assert.match(failed.text, /Back to the training/);
+  assert.equal(failed.status, 200); assert.match(failed.text, /Not passed yet/);
+  // no wait in this organization: Try again straight away (Review the material is the hidden half of the swap)
+  assert.match(failed.text, new RegExp(`action="/assessments/${quiz.id}/remediate" data-once data-retake-try><button type="submit" class="btn btn-gold" data-result-next>Try again<`));
+  assert.match(failed.text, /data-retake-review hidden>Review the material</);
+  assert.match(failed.text, /← My Training/); assert.doesNotMatch(failed.text, /data-result-where/);
 });
 
-test('Quiz -> Completed -> "Practice completed. Continue to the next practice." with the role-play up next, started automatically', async () => {
+test('Quiz passed -> "Practice 1 of 2 of this training is done. Next: Flow role-play." -> Continue -> the role-play step', async () => {
   const passed = await post(agent, `/assessments/${quiz.id}/submit`, answers(quiz, true));
   assert.equal(passed.status, 200); assert.match(passed.text, /Passed/);
-  assert.match(passed.text, /Practice completed\. Continue to the next practice\./);
-  assert.match(passed.text, /Practice 1 of 2 is completed\. Up next: <strong>Flow role-play<\/strong>/);
-  assert.match(passed.text, new RegExp(`data-practice-flow data-next-url="/assessments/${role.id}/roleplay"`));
-  assert.match(passed.text, new RegExp(`href="/assessments/${role.id}/roleplay" data-flow-continue>Continue to the next practice<`));
-  assert.match(passed.text, /Continuing automatically in/); assert.match(passed.text, /Stay on this page/); // cancellable auto-advance
-  assert.doesNotMatch(passed.text, /Continue — finish & submit the training/); // the next practice comes first
-  const page = await get(agent, `/training-course/${course.id}`);
-  assert.match(page.text, /✓ Completed/); assert.match(page.text, /1 of 2 practices passed/);
+  assert.match(passed.text, /Practice 1 of 2 of this training is done\. Next: Flow role-play\./);
+  assert.match(passed.text, new RegExp(`href="/training-course/${course.id}" data-result-next>Continue<`));
+  assert.equal((passed.text.match(/class="btn /g) || []).length, 1);            // exactly one button, no countdown
+  assert.doesNotMatch(passed.text, /Continuing automatically/);
+  const page = await get(agent, `/training-course/${course.id}`);                 // the training is now on the role-play
+  assert.match(page.text, /Step 2 of 3/); assert.match(page.text, new RegExp(`href="/assessments/${role.id}/roleplay" data-step-next>Start role-play<`));
+  assert.match((await get(agent, `/training-course/${course.id}?step=1`)).text, /✓ Passed/);
   const flow = await practiceFlowFor(agent.id, quiz);
   assert.deepEqual([flow.position, flow.total, flow.completed, flow.completedCount, flow.allDone, flow.next.id], [1, 2, true, 1, false, role.id]);
   // the next practice really is open
@@ -90,12 +91,13 @@ test('Role-play -> Completed -> "Practice completed." -> submit the training (th
   assert.deepEqual([flow.position, flow.total, flow.completed, flow.allDone, flow.next], [2, 2, true, true, null]);
   const result = await get(agent, `/assessments/${role.id}/result`);
   assert.equal(result.status, 200);
-  assert.match(result.text, /Practice completed\./); assert.match(result.text, /All 2 practices of this training are completed\. Submit the training to finish it\./);
-  assert.match(result.text, new RegExp(`href="/training-course/${course.id}#practice">Continue — submit the training<`));
-  assert.doesNotMatch(result.text, /Continue to the next practice/);
+  assert.match(result.text, /Practice 2 of 2 of this training is done\. That was the last one\./);
+  assert.match(result.text, new RegExp(`href="/training-course/${course.id}" data-result-next>Continue<`));
+  assert.equal((result.text.match(/class="btn /g) || []).length, 1);
   const page = await get(agent, `/training-course/${course.id}`);
   // opening the training finishes it by itself now (everything is passed): no Submit press is left to do
-  assert.match(page.text, /✓ Training submitted/); assert.doesNotMatch(page.text, /<button[^>]*>Submit training</);
+  assert.match(page.text, /<h2 class="step-title">Training complete<\/h2>/); assert.match(page.text, /You finished this training/);
+  assert.doesNotMatch(page.text, /<button[^>]*>Submit training</);
   assert.equal((await require('../lib/training').getMyTrainingList(agent.id)).find((r) => r.id === recipient.id).status, 'COMPLETED');
 });
 
@@ -113,7 +115,7 @@ test('an earlier practice that is still open is offered after the last one; targ
   assert.equal(await practiceFlowFor(admin.id, first), null); // someone without the assignment gets no sequence
 });
 
-test('a training with ONE practice keeps the normal completion flow (no "next practice" banner)', async () => {
+test('a training with ONE practice: the result simply leads back to the training', async () => {
   const c3 = await prisma.trainingCourse.create({ data: { organizationId: org.id, title: 'Flow course single', createdById: admin.id, status: 'PUBLISHED' } });
   const only = await practice(c3.id, 'QUIZ', 'Only quiz');
   await assign(c3.id);
@@ -121,8 +123,8 @@ test('a training with ONE practice keeps the normal completion flow (no "next pr
   assert.doesNotMatch(page.text, /Practice 1 of 1/); assert.doesNotMatch(page.text, /Up next/);
   const passed = await post(agent, `/assessments/${only.id}/submit`, answers(only, true));
   assert.equal(passed.status, 200); assert.match(passed.text, /Passed/);
-  assert.doesNotMatch(passed.text, /Continue to the next practice/); assert.doesNotMatch(passed.text, /data-practice-flow/);
-  assert.match(passed.text, /Continue — finish &amp; submit the training/);
+  assert.match(passed.text, /This step of the training is done\./); assert.doesNotMatch(passed.text, /Practice 1 of 1/);
+  assert.match(passed.text, new RegExp(`href="/training-course/${c3.id}" data-result-next>Continue<`));
   // scoring / passing are exactly as before: the attempt is the usual one
   const attempt = await prisma.trainingAttempt.findFirst({ where: { assessmentId: only.id, profileId: agent.id } });
   assert.equal(attempt.status, 'COMPLETED'); assert.equal(attempt.score, 100);

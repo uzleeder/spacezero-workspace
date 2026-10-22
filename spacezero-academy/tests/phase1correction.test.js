@@ -54,8 +54,8 @@ after(async () => { await prisma.$disconnect(); });
 // ---------------------------------------------------------------- navigation
 test('sidebar shows only the simplified sections and never Call Intelligence or Calls & Library', async () => {
   const labels = (role) => navForRole(role).flatMap((s) => s.items.map((i) => i.label));
-  assert.deepEqual(labels('ADMIN'), ['Dashboard', 'My Training', 'AI Practice', 'Library', 'Employees & Teams', 'Training', 'Company Standards & Workflow', 'SpaceZero AI', 'Settings']);
-  assert.deepEqual(labels('SUPERVISOR'), ['Dashboard', 'My Training', 'Library', 'Employees & Teams', 'Training', 'Company Standards & Workflow', 'SpaceZero AI']); // AI Practice is Admin-only
+  assert.deepEqual(labels('ADMIN'), ['Dashboard', 'My Training', 'AI Practice', 'Library', 'Employees & Teams', 'Manage Training', 'Company Standards & Workflow', 'SpaceZero AI', 'Settings']);
+  assert.deepEqual(labels('SUPERVISOR'), ['Dashboard', 'My Training', 'Library', 'Employees & Teams', 'Manage Training', 'Company Standards & Workflow', 'SpaceZero AI']); // AI Practice is Admin-only
   assert.deepEqual(labels('TRAVEL_AGENT'), ['Dashboard', 'My Training', 'Library', 'Company Standards & Workflow', 'SpaceZero AI']);
   for (const role of ['ADMIN', 'SUPERVISOR', 'TRAVEL_AGENT', 'FLIGHT_EXPERT']) {
     assert.ok(!labels(role).some((l) => /Call Intelligence|Calls & Library/i.test(l)));

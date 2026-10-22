@@ -4,9 +4,9 @@ const ALL_ROLES = ['ADMIN', 'SUPERVISOR', 'TRAVEL_AGENT', 'FLIGHT_EXPERT'];
 
 // Final information architecture. The sidebar stays short; secondary areas hang off tab bars
 // (lib/navTabs.js) or the top-right user menu:
-//   My Training  = the learner's own assigned work (Skill Graph and Notes are tabs inside it)
+//   My Training  = the learner's own assigned work, one path (Skill Graph and Notes are in the user menu)
 //   AI Practice  = the creation factory (raw material -> analysis -> practice -> review -> approve)
-//   Training     = the approved catalog + assignment permissions
+//   Manage Training = the approved catalog + assignment permissions
 //   Library      = approved reference knowledge (management of it is a tab)
 //   Employees & Teams = employee records (setup, vacation, credentials) and call reviews
 const NAV_SECTIONS = [
@@ -14,7 +14,7 @@ const NAV_SECTIONS = [
     title: 'Main',
     items: [
       { href: '/dashboard', label: 'Dashboard', roles: ALL_ROLES },
-      { href: '/training', label: 'My Training', roles: ALL_ROLES, activeAlso: ['/skill-graph', '/notes', '/training-course', '/assessments'] },
+      { href: '/training', label: 'My Training', roles: ALL_ROLES, activeAlso: ['/training-course', '/assessments'] },
       { href: '/ai-practice', label: 'AI Practice', roles: ['ADMIN'] },
       { href: '/library', label: 'Library', roles: ALL_ROLES, activeAlso: ['/admin/library'] },
     ],
@@ -30,7 +30,7 @@ const NAV_SECTIONS = [
         hrefByRole: { SUPERVISOR: '/team' },
         activeAlsoByRole: { SUPERVISOR: ['/team-skills', '/employees', '/leave', '/call-reviews'] },
       },
-      { href: '/admin/training', label: 'Training', roles: ['ADMIN', 'SUPERVISOR'], activeAlso: ['/assignments'] },
+      { href: '/admin/training', label: 'Manage Training', roles: ['ADMIN', 'SUPERVISOR'], activeAlso: ['/assignments'] },
     ],
   },
   {

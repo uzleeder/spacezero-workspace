@@ -12,7 +12,7 @@ mock.method(gemini, 'generateStructured', async (input) => {
   prompts.push(input);
   if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
   if (aiDown) throw new Error('Gemini unavailable');
-  return { modelVersion: 'test', data: { questions: Array.from({ length: 3 }, (_, i) => ({ type: 'MCQ', prompt: `Retake question ${i + 1}`, options: ['Right', 'Wrong'], correctAnswer: 'Right', skillNames: ['Discovery'] })) } };
+  return { modelVersion: 'test', data: { questions: Array.from({ length: 8 }, (_, i) => ({ type: 'MCQ', prompt: `Retake question ${i + 1}`, options: ['Right', 'Wrong'], correctAnswer: 'Right', skillNames: ['Discovery'] })) } };
 });
 const { prisma } = require('../lib/prisma');
 const { generateToken } = require('../lib/tokens');
@@ -62,7 +62,8 @@ test('passing the smart retake passes the original practice: the training can be
   assert.equal(JSON.parse(retake.configJson).retakeOf, quiz.id);
   const result = await answerAll(learner, retake, 'Right');
   assert.equal(result.status, 200);
-  assert.match(result.text, /Continue — finish &amp; submit the training/);
+  assert.match(result.text, /Passed/); // one main button: back to the training, which is finished now
+  assert.match(result.text, new RegExp(`href="/training-course/${quiz.courseId}" data-result-next>Continue<`));
 
   const complete = await post(learner, `/training/${recipient.id}/complete`);
   assert.equal(complete.status, 302);
@@ -115,16 +116,16 @@ test('a double tap builds ONE retake, and pressing Retake again opens the same o
   assert.equal(await prisma.assessment.count({ where: { courseId: quiz.courseId } }), 2);
 });
 
-test('if the retake cannot be prepared, the learner gets a clear page to try again or retake the practice as it is', async () => {
+test('if no new set can be prepared, the only way on is the original quiz as it is', async () => {
   const { quiz, learner } = await setup();
   await answerAll(learner, quiz, 'Wrong');
   aiDown = true;
   const response = await post(learner, `/assessments/${quiz.id}/remediate`);
   aiDown = false;
   assert.equal(response.status, 503);
-  assert.match(response.text, /Your retake could not be prepared right now\. Nothing was lost/);
-  assert.match(response.text, new RegExp(`action="/assessments/${quiz.id}/remediate"`));
-  assert.match(response.text, new RegExp(`href="/assessments/${quiz.id}/take"`));
+  assert.match(response.text, /A new set of questions could not be prepared right now\./); assert.match(response.text, /Nothing was lost/);
+  assert.match(response.text, new RegExp(`href="/assessments/${quiz.id}/take" data-result-next>Take the quiz as it is<`));
+  assert.equal((response.text.match(/class="btn /g) || []).length, 1);                      // one way on
   assert.equal(await prisma.assessment.count({ where: { courseId: quiz.courseId } }), 1);
 });
 

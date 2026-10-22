@@ -50,7 +50,6 @@ before(async () => {
   org = await prisma.organization.create({ data: { name: 'Training status tests' } });
   admin = await person('ADMIN');
   await require('../lib/orgSettings').setSetting(org.id, 'training.retakeWaitMinutes', 0, admin.id); // these tests fail and retry straight away
-  await require('../lib/orgSettings').setSetting(org.id, 'training.maxAttemptsPerPractice', 20, admin.id); // some of them fail one practice several times
 });
 after(async () => { await prisma.$disconnect(); });
 
@@ -108,7 +107,8 @@ test('after re-assignment to a new version the course page shows that version\'s
   const page = await get(learner, `/training-course/${course.id}`);
   assert.equal(page.status, 200);
   assert.match(page.text, /New v2 rule/, 'the required v2 material is shown');
-  assert.match(page.text, /Locked until you finish the material/);
+  assert.match(page.text, /Step 1 of 3/);                                  // the note first; the quiz after it, locked
+  assert.doesNotMatch(page.text, new RegExp(`/assessments/${v2.a.id}/take`));
   assert.equal((await get(learner, `/assessments/${v2.a.id}/take`)).status, 403, 'locked until that material is finished - which the page now shows');
 
   await prisma.mediaProgress.updateMany({ where: { profileId: learner.id, trainingModuleId: note.id }, data: { completedAt: new Date(), percentComplete: 100 } });

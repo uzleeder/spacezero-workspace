@@ -1,7 +1,8 @@
 'use strict';
 
 const { prisma } = require('./prisma');
-const { trainingStatusFrom, assessmentsByCourse, courseAttempt, newestFirst } = require('./trainingCompletion');
+const { trainingStatusFrom, assessmentsByCourse, courseAttempt, newestFirst, completionFromAssessments } = require('./trainingCompletion');
+const { materialState } = require('./mediaProgress');
 
 function latestAttempt(attempts) {
   if (!attempts || attempts.length === 0) return undefined;
@@ -11,18 +12,30 @@ function latestAttempt(attempts) {
 
 // The status itself follows the rules of submitting a training (trainingStatusFrom): a submitted training stays
 // Completed, and Retake required means a required practice is still not passed.
-async function getMyTrainingList(profileId) {
+// { progress: true } also says where the learner stands on each (My Training): the required material finished and the
+// practices passed, by the same rules as the training page (materialState, completionFromAssessments).
+async function getMyTrainingList(profileId, { progress = false } = {}) {
   const recipients = await prisma.trainingAssignmentRecipient.findMany({
     where: { profileId },
     include: { assignment: { include: { course: { include: { modules: true } } } }, attempts: true },
     orderBy: { createdAt: 'desc' },
   });
   const assessments = await assessmentsByCourse(recipients.map((r) => r.assignment.courseId));
+  const moduleIds = progress ? recipients.flatMap((r) => r.assignment.course.modules.map((m) => m.id)) : [];
+  const progressRows = moduleIds.length ? await prisma.mediaProgress.findMany({ where: { profileId, trainingModuleId: { in: moduleIds } } }) : [];
+  const progressOf = new Map(progressRows.map((p) => [p.trainingModuleId, p]));
 
   return recipients.map((r) => {
-    const status = trainingStatusFrom(r, assessments.get(r.assignment.courseId) || []);
+    const courseAssessments = assessments.get(r.assignment.courseId) || [];
+    const status = trainingStatusFrom(r, courseAssessments);
     // A finished training shows when it was submitted.
-    return { ...r, status, latestAttempt: (status === 'COMPLETED' ? courseAttempt(r.attempts) : latestAttempt(r.attempts)) || null };
+    const row = { ...r, status, latestAttempt: (status === 'COMPLETED' ? courseAttempt(r.attempts) : latestAttempt(r.attempts)) || null };
+    if (progress) {
+      const material = materialState(r.assignment.course.modules, r.assignment.courseVersion, (m) => progressOf.get(m.id));
+      const practice = completionFromAssessments(r, courseAssessments);
+      row.progress = { items: { done: material.done, total: material.total }, practices: { passed: practice.passedCount, total: practice.total } };
+    }
+    return row;
   });
 }
 
