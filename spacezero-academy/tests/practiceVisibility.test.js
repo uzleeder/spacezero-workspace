@@ -47,3 +47,10 @@ test('an assignment for one practice that is still there stays that one practice
   const open = await request(app).get(`/assessments/${quizB.id}/take`).set('Cookie', cookie);
   assert.equal(open.status, 200);
 });
+
+test('a learner whose assigned version has no practice is told, not shown an empty page', async () => {
+  await prisma.trainingAssignment.update({ where: { id: assignment.id }, data: { assessmentId: null, courseVersion: 3 } });   // practice exists, but only for version 1
+  const page = await request(app).get(`/training-course/${course.id}`).set('Cookie', cookie);
+  assert.equal(page.status, 200);
+  assert.match(page.text, /Your practice is not available yet/);
+});

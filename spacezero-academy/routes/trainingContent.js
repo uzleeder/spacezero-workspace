@@ -166,7 +166,7 @@ router.get('/training-course/:id', requireSession, async (req, res) => {
   };
   const shownAssessments = assessments.filter(canOpen);
   // practice exists for this training but none of it is open to this learner: the page says so instead of showing nothing
-  const practiceUnavailable = Boolean(isLearner && gate.unlocked && !shownAssessments.length && await prisma.assessment.count({ where: { courseId: course.id, status: 'APPROVED', archivedAt: null, NOT: { configJson: { contains: 'targetedRetake' } } } }));
+  const practiceUnavailable = Boolean(isLearner && gate.unlocked && !shownAssessments.length && await prisma.assessment.count({ where: { courseId: course.id, status: 'APPROVED', archivedAt: null, OR: [{ configJson: null }, { NOT: { configJson: { contains: 'targetedRetake' } } }] } }));
   res.render('training-content', { nounFor: require('../lib/fileTypes').nounFor, readerKind: viewer.readerKind, title: course.title, canFinish, canSubmit, completion, passedIds, finishId: mineRecipient ? mineRecipient.id : null, isLearner, doneIds, requiredIds, DOC_TYPES, minReadSeconds: Math.round(MIN_READ_MS / 1000), material: typeof req.query.material === 'string' ? req.query.material : '', course: { ...course, modules: shownModules }, gate, assessments: shownAssessments, practiceUnavailable });
 });
 
