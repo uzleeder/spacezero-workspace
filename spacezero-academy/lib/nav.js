@@ -14,7 +14,7 @@ const NAV_SECTIONS = [
     title: 'Main',
     items: [
       { href: '/dashboard', label: 'Dashboard', roles: ALL_ROLES },
-      { href: '/training', label: 'My Training', roles: ALL_ROLES, activeAlso: ['/training-course', '/assessments'] },
+      { href: '/training', label: 'My Training', roles: ALL_ROLES, activeAlso: ['/training-course', '/assessments', '/call-practice'] },
       { href: '/ai-practice', label: 'AI Practice', roles: ['ADMIN'] },
       { href: '/library', label: 'Library', roles: ALL_ROLES, activeAlso: ['/admin/library'] },
     ],
@@ -30,7 +30,7 @@ const NAV_SECTIONS = [
         hrefByRole: { SUPERVISOR: '/team' },
         activeAlsoByRole: { SUPERVISOR: ['/team-skills', '/employees', '/leave', '/call-reviews'] },
       },
-      { href: '/admin/training', label: 'Manage Training', roles: ['ADMIN', 'SUPERVISOR'], activeAlso: ['/assignments'] },
+      { href: '/admin/training', label: 'Manage Training', roles: ['ADMIN', 'SUPERVISOR'], activeAlso: ['/assignments', '/admin/call-practice'] },
     ],
   },
   {

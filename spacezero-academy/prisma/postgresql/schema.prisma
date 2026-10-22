@@ -311,6 +311,7 @@ model Profile {
   callBatchesAsTarget      CallBatch[]                   @relation("CallBatchTargetAgent")
   callBatchesApproved      CallBatch[]                   @relation("CallBatchApprovedBy")
   mediaProgress            MediaProgress[]
+  practiceCallTranscripts  PracticeCallTranscript[]
   localPhone               String?
   currentAddressEnc        String?
   passportNumberEnc        String?
@@ -802,6 +803,63 @@ model CallRecording {
   createdAt                DateTime            @default(now())
 
   @@index([callBatchId])
+}
+
+// ---------------------------------------------------------------------------
+// Call Practice: real client calls new agents listen to and type out, word for word (lib/callPractice.js)
+// ---------------------------------------------------------------------------
+
+// One real call an Admin uploaded (Manage Training -> Call Practice). Every new agent hears the same calls in this
+// order. referenceText is the answer key: made once by the AI from the recording, correctable by an Admin, and never
+// shown to a trainee before they have submitted their own transcript.
+model PracticeCall {
+  id              String    @id @default(cuid())
+  organizationId  String
+  title           String
+  note            String?
+  storagePath     String
+  mimeType        String
+  durationSeconds Float
+  displayOrder    Int       @default(0)
+  referenceText   String?
+  referenceStatus String    @default("PENDING") // PENDING -> PROCESSING -> READY | FAILED
+  referenceError  String?
+  createdById     String
+  archivedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  transcripts PracticeCallTranscript[]
+
+  @@index([organizationId, displayOrder])
+  @@index([referenceStatus])
+}
+
+// One trainee's work on one call: how far they have listened (in order, never skipped ahead - the rule training media
+// follows), the draft they are typing, and once submitted, their transcript and its score against the answer key.
+model PracticeCallTranscript {
+  id                  String       @id @default(cuid())
+  callId              String
+  call                PracticeCall @relation(fields: [callId], references: [id], onDelete: Cascade)
+  profileId           String
+  profile             Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  watchedRangesJson   String       @default("[]")
+  lastPositionSeconds Float        @default(0)
+  playbackSpeed       Float        @default(1)
+  listenActivityAt    DateTime     @default(now())
+  listenedAt          DateTime?
+  draftText           String       @default("")
+  typingSeconds       Float        @default(0)
+  draftSavedAt        DateTime?
+  submittedText       String?
+  submittedAt         DateTime?
+  wordCount           Int?
+  accuracy            Float?
+  wordsPerMinute      Float?
+  startedAt           DateTime     @default(now())
+
+  @@unique([profileId, callId])
+  @@index([callId])
 }
 
 model MediaProgress {

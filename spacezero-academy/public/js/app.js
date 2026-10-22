@@ -188,7 +188,8 @@
     var filenameEl = dz.querySelector('[data-dz-filename]');
     if (!input) return;
     function updateFilename() {
-      if (filenameEl) filenameEl.textContent = input.files && input.files.length > 0 ? input.files[0].name : '';
+      var files = input.files || [];
+      if (filenameEl) filenameEl.textContent = files.length > 1 ? files.length + ' files: ' + Array.prototype.map.call(files, function (f) { return f.name; }).join(', ') : files.length ? files[0].name : '';
     }
     input.addEventListener('change', updateFilename);
     ['dragenter', 'dragover'].forEach(function (evt) {

@@ -21,9 +21,11 @@ function employeeManagementTabs(role) {
 // `can` (server.js: res.locals.can) answers "may this viewer use capability X" — a Supervisor holds
 // none by default, and /assignments needs training.assign, so offering the tab to everyone made
 // every Training page show a tab that ends on "Access denied" for a Supervisor without the grant.
-const trainingTabs = (can) => [
+// Call Practice (the calls new agents type out) is managed by Admins only.
+const trainingTabs = (can, role) => [
   { label: 'Catalog', href: '/admin/training' },
   ...(!can || can('training.assign') ? [{ label: 'Assignments', href: '/assignments' }] : []),
+  ...(role === 'ADMIN' ? [{ label: 'Call Practice', href: '/admin/call-practice' }] : []),
 ];
 
 // The learner's own pages, listed in the top-right user menu (views/layout.ejs) next to "Profile & Settings":
@@ -51,7 +53,7 @@ function standardsTabs(role) {
 function tabsetsFor(role, can) {
   return {
     employees: employeeManagementTabs(role),
-    training: trainingTabs(can),
+    training: trainingTabs(can, role),
     learner: learnerTabs(role),
     library: libraryTabs(role),
     standards: standardsTabs(role),

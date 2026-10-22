@@ -146,6 +146,7 @@ app.use('/', require('./routes/employeeRecord'));
 app.use('/', require('./routes/credentials'));
 app.use('/', require('./routes/leave'));
 app.use('/', require('./routes/trainingContent'));
+app.use('/', require('./routes/callPractice'));
 app.use('/', require('./routes/library'));
 app.use('/', require('./routes/teamIntel'));
 app.use('/', require('./routes/recommendations'));
@@ -164,6 +165,7 @@ app.use('/', require('./routes/spacezeroAI'));
 app.use('/admin', require('./routes/admin/employees'));
 app.use('/admin', require('./routes/admin/teams'));
 app.use('/admin', require('./routes/admin/training'));
+app.use('/admin', require('./routes/admin/callPractice'));
 app.use('/admin', require('./routes/admin/library'));
 app.use('/admin', require('./routes/admin/settings'));
 app.use('/admin', require('./routes/admin/setupSettings'));
@@ -178,7 +180,7 @@ app.use('/admin', require('./routes/admin/configuration'));
 
 if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   // Every background job type must be registered at boot, or queued work would wait for the first request that happens to load it.
-  for (const lib of ['callRetention', 'trainingAnalysis', 'callIntelligence', 'aiTasks', 'automation']) require(`./lib/${lib}`);
+  for (const lib of ['callRetention', 'trainingAnalysis', 'callIntelligence', 'callPractice', 'aiTasks', 'automation']) require(`./lib/${lib}`);
   require('./lib/jobQueue').start();
   require('./lib/trainingEmails').start();
   // Trainings whose every practice was passed before the automatic finish existed (still sitting in Overdue / In Progress)

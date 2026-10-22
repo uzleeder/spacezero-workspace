@@ -1,0 +1,15 @@
+<%# Call Practice on My Training (lib/callPractice.js summaryFor): one quiet line, never a second main button - the
+    training path keeps the only gold one. Only new agents see it. %>
+<%
+const cpNext = callPractice.next;
+const cpOpen = Boolean(cpNext && callPractice.open);
+const cpMinutes = cpNext ? Math.max(1, Math.round(cpNext.call.durationSeconds / 60)) : 0;
+%>
+<section class="cp-strip mt-24" data-call-practice>
+  <span class="cp-strip__icon" aria-hidden="true"><%- include('icon', { name: 'calls' }) %></span>
+  <div class="cp-strip__text">
+    <p class="cp-strip__title">Call Practice</p>
+    <p class="cp-strip__meta"><% if (cpOpen) { %>Call <%= cpNext.number %> is <%= callPractice.started ? 'in progress' : 'ready' %> · <%= cpMinutes %> min<% } else if (cpNext) { %>✓ Today's calls are done · the next one opens tomorrow<% } else { %>✓ Every call is done<% } %></p>
+  </div>
+  <a class="btn btn-secondary btn-sm" href="<%= cpOpen ? '/call-practice/' + cpNext.call.id : '/call-practice' %>"><%= cpOpen ? (callPractice.started ? 'Continue' : 'Open') : 'Results' %></a>
+</section>

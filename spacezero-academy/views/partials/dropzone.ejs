@@ -9,9 +9,10 @@ const dzAccept = typeof accept !== 'undefined' ? accept : '';
 const dzTitle = typeof dzTitleText !== 'undefined' ? dzTitleText : 'Drag a file here, or click to choose';
 const dzHint = typeof hint !== 'undefined' ? hint : '';
 const dzRequired = typeof required !== 'undefined' && required;
+const dzMultiple = typeof multiple !== 'undefined' && multiple;
 %>
 <div class="dropzone" data-dropzone>
-  <input id="<%= dzId %>" name="<%= dzName %>" type="file"<%= dzAccept ? ' accept="' + dzAccept + '"' : '' %><%= dzRequired ? ' required' : '' %> />
+  <input id="<%= dzId %>" name="<%= dzName %>" type="file"<%= dzAccept ? ' accept="' + dzAccept + '"' : '' %><%= dzRequired ? ' required' : '' %><%= dzMultiple ? ' multiple' : '' %> />
   <div class="dz-icon"><%- include('icon', { name: 'upload' }) %></div>
   <p class="dz-title"><%= dzTitle %></p>
   <% if (dzHint) { %><p class="dz-hint"><%= dzHint %></p><% } %>
