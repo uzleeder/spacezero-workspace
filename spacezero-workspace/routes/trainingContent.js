@@ -131,7 +131,11 @@ router.get('/training-read/:moduleId', requireSession, async (req, res) => {
 router.get('/training-course/:id', requireSession, async (req, res) => {
   const course = await allowedCourse(req.profile, req.params.id);
   if (!course) return res.status(404).send('Not found');
-  if (!require('../lib/requestContext').readOnly()) await autoFinishForProfile(req.profile.id, { assignment: { courseId: course.id } }).catch((err) => console.error('auto-finish failed', err.message)); // already done = finished
+  if (!require('../lib/requestContext').readOnly()) {
+    // an assignment for one practice that has since been replaced is a whole-training assignment again (otherwise the quiz never appears)
+    await require('../lib/assignmentRepair').healDanglingPractices(course.id).catch((err) => console.error('assignment repair failed', err.message));
+    await autoFinishForProfile(req.profile.id, { assignment: { courseId: course.id } }).catch((err) => console.error('auto-finish failed', err.message)); // already done = finished
+  }
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'training.content_read', targetTable: 'TrainingCourse', targetId: course.id });
   // Each learner sees the version of their latest assignment - the same one the practice lock and the progress
   // saves use (lib/courseVersions.js learnerVersion); the Admin sees the version that is in Training.
@@ -154,12 +158,16 @@ router.get('/training-course/:id', requireSession, async (req, res) => {
   const canFinish = Boolean(gate.unlocked && completion && !completion.submitted && completion.total === 0);
   const canSubmit = Boolean(gate.unlocked && completion && !completion.submitted && completion.total > 0 && completion.passedAll);
   const passedIds = new Set(completion ? completion.rows.filter((r) => r.passed).map((r) => r.assessment.id) : []);
-  res.render('training-content', { nounFor: require('../lib/fileTypes').nounFor, readerKind: viewer.readerKind, title: course.title, canFinish, canSubmit, completion, passedIds, finishId: mineRecipient ? mineRecipient.id : null, isLearner, doneIds, requiredIds, DOC_TYPES, minReadSeconds: Math.round(MIN_READ_MS / 1000), material: typeof req.query.material === 'string' ? req.query.material : '', course: { ...course, modules: shownModules }, gate, assessments: assessments.filter((a) => {
+  // Only practice the learner can really open: the same rule the practice page applies (an assignment of this version, for
+  // the whole training or for exactly this practice) - otherwise "Start" would lead to a page that is not found.
+  const canOpen = (a) => {
     if (safeParse(a.configJson, {})?.targetedRetake === true) return a.createdById === req.profile.id;
-    // Only practice the learner can really open: the same rule the practice page applies (an assignment of this version, for
-    // the whole training or for exactly this practice) - otherwise \"Start\" would lead to a page that is not found.
     return !isLearner || mine.some((m) => m.courseVersion === a.version && (!m.assessmentId || m.assessmentId === a.id));
-  }) });
+  };
+  const shownAssessments = assessments.filter(canOpen);
+  // practice exists for this training but none of it is open to this learner: the page says so instead of showing nothing
+  const practiceUnavailable = Boolean(isLearner && gate.unlocked && !shownAssessments.length && await prisma.assessment.count({ where: { courseId: course.id, status: 'APPROVED', archivedAt: null, OR: [{ configJson: null }, { NOT: { configJson: { contains: 'targetedRetake' } } }] } }));
+  res.render('training-content', { nounFor: require('../lib/fileTypes').nounFor, readerKind: viewer.readerKind, title: course.title, canFinish, canSubmit, completion, passedIds, finishId: mineRecipient ? mineRecipient.id : null, isLearner, doneIds, requiredIds, DOC_TYPES, minReadSeconds: Math.round(MIN_READ_MS / 1000), material: typeof req.query.material === 'string' ? req.query.material : '', course: { ...course, modules: shownModules }, gate, assessments: shownAssessments, practiceUnavailable });
 });
 
 // Training sources belong to AI Practice, which is Admin-only.

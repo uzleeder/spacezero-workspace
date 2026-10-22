@@ -63,6 +63,13 @@ const notices = { 'open-first': 'Open the material first, then confirm.', 'too-f
 <% }); %>
 
 <div data-gate-region id="practice">
+<% if (typeof practiceUnavailable !== 'undefined' && practiceUnavailable) { %>
+  <div class="section-heading mt-24"><div><span class="eyebrow">STEP 2 · PRACTICE</span><h2>Practice and quizzes for this training</h2></div></div>
+  <section class="card mt-16"><div class="card-body">
+    <p style="font-weight:500;color:var(--navy-950)">Your practice is not available yet</p>
+    <p class="text-sm text-muted">You finished all the material, but the practice for this training is not open for your assignment. Tell your supervisor or an Admin - they can assign it to you again.</p>
+  </div></section>
+<% } %>
 <% if (typeof assessments !== 'undefined' && assessments.length > 0) { %>
   <div class="section-heading mt-24"><div><span class="eyebrow">STEP 2 · PRACTICE</span><h2>Practice and quizzes for this training</h2></div></div>
   <% if (isLearner && !allDone) { %>
