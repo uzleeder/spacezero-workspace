@@ -22,15 +22,14 @@
           <h2><a href="/admin/teams/<%= team.id %>"><%= team.name %></a><% if (team.archivedAt) { %> <span class="badge">Archived</span><% } %></h2>
           <p class="team-card__meta"><%= members.length %> member<%= members.length === 1 ? '' : 's' %> · <%= ready %> of <%= members.length %> fully set up<% if (unsupervised) { %> · <span class="team-card__warn"><%= unsupervised %> without supervisor</span><% } %></p>
         </div>
-        <% if (!team.archivedAt) { %>
-          <details class="more-menu">
-            <summary class="btn btn-ghost btn-sm" aria-label="Actions for <%= team.name %>" title="Team actions">⋯</summary>
-            <div class="more-list">
-              <a href="/admin/teams/<%= team.id %>">Open team</a>
-              <button type="button" class="is-danger" data-action="/admin/teams/<%= team.id %>/archive" data-confirm="Archive this team?">Archive</button>
-            </div>
-          </details>
-        <% } %>
+        <details class="more-menu">
+          <summary class="btn btn-ghost btn-sm" aria-label="Actions for <%= team.name %>" title="Team actions">⋯</summary>
+          <div class="more-list">
+            <a href="/admin/teams/<%= team.id %>">Open team</a>
+            <% if (!team.archivedAt) { %><button type="button" class="is-danger" data-action="/admin/teams/<%= team.id %>/archive" data-confirm="Archive this team?">Archive</button><% } %>
+            <button type="button" class="is-danger" data-action="/admin/teams/<%= team.id %>/delete" data-success-message="The team was deleted." data-confirm="Delete the team &quot;<%= team.name %>&quot; completely? Its <%= members.length %> member<%= members.length === 1 ? '' : 's' %> will NOT be deleted - they just stop belonging to this team. This cannot be undone.">Delete</button>
+          </div>
+        </details>
       </header>
 
       <div class="team-card__lead">
