@@ -1,6 +1,6 @@
 <%- include('../partials/employee-frame') %>
 <% if (typeof removed !== 'undefined' && removed) { %><div class="form-alert success mt-16" role="status">The assigned training was removed from <%= employee.fullName %>.</div><% } %>
-<div class="card mt-24" style="margin-bottom:40px">
+<div class="card mt-24"<%- callPractice ? '' : ' style="margin-bottom:40px"' %>>
   <div class="card-header"><h2>Assigned training</h2></div>
   <% if (list.length === 0) { %>
     <div class="card-body"><%- include('../partials/empty-state', { title: 'No training assigned', description: 'Nothing has been assigned to this employee yet.' }) %></div>
@@ -23,3 +23,27 @@
     </ul>
   <% } %>
 </div>
+
+<% if (callPractice) { const cpp = callPractice; const cpTone = function (a) { return a == null ? '' : a >= 90 ? ' cp-chip--high' : a >= 75 ? ' cp-chip--mid' : ' cp-chip--low'; }; %>
+<%# Call Practice (lib/callPractice.js reportFor): the real calls a new agent typed out, with accuracy and typing speed. %>
+<div class="card mt-24" style="margin-bottom:40px" data-cp-report>
+  <div class="card-header"><div>
+    <h2>Call Practice</h2>
+    <p><%= cpp.doneCount %> of <%= cpp.total %> call<%= cpp.total === 1 ? '' : 's' %><% if (cpp.averageAccuracy != null) { %> · <%= cpp.averageAccuracy %>% average accuracy<% } %><% if (cpp.averageWpm != null) { %> · <%= cpp.averageWpm %> words a minute<% } %><%= cpp.eligible ? '' : ' · finished (past the new-agent months)' %></p>
+  </div></div>
+  <% if (!cpp.doneCount) { %>
+    <div class="card-body"><%- include('../partials/empty-state', { title: 'No calls done yet', description: cpp.total ? 'Calls show up here as ' + employee.fullName + ' types them out.' : 'No calls have been added to Call Practice yet.' }) %></div>
+  <% } else { %>
+    <ul class="divide-list cp-list">
+      <% cpp.done.slice().reverse().forEach(function (i) { const t = i.transcript; %>
+        <li>
+          <a class="cp-list__row" href="/employees/<%= employee.id %>/call-practice/<%= i.call.id %>">
+            <span class="cp-list__main"><span class="cp-list__title">Call <%= i.number %> · <%= i.call.title %></span><span class="cp-list__meta"><%= new Date(t.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) %> · <%= clock(i.call.durationSeconds) %></span></span>
+            <span class="cp-list__score"><span class="cp-chip<%= cpTone(t.accuracy) %>"><%= t.accuracy != null ? Math.round(t.accuracy) + '%' : '—' %></span><span class="cp-list__wpm"><%= t.wordsPerMinute != null ? Math.round(t.wordsPerMinute) + ' wpm' : '' %></span></span>
+          </a>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+</div>
+<% } %>

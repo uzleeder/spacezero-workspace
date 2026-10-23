@@ -1,0 +1,46 @@
+<%# One Call Practice call (routes/admin/callPractice.js): hear it, name it, check and correct its answer key, remove it. %>
+<%
+const errors = { title: 'Give the call a title.', key: 'The answer key needs at least ' + minWords + ' words.' };
+const keyNote = {
+  READY: 'Written by the AI. Listen and correct anything it got wrong.',
+  PENDING: 'The AI is writing it. Reload this page in a minute, or type it yourself.',
+  PROCESSING: 'The AI is writing it. Reload this page in a minute, or type it yourself.',
+  FAILED: call.referenceError || 'The AI could not write it.',
+}[call.referenceStatus];
+%>
+<p class="steps-back"><a class="link-gold text-sm" href="/admin/call-practice">← Call Practice</a></p>
+<div class="page-header steps-header">
+  <div><h1><%= call.title %></h1><p><%= clock(call.durationSeconds) %> · <%= stats.done %> <%= stats.done === 1 ? 'person' : 'people' %> did it<% if (stats.averageAccuracy != null) { %> · <%= stats.averageAccuracy %>% average accuracy<% } %></p></div>
+</div>
+<% if (saved) { %><div class="form-alert success mt-16" role="status">Saved.<%= stats.done ? ' Everyone who did this call was scored against the answer key as it is now.' : '' %></div><% } %>
+<% if (error && errors[error]) { %><div class="form-alert error mt-16" role="alert"><%= errors[error] %></div><% } %>
+
+<div class="card mt-16"><div class="card-body"><audio data-skin controls preload="metadata" src="<%= playUrl %>" aria-label="The call"></audio></div></div>
+
+<form method="post" action="/admin/call-practice/<%= call.id %>" class="card mt-16" data-once data-cp-edit>
+  <div class="card-body">
+    <div class="field"><label for="cp-title">Title</label><input id="cp-title" name="title" value="<%= call.title %>" maxlength="120" required /></div>
+    <div class="field"><label for="cp-note">Note for trainees</label><input id="cp-note" name="note" value="<%= call.note || '' %>" maxlength="300" placeholder="Flight change, an upset client" /><p class="hint">Shown with the call. Optional.</p></div>
+    <div class="field">
+      <label for="cp-key">Answer key</label>
+      <p class="cp-key-status cp-key-status--<%= call.referenceStatus.toLowerCase() %>" data-key-status><%= keyNote %></p>
+      <textarea id="cp-key" name="referenceText" rows="16" class="cp-text" placeholder="Agent: Hello, thank you for calling…&#10;Client: Hi, I would like to…"><%= call.referenceText || '' %></textarea>
+      <p class="hint">One line per turn, starting with Agent: or Client:. Card, passport and phone numbers stay out, as [REDACTED]. Saving a changed answer key scores everyone who already did this call again.</p>
+    </div>
+  </div>
+  <div class="step-actions"><span></span><button type="submit" class="btn btn-gold">Save</button></div>
+</form>
+
+<div class="card mt-16" style="margin-bottom:40px">
+  <div class="card-body cp-actions-row">
+    <% if (call.referenceStatus === 'FAILED') { %>
+      <form method="post" action="/admin/call-practice/<%= call.id %>/answer-key" data-once><button type="submit" class="btn btn-secondary btn-sm">Ask the AI again</button></form>
+    <% } %>
+    <form method="post" action="/admin/call-practice/<%= call.id %>/remove" data-once>
+      <button type="submit" class="btn btn-danger btn-sm" data-confirm-msg="<%= stats.done ? 'Take this call out of Call Practice? New agents will not get it. The results of the ' + stats.done + ' who did it stay.' : 'Delete this call and its recording? Nobody has done it yet.' %>">Remove call</button>
+    </form>
+  </div>
+</div>
+
+<script src="<%= asset('/static/js/player-skin.js') %>" defer></script>
+<script src="<%= asset('/static/js/ai-practice.js') %>" defer></script>

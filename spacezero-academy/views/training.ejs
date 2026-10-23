@@ -1,8 +1,10 @@
 <%# My Training: ONE path through the learner's training (lib/myTraining.js pathOf). One main button, on the current
-    step; finished steps fold into "✓ N completed"; only the next 3 locked steps show, the rest fold into "+N more". %>
+    step; finished steps fold into "✓ N completed"; only the next 3 locked steps show, the rest fold into "+N more".
+    New agents also get one quiet Call Practice line under the progress (lib/callPractice.js summaryFor). %>
 <%- include('partials/page-header', { pageTitle: 'My Training', pageDescription: 'Finish each training to unlock the next.' }) %>
 
 <% if (!path.total) { %>
+  <% if (callPractice) { %><%- include('partials/call-practice-strip', { callPractice: callPractice }) %><% } %>
   <div class="card mt-24" data-path-empty><div class="card-body"><%- include('partials/empty-state', profile.role === 'ADMIN'
     ? { title: 'Nothing is assigned to you', description: 'Training you assign to others is in Manage Training.' }
     : { title: 'No training assigned yet', description: 'When training is assigned to you, it shows up here.' }) %></div></div>
@@ -12,6 +14,7 @@
     <p class="path-progress__label"><strong><%= path.doneCount %> of <%= path.total %></strong> completed</p>
     <div class="read-line" role="progressbar" aria-label="Training completed" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<%= path.percent %>"><div class="read-line__track"><div class="read-line__fill" style="width:<%= path.percent %>%"></div></div><span class="read-line__percent"><%= path.percent %>%</span></div>
   </div>
+  <% if (callPractice) { %><%- include('partials/call-practice-strip', { callPractice: callPractice }) %><% } %>
 
   <% if (!path.current) { %>
     <section class="card next-card mt-24 path-finished" data-path-done>

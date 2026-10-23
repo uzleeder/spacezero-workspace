@@ -573,8 +573,8 @@ async function trainingRemover(req) {
 router.get('/employees/:id/training', requireSession, async (req, res) => {
   const ctx = await loadEmployeeFor(req.profile, req.params.id);
   if (!ctx) return notFound(res);
-  const list = await getMyTrainingList(ctx.employee.id);
-  res.render('employee/training', { title: `${ctx.employee.fullName} — Training`, ...(await frame(req, ctx)), list, categoryLabel: require('../lib/trainingCategories').categoryLabel, canRemove: await trainingRemover(req), removed: req.query.removed === '1' });
+  const [list, callPractice] = await Promise.all([getMyTrainingList(ctx.employee.id), require('../lib/callPractice').reportFor(ctx.employee)]);
+  res.render('employee/training', { title: `${ctx.employee.fullName} — Training`, ...(await frame(req, ctx)), list, callPractice, clock: require('../lib/callPractice').clock, categoryLabel: require('../lib/trainingCategories').categoryLabel, canRemove: await trainingRemover(req), removed: req.query.removed === '1' });
 });
 
 // Admin only: take ONE assigned training away from this employee (the assignment stays for everyone else;

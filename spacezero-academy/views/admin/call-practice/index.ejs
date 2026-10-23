@@ -1,0 +1,72 @@
+<%# Manage Training -> Call Practice (routes/admin/callPractice.js): who does it and how often, adding calls, and the
+    list every new agent follows, in order. %>
+<%- include('../../partials/page-header', { pageTitle: 'Training', pageDescription: 'Call Practice: real client calls new agents listen to and type out, word for word.' }) %>
+<%- include('../../partials/management-tabs', { tabs: tabsets.training }) %>
+
+<%
+const months = window.months ? window.months + ' month' + (window.months === 1 ? '' : 's') : 'months';
+const statusOf = function (c) {
+  if (c.referenceStatus === 'READY') return { label: 'Ready', cls: 'badge-success' };
+  if (c.referenceStatus === 'FAILED') return { label: 'Answer key failed', cls: 'badge-danger' };
+  return { label: 'Making answer key…', cls: 'badge-warning' };
+};
+%>
+<% if (notice.added || notice.skipped) { %><div class="form-alert <%= notice.added ? 'success' : 'error' %> mt-16" role="status"><%= notice.added ? notice.added + ' call' + (notice.added === 1 ? '' : 's') + ' added. The AI is writing ' + (notice.added === 1 ? 'its answer key' : 'their answer keys') + ': each call reaches trainees once it is ready.' : '' %><%= notice.skipped ? ' ' + notice.skipped + ' file' + (notice.skipped === 1 ? ' was' : 's were') + ' not added: use an MP3, WAV, M4A or OGG recording.' : '' %></div><% } %>
+<% if (notice.none) { %><div class="form-alert error mt-16" role="alert">Choose at least one recording.</div><% } %>
+<% if (notice.saved) { %><div class="form-alert success mt-16" role="status">Saved.</div><% } %>
+<% if (notice.removed) { %><div class="form-alert success mt-16" role="status"><%= notice.removed === 'archived' ? 'The call was taken out of Call Practice. The results of the people who did it stay.' : 'The call and its recording were deleted.' %></div><% } %>
+
+<div class="cp-admin-grid mt-24">
+  <section class="card">
+    <div class="card-header"><h2>Who and how often</h2></div>
+    <div class="card-body">
+      <p class="step-text">Travel Agents and Flight Experts during their first <strong><%= months %></strong><%= window.label ? ' (the ' + window.label + ' tenure band in Settings)' : '' %>, counted from their start date. <strong><%= trainees %></strong> <%= trainees === 1 ? 'person is' : 'people are' %> in Call Practice now.</p>
+      <form method="post" action="/admin/call-practice/settings" class="cp-inline-form" data-once>
+        <div class="field">
+          <label for="cp-per-day">Calls a day</label>
+          <select id="cp-per-day" name="callsPerDay">
+            <% [1, 2, 3, 4, 5].forEach(function (n) { %><option value="<%= n %>"<%= n === perDay ? ' selected' : '' %>><%= n %></option><% }); %>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-secondary">Save</button>
+      </form>
+      <p class="text-sm text-muted mt-8">A missed day never piles up: the next call simply waits.</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-header"><div><h2>Add calls</h2><p>Add several at once. Each one becomes the next call in the list.</p></div></div>
+    <div class="card-body">
+      <form method="post" action="/admin/call-practice/upload" enctype="multipart/form-data" data-once>
+        <%- include('../../partials/dropzone', { inputId: 'cp-files', inputName: 'files', accept: 'audio/*,.mp3,.wav,.m4a,.ogg', multiple: true, required: true, dzTitleText: 'Drag recordings here, or click to choose', hint: 'MP3, WAV, M4A or OGG. The AI writes each answer key; you can correct it.' }) %>
+        <button type="submit" class="btn btn-gold mt-16">Upload</button>
+      </form>
+    </div>
+  </section>
+</div>
+
+<div class="card mt-24" style="margin-bottom:40px" data-cp-calls>
+  <div class="card-header"><div><h2>Calls</h2><p><%= calls.length %> call<%= calls.length === 1 ? '' : 's' %>, in the order every new agent hears them. A call reaches trainees once its answer key is ready.</p></div></div>
+  <% if (!calls.length) { %>
+    <div class="card-body"><%- include('../../partials/empty-state', { title: 'No calls yet', description: 'Upload real client calls above. Pick calls without card, passport or other personal details where you can.' }) %></div>
+  <% } else { %>
+    <ol class="cp-calls">
+      <% calls.forEach(function (c, i) { const st = statusOf(c); %>
+        <li class="cp-calls__row" id="call-<%= c.id %>" data-cp-call>
+          <span class="cp-calls__num"><%= i + 1 %></span>
+          <a class="cp-calls__main" href="/admin/call-practice/<%= c.id %>">
+            <span class="cp-calls__title"><%= c.title %></span>
+            <span class="cp-calls__meta"><%= clock(c.durationSeconds) %><% if (c.note) { %> · <%= c.note %><% } %> · <%= c._count.transcripts %> done</span>
+          </a>
+          <span class="badge <%= st.cls %>"><%= st.label %></span>
+          <form method="post" action="/admin/call-practice/<%= c.id %>/move" class="cp-move">
+            <button type="submit" name="direction" value="up" class="btn btn-secondary btn-sm" aria-label="Move <%= c.title %> up"<%= i === 0 ? ' disabled' : '' %>>↑</button>
+            <button type="submit" name="direction" value="down" class="btn btn-secondary btn-sm" aria-label="Move <%= c.title %> down"<%= i === calls.length - 1 ? ' disabled' : '' %>>↓</button>
+          </form>
+        </li>
+      <% }); %>
+    </ol>
+  <% } %>
+</div>
+
+<script src="<%= asset('/static/js/ai-practice.js') %>" defer></script>

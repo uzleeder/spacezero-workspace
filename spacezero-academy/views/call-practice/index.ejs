@@ -1,0 +1,63 @@
+<%# Call Practice, the trainee's overview (lib/callPractice.js planOf): today's call with the one main button, then how
+    they are doing and every call they did. %>
+<%
+const p = plan;
+const tone = function (a) { return a == null ? '' : a >= 90 ? ' cp-chip--high' : a >= 75 ? ' cp-chip--mid' : ' cp-chip--low'; };
+const day = function (d) { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); };
+const months = window.months ? window.months + ' month' + (window.months === 1 ? '' : 's') : 'months';
+%>
+<p class="steps-back"><a class="link-gold text-sm" href="/training">← My Training</a></p>
+<%- include('../partials/page-header', { pageTitle: 'Call Practice', pageDescription: 'Listen to a real client call and type every word you hear: the agent and the client.' }) %>
+
+<% if (!eligible && !p.doneCount) { %>
+  <div class="card mt-24" data-cp-none><div class="card-body"><%- include('../partials/empty-state', { title: 'Call Practice is for new agents', description: 'Travel Agents and Flight Experts do it during their first ' + months + '.' }) %></div></div>
+<% } else { %>
+  <% if (eligible) { %>
+  <section class="card next-card cp-today mt-24" data-cp-today>
+    <div class="card-body">
+      <% if (!p.total) { %>
+        <p class="label">Today</p>
+        <h2>No calls yet</h2>
+        <p class="cp-meta">Calls show up here as soon as they are added.</p>
+      <% } else if (p.next && p.open) { %>
+        <p class="label">Today · <%= p.perDay %> call<%= p.perDay === 1 ? '' : 's' %> a day</p>
+        <h2>Call <%= p.next.number %> · <%= p.next.call.title %></h2>
+        <p class="cp-meta"><%= clock(p.next.call.durationSeconds) %> · Call <%= p.next.number %> of <%= p.total %><% if (p.next.call.note) { %> · <%= p.next.call.note %><% } %></p>
+        <a class="btn btn-gold cp-today__action" href="/call-practice/<%= p.next.call.id %>" data-main-action><%= p.started ? 'Continue' : 'Start' %></a>
+      <% } else if (p.next) { %>
+        <p class="label">Today</p>
+        <h2>✓ Today's calls are done</h2>
+        <p class="cp-meta">Call <%= p.next.number %> opens tomorrow.</p>
+      <% } else { %>
+        <p class="label">All done</p>
+        <h2>✓ You've done every call</h2>
+        <p class="cp-meta">New calls show up here when they are added.</p>
+      <% } %>
+    </div>
+  </section>
+  <% } else { %>
+    <div class="form-alert info mt-24" role="status">Call Practice was for your first <%= months %>. Your results stay here.</div>
+  <% } %>
+
+  <% if (p.doneCount) { %>
+  <div class="kpi-grid mt-24" data-cp-stats>
+    <div class="card kpi"><p class="value"><%= p.doneCount %><span class="cp-kpi-of"> of <%= p.total %></span></p><p class="label">Calls done</p></div>
+    <div class="card kpi"><p class="value"><%= p.averageAccuracy != null ? p.averageAccuracy + '%' : '—' %></p><p class="label">Average accuracy</p><% if (p.accuracyTrend.length >= 2) { %><div class="cp-kpi-spark"><%- include('../partials/spark', { points: p.accuracyTrend }) %></div><% } %></div>
+    <div class="card kpi"><p class="value"><%= p.averageWpm != null ? p.averageWpm : '—' %></p><p class="label">Words a minute</p></div>
+  </div>
+
+  <div class="card mt-24 cp-done">
+    <div class="card-header"><h2>Calls you did</h2></div>
+    <ul class="divide-list cp-list">
+      <% p.done.slice().reverse().forEach(function (i) { const t = i.transcript; %>
+        <li data-cp-done>
+          <a class="cp-list__row" href="/call-practice/<%= i.call.id %>">
+            <span class="cp-list__main"><span class="cp-list__title">Call <%= i.number %> · <%= i.call.title %></span><span class="cp-list__meta"><%= day(t.submittedAt) %> · <%= clock(i.call.durationSeconds) %></span></span>
+            <span class="cp-list__score"><span class="cp-chip<%= tone(t.accuracy) %>"><%= t.accuracy != null ? Math.round(t.accuracy) + '%' : '—' %></span><span class="cp-list__wpm"><%= t.wordsPerMinute != null ? Math.round(t.wordsPerMinute) + ' wpm' : '' %></span></span>
+          </a>
+        </li>
+      <% }); %>
+    </ul>
+  </div>
+  <% } %>
+<% } %>
