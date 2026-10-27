@@ -12,6 +12,7 @@ const { logAudit } = require('../../lib/audit');
 const { excludeOtherAdminsTestProfiles } = require('../../lib/loginAsScope');
 const { monthsSince } = require('../../lib/tenure');
 const { roleLabel } = require('../../lib/roles');
+const { getSetting, setSetting } = require('../../lib/orgSettings');
 const { dayKey, windowFor } = require('../../lib/callPractice');
 const plans = require('../../lib/newAgentPlan');
 const program = require('../../lib/newAgentProgram');
@@ -81,11 +82,12 @@ router.get('/new-agent-program', adminOnly, async (req, res) => {
   const plan = await planOf(req);
   if (!plan) return notFound(res);
   const now = new Date();
-  const [running, courses, standards, window] = await Promise.all([
+  const [running, courses, standards, window, supervisorEmails] = await Promise.all([
     prisma.agentProgram.findMany({ where: { organizationId: org, status: 'ACTIVE', profile: excludeOtherAdminsTestProfiles(req.profile) }, orderBy: { startDate: 'asc' }, select: { id: true } }),
     prisma.trainingCourse.findMany({ where: { organizationId: org, status: 'PUBLISHED', archivedAt: null }, orderBy: { title: 'asc' }, select: { id: true, title: true } }),
     prisma.standardsItem.findMany({ where: { organizationId: org, archivedAt: null }, orderBy: { title: 'asc' }, select: { id: true, title: true } }),
     windowFor(org),
+    getSetting(org, 'program.supervisorEmails'),
   ]);
   // every running program, brought up to date (it ticks what real data shows done)
   const people = [];
@@ -106,7 +108,7 @@ router.get('/new-agent-program', adminOnly, async (req, res) => {
   const notice = ['saved', 'added', 'deleted', 'started', 'stopped', 'days'].find((k) => req.query[k] === '1') || '';
   res.set('Cache-Control', 'private, no-store');
   res.render('admin/new-agent-program/index', {
-    title: 'New Agent Program', plan, people, candidates, courses, standards, roleLabel, notice, error: typeof req.query.error === 'string' ? req.query.error.slice(0, 200) : '',
+    title: 'New Agent Program', plan, people, candidates, courses, standards, roleLabel, notice, supervisorEmails, error: typeof req.query.error === 'string' ? req.query.error.slice(0, 200) : '',
     weeks: weeksOf(plan, new Map(courses.map((c) => [c.id, c.title])), new Map(standards.map((s) => [s.id, s.title]))),
     calls: plans.callsPerWeek(plan), weekTitles: plans.weekTitles(plan), KINDS: plans.KINDS, PLAN_KINDS: plans.PLAN_KINDS, SYSTEMS: plans.SYSTEMS, maxDay: MAX_DAY, item: { dayOffset: 1, kind: 'DEMO' },
   });
@@ -121,7 +123,8 @@ router.post('/new-agent-program/settings', adminOnly, async (req, res) => {
   if (calls.some((c) => c === null)) return res.redirect(`${HOME}?error=${encodeURIComponent('Calls a day are a number from 1 to 5 for each week.')}`);
   const titles = Array.from({ length: weeks }, (_, i) => text(req.body[`week${i + 1}`], 60) || plans.weekTitles(plan)[i] || `Week ${i + 1}`);
   await prisma.developmentPath.update({ where: { id: plan.id }, data: { isActive: req.body.isActive === '1', dailyCheckIn: req.body.dailyCheckIn === '1', callsPerWeekJson: JSON.stringify(calls), weekTitlesJson: JSON.stringify(titles) } });
-  await audit(req, 'program.settings_changed', 'DevelopmentPath', plan.id, { isActive: req.body.isActive === '1', calls, dailyCheckIn: req.body.dailyCheckIn === '1' });
+  await setSetting(req.profile.organizationId, 'program.supervisorEmails', req.body.supervisorEmails === '1', req.profile.id);
+  await audit(req, 'program.settings_changed', 'DevelopmentPath', plan.id, { isActive: req.body.isActive === '1', calls, dailyCheckIn: req.body.dailyCheckIn === '1', supervisorEmails: req.body.supervisorEmails === '1' });
   res.redirect(`${HOME}?saved=1`);
 });
 
