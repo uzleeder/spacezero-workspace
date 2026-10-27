@@ -149,7 +149,7 @@ async function processRetention(organizationId, now) {
 
 // ------------------------------------------------------------------ onboarding paths
 async function runPaths(organizationId, now) {
-  const paths = await prisma.developmentPath.findMany({ where: { organizationId, isActive: true }, include: { steps: true } });
+  const paths = await prisma.developmentPath.findMany({ where: { organizationId, isActive: true, program: false }, include: { steps: true } }); // the New Agent Program plan runs in lib/newAgentProgram.js
   const out = { recommended: 0, assigned: 0 };
   for (const path of paths) {
     if (!path.steps.length) continue;
@@ -320,6 +320,9 @@ async function runAutomation(organizationId, { now = new Date(), actorId = null 
   summary.retention = await processRetention(organizationId, now);
   summary.paths = await runPaths(organizationId, now);
   summary.onboarding = await runOnboarding(organizationId, { now });
+  summary.newAgentProgram = await require('./newAgentProgram').runPrograms(organizationId, { now });
+  const { states, ...alerts } = await require('./newAgentReminders').runAlerts(organizationId, { now }); // in case the server was down at 08:30
+  summary.newAgentAlerts = { ...alerts, programs: states.length };
   summary.setupReminders = await runSetupReminders(organizationId);
   summary.passportReminders = await runPassportReminders(organizationId, now);
   summary.birthdays = await require('./birthdays').runBirthdayGreetings(organizationId, now);

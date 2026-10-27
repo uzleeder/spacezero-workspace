@@ -311,6 +311,7 @@ model Profile {
   callBatchesApproved      CallBatch[]                   @relation("CallBatchApprovedBy")
   mediaProgress            MediaProgress[]
   practiceCallTranscripts  PracticeCallTranscript[]
+  agentProgram             AgentProgram?
   localPhone               String?
   currentAddressEnc        String?
   // Passport Details (Setup requirement kind PASSPORT): only the encrypted number and a plain
@@ -1578,6 +1579,8 @@ model DevelopmentRecommendation {
 }
 
 // Configurable onboarding / development path for a role. Steps fall due at employmentStartDate + dayOffset.
+// program = true: the New Agent Program plan (lib/newAgentPlan.js) - its steps fall on the agent's Nth WORKING day
+// (dayOffset = the program day), and each new agent runs through it as an AgentProgram.
 model DevelopmentPath {
   id             String    @id @default(cuid())
   organizationId String
@@ -1588,7 +1591,14 @@ model DevelopmentPath {
   createdById    String
   createdAt      DateTime  @default(now())
 
-  steps DevelopmentPathStep[]
+  program          Boolean @default(false)
+  lengthDays       Int     @default(20) // New Agent Program: working days in the program (4 weeks of 5)
+  callsPerWeekJson String? // New Agent Program: Call Practice calls a day in each program week, e.g. [2,3,4,5]
+  weekTitlesJson   String? // New Agent Program: the name of each week
+  dailyCheckIn     Boolean @default(true) // New Agent Program: a 5-minute supervisor check-in on every other day
+
+  steps    DevelopmentPathStep[]
+  programs AgentProgram[]
 
   @@index([organizationId])
 }
@@ -1604,7 +1614,70 @@ model DevelopmentPathStep {
   autoAssign   Boolean         @default(false)
   displayOrder Int             @default(0)
 
+  // New Agent Program items (lib/newAgentPlan.js KINDS): who does it, what kind, how, and what it points to.
+  owner      String  @default("AGENT") // AGENT | SUPERVISOR
+  kind       String  @default("TRAINING")
+  howTo      String?
+  minutes    Int?
+  standardId String?
+  system     String? // the system a demo or sign-off is about: CRM, EGF, Cockpit ...
+
   @@index([pathId])
+}
+
+// One new agent's run through the New Agent Program (lib/newAgentProgram.js). Day N is the agent's Nth working day:
+// workDaysJson (ISO weekdays, 1 = Monday) minus one-off days off and approved vacation.
+model AgentProgram {
+  id                  String           @id @default(cuid())
+  organizationId      String
+  profileId           String           @unique
+  profile             Profile          @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  pathId              String?
+  path                DevelopmentPath? @relation(fields: [pathId], references: [id], onDelete: SetNull)
+  startDate           String // YYYY-MM-DD (Tashkent): the calendar day the program starts on
+  startDay            Int              @default(1) // the program day startDate counts as (later than 1 for someone started mid-month)
+  workDaysJson        String           @default("[1,2,3,4,5]")
+  workDaysConfirmedAt DateTime?
+  daysOffJson         String           @default("[]")
+  extraDays           Int              @default(0)
+  status              String           @default("ACTIVE") // ACTIVE | STOPPED | COMPLETED
+  startedById         String?
+  stoppedAt           DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  tasks AgentProgramTask[]
+
+  @@index([organizationId, status])
+}
+
+// One item of one agent's program, copied from the plan so later plan edits never rewrite what already happened.
+// key: "step:<stepId>" for a plan item, "calls:<day>" / "checkin:<day>" for the daily ones.
+model AgentProgramTask {
+  id         String       @id @default(cuid())
+  programId  String
+  program    AgentProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  key        String
+  stepId     String?
+  day        Int
+  owner      String
+  kind       String
+  title      String
+  howTo      String?
+  minutes    Int?
+  courseId   String?
+  standardId String?
+  system     String?
+  target     Int? // calls: how many calls that day
+  doneAt     DateTime?
+  doneById   String? // null when it ticked itself from real data
+  note       String?
+  resultJson String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@unique([programId, key])
+  @@index([programId, day])
 }
 
 // WHEN <conditions> THEN recommend (default) or assign an approved course/practice.

@@ -41,13 +41,14 @@ const NO_MANAGE_MESSAGE = 'You do not have permission to change this person\u201
 const NOT_ACTIVE_MESSAGE = 'Setup can only be saved once the account is active.';
 const impersonatingMessage = (req, ctx) => `You are viewing ${ctx.employee.fullName}\u2019s account as ${req.impersonation.adminName}. Only ${ctx.employee.fullName} can confirm their own items here \u2014 use \u201cReturn to admin and manage this Setup\u201d to change it yourself.`;
 async function frame(req, ctx) {
-  const [access, readinessMap, canViewSetup] = await Promise.all([
+  const [access, readinessMap, canViewSetup, firstMonth] = await Promise.all([
     credentialAccess(req.profile, ctx.employee, { impersonating: Boolean(req.impersonation) }),
     readinessFor(req.profile.organizationId, [ctx.employee]),
     canViewSetupTab(req.profile, ctx),
+    require('../lib/employeeTabs').inFirstMonth(req.profile, ctx),
   ]);
   const readiness = readinessMap.get(ctx.employee.id) || null;
-  return { tabs: employeeTabs(req.profile, ctx, { credentials: access.view || access.manage, canViewSetup }), employee: ctx.employee, isSelf: ctx.isSelf, roleLabel, readiness };
+  return { tabs: employeeTabs(req.profile, ctx, { credentials: access.view || access.manage, canViewSetup, firstMonth }), employee: ctx.employee, isSelf: ctx.isSelf, roleLabel, readiness };
 }
 
 async function renderSetup(req, res, ctx, extra = {}) {

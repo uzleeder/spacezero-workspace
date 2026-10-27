@@ -41,7 +41,12 @@ async function managementItems(actor, now) {
   const ackSummaries = active.length ? await ackSummaryForProfiles(actor.organizationId, active) : new Map();
   const pendingAck = active.reduce((n, p) => n + (ackSummaries.get(p.id)?.pending || 0), 0);
 
+  // New agents first: what only a supervisor can do for someone in their first month (lib/newAgentBoard.js)
+  const program = await require('./newAgentBoard').attentionCounts(actor, { now });
   const items = [
+    { key: 'newAgentsLate', label: 'New-agent items overdue', value: program.late, href: '/new-agents', hint: actor.role === 'ADMIN' ? 'Supervisor items for new agents that are late' : 'Things only you can do for your new agents', tone: 'danger' },
+    { key: 'newAgentsToday', label: 'New-agent items for today', value: program.today, href: '/new-agents', hint: 'Check-ins, demos, sign-offs and reviews' },
+    ...(actor.role === 'ADMIN' ? [{ key: 'newAgentsNoSupervisor', label: 'New agents without a supervisor', value: program.noSupervisor, href: '/new-agents?supervisor=none', hint: 'Nobody is doing their supervisor items', tone: 'danger' }] : []),
     { key: 'setup', label: 'Employees needing setup', value: needingSetup, href: `${base}?readiness=SETUP_REQUIRED`, hint: 'Required setup is not finished' },
     { key: 'setupOverdue', label: 'Overdue setup items', value: overdueSetup, href: `${base}?readiness=NEEDS_ATTENTION`, hint: `${plural(overdueSetupPeople, 'employee', 'employees')} — owner and due date are on each employee's setup`, tone: 'danger' },
     { key: 'setupIssue', label: 'Setup access issues', value: issuePeople, href: `${base}?readiness=NEEDS_ATTENTION`, hint: `${plural(issuePeople, 'employee', 'employees')} flagged "I Don't Have" with a note`, tone: 'danger' },

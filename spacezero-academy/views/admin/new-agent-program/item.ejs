@@ -1,0 +1,21 @@
+<%# One New Agent Program plan item (routes/admin/newAgentProgram.js): change it or remove it. %>
+<p class="steps-back"><a class="link-gold text-sm" href="/admin/new-agent-program#day-<%= item.dayOffset %>">← New Agent Program</a></p>
+<div class="page-header steps-header"><div><h1><%= item.title %></h1><p>Day <%= item.dayOffset %> · <%= (KINDS[item.kind] || {}).label || item.kind %></p></div></div>
+<% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
+
+<form method="post" action="/admin/new-agent-program/items/<%= item.id %>" class="card mt-16" data-once>
+  <div class="card-body">
+    <%- include('item-fields', { item: item, courses: courses, standards: standards, KINDS: KINDS, PLAN_KINDS: PLAN_KINDS, SYSTEMS: SYSTEMS, maxDay: maxDay }) %>
+    <p class="text-sm text-muted mt-8">Changes reach running programs for the days still ahead. What already happened stays as it was.</p>
+  </div>
+  <div class="step-actions"><span></span><button type="submit" class="btn btn-gold">Save</button></div>
+</form>
+
+<div class="card mt-16" style="margin-bottom:40px">
+  <div class="card-body nap-actions-row">
+    <form method="post" action="/admin/new-agent-program/items/<%= item.id %>/delete" data-once>
+      <button type="submit" class="btn btn-danger btn-sm" data-confirm-msg="Remove this item from the plan? Agents who have not reached day <%= item.dayOffset %> will not get it.">Remove item</button>
+    </form>
+  </div>
+</div>
+<script src="<%= asset('/static/js/ai-practice.js') %>" defer></script>
