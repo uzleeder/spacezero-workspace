@@ -6,8 +6,9 @@
 //     from the recording (the same transcription the call analysis uses, numbers removed), correctable by the Admin.
 //   * Who: Travel Agents and Flight Experts in the organization's first tenure band ("New Agent", 0-3 months by
 //     default - Settings), counted from their start date. Nothing is assigned; it starts on day one.
-//   * Every trainee hears the same calls in the same order, at most callPractice.callsPerDay a day. A missed day never
-//     piles up: the next call simply waits. A call is only offered once its answer key is ready.
+//   * Every trainee hears the same calls in the same order, at most callPractice.callsPerDay a day - in the New Agent
+//     Program, that week's number instead (lib/newAgentPlan.js callsOn). A missed day never piles up: the next call
+//     simply waits. A call is only offered once its answer key is ready.
 //   * Scoring is lib/callPracticeScore.js (word by word, no AI per trainee).
 // planOf() is pure, so the pages and their tests decide "what is open today" the same way.
 const { prisma } = require('./prisma');
@@ -85,13 +86,14 @@ function callsFor(profile) {
 
 /** Everything the pages need about one person: { window, eligible, plan }. */
 async function stateFor(profile, now = new Date()) {
-  const [window, perDay, calls, transcripts] = await Promise.all([
+  const [window, setting, programCalls, calls, transcripts] = await Promise.all([
     windowFor(profile.organizationId),
     getSetting(profile.organizationId, 'callPractice.callsPerDay'),
+    require('./newAgentProgram').callsQuota(profile, now), // in the New Agent Program: that week's number of calls
     callsFor(profile),
     prisma.practiceCallTranscript.findMany({ where: { profileId: profile.id } }),
   ]);
-  return { window, eligible: isEligible(profile, window), plan: planOf({ calls, transcripts, perDay, now }) };
+  return { window, eligible: isEligible(profile, window), plan: planOf({ calls, transcripts, perDay: programCalls ?? setting, now }) };
 }
 
 /** For the line on My Training: null unless the person is in Call Practice and there is at least one call. */

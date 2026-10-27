@@ -37,7 +37,7 @@ async function renderDevelopment(req, res, extras = {}) {
   const organizationId = req.profile.organizationId;
   const [recommendations, paths, rules, courses, skills, bands] = await Promise.all([
     prisma.developmentRecommendation.findMany({ where: { organizationId, status: 'OPEN' }, orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }], take: 100, include: { profile: { select: { id: true, fullName: true, role: true } } } }),
-    prisma.developmentPath.findMany({ where: { organizationId }, orderBy: { createdAt: 'asc' }, include: { steps: { orderBy: { dayOffset: 'asc' } } } }),
+    prisma.developmentPath.findMany({ where: { organizationId, program: false }, orderBy: { createdAt: 'asc' }, include: { steps: { orderBy: { dayOffset: 'asc' } } } }), // the New Agent Program plan has its own page
     prisma.assignmentRule.findMany({ where: { organizationId }, orderBy: { createdAt: 'asc' } }),
     prisma.trainingCourse.findMany({ where: { organizationId, status: 'PUBLISHED', archivedAt: null }, orderBy: { title: 'asc' }, select: { id: true, title: true } }),
     prisma.skill.findMany({ where: { organizationId, isActive: true }, orderBy: [{ category: 'asc' }, { name: 'asc' }], select: { id: true, name: true, roleKey: true } }),
@@ -66,7 +66,7 @@ router.post('/development/paths', advanced, async (req, res) => {
   back(res, '/admin/development');
 });
 
-async function ownPath(req) { return prisma.developmentPath.findFirst({ where: { id: req.params.id, organizationId: req.profile.organizationId } }); }
+async function ownPath(req) { return prisma.developmentPath.findFirst({ where: { id: req.params.id, organizationId: req.profile.organizationId, program: false } }); }
 
 router.post('/development/paths/:id/toggle', advanced, async (req, res) => {
   const path = await ownPath(req); if (!path) return notFound(res);
@@ -96,7 +96,7 @@ router.post('/development/paths/:id/steps', advanced, async (req, res) => {
 });
 
 router.post('/development/steps/:id/delete', advanced, async (req, res) => {
-  const step = await prisma.developmentPathStep.findFirst({ where: { id: req.params.id, path: { organizationId: req.profile.organizationId } } });
+  const step = await prisma.developmentPathStep.findFirst({ where: { id: req.params.id, path: { organizationId: req.profile.organizationId, program: false } } });
   if (!step) return notFound(res);
   await prisma.developmentPathStep.delete({ where: { id: step.id } });
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'development.step_deleted', targetTable: 'DevelopmentPathStep', targetId: step.id });

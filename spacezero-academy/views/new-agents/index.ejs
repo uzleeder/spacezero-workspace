@@ -1,0 +1,97 @@
+<%# Employees & Teams -> New agents (routes/newAgents.js, lib/newAgentBoard.js): what the supervisor has to do across
+    their new agents - overdue first, then today - and one card per agent, most urgent first. %>
+<%
+const late = tasks.late; const today = tasks.today;
+const agentWord = agents.length === 1 ? 'agent' : 'agents';
+const summary = !agents.length ? 'New agents: nobody is in their first month right now.'
+  : 'New agents: ' + (isAdmin && !supervisorId ? agents.length + ' ' + agentWord : 'your ' + agents.length + ' ' + agentWord) + ' in their first month. '
+    + (late.length ? late.length + (late.length === 1 ? ' thing is' : ' things are') + ' overdue and ' : '') + (today.length ? today.length + ' ' + (today.length === 1 ? 'is' : 'are') + ' for today.' : 'nothing else is due today.');
+const countsLine = ['URGENT', 'BEHIND', 'NOT_SIGNED_IN', 'STARTS', 'ON_TRACK', 'FINISHED'].filter(function (k) { return counts[k]; }).map(function (k) { return counts[k] + ' ' + board.STATUS[k].label.toLowerCase(); }).join(' · ');
+const pct = function (v) { return v == null ? '—' : Math.round(v) + '%'; };
+%>
+<%- include('../partials/page-header', { pageTitle: 'Employees & Teams', pageDescription: summary }) %>
+<%- include('../partials/management-tabs', { tabs: tabsets.employees, sticky: true }) %>
+<% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
+
+<% if (isAdmin) { %>
+  <form method="get" action="/new-agents" class="na-filter mt-24">
+    <div class="field">
+      <label for="na-sup">Supervisor</label>
+      <select id="na-sup" name="supervisor" onchange="this.form.submit()">
+        <option value="">Everyone</option>
+        <% supervisors.forEach(function (s) { %><option value="<%= s.id %>"<%= supervisorId === s.id ? ' selected' : '' %>><%= s.fullName %></option><% }); %>
+        <% if (noSupervisor) { %><option value="none"<%= supervisorId === 'none' ? ' selected' : '' %>>No supervisor (<%= noSupervisor %>)</option><% } %>
+      </select>
+    </div>
+    <noscript><button type="submit" class="btn btn-secondary">Show</button></noscript>
+  </form>
+  <% if (noSupervisor && supervisorId !== 'none') { %><div class="form-alert error mt-16" role="alert"><%= noSupervisor %> new <%= noSupervisor === 1 ? 'agent has' : 'agents have' %> no supervisor, so nobody is doing their supervisor items. <a href="/new-agents?supervisor=none">Show who</a>.</div><% } %>
+<% } %>
+
+<% if (!agents.length) { %>
+  <div class="card mt-24" style="margin-bottom:40px"><div class="card-body"><%- include('../partials/empty-state', { title: 'No new agents right now', description: 'New Travel Agents and Flight Experts show up here on their first day, for their first 4 weeks.' }) %></div></div>
+<% } else { %>
+
+<section class="na-section mt-24" aria-labelledby="na-tasks-title" data-na-tasks>
+  <h2 id="na-tasks-title" class="na-h2"><%= isAdmin ? 'What supervisors need to do' : 'What you need to do' %></h2>
+  <% if (!late.length && !today.length) { %>
+    <div class="card"><div class="card-body"><p class="na-calm">Nothing is waiting on <%= isAdmin ? 'a supervisor' : 'you' %> today.</p></div></div>
+  <% } else { %>
+    <div class="na-head-row" aria-hidden="true"><span class="na-row__agent">Agent</span><span class="na-row__what">What to do</span><span class="na-row__kind">Type</span><span class="na-row__due">Due</span><span class="na-row__act"></span></div>
+    <% if (late.length) { %>
+      <div class="na-group na-group--late" data-na-overdue>
+        <div class="na-group__band"><span class="na-group__title">Overdue</span><span class="na-group__count"><%= late.length %></span><span class="na-trunc na-meta"><%= isAdmin ? 'Admins are told after 2 of the agent\'s working days' : 'After 2 working days your admin is told' %></span></div>
+        <% late.forEach(function (r) { %><%- include('task-row', { r: r, isAdmin: isAdmin, KINDS: KINDS }) %><% }); %>
+      </div>
+    <% } %>
+    <% if (today.length) { %>
+      <div class="na-group na-group--today" data-na-today>
+        <div class="na-group__band"><span class="na-group__title">Today</span><span class="na-group__count"><%= today.length %></span><span class="na-trunc na-meta"><%= isAdmin ? 'Only the supervisor can do these' : 'Only you can do these' %></span><% if (tasks.minutes) { %><span class="na-group__time">About <%= board.duration(tasks.minutes) %></span><% } %></div>
+        <% today.forEach(function (r) { %><%- include('task-row', { r: r, isAdmin: isAdmin, KINDS: KINDS }) %><% }); %>
+      </div>
+    <% } %>
+  <% } %>
+</section>
+
+<section class="na-section mt-24" aria-labelledby="na-agents-title" style="margin-bottom:40px">
+  <div class="na-section__head"><h2 id="na-agents-title" class="na-h2"><%= isAdmin ? 'New agents' : 'Your new agents' %></h2><p class="na-meta"><%= countsLine %></p></div>
+  <div class="na-cards">
+    <% agents.forEach(function (a) { const s = a.summary; const titles = plans.weekTitles(a.plan); const mine = a.agentDay; %>
+      <article class="na-card na-card--<%= a.statusInfo.tone %>" aria-label="<%= a.profile.fullName %>" data-na-agent="<%= a.profile.id %>">
+        <div class="na-card__who">
+          <span class="na-av na-av--<%= a.hue %> na-av--lg" aria-hidden="true"><%= a.initials %></span>
+          <span class="na-card__name"><a class="na-trunc" href="/new-agents/<%= a.profile.id %>"><%= a.profile.fullName %></a><span class="na-trunc na-meta"><%= roleLabel(a.profile.role) %><%= s.started ? ' · day ' + (s.day || s.passed) : '' %><% if (isAdmin) { %> · <%= a.supervisor ? a.supervisor.fullName : 'no supervisor' %><% } %></span></span>
+        </div>
+        <span class="na-status na-status--<%= a.statusInfo.tone %>"><span class="na-dot" aria-hidden="true"></span><%= a.status === 'STARTS' ? 'Starts ' + board.shortDate(a.cal.startKey) : a.statusInfo.label %></span>
+        <p class="na-card__text"><%= a.sentence %></p>
+        <div class="na-card__weeks">
+          <div class="na-bars" role="img" aria-label="<%= a.weeks.map(function (w) { return 'Week ' + w.number + ' ' + w.percent + ' percent done'; }).join(', ') %>">
+            <% a.weeks.forEach(function (w) { %><span class="na-bar"><span class="na-bar__fill" style="width:<%= w.percent %>%"></span></span><% }); %>
+          </div>
+          <span class="na-meta">Week <%= s.week %> of <%= a.weeks.length %><%= titles[s.week - 1] ? ' · ' + titles[s.week - 1] : '' %></span>
+        </div>
+        <div class="na-card__block">
+          <span class="na-label"><%= board.firstName(a.profile.fullName) %>'s day</span>
+          <% if (!s.started) { %><span class="na-meta">Starts <%= board.shortDate(a.cal.startKey) %></span>
+          <% } else if (!a.pos.today) { %><span class="na-meta">Day off today</span>
+          <% } else if (!mine.length) { %><span class="na-meta">Nothing of their own today</span>
+          <% } else { mine.forEach(function (i) { %>
+            <span class="na-check<%= i.done ? ' is-done' : '' %>"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><% if (i.done) { %><path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><% } else { %><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"></circle><% } %></svg><span class="visually-hidden"><%= i.done ? 'Done: ' : 'Not done: ' %></span><%= i.title %></span>
+          <% }); } %>
+        </div>
+        <% if (a.signOffs.length) { %>
+        <div class="na-card__block">
+          <span class="na-label">Sign-offs · <%= a.signOffs.filter(function (x) { return x.done; }).length %> of <%= a.signOffs.length %></span>
+          <span class="na-chips"><% a.signOffs.forEach(function (x) { %><span class="na-chip<%= x.done ? ' is-done' : '' %>"><% if (x.done) { %><svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg><span class="visually-hidden">Signed off: </span><% } else { %><span class="visually-hidden">Not signed off yet: </span><% } %><%= x.system %></span><% }); %></span>
+        </div>
+        <% } %>
+        <div class="na-card__foot">
+          <span class="na-meta"><%= a.lastCheckIn ? 'Check-in ' + board.ago(a.lastCheckIn) : 'No check-in yet' %><%= a.report && a.report.averageAccuracy != null ? ' · calls ' + pct(a.report.averageAccuracy) : '' %></span>
+          <a class="btn btn-secondary btn-sm" href="/new-agents/<%= a.profile.id %>">Open</a>
+        </div>
+      </article>
+    <% }); %>
+  </div>
+</section>
+<% } %>
+<script src="<%= asset('/static/js/ai-practice.js') %>" defer></script>

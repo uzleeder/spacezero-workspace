@@ -1,0 +1,30 @@
+<%# One row of the supervisor's list on the New agents board: the agent, what to do, its kind, when, one action. %>
+<%
+const t = r.task; const a = r.agent;
+const kindLabel = t.kind === 'AGENT_TASK' ? 'Agent task' : (KINDS[t.kind] || {}).label || t.kind;
+// a late supervisor item says when the admin hears about it (lib/newAgentReminders.js)
+const escalation = r.state === 'LATE' && t.owner === 'SUPERVISOR' ? (r.daysLate >= 2 ? (isAdmin ? 'Admins were told' : 'Your admin was told') : (isAdmin ? 'Admins are told after one more working day' : 'Your admin is told after one more working day')) : '';
+const meta = [escalation, t.minutes ? t.minutes + ' min' : '', t.howTo || '', isAdmin ? (a.supervisor ? 'supervisor ' + a.supervisor.fullName : 'no supervisor') : ''].filter(Boolean).join(' · ');
+const dayText = a.pos.today ? 'Day ' + a.pos.today : 'Day off today';
+%>
+<div class="na-row na-row--<%= r.state === 'LATE' ? 'late' : 'today' %>" id="task-<%= t.id %>" data-na-task="<%= t.id %>">
+  <a class="na-row__agent" href="/new-agents/<%= a.profile.id %>">
+    <span class="na-av na-av--<%= a.hue %>" aria-hidden="true"><%= a.initials %></span>
+    <span class="na-row__who"><span class="na-trunc na-strong"><%= a.profile.fullName %></span><span class="na-trunc na-meta"><%= dayText %> · week <%= a.summary.week %></span></span>
+  </a>
+  <span class="na-row__what"><span class="na-trunc"><%= t.title %></span><% if (meta) { %><span class="na-trunc na-meta"><%= meta %></span><% } %></span>
+  <span class="na-row__kind"><span class="na-kind"><%= kindLabel %></span></span>
+  <span class="na-row__due"><%= r.state === 'LATE' ? r.daysLate + 'd overdue' : 'Today' %></span>
+  <span class="na-row__act">
+    <% if (t.kind === 'SCHEDULE') { %>
+      <a class="btn btn-secondary btn-sm" href="/new-agents/<%= a.profile.id %>#working-days">Set working days</a>
+    <% } else if (t.kind === 'REVIEW') { %>
+      <a class="btn btn-secondary btn-sm" href="/new-agents/<%= a.profile.id %>#task-<%= t.id %>">Write review</a>
+    <% } else { %>
+      <form method="post" action="/new-agents/<%= a.profile.id %>/tasks/<%= t.id %>/done" data-once>
+        <input type="hidden" name="from" value="board" />
+        <button type="submit" class="btn btn-secondary btn-sm"><%= t.kind === 'SIGN_OFF' ? 'Sign off' : t.kind === 'AGENT_TASK' ? 'Confirm done' : 'Mark done' %></button>
+      </form>
+    <% } %>
+  </span>
+</div>

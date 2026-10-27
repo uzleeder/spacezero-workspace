@@ -1,0 +1,172 @@
+<%# One new agent in the New Agent Program (routes/newAgents.js): their 4 weeks day by day - every item, whose it is,
+    and when it was done or how late it is - with the supervisor's actions, their working days and days off, their
+    system sign-offs, Call Practice and the notes. %>
+<%
+const s = a.summary; const p = a.profile;
+const titles = plans.weekTitles(a.plan);
+const horizon = np.horizonOf(a.pos);
+const dm = function (d) { return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); };
+const supName = a.viewerIsSupervisor ? 'You' : a.supervisor ? board.firstName(a.supervisor.fullName) : 'Supervisor';
+const ownerOf = function (t) { return t.owner === 'SUPERVISOR' ? supName : board.firstName(p.fullName); };
+const stateOf = function (t) { return np.stateOf(t, a.pos); };
+const recordHref = profile.role === 'ADMIN' ? '/admin/employees/' + p.id : '/team/' + p.id;
+const pct = function (v) { return v == null ? '—' : Math.round(v) + '%'; };
+const weekState = function (w) { return w.total && w.done === w.total ? 'done' : w.number <= s.week && s.started ? 'now' : 'ahead'; };
+const icon = { DONE: '<path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>', LATE: '<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3.5M8 10.8v.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>', TODAY: '<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/>', UPCOMING: '<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2.5"/>', WAITING: '<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2.5"/>' };
+const stateWord = { DONE: 'Done', LATE: 'Late', TODAY: 'Today', UPCOMING: 'Coming up', WAITING: 'Waiting for the video' };
+%>
+<p class="steps-back"><a class="link-gold text-sm" href="/new-agents">← New agents</a></p>
+<div class="page-header na-agent-head">
+  <div class="na-agent-head__who">
+    <span class="na-av na-av--<%= a.hue %> na-av--xl" aria-hidden="true"><%= a.initials %></span>
+    <div>
+      <h1><%= p.fullName %></h1>
+      <p class="na-agent-head__meta"><span class="na-status na-status--<%= a.statusInfo.tone %>"><span class="na-dot" aria-hidden="true"></span><%= a.status === 'STARTS' ? 'Starts ' + board.shortDate(a.cal.startKey) : a.statusInfo.label %></span> <span><%= roleLabel(p.role) %> · started <%= board.shortDate(a.cal.startKey) %><%= s.started ? ' · day ' + (s.day || s.passed) + ' · week ' + s.week + ' of ' + a.weeks.length : '' %> · supervisor <%= a.supervisor ? a.supervisor.fullName : 'not assigned' %></span></p>
+    </div>
+  </div>
+  <div class="na-agent-head__actions">
+    <% if (active) { %><form method="post" action="/new-agents/<%= p.id %>/extend" data-once><button type="submit" class="btn btn-secondary" data-confirm-msg="Add a week (5 working days) to <%= p.fullName %>'s program?">Extend a week</button></form><% } %>
+    <a class="btn btn-secondary" href="<%= recordHref %>">Employee record</a>
+  </div>
+</div>
+<% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
+<% if (!active) { %><div class="form-alert info mt-16" role="status">This program was stopped<%= a.program.stoppedAt ? ' on ' + dm(a.program.stoppedAt) : '' %>. It is shown as it was.</div><% } %>
+<p class="na-agent-sentence mt-16"><%= a.sentence %></p>
+
+<div class="na-layout mt-24">
+  <section class="na-main" aria-labelledby="na-plan-title">
+    <div class="na-section__head"><h2 id="na-plan-title" class="na-h2">The <%= a.weeks.length %> weeks</h2><p class="na-meta"><%= s.done %> done · <%= s.late %> late<%= s.waiting ? ' · ' + s.waiting + ' waiting for videos' : '' %></p></div>
+    <% a.weeks.forEach(function (w) { const ws = weekState(w); const isNow = s.started && w.number === s.week; const hasLate = a.tasks.some(function (t) { return Math.ceil(t.day / 5) === w.number && stateOf(t) === 'LATE'; }); %>
+      <details class="na-week" <%= isNow || hasLate ? 'open' : '' %> data-na-week="<%= w.number %>">
+        <summary class="na-week__sum">
+          <span class="na-week__icon na-week__icon--<%= ws %>" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><%- ws === 'done' ? icon.DONE : ws === 'now' ? '<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/>' : icon.UPCOMING %></svg></span>
+          <span class="na-week__text"><span class="na-strong">Week <%= w.number %><%= titles[w.number - 1] ? ' · ' + titles[w.number - 1] : (w.number > 4 ? ' · extra week' : '') %></span><span class="na-meta"><%= w.done %> of <%= w.total %> done</span></span>
+          <svg class="na-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <% for (let d = (w.number - 1) * 5 + 1; d <= w.number * 5; d += 1) { const dayTasks = a.tasks.filter(function (t) { return t.day === d; }); if (!dayTasks.length) continue; const key = np.dateOfDay(a.cal, d); const isToday = a.pos.today === d; %>
+          <div class="na-day<%= isToday ? ' is-today' : '' %>">
+            <div class="na-day__head"><span class="na-label"><%= isToday ? 'Day ' + d + ' · today' : 'Day ' + d %><%= key && !isToday ? ' · ' + board.shortDate(key) : '' %></span><% if (isToday) { %><span class="na-meta"><%= board.shortDate(key) %></span><% } %></div>
+            <% dayTasks.forEach(function (t) { const st = stateOf(t); const manual = board.MANUAL.indexOf(t.kind) !== -1; const kindLabel = t.kind === 'AGENT_TASK' ? 'Agent task' : (KINDS[t.kind] || {}).label || t.kind; %>
+              <div class="na-task na-task--<%= st.toLowerCase() %>" id="task-<%= t.id %>" data-na-task="<%= t.id %>" data-state="<%= st %>">
+                <span class="na-task__icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><%- icon[st] %></svg></span>
+                <span class="na-task__main">
+                  <span class="na-task__title"><span class="visually-hidden"><%= stateWord[st] %>: </span><%= t.title %></span>
+                  <span class="na-meta"><%= kindLabel %><%= t.minutes ? ' · ' + t.minutes + ' min' : '' %><% if (st === 'WAITING') { %> · video coming: the demo covers it until then<% } %><% if (t.doneAt) { %> · <%= t.doneById ? 'by ' + (t.doneById === profile.id ? 'you' : names.get(t.doneById) || 'someone') : 'ticked itself' %><% } %><% if (t.note) { %> · “<%= t.note %>”<% } %><% if (!t.doneAt && t.howTo && st !== 'WAITING') { %> · <%= t.howTo %><% } %></span>
+                </span>
+                <span class="na-task__owner"><%= ownerOf(t) %></span>
+                <span class="na-task__end">
+                  <% if (st === 'DONE') { %>
+                    <span class="na-meta"><%= t.kind === 'SIGN_OFF' ? 'Signed off' : 'Done' %> <%= dm(t.doneAt) %></span>
+                    <% if (active && t.doneById) { %><form method="post" action="/new-agents/<%= p.id %>/tasks/<%= t.id %>/undo" data-once><button type="submit" class="na-link-btn" data-confirm-msg="Take back &quot;<%= t.title %>&quot;?">Undo</button></form><% } %>
+                  <% } else if (!active) { %>
+                    <span class="na-meta"><%= stateWord[st] %></span>
+                  <% } else if (t.kind === 'SCHEDULE') { %>
+                    <a class="btn btn-secondary btn-sm" href="#working-days">Set working days</a>
+                  <% } else if (manual && (t.kind === 'REVIEW' || t.kind === 'SIGN_OFF' || t.kind === 'CHECK_IN')) { %>
+                    <% if (st === 'LATE') { %><span class="na-late"><%= np.daysLate(t, a.pos) %>d overdue</span><% } %>
+                    <details class="na-act" <%= error && st !== 'UPCOMING' && t.kind === 'REVIEW' ? 'open' : '' %>>
+                      <summary class="btn btn-secondary btn-sm"><%= t.kind === 'REVIEW' ? 'Write review' : t.kind === 'SIGN_OFF' ? 'Sign off' : 'Mark done' %></summary>
+                      <form method="post" action="/new-agents/<%= p.id %>/tasks/<%= t.id %>/done" class="na-act__form" data-once>
+                        <% if (t.kind === 'REVIEW') { %>
+                          <fieldset class="na-verdict"><legend>How did the week go?</legend>
+                            <% Object.keys(VERDICTS).forEach(function (v) { %><label class="checkbox-row"><input type="radio" name="verdict" value="<%= v %>" required /> <%= VERDICTS[v] %></label><% }); %>
+                          </fieldset>
+                        <% } %>
+                        <label for="note-<%= t.id %>"><%= t.kind === 'REVIEW' ? 'What went well, what to repeat' : t.kind === 'SIGN_OFF' ? 'What you watched them do (optional)' : 'Note (optional)' %></label>
+                        <textarea id="note-<%= t.id %>" name="note" rows="2" maxlength="1000"<%= t.kind === 'REVIEW' ? ' required' : '' %>></textarea>
+                        <button type="submit" class="btn btn-gold btn-sm"><%= t.kind === 'REVIEW' ? 'Save review' : t.kind === 'SIGN_OFF' ? 'Sign off' : 'Mark done' %></button>
+                      </form>
+                    </details>
+                  <% } else if (manual) { %>
+                    <% if (st === 'LATE') { %><span class="na-late"><%= np.daysLate(t, a.pos) %>d overdue</span><% } %>
+                    <form method="post" action="/new-agents/<%= p.id %>/tasks/<%= t.id %>/done" data-once><button type="submit" class="btn btn-secondary btn-sm"><%= t.kind === 'AGENT_TASK' ? 'Confirm done' : 'Mark done' %></button></form>
+                  <% } else { %>
+                    <span class="<%= st === 'LATE' ? 'na-late' : 'na-meta' %>"><%= st === 'LATE' ? np.daysLate(t, a.pos) + 'd overdue' : st === 'TODAY' ? 'Today' : st === 'WAITING' ? 'Video coming' : (key ? board.shortDate(key) : 'Day ' + d) %></span>
+                  <% } %>
+                </span>
+              </div>
+            <% }); %>
+          </div>
+        <% } %>
+      </details>
+    <% }); %>
+  </section>
+
+  <aside class="na-aside" aria-label="<%= p.fullName %> at a glance">
+    <section class="card" id="working-days" aria-labelledby="na-days-title">
+      <div class="card-body">
+        <h2 id="na-days-title" class="na-h3">Working days</h2>
+        <p class="na-meta"><%= np.workDaysLabel(workDays) %><%= a.program.workDaysConfirmedAt ? '' : ' (not set yet: Monday to Friday is used until it is)' %>. Day numbers and due dates follow these days; approved vacation is skipped by itself.</p>
+        <% if (active) { %>
+          <form method="post" action="/new-agents/<%= p.id %>/working-days" class="na-days-form" data-once>
+            <fieldset class="na-weekdays"><legend class="visually-hidden">Working days</legend>
+              <% [1, 2, 3, 4, 5, 6, 7].forEach(function (d) { %><label class="checkbox-row"><input type="checkbox" name="days" value="<%= d %>"<%= workDays.indexOf(d) !== -1 ? ' checked' : '' %> /> <%= WEEKDAY_NAMES[d].slice(0, 3) %></label><% }); %>
+            </fieldset>
+            <button type="submit" class="btn btn-secondary btn-sm">Save working days</button>
+          </form>
+          <div class="na-daysoff">
+            <h3 class="na-label">Days off</h3>
+            <% if (!daysOff.length) { %><p class="na-meta">None. Mark a day off for a sick day or a swapped shift.</p><% } %>
+            <ul class="na-daysoff__list">
+              <% daysOff.forEach(function (k) { %><li><span><%= board.shortDate(k) %></span><form method="post" action="/new-agents/<%= p.id %>/days-off" data-once><input type="hidden" name="date" value="<%= k %>" /><input type="hidden" name="remove" value="1" /><button type="submit" class="na-link-btn" aria-label="Remove the day off on <%= board.shortDate(k) %>">Remove</button></form></li><% }); %>
+            </ul>
+            <form method="post" action="/new-agents/<%= p.id %>/days-off" class="na-daysoff__add" data-once>
+              <label for="na-dayoff" class="visually-hidden">Day off</label>
+              <input id="na-dayoff" type="date" name="date" min="<%= a.program.startDate %>" required />
+              <button type="submit" class="btn btn-secondary btn-sm">Mark day off</button>
+            </form>
+          </div>
+        <% } %>
+      </div>
+    </section>
+
+    <% if (a.signOffs.length) { %>
+    <section class="card" aria-labelledby="na-signoffs-title">
+      <div class="card-body">
+        <div class="na-card-head"><h2 id="na-signoffs-title" class="na-h3">System sign-offs</h2><span class="na-meta"><%= a.signOffs.filter(function (x) { return x.done; }).length %> of <%= a.signOffs.length %></span></div>
+        <p class="na-meta">Ticked after watching <%= board.firstName(p.fullName) %> do it.</p>
+        <ul class="na-signoffs">
+          <% a.signOffs.forEach(function (x) { %>
+            <li class="<%= x.done ? 'is-done' : x.daysLate ? 'is-late' : '' %>"><span class="na-task__icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><%- x.done ? icon.DONE : x.daysLate ? icon.LATE : icon.UPCOMING %></svg></span><span class="na-strong"><%= x.system %></span><% if (x.daysLate) { %><span class="na-late na-signoffs__end"><%= x.daysLate %>d overdue</span><% } else { %><span class="na-meta"><%= x.done ? dm(x.doneAt) + (x.doneById ? ', by ' + (x.doneById === profile.id ? 'you' : names.get(x.doneById) || 'someone') : '') : x.plannedKey ? 'Planned ' + board.shortDate(x.plannedKey) : 'Planned' %></span><% } %></li>
+          <% }); %>
+        </ul>
+      </div>
+    </section>
+    <% } %>
+
+    <section class="card" aria-labelledby="na-calls-title">
+      <div class="card-body">
+        <div class="na-card-head"><h2 id="na-calls-title" class="na-h3">Call Practice</h2><a class="link-gold text-sm" href="/employees/<%= p.id %>/training">All calls</a></div>
+        <% if (!a.report || !a.report.doneCount) { %>
+          <p class="na-meta">No calls typed out yet.</p>
+        <% } else { %>
+          <div class="na-stats">
+            <div><span class="na-stat"><%= pct(a.report.averageAccuracy) %></span><span class="na-meta">average accuracy</span></div>
+            <div><span class="na-stat"><%= a.report.averageWpm != null ? a.report.averageWpm : '—' %></span><span class="na-meta">words a minute</span></div>
+            <div><span class="na-stat"><%= a.report.doneCount %></span><span class="na-meta">calls done</span></div>
+          </div>
+          <% if (a.report.accuracyTrend.length >= 2) { %><%- include('../partials/spark', { points: a.report.accuracyTrend }) %><% } %>
+        <% } %>
+        <% if (a.pos.today) { const calls = a.tasks.find(function (t) { return t.kind === 'CALLS' && t.day === a.pos.today; }); if (calls) { %><p class="na-meta mt-8">Today: <%= Math.min(a.callsToday, calls.target) %> of <%= calls.target %> calls.</p><% } } %>
+      </div>
+    </section>
+
+    <section class="card" id="notes" aria-labelledby="na-notes-title" style="margin-bottom:40px">
+      <div class="card-body">
+        <h2 id="na-notes-title" class="na-h3">Notes and reviews</h2>
+        <% if (active) { %>
+          <form method="post" action="/new-agents/<%= p.id %>/notes" class="na-note-form" data-once>
+            <label for="na-note">Add a note</label>
+            <textarea id="na-note" name="body" rows="3" maxlength="2000" placeholder="What went well, what to repeat tomorrow" required></textarea>
+            <button type="submit" class="btn btn-gold btn-sm">Save note</button>
+          </form>
+        <% } %>
+        <% if (!notes.length) { %><p class="na-meta mt-8">No notes yet.</p><% } %>
+        <ul class="na-notes">
+          <% notes.forEach(function (n) { %><li><span class="na-meta"><%= dm(n.at) %> · <%= n.what %>, by <%= n.author %></span><% if (n.body) { %><span class="na-note__body"><%= n.body %></span><% } %></li><% }); %>
+        </ul>
+      </div>
+    </section>
+  </aside>
+</div>
+<script src="<%= asset('/static/js/ai-practice.js') %>" defer></script>
