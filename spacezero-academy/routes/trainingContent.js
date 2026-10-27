@@ -138,7 +138,11 @@ router.get('/training-read/:moduleId', requireSession, async (req, res) => {
 router.get('/training-course/:id', requireSession, async (req, res) => {
   const course = await allowedCourse(req.profile, req.params.id);
   if (!course) return res.status(404).send('Not found');
-  if (!require('../lib/requestContext').readOnly()) await autoFinishForProfile(req.profile.id, { assignment: { courseId: course.id } }).catch((err) => console.error('auto-finish failed', err.message)); // already done = finished
+  if (!require('../lib/requestContext').readOnly()) {
+    // an assignment for one practice that has since been replaced is a whole-training assignment again (otherwise the quiz never appears)
+    await require('../lib/assignmentRepair').healDanglingPractices(course.id).catch((err) => console.error('assignment repair failed', err.message));
+    await autoFinishForProfile(req.profile.id, { assignment: { courseId: course.id } }).catch((err) => console.error('auto-finish failed', err.message)); // already done = finished
+  }
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'training.content_read', targetTable: 'TrainingCourse', targetId: course.id });
   // Each learner - an Admin who was assigned the training too - sees the version of their latest assignment, the same
   // one the practice lock and the progress saves use (lib/courseVersions.js learnerVersion). Someone previewing it

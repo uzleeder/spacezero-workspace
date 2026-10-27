@@ -59,6 +59,7 @@ async function loadAssignedAssessment(profile, assessmentId) {
   });
   const config = (assessment && safeParse(assessment.configJson, {})) || {};
   if (!assessment || (config.targetedRetake === true && assessment.createdById !== profile.id)) return null;
+  if (assessment.courseId) await require('../lib/assignmentRepair').healDanglingPractices(assessment.courseId).catch(() => undefined); // an assignment for one replaced practice is a whole-training one again
   let recipient = null;
   if (assessment.courseId) {
     // A retake belongs to the assignment of the practice it retakes (same version; an assignment of the whole
