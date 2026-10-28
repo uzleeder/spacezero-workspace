@@ -44,6 +44,7 @@
         <option value="">Unassigned</option>
         <% supervisors.forEach(function (s) { %><option value="<%= s.id %>" <%= values.supervisorId === s.id ? 'selected' : '' %>><%= s.fullName %></option><% }); %>
       </select>
+      <% if (fieldErrors.supervisorId) { %><p class="error"><%= fieldErrors.supervisorId[0] %></p><% } else if (mode === 'new') { %><p class="text-sm text-muted">Required for a Travel Agent.</p><% } %>
     </div>
   </div>
   <button type="submit" class="btn btn-gold mt-24"><%= mode === 'new' ? 'Create employee' : 'Save changes' %></button>

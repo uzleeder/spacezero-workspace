@@ -100,8 +100,11 @@ test('it starts by itself for a new agent from their first day; never for older 
   const plan = await plans.findPlan(org.id);
   assert.ok(plan.program && plan.isActive && plan.createdById === people.admin.p.id, 'the ready-made plan was created');
   const tasks = await tasksOf(program.id);
-  assert.equal(tasks.filter((t) => t.stepId).length, plan.steps.length);
-  assert.equal(tasks.filter((t) => t.kind === 'CALLS').length, 20);
+  const before = plan.steps.filter((s) => s.dayOffset === plans.PRESTART_DAY);
+  assert.equal(before.length, plans.PRESTART_STEPS.length, 'the ready-made plan has the Admin\'s "Before day 1" items');
+  assert.equal(tasks.filter((t) => t.stepId).length, plan.steps.length - before.length, 'already started: no "Before day 1"');
+  assert.equal(tasks.filter((t) => t.kind === 'CALLS' && t.day <= 20).length, 20);
+  assert.equal(tasks.filter((t) => t.kind === 'CALLS' && t.day > 20).length, 0, 'a Travel Agent: Month 1 only for now, no ramp');
   assert.equal(await np.autoStart(people.agent.p, { now: WED }), null, 'once');
   assert.equal(await np.autoStart(people.veteran.p, { now: WED }), null);
   assert.equal(await np.autoStart(people.supervisor.p, { now: WED }), null);
@@ -241,12 +244,13 @@ test('Admin: settings, starting someone a month in at the right day, their worki
   await as('admin').form(`/admin/new-agent-program/agents/${people.older.p.id}/stop`, {});
   assert.equal((await prisma.agentProgram.findUnique({ where: { profileId: people.older.p.id } })).status, 'STOPPED');
 
-  await as('admin').form('/admin/new-agent-program/settings', { calls1: '2', calls2: '3', calls3: '4', calls4: '5', dailyCheckIn: '1' }); // switched off
+  await prisma.developmentPath.update({ where: { id: plan.id }, data: { isActive: false } }); // switched off before the switch went
+  await as('admin').form('/admin/new-agent-program/settings', { calls1: '2', calls2: '3', calls3: '4', calls4: '5', dailyCheckIn: '1' });
   plan = await plans.findPlan(org.id);
-  assert.equal(plan.isActive, false);
+  assert.equal(plan.isActive, true, 'there is no switch: saving the settings switches it back on');
+  assert.doesNotMatch((await as('admin').get('/admin/new-agent-program')).text, /name="isActive"/);
   const fresh = await prisma.profile.create({ data: { organizationId: org.id, fullName: 'NAP fresh', username: `nap_${org.id}_fresh`, email: `nap_${org.id}_fresh@example.invalid`, role: 'TRAVEL_AGENT', status: 'INVITED', employmentStartDate: new Date() } });
-  assert.equal(await np.autoStart(fresh), null, 'switched off: nothing starts by itself');
-  await prisma.developmentPath.update({ where: { id: plan.id }, data: { isActive: true } });
+  await prisma.developmentPath.update({ where: { id: plan.id }, data: { isActive: false } });
   await require('../lib/onboarding').applyOnboarding(fresh);
   assert.ok(await prisma.agentProgram.findUnique({ where: { profileId: fresh.id } }), 'creating a new agent starts it (an invited account too)');
 });

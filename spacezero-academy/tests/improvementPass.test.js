@@ -189,7 +189,7 @@ test('ROLE-BASED ONBOARDING: a new employee gets the setup and the onboarding tr
   const notFlagged = await course('IP not onboarding');
   const draft = await course('IP draft onboarding', { status: 'DRAFT', publishedVersion: 0, onboardingForNewHires: true });
   const start = new Date().toISOString().slice(0, 10);
-  const res = await post(admin, '/admin/employees/new', { fullName: 'IP Newcomer', username: 'ip_newcomer', email: 'ip_newcomer@example.invalid', role: 'TRAVEL_AGENT', employmentStartDate: start });
+  const res = await post(admin, '/admin/employees/new', { fullName: 'IP Newcomer', username: 'ip_newcomer', email: 'ip_newcomer@example.invalid', role: 'TRAVEL_AGENT', employmentStartDate: start, supervisorId: sup.id });
   assert.ok([302, 503].includes(res.status), `status ${res.status}`); // 503 = the invitation e-mail could not be sent in tests; the employee is still created
   const newcomer = await prisma.profile.findFirst({ where: { organizationId: org.id, username: 'ip_newcomer' } });
   assert.ok(newcomer); assert.equal(newcomer.status, 'INVITED');

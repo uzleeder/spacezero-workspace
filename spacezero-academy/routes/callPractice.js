@@ -19,14 +19,19 @@ const { scoreTranscript, markedAnswerKey, wordsOf } = require('../lib/callPracti
 const PLAY_TTL_SECONDS = 4 * 3600; // a recording link works for the person it was made for, for one long sitting
 const notFound = (res) => res.status(404).render('not-found', { layout: false });
 const audioUrl = (callId, profileId) => `/call-practice/${callId}/audio?${signMedia('practice-call', callId, profileId, PLAY_TTL_SECONDS)}`;
-const keyOf = (profileId, callId) => ({ profileId_callId: { profileId, callId } });
-const rowFor = (profile, callId) => prisma.practiceCallTranscript.upsert({ where: keyOf(profile.id, callId), create: { profileId: profile.id, callId }, update: {} });
+const keyOf = (profileId, callId, attempt = 1) => ({ profileId_callId_attempt: { profileId, callId, attempt } });
+/** The row being worked on: the call's first attempt, or - heard again (lib/callPractice.js planOf) - the next one. */
+const rowFor = (profile, item) => {
+  const attempt = item.again ? item.again.attempt : 1;
+  return prisma.practiceCallTranscript.upsert({ where: keyOf(profile.id, item.call.id, attempt), create: { profileId: profile.id, callId: item.call.id, attempt }, update: {} });
+};
 
 /** The trainee's item for a call and what they may do with it: 'work' (hear and type it now), 'done' (see the result) or null. */
 async function itemFor(profile, callId) {
   const state = await cp.stateFor(profile);
   const item = state.plan.items.find((i) => i.call.id === callId) || null;
-  const mode = !item ? null : item.done ? 'done' : state.eligible && state.plan.open && state.plan.next === item ? 'work' : null;
+  const working = Boolean(item && state.eligible && state.plan.open && state.plan.next === item);
+  const mode = !item ? null : working && (!item.done || item.again) ? 'work' : item.done ? 'done' : null;
   return { state, item, mode };
 }
 
@@ -44,13 +49,15 @@ router.get('/call-practice', requireSession, async (req, res) => {
 });
 
 router.get('/call-practice/:id', requireSession, async (req, res) => {
-  const { state, item, mode } = await itemFor(req.profile, req.params.id);
+  const found = await itemFor(req.profile, req.params.id);
+  const { state, item } = found;
   if (!item) return notFound(res);
+  const mode = req.query.result === '1' && item.done ? 'done' : found.mode; // just submitted: its result, even when it comes round again
   if (!mode) return res.redirect('/call-practice'); // not open yet (tomorrow, or an earlier call comes first)
   const call = await prisma.practiceCall.findUnique({ where: { id: item.call.id } });
   res.set('Cache-Control', 'private, no-store');
   if (mode === 'done') return renderResult(res, { call, item, plan: state.plan, playUrl: audioUrl(call.id, req.profile.id) });
-  const row = item.transcript;
+  const row = item.again ? (item.again.callId ? item.again : null) : item.transcript; // heard again: a fresh page
   res.render('call-practice/workspace', {
     title: `Call ${item.number} · ${call.title}`, call, item, plan: state.plan, clock: cp.clock, minWords: cp.MIN_WORDS,
     playUrl: audioUrl(call.id, req.profile.id),
@@ -81,7 +88,7 @@ router.get('/call-practice/:id/audio', requireSession, async (req, res) => {
 router.post('/call-practice/:id/progress', requireSession, async (req, res) => {
   const { item, mode } = await itemFor(req.profile, req.params.id);
   if (mode !== 'work') return res.status(404).json({ error: 'Not found' });
-  const row = await rowFor(req.profile, item.call.id);
+  const row = await rowFor(req.profile, item);
   try {
     const update = advanceProgress({ watchedRangesJson: row.watchedRangesJson, lastActivityAt: row.listenActivityAt, completedAt: row.listenedAt }, { position: Number(req.body.position), speed: Number(req.body.speed), action: req.body.action }, item.call.durationSeconds);
     const saved = await prisma.practiceCallTranscript.updateMany({
@@ -101,7 +108,7 @@ router.post('/call-practice/:id/draft', requireSession, async (req, res) => {
   if (mode !== 'work') return res.status(404).json({ error: 'Not found' });
   if (typeof req.body.text !== 'string') return res.status(400).json({ error: 'Invalid draft' });
   const text = req.body.text.slice(0, cp.MAX_TEXT);
-  const row = await rowFor(req.profile, item.call.id);
+  const row = await rowFor(req.profile, item);
   const now = new Date();
   await prisma.practiceCallTranscript.update({ where: { id: row.id }, data: { draftText: redactText(text), typingSeconds: row.typingSeconds + typingDelta(row, req.body.typingMs, now), draftSavedAt: now } });
   res.json({ saved: true, words: wordsOf(text).length });
@@ -113,7 +120,7 @@ router.post('/call-practice/:id/submit', requireSession, async (req, res) => {
   const back = `/call-practice/${req.params.id}`;
   if (mode === 'done') return res.redirect(back); // a second tap changes nothing
   if (mode !== 'work') return res.redirect('/call-practice');
-  const row = await rowFor(req.profile, item.call.id);
+  const row = await rowFor(req.profile, item);
   const now = new Date();
   const text = redactText(String(req.body.text || '').slice(0, cp.MAX_TEXT));
   const typingSeconds = row.typingSeconds + typingDelta(row, req.body.typingMs, now);
@@ -126,8 +133,8 @@ router.post('/call-practice/:id/submit', requireSession, async (req, res) => {
     where: { id: row.id, submittedAt: null },
     data: { draftText: text, submittedText: text, submittedAt: now, typingSeconds, wordCount: s.wordCount, accuracy: s.accuracy, wordsPerMinute: s.wordsPerMinute, draftSavedAt: now },
   });
-  if (saved.count) await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'callPractice.submitted', targetTable: 'PracticeCall', targetId: item.call.id, metadata: { accuracy: s.accuracy, wordsPerMinute: s.wordsPerMinute } });
-  res.redirect(back);
+  if (saved.count) await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'callPractice.submitted', targetTable: 'PracticeCall', targetId: item.call.id, metadata: { accuracy: s.accuracy, wordsPerMinute: s.wordsPerMinute, attempt: row.attempt } });
+  res.redirect(row.attempt > 1 ? `${back}?result=1` : back); // heard again: its result, even when it comes round again
 });
 
 // One employee's result, read-only: for an Admin, their supervisor, or the employee (from the employee's Training tab).

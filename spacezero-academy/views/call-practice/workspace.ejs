@@ -6,7 +6,7 @@
 <% const notices = { listen: 'Listen to the whole call first, then submit.', short: 'Type at least ' + minWords + ' words before you submit.' }; %>
 <p class="steps-back"><a class="link-gold text-sm" href="/call-practice">← Call Practice</a></p>
 <div class="page-header steps-header">
-  <div><h1>Call <%= item.number %> · <%= call.title %></h1><p>Call <%= item.number %> of <%= plan.total %> · <%= clock(call.durationSeconds) %><% if (call.note) { %> · <%= call.note %><% } %></p></div>
+  <div><h1>Call <%= item.number %> · <%= call.title %></h1><p><%= item.again ? 'Again' + (item.transcript && item.transcript.accuracy != null ? ', to beat your ' + Math.round(item.transcript.accuracy) + '%' : '') : 'Call ' + item.number + ' of ' + plan.total %> · <%= clock(call.durationSeconds) %><% if (call.note) { %> · <%= call.note %><% } %></p></div>
 </div>
 <% if (notice && notices[notice]) { %><div class="form-alert error mt-16" role="alert"><%= notices[notice] %></div><% } %>
 
