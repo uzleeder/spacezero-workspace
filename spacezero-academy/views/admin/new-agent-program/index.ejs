@@ -61,6 +61,7 @@ const owner = function (k) { return KINDS[k] && KINDS[k].owner === 'SUPERVISOR' 
   <form method="post" action="/admin/new-agent-program/settings" class="card-body" data-once>
     <label class="checkbox-row"><input type="checkbox" name="isActive" value="1"<%= plan.isActive ? ' checked' : '' %> /> Start it by itself for new Travel Agents and Flight Experts</label>
     <label class="checkbox-row mt-8"><input type="checkbox" name="dailyCheckIn" value="1"<%= plan.dailyCheckIn ? ' checked' : '' %> /> A 5-minute supervisor check-in every day that has no other check-in or review</label>
+    <label class="checkbox-row mt-8"><input type="checkbox" name="supervisorEmails" value="1"<%= supervisorEmails ? ' checked' : '' %> /> Also email the 08:30 "Today with your new agents" message to supervisors (it always shows in the app)</label>
     <div class="nap-weeks-form mt-16">
       <% weekTitles.forEach(function (t, i) { %>
         <fieldset class="nap-week-field">

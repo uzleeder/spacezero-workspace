@@ -22,15 +22,17 @@ async function programFor(req, profileId) {
   return prisma.agentProgram.findUnique({ where: { profileId } });
 }
 
-/** Back to where the action was taken: the board, or the agent's page at that item. */
+/** Back to where the action was taken: the board at the agent's line, or the agent's page at that item. */
 function back(req, res, program, { error = '', anchor = '' } = {}) {
-  const base = req.body.from === 'board' ? '/new-agents' : `/new-agents/${program.profileId}`;
-  res.redirect(`${base}${error ? `?error=${encodeURIComponent(error)}` : ''}${anchor ? `#${anchor}` : ''}`);
+  const board = req.body.from === 'board';
+  const base = board ? '/new-agents' : `/new-agents/${program.profileId}`;
+  const at = board ? `agent-${program.profileId}` : anchor;
+  res.redirect(`${base}${error ? `?error=${encodeURIComponent(error)}` : ''}${at ? `#${at}` : ''}`);
 }
 
 router.get('/new-agents', managers, async (req, res) => {
   const supervisorId = req.profile.role === 'ADMIN' && typeof req.query.supervisor === 'string' ? req.query.supervisor : '';
-  const data = await board.boardFor(req.profile, { supervisorId });
+  const data = await board.boardFor(req.profile, { supervisorId, group: typeof req.query.group === 'string' ? req.query.group : '' });
   res.set('Cache-Control', 'private, no-store');
   res.render('new-agents/index', {
     title: 'New agents', ...data, supervisorId, isAdmin: req.profile.role === 'ADMIN', roleLabel, board, np, plans, KINDS: plans.KINDS,

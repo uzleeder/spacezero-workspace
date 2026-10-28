@@ -63,9 +63,9 @@ test('working days: day N is the agent\'s Nth working day; days off and vacation
   assert.equal(np.workDaysLabel([1, 3, 5]), 'Mon, Wed, Fri');
 });
 
-test('the ready-made plan: 4 weeks, 7 sign-offs, the 7 training videos you are making, calls ramping 2 to 5', () => {
+test('the ready-made plan: 4 weeks, 6 system sign-offs (no Oracle), the 7 training videos you are making, calls ramping 2 to 5', () => {
   const steps = plans.DEFAULT_STEPS.map(([dayOffset, kind, title, minutes, system, howTo], i) => ({ id: `s${i}`, dayOffset, kind, title, minutes, system, howTo }));
-  assert.deepEqual(steps.filter((s) => s.kind === 'SIGN_OFF').map((s) => s.system).sort(), ['CRM', 'Cockpit', 'Dialpad', 'EGF', 'GDS', 'Oracle', 'Ovago']);
+  assert.deepEqual(steps.filter((s) => s.kind === 'SIGN_OFF').map((s) => s.system).sort(), ['CRM', 'Cockpit', 'Dialpad', 'EGF', 'GDS', 'Ovago']);
   assert.deepEqual(steps.filter((s) => s.kind === 'TRAINING').map((s) => s.system).sort(), ['CRM', 'Cockpit', 'EGF', 'GDS', 'Gmail', 'Google Flights', 'Ovago']);
   const plan = { lengthDays: 20, dailyCheckIn: true, callsPerWeekJson: '[2,3,4,5]', steps };
   const tasks = np.tasksFromPlan(plan);

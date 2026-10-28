@@ -21,7 +21,7 @@ const stateWord = { DONE: 'Done', LATE: 'Late', TODAY: 'Today', UPCOMING: 'Comin
     <span class="na-av na-av--<%= a.hue %> na-av--xl" aria-hidden="true"><%= a.initials %></span>
     <div>
       <h1><%= p.fullName %></h1>
-      <p class="na-agent-head__meta"><span class="na-status na-status--<%= a.statusInfo.tone %>"><span class="na-dot" aria-hidden="true"></span><%= a.status === 'STARTS' ? 'Starts ' + board.shortDate(a.cal.startKey) : a.statusInfo.label %></span> <span><%= roleLabel(p.role) %> · started <%= board.shortDate(a.cal.startKey) %><%= s.started ? ' · day ' + (s.day || s.passed) + ' · week ' + s.week + ' of ' + a.weeks.length : '' %> · supervisor <%= a.supervisor ? a.supervisor.fullName : 'not assigned' %></span></p>
+      <p class="na-agent-head__meta"><span class="na-status na-status--<%= a.groupInfo.tone %>"><span class="na-dot" aria-hidden="true"></span><%= a.groupInfo.label %></span> <span><%= roleLabel(p.role) %> · started <%= board.shortDate(a.cal.startKey) %><%= s.started ? ' · day ' + (s.day || s.passed) + ' · week ' + s.week + ' of ' + a.weeks.length : '' %> · supervisor <%= a.supervisor ? a.supervisor.fullName : 'not assigned' %></span></p>
     </div>
   </div>
   <div class="na-agent-head__actions">
@@ -31,7 +31,7 @@ const stateWord = { DONE: 'Done', LATE: 'Late', TODAY: 'Today', UPCOMING: 'Comin
 </div>
 <% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
 <% if (!active) { %><div class="form-alert info mt-16" role="status">This program was stopped<%= a.program.stoppedAt ? ' on ' + dm(a.program.stoppedAt) : '' %>. It is shown as it was.</div><% } %>
-<p class="na-agent-sentence mt-16"><%= a.sentence %></p>
+<dl class="na-agent-summary mt-16"><div><dt>What's going on</dt><dd><%= a.goingOn %></dd></div><div><dt>Next step</dt><dd><%= a.next.text %></dd></div></dl>
 
 <div class="na-layout mt-24">
   <section class="na-main" aria-labelledby="na-plan-title">

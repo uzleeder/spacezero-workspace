@@ -1,11 +1,11 @@
 'use strict';
 
 // The New agents board (Employees & Teams -> New agents, routes/newAgents.js) and one agent's page, read from the
-// programs (lib/newAgentProgram.js). A Supervisor sees their own agents; an Admin sees everyone. For each agent ONE
-// status, said in words and never by colour alone - Urgent, Behind, Not signed in yet, Starts soon, On track, Finished
-// - with what is wrong, their 4 weeks, their day, their system sign-offs and the last check-in. Above the agents, the
-// supervisor's own list across all of them: what is overdue and what is for today. The supervisor's actions (done,
-// sign-off, review, extend, working days, days off, notes) are here too. The view functions are pure.
+// programs (lib/newAgentProgram.js). A Supervisor sees their own agents; an Admin sees everyone. ONE line per agent, in
+// one group said in words and never by colour alone - Urgent, Needs you, Behind, Not started, On track, Finished -
+// with everything that is going on, the one next step and its button; the agent's page has every item day by day.
+// The supervisor's actions (done, sign-off, review, extend, working days, days off, notes) are here too. The view
+// functions are pure.
 const { prisma } = require('./prisma');
 const { logAudit } = require('./audit');
 const { supervisedProfileIds } = require('./authz');
@@ -18,17 +18,27 @@ const DAY_MS = 86400000;
 const URGENT_DAYS = 2; // late by this many of the agent's working days (or 3 late items) makes an agent urgent
 const EXTEND_DAYS = plans.WEEK_DAYS;
 const VERDICTS = { ON_TRACK: 'On track', BEHIND: 'Behind', EXTEND: 'Extend a week' };
-const STATUS = {
+// The board's groups, most urgent first. Every agent is in exactly one (groupOf), so the counts add up to All.
+const GROUPS = {
   URGENT: { label: 'Urgent', tone: 'urgent', rank: 0 },
-  BEHIND: { label: 'Behind', tone: 'behind', rank: 1 },
-  NOT_SIGNED_IN: { label: 'Not signed in yet', tone: 'waiting', rank: 2 },
-  STARTS: { label: 'Starts soon', tone: 'waiting', rank: 3 },
-  ON_TRACK: { label: 'On track', tone: 'ontrack', rank: 4 },
-  FINISHED: { label: 'Finished', tone: 'done', rank: 5 },
+  NEEDS_YOU: { label: 'Needs you', tone: 'needs', rank: 1 },
+  BEHIND: { label: 'Behind', tone: 'behind', rank: 2, meaning: 'Their own work is a day late' },
+  NOT_STARTED: { label: 'Not started', tone: 'waiting', rank: 3, meaning: 'Not signed in yet, or starting soon' },
+  ON_TRACK: { label: 'On track', tone: 'ontrack', rank: 4, meaning: 'Everything is on time' },
+  FINISHED: { label: 'Finished', tone: 'done', rank: 5, meaning: 'All 4 weeks are done' },
 };
+/** What a group means, said to this viewer. */
+function groupMeaning(key, isAdmin) {
+  if (key === 'URGENT') return `2 or more working days late. ${isAdmin ? 'Admins have' : 'Your admin has'} been told.`;
+  if (key === 'NEEDS_YOU') return isAdmin ? 'Waiting on their supervisor' : 'Waiting on you. After 2 working days late, your admin is told.';
+  return GROUPS[key].meaning;
+}
 // a supervisor ticks these (an agent's own task is confirmed by the supervisor); the others tick themselves
 const MANUAL = Object.keys(plans.KINDS).filter((k) => !plans.KINDS[k].auto);
 const needsSupervisor = (t) => t.owner === 'SUPERVISOR' || t.kind === 'AGENT_TASK';
+// the 5-minute check-in planned on most days: it never makes an agent "need you" on its own
+const isDailyCheckIn = (t) => String(t.key || '').startsWith('checkin:');
+const ACTIONS = { SIGN_OFF: 'Sign off', REVIEW: 'Write review', SCHEDULE: 'Set working days', AGENT_TASK: 'Confirm done' };
 
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 /** "Tue 27 Oct" for a YYYY-MM-DD day. */
@@ -43,33 +53,82 @@ function hueOf(id) { let h = 0; for (const c of String(id)) h = (h * 31 + c.char
 const initials = (name) => String(name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 const firstName = (name) => String(name || '').trim().split(/\s+/)[0] || 'They';
 
-/** The agent's status (STATUS key) from their tasks and where they are. */
-function statusOf({ profile, tasks, pos, summary }) {
-  if (!pos.started) return 'STARTS';
+/** The agent's group (GROUPS key) from their tasks and where they are. */
+function groupOf({ profile, tasks, pos, summary }) {
+  if (!pos.started) return 'NOT_STARTED';
   const late = tasks.filter((t) => np.stateOf(t, pos) === 'LATE');
   if (late.length >= 3 || late.some((t) => np.daysLate(t, pos) >= URGENT_DAYS)) return 'URGENT';
+  if (late.some(needsSupervisor) || tasks.some((t) => needsSupervisor(t) && !isDailyCheckIn(t) && np.stateOf(t, pos) === 'TODAY')) return 'NEEDS_YOU';
   if (late.length) return 'BEHIND';
-  if (profile.status === 'INVITED') return 'NOT_SIGNED_IN';
+  if (profile.status === 'INVITED') return 'NOT_STARTED';
   if (summary.finished) return 'FINISHED';
   return 'ON_TRACK';
 }
 
-/** What is going on, in one or two short sentences. */
-function sentenceOf({ status, tasks, pos, cal, profile, viewerIsSupervisor }) {
-  if (status === 'STARTS') return `Starts ${shortDate(cal.startKey)}.`;
+/** An item said short: "Dialpad sign-off", "EGF demo", "Cockpit video", "calls". */
+function shortTitle(t) {
+  if (t.kind === 'SIGN_OFF') return `${t.system || t.title} sign-off`;
+  if (t.kind === 'DEMO' && t.system) return `${t.system} demo`;
+  if (t.kind === 'TRAINING' && t.system) return `${t.system} video`;
+  if (t.kind === 'CALLS') return 'calls';
+  return t.title;
+}
+const listOf = (names) => (names.length <= 2 ? names.join(' and ') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
+
+/** Everything that is going on, in one line: what is late (and how late), else what is on today, and the call accuracy. */
+function goingOnOf({ tasks, pos, cal, profile, report }) {
+  if (!pos.started) return `Starts ${shortDate(cal.startKey)}`;
+  const parts = [];
+  if (profile.status === 'INVITED') parts.push('has not signed in yet');
   const late = tasks.filter((t) => np.stateOf(t, pos) === 'LATE');
-  if (late.length) {
-    const most = Math.max(...late.map((t) => np.daysLate(t, pos)));
-    const items = late.filter((t) => t.kind !== 'CALLS').sort((a, b) => np.daysLate(b, pos) - np.daysLate(a, pos)).slice(0, 2).map((t) => `${t.title} ${np.daysLate(t, pos)}d overdue`);
-    const callDays = late.filter((t) => t.kind === 'CALLS').length;
-    if (callDays) items.push(`calls short on ${plural(callDays, 'day')}`);
-    return `${plural(most, 'day')} behind. ${items.join(', ')}.`.replace(/^./, (c) => c.toUpperCase());
+  const most = (list) => Math.max(...list.map((t) => np.daysLate(t, pos)));
+  const signs = late.filter((t) => t.kind === 'SIGN_OFF');
+  if (signs.length) parts.push(`${listOf(signs.map((t) => t.system || t.title))} sign-off${signs.length === 1 ? '' : 's'} ${most(signs)}d late`);
+  const singles = late.filter((t) => ['REVIEW', 'DEMO', 'SUPERVISOR_TASK', 'SCHEDULE', 'AGENT_TASK'].includes(t.kind) || (t.kind === 'CHECK_IN' && !isDailyCheckIn(t)));
+  parts.push(...singles.slice(0, 2).map((t) => `${shortTitle(t)} ${np.daysLate(t, pos)}d late`));
+  if (singles.length > 2) parts.push(`${singles.length - 2} more late`);
+  const missed = late.filter(isDailyCheckIn).length;
+  if (missed) parts.push(`${plural(missed, 'check-in')} missed`);
+  const calls = late.filter((t) => t.kind === 'CALLS').length;
+  if (calls) parts.push(`calls short on ${plural(calls, 'day')}`);
+  const videos = late.filter((t) => t.kind === 'TRAINING');
+  if (videos.length) parts.push(`${listOf(videos.map((t) => t.system || t.title))} video${videos.length === 1 ? '' : 's'} not finished`);
+  const reads = late.filter((t) => t.kind === 'READ').length;
+  if (reads) parts.push(`${plural(reads, 'standard')} not read`);
+  if (late.some((t) => t.kind === 'SETUP')) parts.push('setup not finished');
+  if (!late.length) {
+    if (!pos.today) parts.push('day off today');
+    const today = tasks.filter((t) => needsSupervisor(t) && !isDailyCheckIn(t) && np.stateOf(t, pos) === 'TODAY');
+    parts.push(today.length ? `today: ${today.map(shortTitle).join(', ')}` : 'everything on time');
   }
-  if (status === 'NOT_SIGNED_IN') return `${firstName(profile.fullName)} has not accepted the invitation and signed in yet.`;
-  if (status === 'FINISHED') return 'All 4 weeks are done.';
-  const horizon = np.horizonOf(pos);
-  const next = tasks.filter((t) => t.owner === 'SUPERVISOR' && t.stepId && !t.doneAt && t.day > horizon).sort((a, b) => a.day - b.day)[0];
-  return `Everything is on time.${next ? ` Next with ${viewerIsSupervisor ? 'you' : 'the supervisor'}: ${next.title.charAt(0).toLowerCase()}${next.title.slice(1)}, ${shortDate(np.dateOfDay(cal, next.day))}.` : ''}`;
+  if (report && report.averageAccuracy != null) parts.push(`calls ${Math.round(report.averageAccuracy)}%`);
+  const text = parts.join(' · ');
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * The one next step for the supervisor: the most overdue item that waits on them, else today's (the daily check-in
+ * last), with the button that does it. Nothing waiting on them: what to chase or what comes next, without a button.
+ */
+function nextStepOf({ tasks, pos, cal, profile }) {
+  const mine = tasks.filter((t) => needsSupervisor(t) && !t.doneAt);
+  const late = mine.filter((t) => np.stateOf(t, pos) === 'LATE').sort((a, b) => np.daysLate(b, pos) - np.daysLate(a, pos) || a.day - b.day);
+  const today = mine.filter((t) => np.stateOf(t, pos) === 'TODAY').sort((a, b) => Number(isDailyCheckIn(a)) - Number(isDailyCheckIn(b)) || a.day - b.day);
+  const task = late[0] || today[0] || null;
+  if (task) return { task, text: task.kind === 'SIGN_OFF' ? `Sign off ${task.system || task.title}` : task.title, action: ACTIONS[task.kind] || 'Mark done', link: task.kind === 'REVIEW' || task.kind === 'SCHEDULE' };
+  const first = firstName(profile.fullName);
+  if (!pos.started) return { text: `Starts ${shortDate(cal.startKey)}` };
+  if (profile.status === 'INVITED') return { text: `Ask ${first} to accept the invitation` };
+  const theirs = tasks.filter((t) => t.owner === 'AGENT' && np.stateOf(t, pos) === 'LATE').sort((a, b) => np.daysLate(b, pos) - np.daysLate(a, pos));
+  if (theirs.length) return { text: `Remind ${first} about ${shortTitle(theirs[0])}` };
+  const ahead = mine.filter((t) => t.day > np.horizonOf(pos) && !isDailyCheckIn(t)).sort((a, b) => a.day - b.day)[0];
+  return ahead ? { text: `Next: ${shortTitle(ahead)}, ${shortDate(np.dateOfDay(cal, ahead.day))}` } : { text: 'Nothing waiting' };
+}
+
+/** The most working days anything of this agent's is late (0 when nothing is). */
+function maxLateOf(tasks, pos) {
+  const late = tasks.filter((t) => np.stateOf(t, pos) === 'LATE');
+  return late.length ? Math.max(...late.map((t) => np.daysLate(t, pos))) : 0;
 }
 
 /** Progress of each program week (0-100), leaving out videos that are not made yet. */
@@ -136,10 +195,10 @@ async function agentState(programId, viewer, { now = new Date() } = {}) {
   ]);
   const supervisor = assignment ? assignment.supervisor : null;
   const viewerIsSupervisor = Boolean(supervisor && viewer && supervisor.id === viewer.id);
-  const status = statusOf({ profile, ...state });
+  const group = groupOf({ profile, ...state });
   return {
     ...state, profile, supervisor, viewerIsSupervisor, callsToday, report,
-    status, statusInfo: STATUS[status], sentence: sentenceOf({ status, ...state, profile, viewerIsSupervisor }),
+    group, groupInfo: GROUPS[group], goingOn: goingOnOf({ ...state, profile, report }), next: nextStepOf({ ...state, profile }), maxLate: maxLateOf(state.tasks, state.pos),
     weeks: weeksOf(state.tasks, state.pos, state.summary.length), agentDay: agentDayOf(state.tasks, state.pos, callsToday),
     signOffs: signOffsOf(state.tasks, state.cal, state.pos), lastCheckIn: lastCheckInOf(state.tasks), hue: hueOf(profile.id), initials: initials(profile.fullName),
   };
@@ -154,15 +213,20 @@ async function visiblePrograms(viewer) {
   return prisma.agentProgram.findMany({ where, select: { id: true } });
 }
 
-/** The board: the agents (most urgent first) and the supervisor's list. An Admin may narrow it to one supervisor. */
-async function boardFor(viewer, { supervisorId = '', now = new Date() } = {}) {
+/**
+ * The board: one line per agent, in their groups (most urgent first), with a count per group for the filter chips.
+ * An Admin may narrow it to one supervisor; anyone may narrow it to one group.
+ */
+async function boardFor(viewer, { supervisorId = '', group = '', now = new Date() } = {}) {
   const all = [];
   for (const p of await visiblePrograms(viewer)) { const a = await agentState(p.id, viewer, { now }); if (a) all.push(a); }
   const supervisors = [...new Map(all.filter((a) => a.supervisor).map((a) => [a.supervisor.id, a.supervisor])).values()].sort((a, b) => a.fullName.localeCompare(b.fullName));
   const agents = (viewer.role === 'ADMIN' && supervisorId ? all.filter((a) => (supervisorId === 'none' ? !a.supervisor : a.supervisor && a.supervisor.id === supervisorId)) : all)
-    .sort((a, b) => a.statusInfo.rank - b.statusInfo.rank || a.profile.fullName.localeCompare(b.profile.fullName));
-  const counts = Object.fromEntries(Object.keys(STATUS).map((k) => [k, agents.filter((a) => a.status === k).length]));
-  return { agents, supervisors, counts, tasks: supervisorTasksOf(agents), noSupervisor: all.filter((a) => !a.supervisor).length };
+    .sort((a, b) => a.groupInfo.rank - b.groupInfo.rank || a.profile.fullName.localeCompare(b.profile.fullName));
+  const counts = Object.fromEntries(Object.keys(GROUPS).map((k) => [k, agents.filter((a) => a.group === k).length]));
+  const chosen = GROUPS[group] ? group : '';
+  const groups = Object.keys(GROUPS).filter((k) => !chosen || k === chosen).map((k) => ({ key: k, info: GROUPS[k], agents: agents.filter((a) => a.group === k) })).filter((g) => g.agents.length);
+  return { agents, groups, counts, total: agents.length, group: chosen, supervisors, tasks: supervisorTasksOf(agents), noSupervisor: all.filter((a) => !a.supervisor).length };
 }
 
 /** For the dashboard's "Needs your attention": supervisor items late and for today, and agents without a supervisor. */
@@ -253,7 +317,7 @@ async function addNote(actor, program, body) {
 }
 
 module.exports = {
-  STATUS, VERDICTS, MANUAL, URGENT_DAYS, EXTEND_DAYS,
-  shortDate, ago, hueOf, initials, firstName, needsSupervisor, statusOf, sentenceOf, weeksOf, agentDayOf, signOffsOf, lastCheckInOf, supervisorTasksOf, duration,
+  GROUPS, VERDICTS, MANUAL, URGENT_DAYS, EXTEND_DAYS,
+  shortDate, ago, hueOf, initials, firstName, needsSupervisor, isDailyCheckIn, groupMeaning, groupOf, shortTitle, goingOnOf, nextStepOf, maxLateOf, weeksOf, agentDayOf, signOffsOf, lastCheckInOf, supervisorTasksOf, duration,
   agentState, visiblePrograms, boardFor, attentionCounts, notesFor, completeTask, undoTask, extend, setWorkDays, setDayOff, addNote,
 };

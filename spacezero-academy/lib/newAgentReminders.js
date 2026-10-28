@@ -2,7 +2,8 @@
 
 // New Agent Program reminders, so nothing about a new agent slips (lib/newAgentProgram.js, lib/newAgentBoard.js):
 //   * Every morning at 08:30 (Tashkent) each supervisor gets "Today with your new agents" - what is overdue and what is
-//     for today - in the app and by email. Nothing is sent on a day with nothing to do.
+//     for today - in the app, and by email when program.supervisorEmails is on (off for now). Nothing is sent on a day
+//     with nothing to do.
 //   * An agent falling behind - an item of theirs one working day late (the day's calls, a training, a standard, the
 //     setup checklist), or under 70% accuracy on 3 calls in a row - alerts their supervisor that day.
 //   * A supervisor's item 2 of the agent's working days late goes to every Admin, and so does a new agent without a
@@ -11,6 +12,7 @@
 // alerts also run with the 6-hourly automation, in case the server was down at 08:30.
 const { prisma } = require('./prisma');
 const { notifyOnce } = require('./notifications');
+const { getSetting } = require('./orgSettings');
 const mailer = require('./mailer');
 const { registerJobType } = require('./jobQueue');
 const { dayKey } = require('./callPractice');
@@ -96,8 +98,8 @@ async function runAlerts(organizationId, { now = new Date(), states = null } = {
 function supervisorEmail(supervisor, agents, tasks, now) {
   const late = tasks.late.map((r) => `- ${r.agent.profile.fullName} · ${r.task.title} · ${r.daysLate}d overdue${r.task.owner === 'SUPERVISOR' ? ` (${escalationNote(r.daysLate).toLowerCase()})` : ''}`);
   const today = tasks.today.map((r) => `- ${r.agent.profile.fullName} · ${r.task.title}${r.task.minutes ? ` · ${r.task.minutes} min` : ''}`);
-  const said = (a) => board.sentenceOf({ ...a, viewerIsSupervisor: true }); // written to the supervisor: "next with you"
-  const people = agents.map((a) => `- ${a.profile.fullName}: ${a.status === 'STARTS' ? said(a) : `${a.pos.today ? `day ${a.pos.today}` : 'day off today'}. ${said(a)}`}`);
+  // the same line as on the board: where they are, everything going on, the next step
+  const people = agents.map((a) => `- ${a.profile.fullName}: ${a.pos.started ? `${a.pos.today ? `day ${a.pos.today}` : 'day off today'}. ${a.goingOn}. Next: ${a.next.text}.` : `${a.goingOn}.`}`);
   const lines = [
     `Hi ${first(supervisor.fullName)},`, '',
     `${[tasks.late.length ? `${plural(tasks.late.length, 'thing is', 'things are')} overdue` : '', tasks.today.length ? `${plural(tasks.today.length, 'thing is', 'things are')} for today` : ''].filter(Boolean).join(' and ')}.`.replace(/^./, (c) => c.toUpperCase()),
@@ -133,6 +135,7 @@ async function runMorning(organizationId, { now = new Date(), send = mailer.send
   const alerts = await runAlerts(organizationId, { now });
   const day = dayKey(now);
   const out = { ...alerts, digests: 0, adminDigests: 0, emails: 0 };
+  const emailSupervisors = await getSetting(organizationId, 'program.supervisorEmails');
   delete out.states;
   const bySupervisor = new Map();
   for (const s of alerts.states) if (s.supervisor) bySupervisor.set(s.supervisor.id, [...(bySupervisor.get(s.supervisor.id) || []), s]);
@@ -144,7 +147,7 @@ async function runMorning(organizationId, { now = new Date(), send = mailer.send
     const created = await notifyOnce(supervisorId, `program-digest:${day}`, { type: 'program.digest', title: 'Today with your new agents', body: [tasks.late.length ? `${tasks.late.length} overdue` : '', `${tasks.today.length} for today`].filter(Boolean).join(' · '), link: '/new-agents' });
     if (!created) continue;
     out.digests += 1;
-    if (await deliver(supervisorEmail(supervisor, [...agents].sort((a, b) => a.statusInfo.rank - b.statusInfo.rank), tasks, now), `program-digest:${supervisorId}:${day}`, send)) out.emails += 1;
+    if (emailSupervisors && await deliver(supervisorEmail(supervisor, [...agents].sort((a, b) => a.groupInfo.rank - b.groupInfo.rank), tasks, now), `program-digest:${supervisorId}:${day}`, send)) out.emails += 1;
   }
   const late = alerts.states.flatMap((s) => escalated(s).map((t) => ({ supervisor: s.supervisor ? s.supervisor.fullName : 'No supervisor', agent: s.profile.fullName, title: t.title, daysLate: np.daysLate(t, s.pos) })));
   const orphans = alerts.states.filter((s) => !s.supervisor).map((s) => s.profile.fullName);

@@ -11,7 +11,7 @@ const { prisma } = require('./prisma');
 const WEEK_DAYS = 5; // a program week is 5 of the agent's working days
 const CALLS_DEFAULT = [2, 3, 4, 5];
 const WEEK_TITLES_DEFAULT = ['Set up and listen', 'Systems hands-on', 'Practice', 'Supervised live calls'];
-const SYSTEMS = ['CRM', 'EGF', 'Ovago', 'Cockpit', 'GDS', 'Oracle', 'Dialpad', 'Gmail', 'Google Flights'];
+const SYSTEMS = ['CRM', 'EGF', 'Ovago', 'Cockpit', 'GDS', 'Dialpad', 'Gmail', 'Google Flights'];
 
 // auto: it ticks itself from real data (a finished training, the day's calls, a confirmed standard, the setup
 // checklist, the working days being set). The others are ticked by the supervisor.
@@ -43,7 +43,7 @@ const callsOn = (plan, day) => { const list = callsPerWeek(plan); return list[Ma
 const DEFAULT_STEPS = [
   [1, 'SCHEDULE', 'Set their working days', 5, null, 'Pick the days they work. Day numbers, due dates and reminders follow these days.'],
   [1, 'CHECK_IN', 'Welcome 1:1 and introduce them to the team', 30, null, 'Walk through the 4 weeks together, show where things are and who to ask.'],
-  [1, 'SUPERVISOR_TASK', 'Check every login works', 15, null, 'CRM, EGF, Ovago, Cockpit, GDS, Oracle, Dialpad and Gmail. Fix anything missing on their Setup checklist.'],
+  [1, 'SUPERVISOR_TASK', 'Check every login works', 15, null, 'CRM, EGF, Ovago, Cockpit, GDS, Dialpad and Gmail. Fix anything missing on their Setup checklist.'],
   [1, 'SETUP', 'Finish the Setup checklist', null, null, null],
   [1, 'TRAINING', 'Gmail training video', null, 'Gmail', null],
   [2, 'DEMO', 'How to listen to a call', 30, null, 'Play one good call together and stop at each part: greeting, questions, offer, objections, close.'],
@@ -64,10 +64,8 @@ const DEFAULT_STEPS = [
   [8, 'SIGN_OFF', 'Sign off Ovago', 15, 'Ovago', 'Watch them do it on their own. Sign off only what you saw.'],
   [9, 'TRAINING', 'GDS training video', null, 'GDS', null],
   [9, 'DEMO', 'GDS basics', 30, 'GDS', null],
-  [9, 'DEMO', 'Oracle: look up a booking and add a remark', 20, 'Oracle', null],
   [9, 'SIGN_OFF', 'Sign off Cockpit: a test booking on their own', 20, 'Cockpit', 'Watch them do it on their own. Sign off only what you saw.'],
   [10, 'SIGN_OFF', 'Sign off GDS', 15, 'GDS', 'Watch them do it on their own. Sign off only what you saw.'],
-  [10, 'SIGN_OFF', 'Sign off Oracle: look up a booking and add a remark', 15, 'Oracle', 'Watch them do it on their own. Sign off only what you saw.'],
   [10, 'AGENT_TASK', 'Listen in on 3 live calls', null, null, 'Sit with a senior agent and note the greeting, the questions and the close.'],
   [10, 'REVIEW', 'Week 2 review', 10, null, 'How the week went, what to repeat, and whether they are on track.'],
   [11, 'AGENT_TASK', 'Listen in on 3 more live calls and note what worked', null, null, null],
