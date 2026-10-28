@@ -1,18 +1,39 @@
-<%# Employees & Teams -> New agents (routes/newAgents.js, lib/newAgentBoard.js): ONE line per agent, in groups by what
-    they need (most urgent first) - who they are and when they were hired, everything that is going on, the next step
-    and one button for it. Filter chips narrow it to a group. The whole row opens the agent's page, with every item. %>
+<%# Employees & Teams -> New agents (routes/newAgents.js, lib/newAgentBoard.js): summary cards, then ONE line per agent,
+    all the same size, in groups by what they need (most urgent first): who they are, their stage, progress against the
+    plan, call quality, sign-offs, activity (Admins) or today's calls (Supervisors), the next step and how late. Filter
+    chips narrow it to a group. The whole line opens the agent's page, with every item; an Admin's Review or Decide
+    opens "Waiting for you". Admins also see how each supervisor keeps up. %>
 <%
 const t = tasks;
 const own = isAdmin && !supervisorId ? '' : 'your ';
 const counted = [t.late.length ? t.late.length + ' overdue' : '', t.today.length ? t.today.length + ' for today' : '', t.minutes ? 'about ' + board.duration(t.minutes) : ''].filter(Boolean).join(' · ');
-const summary = !total ? 'New agents: nobody is in their first month right now.'
-  : 'New agents: ' + own + total + ' ' + (total === 1 ? 'agent' : 'agents') + ' in their first month.' + (counted ? ' ' + counted.charAt(0).toUpperCase() + counted.slice(1) + '.' : ' Nothing is waiting today.');
+const summary = !total ? 'New agents: nobody is on the new agent path right now.'
+  : 'New agents: ' + own + total + ' new ' + (total === 1 ? 'agent' : 'agents') + '.' + (counted ? ' ' + counted.charAt(0).toUpperCase() + counted.slice(1) + '.' : ' Nothing is waiting today.');
 const href = function (key) { const q = []; if (key) q.push('group=' + key); if (supervisorId) q.push('supervisor=' + encodeURIComponent(supervisorId)); return '/new-agents' + (q.length ? '?' + q.join('&') : ''); };
-const hired = function (d) { return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); };
+const now = new Date();
+const target = 90;
+// a call's accuracy as a bar 3-20px high, from 70% up; the dashed line is the target
+const barHeight = function (x) { return Math.max(3, Math.round(((Math.max(70, x) - 70) / 30) * 20)); };
+const trendWord = { up: 'rising', down: 'falling', flat: 'flat' };
+const trendPath = { up: 'M8 13V3M4 7l4-4 4 4', down: 'M8 3v10M4 9l4 4 4-4', flat: 'M3 8h10M9 4l4 4-4 4' };
+const signWord = { done: 'confirmed', waiting: 'waiting for an admin', late: 'late', open: 'not yet' };
 %>
 <%- include('../partials/page-header', { pageTitle: 'Employees & Teams', pageDescription: summary }) %>
 <%- include('../partials/management-tabs', { tabs: tabsets.employees, sticky: true }) %>
 <% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
+
+<% if (total) { %>
+  <section class="na-cards mt-24" aria-label="Summary">
+    <% cards.forEach(function (c) { %>
+      <div class="na-card-stat">
+        <span class="na-card-stat__label"><%= c.label %></span>
+        <span class="na-card-stat__value"><%= c.value %></span>
+        <span class="na-card-stat__meta" title="<%= c.meta %>"><%= c.meta %></span>
+        <% if (c.href) { %><a class="link-gold text-sm" href="<%= c.href %>"><%= c.link %></a><% } %>
+      </div>
+    <% }); %>
+  </section>
+<% } %>
 
 <% if (isAdmin) { %>
   <form method="get" action="/new-agents" class="na-filter mt-24">
@@ -30,8 +51,9 @@ const hired = function (d) { return new Date(d).toLocaleDateString('en-GB', { da
   <% if (noSupervisor && supervisorId !== 'none') { %><div class="form-alert error mt-16" role="alert"><%= noSupervisor %> new <%= noSupervisor === 1 ? 'agent has' : 'agents have' %> no supervisor, so nobody is doing their supervisor items. <a href="/new-agents?supervisor=none">Show who</a>.</div><% } %>
 <% } %>
 
+
 <% if (!total) { %>
-  <div class="card mt-24" style="margin-bottom:40px"><div class="card-body"><%- include('../partials/empty-state', { title: 'No new agents right now', description: 'New Travel Agents and Flight Experts show up here on their first day, for their first 4 weeks.' }) %></div></div>
+  <div class="card mt-24" style="margin-bottom:40px"><div class="card-body"><%- include('../partials/empty-state', { title: 'No new agents right now', description: 'New Travel Agents show up here from the day they are added until they are approved for solo live calls; Flight Experts for their first 4 weeks.' }) %></div></div>
 <% } else { %>
 
 <nav class="na-fchips mt-24" aria-label="Show a group" data-na-chips>
@@ -42,39 +64,81 @@ const hired = function (d) { return new Date(d).toLocaleDateString('en-GB', { da
   <% }); %>
 </nav>
 
-<section class="na-lines mt-16" aria-label="New agents" style="margin-bottom:40px">
-  <div class="na-lines__head" aria-hidden="true"><span class="na-line__agent">Agent</span><span class="na-line__going">What's going on</span><span class="na-line__next">Next step</span><span class="na-line__late">Overdue</span><span class="na-line__act"></span></div>
+<section class="na-lines mt-16" aria-label="New agents">
+  <div class="na-lines__head" aria-hidden="true"><span class="na-line__agent">Agent</span><span class="na-c na-c--stage">Stage</span><span class="na-c na-c--prog">Progress</span><span class="na-c na-c--q">Call quality</span><span class="na-c na-c--sign">Sign-offs</span><span class="na-c na-c--act"><%= isAdmin ? 'Activity' : 'Calls today' %></span><span class="na-line__next">Next step</span><span class="na-line__late">Late</span></div>
   <% groups.forEach(function (g) { %>
     <details class="na-lgroup na-lgroup--<%= g.info.tone %>"<%= g.key === 'FINISHED' && !group ? '' : ' open' %> data-na-group="<%= g.key %>">
       <summary class="na-lgroup__band"><span class="na-lgroup__title"><%= g.info.label %></span><span class="na-lgroup__count"><%= g.agents.length %></span><span class="na-trunc na-meta"><%= board.groupMeaning(g.key, isAdmin) %></span><svg class="na-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
-      <% g.agents.forEach(function (a) { const s = a.summary; const nx = a.next; %>
+      <% g.agents.forEach(function (a) { const nx = a.next; const c = board.cellsOf(a, { isAdmin: isAdmin, now: now }); const pr = a.progress; const q = a.quality; const meta = a.nextMeta; %>
         <div class="na-line" id="agent-<%= a.profile.id %>" data-na-agent="<%= a.profile.id %>">
           <span class="na-line__agent">
             <span class="na-av na-av--<%= a.hue %>" aria-hidden="true"><%= a.initials %></span>
             <span class="na-line__who">
-              <a class="na-line__open na-trunc na-strong" href="/new-agents/<%= a.profile.id %>"><%= a.profile.fullName %></a>
-              <span class="na-trunc na-meta"><%= roleLabel(a.profile.role) %> · hired <%= hired(a.profile.employmentStartDate) %> · <%= !s.started ? 'starts ' + board.shortDate(a.cal.startKey) : a.pos.today ? 'day ' + a.pos.today + ' of ' + s.length : 'day off today' %><% if (isAdmin) { %> · <%= a.supervisor ? a.supervisor.fullName : 'no supervisor' %><% } %></span>
+              <a class="na-line__open na-trunc na-strong" href="/new-agents/<%= a.profile.id %>" title="<%= a.goingOn %>"><%= a.profile.fullName %></a>
+              <span class="na-trunc na-meta" title="<%= c.who %>"><%= c.who %></span>
             </span>
           </span>
-          <span class="na-line__going na-trunc" title="<%= a.goingOn %>"><%= a.goingOn %></span>
-          <span class="na-line__next na-trunc" title="<%= nx.text %>"><%= nx.text %></span>
-          <span class="na-line__late"><%= a.maxLate ? a.maxLate + 'd' : '' %></span>
-          <span class="na-line__act">
-            <% if (nx.task && nx.link) { %>
-              <a class="btn btn-secondary btn-sm" href="/new-agents/<%= a.profile.id %>#<%= nx.task.kind === 'SCHEDULE' ? 'working-days' : 'task-' + nx.task.id %>"><%= nx.action %></a>
-            <% } else if (nx.task) { %>
-              <form method="post" action="/new-agents/<%= a.profile.id %>/tasks/<%= nx.task.id %>/done" data-once>
-                <input type="hidden" name="from" value="board" />
-                <button type="submit" class="btn btn-secondary btn-sm" aria-label="<%= nx.action %>: <%= nx.text %>, <%= a.profile.fullName %>"><%= nx.action %></button>
-              </form>
+          <span class="na-c na-c--stage">
+            <span class="na-c__top na-trunc"><span class="na-strong"><%= c.stage.label %></span> <span class="na-meta"><%= c.stage.detail %></span></span>
+            <span class="na-steps" aria-hidden="true"><% c.stage.steps.forEach(function (v) { %><span class="na-steps__seg"><span style="width:<%= v %>%"></span></span><% }); %></span>
+          </span>
+          <span class="na-c na-c--prog">
+            <span class="na-c__top na-trunc"><span class="na-strong"><%= pr.text %></span> <span class="na-meta"><%= pr.meta %></span></span>
+            <span class="na-bar" aria-hidden="true"><span class="na-bar__fill" style="width:<%= pr.percent %>%"></span><% if (pr.plan !== null) { %><span class="na-bar__mark" style="left:<%= pr.plan %>%"></span><% } %></span>
+          </span>
+          <span class="na-c na-c--q">
+            <% if (q) { %>
+              <span class="na-c__top na-trunc"><span class="na-strong"><%= q.accuracy %>%</span> <svg class="na-trend" width="14" height="14" viewBox="0 0 16 16" fill="none" role="img" aria-label="<%= trendWord[q.trend] %>"><path d="<%= trendPath[q.trend] %>" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><% if (q.wpm !== null) { %> <span class="na-meta">· <%= q.wpm %> wpm</span><% } %></span>
+              <span class="na-spark" title="Last <%= q.spark.length %> calls; the dashed line is <%= a.readiness ? a.readiness.targets.accuracy : target %>%" aria-hidden="true"><% q.spark.forEach(function (x) { %><span class="<%= x >= (a.readiness ? a.readiness.targets.accuracy : target) ? 'is-on' : '' %>" style="height:<%= barHeight(x) %>px"></span><% }); %><span class="na-spark__goal" style="bottom:<%= barHeight(a.readiness ? a.readiness.targets.accuracy : target) %>px"></span></span>
+            <% } else { %><span class="na-meta">No calls yet</span><% } %>
+          </span>
+          <span class="na-c na-c--sign">
+            <span class="na-blocks" role="img" aria-label="Sign-offs: <%= c.signs.map(function (x) { return x.system + ' ' + signWord[x.state]; }).join(', ') || 'none' %>"><% c.signs.forEach(function (x) { %><span class="na-blocks__b is-<%= x.state %>" title="<%= x.system %>: <%= signWord[x.state] %>"></span><% }); %></span>
+            <span class="na-meta na-trunc"><%= c.signMeta %></span>
+          </span>
+          <span class="na-c na-c--act">
+            <% if (isAdmin) { %>
+              <span class="na-c__top na-trunc"><%= c.seen %></span>
+              <span class="na-meta na-trunc"><%= c.oneone %></span>
             <% } else { %>
-              <a class="btn btn-secondary btn-sm" href="/new-agents/<%= a.profile.id %>" aria-label="Open <%= a.profile.fullName %>">Open</a>
+              <span class="na-dots" aria-hidden="true"><% c.dots.forEach(function (on) { %><span class="<%= on ? 'is-on' : '' %>"></span><% }); %></span>
+              <span class="na-meta na-trunc"><%= c.callsMeta %></span>
             <% } %>
           </span>
+          <span class="na-line__next">
+            <span class="na-line__nexttext">
+              <span class="na-c__top na-trunc"><% if (nx.lock) { %><svg class="na-ico" width="14" height="14" viewBox="0 0 16 16" fill="none" role="img" aria-label="Admin only"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> <% } %><span title="<%= nx.text %>"><%= nx.text %></span></span>
+              <% if (meta) { %><span class="na-trunc na-meta<%= meta.kind ? ' is-' + meta.kind : '' %>" title="<%= meta.text %>"><% if (meta.kind === 'flag') { %><svg class="na-ico" width="14" height="14" viewBox="0 0 16 16" fill="none" role="img" aria-label="Flag"><path d="M4 14V2.5M4 3h7.5l-1.5 3 1.5 3H4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> <% } %><%= meta.text %></span><% } %>
+            </span>
+            <% if (isAdmin && nx.button) { %><a class="btn btn-gold btn-sm na-line__btn" href="<%= nx.button.href %>"><%= nx.button.label %></a><% } %>
+          </span>
+          <span class="na-line__late"><%= a.maxLate ? a.maxLate + 'd' : '' %></span>
         </div>
       <% }); %>
     </details>
   <% }); %>
 </section>
+
+<% if (isAdmin && scorecard.length) { %>
+  <section class="card mt-24 na-score" aria-labelledby="na-score-title" style="margin-bottom:40px">
+    <div class="card-body">
+      <h2 id="na-score-title" class="na-h3">Supervisors</h2>
+      <p class="na-meta">How each supervisor keeps up with their new agents. Flags are ticks that need a second look.</p>
+    </div>
+    <div class="table-wrap">
+      <table class="na-score__table">
+        <thead><tr><th scope="col">Supervisor</th><th scope="col">Agents</th><th scope="col">Overdue items</th><th scope="col">Most late</th><th scope="col">Longest without a 1:1</th><th scope="col">On pace</th><th scope="col">Flags</th></tr></thead>
+        <tbody>
+          <% scorecard.forEach(function (s) { %>
+            <tr>
+              <td><span class="na-score__who"><span class="na-av na-av--<%= s.hue %>" aria-hidden="true"><%= s.initials %></span><span class="na-line__who"><span class="na-strong"><%= s.name %></span><span class="na-meta"><%= s.note %></span></span></span></td>
+              <td><%= s.agents %></td><td><%= s.overdue %></td><td><%= s.mostLate %></td><td><%= s.gap %></td><td><%= s.onPace %></td><td><%= s.flags %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+<% } else { %><div style="margin-bottom:40px"></div><% } %>
 <% } %>
 <script src="<%= asset('/static/js/ai-practice.js') %>" defer></script>

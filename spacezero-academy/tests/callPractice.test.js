@@ -158,11 +158,11 @@ test('listening cannot skip ahead; submitting waits for the end and for enough w
   const skip = await as('agent').post(`/call-practice/${id}/progress`, { position: 40, speed: 1, action: 'tick' });
   assert.equal(skip.status, 400);
   assert.equal((await as('agent').form(`/call-practice/${id}/submit`, { text: GOOD, typingMs: 1000 })).headers.location, `/call-practice/${id}?notice=listen`);
-  assert.equal((await prisma.practiceCallTranscript.findUnique({ where: { profileId_callId: { profileId: people.agent.p.id, callId: id } } })).draftText, GOOD, 'the text is kept');
+  assert.equal((await prisma.practiceCallTranscript.findUnique({ where: { profileId_callId_attempt: { profileId: people.agent.p.id, callId: id, attempt: 1 } } })).draftText, GOOD, 'the text is kept');
 
   const draft = await as('agent').post(`/call-practice/${id}/draft`, { text: 'Client: my card is 4111 1111 1111 1111', typingMs: 5000 });
   assert.equal(draft.status, 200);
-  const row = await prisma.practiceCallTranscript.findUnique({ where: { profileId_callId: { profileId: people.agent.p.id, callId: id } } });
+  const row = await prisma.practiceCallTranscript.findUnique({ where: { profileId_callId_attempt: { profileId: people.agent.p.id, callId: id, attempt: 1 } } });
   assert.match(row.draftText, /\[REDACTED-CARD\]/); assert.doesNotMatch(row.draftText, /4111/);
 
   for (const at of [15, 30]) assert.equal((await listen('agent', id, at)).body.listened, false);
@@ -176,7 +176,7 @@ test('submitting scores the transcript; the result marks what was missed; a seco
   await prisma.practiceCallTranscript.updateMany({ where: { profileId: people.agent.p.id, callId: id }, data: { typingSeconds: 0, draftSavedAt: new Date(Date.now() - 120000) } });
   const sent = await as('agent').form(`/call-practice/${id}/submit`, { text: GOOD, typingMs: 90000 });
   assert.equal(sent.headers.location, `/call-practice/${id}`);
-  const row = await prisma.practiceCallTranscript.findUnique({ where: { profileId_callId: { profileId: people.agent.p.id, callId: id } } });
+  const row = await prisma.practiceCallTranscript.findUnique({ where: { profileId_callId_attempt: { profileId: people.agent.p.id, callId: id, attempt: 1 } } });
   assert.ok(row.submittedAt); assert.ok(row.accuracy > 95 && row.accuracy < 100);
   assert.equal(Math.round(row.typingSeconds), 90); assert.ok(row.wordsPerMinute > 0);
 
@@ -261,7 +261,7 @@ test('the answer key: made by the AI in the background, corrected by an Admin, a
   assert.equal(row.referenceText.startsWith('Agent: Good morning'), true, 'a failed retry keeps the last answer key');
   transcribe.mock.restore();
 
-  const before = await prisma.practiceCallTranscript.findUnique({ where: { profileId_callId: { profileId: people.agent.p.id, callId: calls[0].id } } });
+  const before = await prisma.practiceCallTranscript.findUnique({ where: { profileId_callId_attempt: { profileId: people.agent.p.id, callId: calls[0].id, attempt: 1 } } });
   const saved = await as('admin').form(`/admin/call-practice/${calls[0].id}`, { title: 'Call title 1', note: 'Flight change', referenceText: KEY.replace('Istanbul', 'Istambul') });
   assert.equal(saved.headers.location, `/admin/call-practice/${calls[0].id}?saved=1`);
   const afterRow = await prisma.practiceCallTranscript.findUnique({ where: { id: before.id } });

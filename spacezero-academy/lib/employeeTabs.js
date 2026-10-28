@@ -14,7 +14,7 @@ function employeeTabs(actor, ctx, { credentials = false, canViewSetup = true, fi
   if (canViewSetup) tabs.push({ label: 'Setup', href: `${base}/setup` });
   tabs.push({ label: 'Training', href: `${base}/training` });
   // while their New Agent Program runs, their manager reaches it from here (routes/newAgents.js)
-  if (firstMonth) tabs.push({ label: 'First month', href: `/new-agents/${ctx.employee.id}` });
+  if (firstMonth) tabs.push({ label: 'New agent', href: `/new-agents/${ctx.employee.id}` });
   tabs.push(
     { label: 'Skills', href: `${base}/skills` },
     { label: 'Vacation / Leave', href: `${base}/leave` },

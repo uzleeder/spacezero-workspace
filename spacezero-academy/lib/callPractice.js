@@ -9,6 +9,9 @@
 //   * Every trainee hears the same calls in the same order, at most callPractice.callsPerDay a day - in the New Agent
 //     Program, that week's number instead (lib/newAgentPlan.js callsOn). A missed day never piles up: the next call
 //     simply waits. A call is only offered once its answer key is ready.
+//   * A new Travel Agent on the New Agent Program path (lib/newAgentProgram.js onTravelPath) who has done every ready
+//     call hears their lowest-scored one again (a new attempt; the earlier score stays), so the day's calls never wait
+//     on new uploads. Their ramp keeps Call Practice open after the tenure band, and approval for solo live calls ends it.
 //   * Scoring is lib/callPracticeScore.js (word by word, no AI per trainee).
 // planOf() is pure, so the pages and their tests decide "what is open today" the same way.
 const { prisma } = require('./prisma');
@@ -46,17 +49,29 @@ function isEligible(profile, window) {
  * already did); transcripts = their rows. Returns the numbered items, the next call, and whether it is open today:
  * it is when fewer than perDay calls were submitted today - or when the trainee already started it.
  */
-function planOf({ calls, transcripts, perDay, now = new Date() }) {
-  const byCall = new Map(transcripts.map((t) => [t.callId, t]));
+function planOf({ calls, transcripts, perDay, now = new Date(), repeat = false }) {
+  const attempt = (t) => t.attempt || 1;
+  const latestSubmitted = new Map(); const working = new Map(); const tries = new Map();
+  for (const t of [...transcripts].sort((a, b) => attempt(a) - attempt(b))) {
+    tries.set(t.callId, Math.max(tries.get(t.callId) || 0, attempt(t)));
+    if (t.submittedAt) latestSubmitted.set(t.callId, t);
+    else working.set(t.callId, t);
+  }
   const today = dayKey(now);
   const doneToday = transcripts.filter((t) => t.submittedAt && dayKey(t.submittedAt) === today).length;
   const items = calls.map((call, i) => {
-    const transcript = byCall.get(call.id) || null;
-    return { call, number: i + 1, transcript, done: Boolean(transcript && transcript.submittedAt) };
+    const transcript = latestSubmitted.get(call.id) || working.get(call.id) || null;
+    return { call, number: i + 1, transcript, done: Boolean(latestSubmitted.get(call.id)), attempts: tries.get(call.id) || 0, again: null };
   });
   const done = items.filter((i) => i.done);
-  const next = items.find((i) => !i.done) || null;
-  const started = Boolean(next && next.transcript);
+  let next = items.find((i) => !i.done) || null;
+  // every call done: the lowest-scored one again (one already being heard again comes first)
+  if (!next && repeat) {
+    const open = items.filter((i) => i.call.archivedAt == null);
+    next = open.find((i) => working.get(i.call.id)) || [...open].filter((i) => i.transcript.accuracy != null).sort((a, b) => a.transcript.accuracy - b.transcript.accuracy || a.number - b.number)[0] || null;
+    if (next) next.again = working.get(next.call.id) || { attempt: next.attempts + 1, draft: null };
+  }
+  const started = Boolean(next && (next.again ? next.again.callId : next.transcript));
   const scored = done.filter((i) => i.transcript.accuracy != null);
   const timed = done.filter((i) => i.transcript.wordsPerMinute != null);
   const average = (rows, key) => (rows.length ? Math.round(rows.reduce((sum, r) => sum + r.transcript[key], 0) / rows.length) : null);
@@ -86,14 +101,20 @@ function callsFor(profile) {
 
 /** Everything the pages need about one person: { window, eligible, plan }. */
 async function stateFor(profile, now = new Date()) {
-  const [window, setting, programCalls, calls, transcripts] = await Promise.all([
+  const np = require('./newAgentProgram');
+  const [window, setting, programCalls, calls, transcripts, program] = await Promise.all([
     windowFor(profile.organizationId),
     getSetting(profile.organizationId, 'callPractice.callsPerDay'),
-    require('./newAgentProgram').callsQuota(profile, now), // in the New Agent Program: that week's number of calls
+    np.callsQuota(profile, now), // in the New Agent Program: that week's number of calls (the ramp's, in the ramp)
     callsFor(profile),
     prisma.practiceCallTranscript.findMany({ where: { profileId: profile.id } }),
+    prisma.agentProgram.findUnique({ where: { profileId: profile.id }, select: { status: true } }),
   ]);
-  return { window, eligible: isEligible(profile, window), plan: planOf({ calls, transcripts, perDay: programCalls ?? setting, now }) };
+  const travel = np.onTravelPath(profile);
+  const inPath = travel && programCalls !== null && profile.status === 'ACTIVE'; // Month 1 or the ramp, on a working day
+  const approved = travel && program && program.status === 'COMPLETED'; // approved for solo live calls: Call Practice is over
+  const eligible = !approved && (isEligible(profile, window) || inPath);
+  return { window, eligible, plan: planOf({ calls, transcripts, perDay: programCalls ?? setting, now, repeat: inPath }) };
 }
 
 /** For the line on My Training: null unless the person is in Call Practice and there is at least one call. */

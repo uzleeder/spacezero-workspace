@@ -1,7 +1,13 @@
 <%# My Training: ONE path through the learner's training (lib/myTraining.js pathOf). One main button, on the current
     step; finished steps fold into "✓ N completed"; only the next 3 locked steps show, the rest fold into "+N more".
-    New agents also get one quiet Call Practice line under the progress (lib/callPractice.js summaryFor). %>
+    New agents also get one quiet Call Practice line under the progress (lib/callPractice.js summaryFor).
+    A new Travel Agent sees "My day" (partials/my-day) and reaches this path through "All my training". %>
+<% if (typeof myDay !== 'undefined' && myDay) { %>
+<%- include('partials/page-header', { pageTitle: 'My Training', pageDescription: 'Your day, in order.' }) %>
+<%- include('partials/my-day', { day: myDay }) %>
+<% } else { %>
 <%- include('partials/page-header', { pageTitle: 'My Training', pageDescription: 'Finish each training to unlock the next.' }) %>
+<% if (typeof hasMyDay !== 'undefined' && hasMyDay) { %><p class="steps-back"><a class="link-gold text-sm" href="/training">← My day</a></p><% } %>
 
 <% if (!path.total) { %>
   <% if (callPractice) { %><%- include('partials/call-practice-strip', { callPractice: callPractice }) %><% } %>
@@ -78,4 +84,5 @@
     <% } %>
   </ol>
 </div>
+<% } %>
 <% } %>

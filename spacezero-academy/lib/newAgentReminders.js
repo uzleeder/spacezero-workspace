@@ -8,6 +8,14 @@
 //     setup checklist), or under 70% accuracy on 3 calls in a row - alerts their supervisor that day.
 //   * A supervisor's item 2 of the agent's working days late goes to every Admin, and so does a new agent without a
 //     supervisor; the Admins also get a morning email listing them.
+// New Travel Agents also (np.onTravelPath; Flight Experts are as before):
+//   * while their supervisor is disabled, on approved leave or missing, the admins get what the supervisor would;
+//   * their own items also count an agent task, and 2+ working days late go into the admins' morning message;
+//   * an Admin's "Before day 1" item one working day late goes to every Admin, and to the supervisor too once day 1
+//     comes with anything still open;
+//   * the admins' morning message also lists who can't be tracked (untrackedHires), who the admins cover, end-of-month
+//     (end-of-ramp) decisions, what only an admin can do (approvals, sign-offs to confirm, flags), and "Call library: about X days
+//     left" when it is under LIBRARY_DAYS working days.
 // Every message carries a key (lib/notifications.js notifyOnce): running this again never sends anything twice. The
 // alerts also run with the 6-hourly automation, in case the server was down at 08:30.
 const { prisma } = require('./prisma');
@@ -24,6 +32,7 @@ const LOW_ACCURACY = 70;
 const LOW_STREAK = 3;
 const DIGEST_MINUTES = 8 * 60 + 30; // 08:30 Tashkent
 const AGENT_ITEMS = ['CALLS', 'TRAINING', 'READ', 'SETUP'];
+const LIBRARY_DAYS = 10; // the call library line shows when fewer working days of calls than this are left
 
 const tashkentMinutes = (now) => {
   const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(now);
@@ -51,7 +60,34 @@ const adminsOf = (organizationId) => prisma.profile.findMany({ where: { organiza
 
 /** The agent's own items that became late with the last working day behind them. */
 function newlyLate(state) {
-  return state.tasks.filter((t) => t.owner === 'AGENT' && AGENT_ITEMS.includes(t.kind) && np.stateOf(t, state.pos) === 'LATE' && np.daysLate(t, state.pos) === 1);
+  const kinds = state.travel ? [...AGENT_ITEMS, 'AGENT_TASK'] : AGENT_ITEMS;
+  return state.tasks.filter((t) => t.owner === 'AGENT' && kinds.includes(t.kind) && np.stateOf(t, state.pos) === 'LATE' && np.daysLate(t, state.pos) === 1);
+}
+
+/** A Travel Agent's own items late long enough for the admins' morning message. */
+const agentLate = (state) => (state.travel ? state.tasks.filter((t) => t.owner === 'AGENT' && np.stateOf(t, state.pos) === 'LATE' && (t.kind === 'CALLS' ? np.daysLate(t, state.pos) === ESCALATE_DAYS : np.daysLate(t, state.pos) >= ESCALATE_DAYS)) : []); // a missed calls day once, then it is history
+/** An Admin's "Before day 1" items that are late. */
+const prestartLate = (state) => state.tasks.filter((t) => t.owner === 'ADMIN' && np.stateOf(t, state.pos) === 'LATE');
+/** Who gets what the supervisor would: the supervisor, or every Admin while they cover (Travel Agents only). */
+const watchersOf = (state, admins) => (state.travel && state.cover && state.cover.absent ? admins.map((a) => a.id) : state.supervisor ? [state.supervisor.id] : []);
+
+/**
+ * How many working days of calls the library has left for the agent furthest through it: the ready calls they have
+ * not done yet, at their calls a day now. null when nobody is doing calls.
+ */
+async function libraryDaysLeft(organizationId, states) {
+  const ready = await prisma.practiceCall.findMany({ where: { organizationId, archivedAt: null, referenceStatus: 'READY' }, select: { id: true } });
+  const ids = ready.map((c) => c.id);
+  let least = null;
+  for (const s of states) {
+    if (s.program.status !== 'ACTIVE' || !s.pos.started || s.summary.finished) continue;
+    const calls = s.tasks.find((t) => t.kind === 'CALLS' && t.day >= np.horizonOf(s.pos)) || null;
+    if (!calls || !calls.target) continue;
+    const done = await prisma.practiceCallTranscript.findMany({ where: { profileId: s.profile.id, callId: { in: ids }, submittedAt: { not: null } }, distinct: ['callId'], select: { callId: true } });
+    const days = Math.floor((ids.length - done.length) / calls.target);
+    if (least === null || days < least) least = days;
+  }
+  return least;
 }
 
 /** The supervisor's items late long enough to go to the Admins. */
@@ -78,12 +114,24 @@ async function runAlerts(organizationId, { now = new Date(), states = null } = {
   for (const s of all) {
     const name = s.profile.fullName;
     const page = `/new-agents/${s.profile.id}`;
-    if (s.supervisor) {
+    const watchers = watchersOf(s, admins);
+    if (watchers.length) {
       const late = newlyLate(s);
-      if (late.length && await notifyOnce(s.supervisor.id, `program-behind:${s.program.id}:${s.pos.passed}`, { type: 'program.behind', title: `${name} fell behind`, body: `Not done on day ${s.pos.passed}: ${late.map((t) => t.title).join(', ')}.`, link: page })) out.behind += 1;
       const streak = await lowStreak(s.profile.id);
-      if (streak && await notifyOnce(s.supervisor.id, `program-accuracy:${s.program.id}:${streak.startId}`, { type: 'program.low_accuracy', title: `${name}: low accuracy on ${LOW_STREAK} calls in a row`, body: `Their last ${LOW_STREAK} transcripts scored ${streak.last.map((t) => `${Math.round(t.accuracy)}%`).join(', ')}. Listen to one of those calls together.`, link: page })) out.accuracy += 1;
-    } else {
+      let behind = false; let accuracy = false;
+      for (const w of watchers) {
+        if (late.length && await notifyOnce(w, `program-behind:${s.program.id}:${s.pos.passed}`, { type: 'program.behind', title: `${name} fell behind`, body: `Not done on day ${s.pos.passed}: ${late.map((t) => t.title).join(', ')}.`, link: page })) behind = true;
+        if (streak && await notifyOnce(w, `program-accuracy:${s.program.id}:${streak.startId}`, { type: 'program.low_accuracy', title: `${name}: low accuracy on ${LOW_STREAK} calls in a row`, body: `Their last ${LOW_STREAK} transcripts scored ${streak.last.map((t) => `${Math.round(t.accuracy)}%`).join(', ')}. Listen to one of those calls together.`, link: page })) accuracy = true;
+      }
+      out.behind += Number(behind); out.accuracy += Number(accuracy);
+    }
+    if (s.travel) {
+      // "Before day 1": one working day late goes to every Admin; day 1 with anything still open, to the supervisor too
+      const open = prestartLate(s);
+      for (const t of open) for (const a of admins) if (await notifyOnce(a.id, `program-prestart:${t.id}`, { type: 'program.prestart_late', title: `Not ready for ${name}: ${t.title}`, body: `It was due ${board.shortDate(s.pos.pre.dueKey)}. ${first(name)} ${s.pos.started ? 'has started' : `starts ${board.shortDate(s.cal.startKey)}`}.`, link: t.kind === 'ACCOUNT' ? `/employees/${s.profile.id}/credentials` : `${page}#task-${t.id}` })) out.prestart = (out.prestart || 0) + 1;
+      if (s.pos.started && open.length) for (const w of watchers) await notifyOnce(w, `program-prestart-open:${s.program.id}`, { type: 'program.prestart_late', title: `${name} started with ${plural(open.length, 'item')} not ready`, body: `Not ready on day 1: ${open.map((t) => t.title).join(', ')}. Admins have been told.`, link: page });
+    }
+    if (!s.supervisor) {
       for (const a of admins) if (await notifyOnce(a.id, `program-nosup:${s.program.id}`, { type: 'program.no_supervisor', title: `${name} has no supervisor`, body: 'Their New Agent Program has supervisor items nobody is doing. Assign a supervisor.', link: '/new-agents?supervisor=none' })) out.noSupervisor += 1;
     }
     for (const t of escalated(s)) {
@@ -114,11 +162,21 @@ function supervisorEmail(supervisor, agents, tasks, now) {
 }
 
 /** An Admin's morning email: supervisor items late enough to escalate, and new agents without a supervisor. */
-function adminEmail(admin, late, orphans, now) {
+function adminEmail(admin, late, orphans, now, more = {}) {
+  const { untracked = [], decisions = [], waiting = [], covering = [], behind = [], prestart = [], library = null } = more;
+  const section = (title, rows) => (rows.length ? [title, ...rows, ''] : []);
   const lines = [
     `Hi ${first(admin.fullName)},`, '',
+    ...section('CAN\'T BE TRACKED (fix these first):', untracked.map((u) => `- ${u.profile.fullName} · ${u.reason} · ${u.action}: ${link(u.href)}`)),
+    ...section('WAITING FOR YOU (only an admin can do these):', waiting.map((w) => `- ${w.agent} · ${w.what}`)),
+    ...section(`DECISIONS (time is up: ${board.moreTime()} or approve anyway):`, decisions.map((d) => `- ${d.agent} · ready ${d.met} of ${d.of}`)),
+    ...section('BEFORE DAY 1, NOT READY:', prestart.map((r) => `- ${r.agent} · ${r.title} · ${r.daysLate}d late · ${r.starts}`)),
+    ...section('YOU COVER (their supervisor is away):', covering.map((c) => `- ${c.agent} · ${c.text}${c.items ? ` · ${plural(c.items, 'item')} late or due today` : ''}`)),
     ...(late.length ? [`These supervisor items for new agents are ${ESCALATE_DAYS} or more working days late:`, ...late.map((r) => `- ${r.supervisor} · ${r.agent} · ${r.title} · ${r.daysLate}d overdue`), ''] : []),
+    ...section(`Travel Agents ${ESCALATE_DAYS} or more working days behind on their own items:`, behind.map((r) => `- ${r.agent} · ${r.titles} · ${r.daysLate}d late`)),
     ...(orphans.length ? ['New agents without a supervisor (nobody is doing their supervisor items):', ...orphans.map((n) => `- ${n}`), ''] : []),
+    ...(library !== null ? [`Call library: about ${plural(library, 'day')} left. Upload more calls in Manage Training -> Call Practice.`, ''] : []),
+    ...(waiting.length ? [`Open Waiting for you: ${link('/new-agents/approvals')}`] : []),
     `Open New agents: ${link('/new-agents')}`, '', 'SpaceZero Workspace',
   ];
   return { to: admin.email, subject: `New agents: what needs you · ${board.shortDate(dayKey(now))}`, text: lines.join('\n') };
@@ -138,7 +196,8 @@ async function runMorning(organizationId, { now = new Date(), send = mailer.send
   const emailSupervisors = await getSetting(organizationId, 'program.supervisorEmails');
   delete out.states;
   const bySupervisor = new Map();
-  for (const s of alerts.states) if (s.supervisor) bySupervisor.set(s.supervisor.id, [...(bySupervisor.get(s.supervisor.id) || []), s]);
+  // a Travel Agent whose supervisor is away is in the admins' message instead (they cover)
+  for (const s of alerts.states) if (s.supervisor && !(s.travel && s.cover && s.cover.absent)) bySupervisor.set(s.supervisor.id, [...(bySupervisor.get(s.supervisor.id) || []), s]);
   for (const [supervisorId, agents] of bySupervisor) {
     const tasks = board.supervisorTasksOf(agents);
     if (!tasks.late.length && !tasks.today.length) continue; // nothing to do today: nothing is sent
@@ -149,14 +208,40 @@ async function runMorning(organizationId, { now = new Date(), send = mailer.send
     out.digests += 1;
     if (emailSupervisors && await deliver(supervisorEmail(supervisor, [...agents].sort((a, b) => a.groupInfo.rank - b.groupInfo.rank), tasks, now), `program-digest:${supervisorId}:${day}`, send)) out.emails += 1;
   }
-  const late = alerts.states.flatMap((s) => escalated(s).map((t) => ({ supervisor: s.supervisor ? s.supervisor.fullName : 'No supervisor', agent: s.profile.fullName, title: t.title, daysLate: np.daysLate(t, s.pos) })));
-  const orphans = alerts.states.filter((s) => !s.supervisor).map((s) => s.profile.fullName);
-  if (late.length || orphans.length) {
+  const states = alerts.states;
+  const late = states.flatMap((s) => escalated(s).map((t) => ({ supervisor: s.supervisor ? s.supervisor.fullName : 'No supervisor', agent: s.profile.fullName, title: t.title, daysLate: np.daysLate(t, s.pos) })));
+  const orphans = states.filter((s) => !s.supervisor && !s.travel).map((s) => s.profile.fullName); // a Travel Agent's is under "can't be tracked"
+  const more = {
+    untracked: await board.untrackedHires(organizationId, states, { now }),
+    decisions: states.filter((s) => s.summary.rampOver && !board.isReady(s)).map((s) => ({ agent: s.profile.fullName, met: s.readiness.metCount, of: s.readiness.checks.length })),
+    waiting: [
+      ...states.filter(board.isReady).map((s) => ({ agent: s.profile.fullName, what: 'approve for solo live calls' })),
+      ...states.flatMap((s) => s.waiting.map((t) => ({ agent: s.profile.fullName, what: `confirm the ${t.system || t.title} sign-off` }))),
+      ...states.flatMap((s) => s.flags.map((f) => ({ agent: s.profile.fullName, what: `flag: ${f.text}` }))),
+    ],
+    prestart: states.flatMap((s) => (s.travel ? prestartLate(s) : []).map((t) => ({ agent: s.profile.fullName, title: t.title, daysLate: np.daysLate(t, s.pos), starts: s.pos.started ? 'already started' : `starts ${board.shortDate(s.cal.startKey)}` }))),
+    covering: states.filter((s) => s.travel && s.cover && s.cover.reason === 'LEAVE').map((s) => ({ agent: s.profile.fullName, text: s.cover.text, items: s.tasks.filter((t) => board.needsSupervisor(t) && ['LATE', 'TODAY'].includes(np.stateOf(t, s.pos))).length })),
+    behind: states.map((s) => ({ s, rows: agentLate(s) })).filter((x) => x.rows.length).map(({ s, rows }) => ({ agent: s.profile.fullName, titles: [...new Set(rows.map(board.shortTitle))].join(', '), daysLate: Math.max(...rows.map((t) => np.daysLate(t, s.pos))) })),
+  };
+  const left = await libraryDaysLeft(organizationId, states);
+  more.library = left !== null && left < LIBRARY_DAYS ? left : null;
+  const counts = [
+    more.untracked.length ? `${plural(more.untracked.length, 'agent')} can't be tracked` : '',
+    more.waiting.length ? `${plural(more.waiting.length, 'thing')} only an admin can do` : '',
+    more.decisions.length ? `${plural(more.decisions.length, 'end-of-month decision')}` : '',
+    more.prestart.length ? `${plural(more.prestart.length, 'pre-start item')} late` : '',
+    more.covering.length ? `covering ${plural(more.covering.length, 'agent')}` : '',
+    late.length ? `${plural(late.length, 'supervisor item')} ${ESCALATE_DAYS}+ days late` : '',
+    more.behind.length ? `${plural(more.behind.length, 'agent')} ${ESCALATE_DAYS}+ days behind` : '',
+    orphans.length ? `${plural(orphans.length, 'agent')} without a supervisor` : '',
+    more.library !== null ? `call library: about ${plural(more.library, 'day')} left` : '',
+  ].filter(Boolean);
+  if (counts.length) {
     for (const admin of await adminsOf(organizationId)) {
-      const created = await notifyOnce(admin.id, `program-admin-digest:${day}`, { type: 'program.digest', title: 'New agents: what needs you', body: [late.length ? `${plural(late.length, 'supervisor item')} ${ESCALATE_DAYS}+ days late` : '', orphans.length ? `${plural(orphans.length, 'agent')} without a supervisor` : ''].filter(Boolean).join(' · '), link: '/new-agents' });
+      const created = await notifyOnce(admin.id, `program-admin-digest:${day}`, { type: 'program.digest', title: 'New agents: what needs you', body: counts.join(' · '), link: '/new-agents' });
       if (!created) continue;
       out.adminDigests += 1;
-      if (await deliver(adminEmail(admin, late, orphans, now), `program-admin-digest:${admin.id}:${day}`, send)) out.emails += 1;
+      if (await deliver(adminEmail(admin, late, orphans, now, more), `program-admin-digest:${admin.id}:${day}`, send)) out.emails += 1;
     }
   }
   return out;
@@ -176,4 +261,4 @@ registerJobType({
   async requeueStuck() {},
 });
 
-module.exports = { ESCALATE_DAYS, LOW_ACCURACY, DIGEST_MINUTES, tashkentMinutes, escalationNote, newlyLate, escalated, lowStreak, runAlerts, runMorning, supervisorEmail, adminEmail };
+module.exports = { ESCALATE_DAYS, LOW_ACCURACY, DIGEST_MINUTES, LIBRARY_DAYS, tashkentMinutes, escalationNote, newlyLate, escalated, agentLate, prestartLate, watchersOf, libraryDaysLeft, lowStreak, runAlerts, runMorning, supervisorEmail, adminEmail };

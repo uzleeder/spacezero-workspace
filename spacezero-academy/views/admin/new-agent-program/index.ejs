@@ -1,18 +1,18 @@
 <%# Manage Training -> New Agent Program (routes/admin/newAgentProgram.js): who is in it, how it runs, and the plan by
     week and day. %>
-<%- include('../../partials/page-header', { pageTitle: 'Training', pageDescription: 'New Agent Program: the first 4 weeks of every new Travel Agent and Flight Expert.' }) %>
+<%- include('../../partials/page-header', { pageTitle: 'Training', pageDescription: 'New Agent Program: the first 4 weeks of every new Travel Agent and Flight Expert. New Travel Agents also have Before day 1 and a ramp, until they are ready for solo live calls.' }) %>
 <%- include('../../partials/management-tabs', { tabs: tabsets.training }) %>
 
 <%
 const notices = { saved: 'Saved. Running programs follow it from tomorrow on.', added: 'Item added. Running programs get it on that day if they have not reached it yet.', deleted: 'Item removed from the plan and from the days still ahead.', started: 'Started. Their items for today are due now.', stopped: 'The program was stopped.', days: 'Working days saved. Day numbers and due dates follow them.' };
 const day = function (key) { return new Date(key + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); };
-const owner = function (k) { return KINDS[k] && KINDS[k].owner === 'SUPERVISOR' ? 'Supervisor' : 'Agent'; };
+const owner = function (k) { return KINDS[k] && KINDS[k].owner === 'SUPERVISOR' ? 'Supervisor' : KINDS[k] && KINDS[k].owner === 'ADMIN' ? 'Admin' : 'Agent'; };
 %>
 <% if (notice) { %><div class="form-alert success mt-16" role="status"><%= notices[notice] %></div><% } %>
 <% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
 
 <section class="card mt-24" data-nap-people>
-  <div class="card-header"><div><h2>Who is in it</h2><p><%= people.length %> <%= people.length === 1 ? 'agent' : 'agents' %> now. It starts by itself on a new agent's first day<%= plan.isActive ? '' : ' (switched off below)' %>.</p></div></div>
+  <div class="card-header"><div><h2>Who is in it</h2><p><%= people.length %> <%= people.length === 1 ? 'agent' : 'agents' %> now. It starts by itself for every new Travel Agent and Flight Expert, from the day they are added.</p></div></div>
   <% if (!people.length) { %>
     <div class="card-body"><%- include('../../partials/empty-state', { title: 'Nobody is in the program yet', description: 'New Travel Agents and Flight Experts join it on their first day. Start it below for someone already in their first months.' }) %></div>
   <% } else { %>
@@ -24,7 +24,8 @@ const owner = function (k) { return KINDS[k] && KINDS[k].owner === 'SUPERVISOR' 
             <span class="nap-person__meta"><%= roleLabel(who.role) %> · <% if (p.supervisor) { %>supervisor <%= p.supervisor %><% } else { %><strong class="nap-warn">No supervisor</strong><% } %></span>
           </div>
           <div class="nap-person__day">
-            <% if (!s.started) { %>Starts <%= day(p.program.startDate) %>
+            <% if (p.stage) { %><%= p.stage.text %>
+            <% } else if (!s.started) { %>Starts <%= day(p.program.startDate) %>
             <% } else if (s.finished) { %>Past day <%= s.length %> · final review
             <% } else if (s.today) { %>Day <%= s.today %> of <%= s.length %> · week <%= s.week %>
             <% } else { %>Day off today · day <%= s.passed + 1 %><%= p.nextKey ? ' on ' + day(p.nextKey) : '' %><% } %>
@@ -36,7 +37,7 @@ const owner = function (k) { return KINDS[k] && KINDS[k].owner === 'SUPERVISOR' 
       <% }); %>
     </ul>
   <% } %>
-  <div class="card-body nap-start">
+  <div class="card-body nap-start" id="start">
     <h3 class="nap-subtitle">Start it for someone already in their first months</h3>
     <% if (!candidates.length) { %>
       <p class="text-sm text-muted">Everyone in their first months is already in it.</p>
@@ -59,8 +60,7 @@ const owner = function (k) { return KINDS[k] && KINDS[k].owner === 'SUPERVISOR' 
 <section class="card mt-24" data-nap-settings>
   <div class="card-header"><div><h2>How it runs</h2><p>A program week is 5 of the agent's working days. Each agent's supervisor sets their working days on day 1; until then they count Monday to Friday.</p></div></div>
   <form method="post" action="/admin/new-agent-program/settings" class="card-body" data-once>
-    <label class="checkbox-row"><input type="checkbox" name="isActive" value="1"<%= plan.isActive ? ' checked' : '' %> /> Start it by itself for new Travel Agents and Flight Experts</label>
-    <label class="checkbox-row mt-8"><input type="checkbox" name="dailyCheckIn" value="1"<%= plan.dailyCheckIn ? ' checked' : '' %> /> A 5-minute supervisor check-in every day that has no other check-in or review</label>
+    <label class="checkbox-row"><input type="checkbox" name="dailyCheckIn" value="1"<%= plan.dailyCheckIn ? ' checked' : '' %> /> A 5-minute supervisor check-in every day that has no other check-in or review</label>
     <label class="checkbox-row mt-8"><input type="checkbox" name="supervisorEmails" value="1"<%= supervisorEmails ? ' checked' : '' %> /> Also email the 08:30 "Today with your new agents" message to supervisors (it always shows in the app)</label>
     <div class="nap-weeks-form mt-16">
       <% weekTitles.forEach(function (t, i) { %>
@@ -71,13 +71,40 @@ const owner = function (k) { return KINDS[k] && KINDS[k].owner === 'SUPERVISOR' 
         </fieldset>
       <% }); %>
     </div>
-    <p class="text-sm text-muted mt-8">After the program, Call Practice goes back to the number set on its own tab.</p>
+    <p class="text-sm text-muted mt-8">After the 4 weeks, a Flight Expert's Call Practice goes back to the number set on its own tab.</p>
+    <fieldset class="nap-week-field mt-16" id="ramp">
+      <legend>New Travel Agents: <%= rampOn ? 'ramp and ' : '' %>Ready for solo live calls</legend>
+      <div class="nap-weeks-form">
+        <% if (rampOn) { %><div class="field"><label for="nap-ramp-weeks">Ramp, at most (weeks)</label><input id="nap-ramp-weeks" name="rampWeeks" type="number" min="1" max="26" value="<%= ready.rampWeeks %>" required /></div><% } %>
+        <div class="field"><label for="nap-ramp-calls"><%= rampOn ? 'Calls a day in the ramp' : 'Calls a day in an extra week' %></label><input id="nap-ramp-calls" name="rampCallsPerDay" type="number" min="1" max="5" value="<%= ready.rampCalls %>" required /></div>
+        <div class="field"><label for="nap-ready-acc">Accuracy target (%)</label><input id="nap-ready-acc" name="readyAccuracy" type="number" min="50" max="100" value="<%= ready.accuracy %>" required /></div>
+        <div class="field"><label for="nap-ready-calls">Over the last (calls)</label><input id="nap-ready-calls" name="readyCalls" type="number" min="3" max="50" value="<%= ready.calls %>" required /></div>
+        <div class="field"><label for="nap-ready-wpm">Typing speed target (wpm)</label><input id="nap-ready-wpm" name="readyWpm" type="number" min="5" max="150" value="<%= ready.wpm %>" required /></div>
+      </div>
+      <p class="text-sm text-muted mt-8"><%= rampOn ? 'Every ramp week ends with a supervisor review.' : 'For now it is Month 1 only: the check is at the end of Month 1, and an admin can give one extra week of Call Practice and a review.' %> Approve appears when every sign-off is done, the accuracy and speed targets are met, the Month 1 final review is done and nothing is overdue.</p>
+    </fieldset>
     <button type="submit" class="btn btn-secondary mt-16">Save</button>
   </form>
 </section>
 
 <section class="card mt-24" data-nap-plan>
   <div class="card-header"><div><h2>The plan</h2><p>Every working day also has that week's Call Practice calls<%= plan.dailyCheckIn ? ' and, when nothing else is planned with the supervisor, a 5-minute check-in' : '' %>.</p></div></div>
+  <div class="nap-week" id="before-day-1">
+    <div class="nap-week__head"><h3>Before day 1 · new Travel Agents</h3><span>Admin · due <%= lead %> working days before day 1</span></div>
+    <div class="nap-day">
+      <div class="nap-day__label">Day 0</div>
+      <% if (!before.length) { %><p class="nap-day__empty">Nothing before day 1</p><% } %>
+      <ul class="nap-items">
+        <% before.forEach(function (s) { %>
+          <li class="nap-item" data-nap-item="<%= s.id %>">
+            <span class="nap-owner nap-owner--admin">Admin</span>
+            <span class="nap-item__main"><span class="nap-item__title"><%= s.title %></span><span class="nap-item__meta"><%= s.kindLabel %><%= s.kind === 'ACCOUNT' ? ' · ticks itself when the login is in the vault' : '' %></span></span>
+            <a class="btn btn-secondary btn-sm" href="/admin/new-agent-program/items/<%= s.id %>" aria-label="Edit <%= s.title %>">Edit</a>
+          </li>
+        <% }); %>
+      </ul>
+    </div>
+  </div>
   <% weeks.forEach(function (w) { %>
     <div class="nap-week">
       <div class="nap-week__head"><h3><%= w.extra ? 'After the 4 weeks' : 'Week ' + w.number + ' · ' + w.title %></h3><span><%= w.calls %> call<%= w.calls === 1 ? '' : 's' %> a day</span></div>
@@ -101,6 +128,10 @@ const owner = function (k) { return KINDS[k] && KINDS[k].owner === 'SUPERVISOR' 
       <% }); %>
     </div>
   <% }); %>
+  <% if (rampOn) { %><div class="nap-week">
+    <div class="nap-week__head"><h3>Ramp · new Travel Agents</h3><span><%= ready.rampCalls %> call<%= ready.rampCalls === 1 ? '' : 's' %> a day</span></div>
+    <p class="nap-day__empty">Up to <%= ready.rampWeeks %> weeks of Call Practice, with a supervisor review at the end of every week, until they are approved for solo live calls.</p>
+  </div><% } %>
 </section>
 
 <section class="card mt-24" id="add-item" style="margin-bottom:40px" data-nap-add>

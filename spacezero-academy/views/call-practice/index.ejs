@@ -22,7 +22,7 @@ const months = window.months ? window.months + ' month' + (window.months === 1 ?
       <% } else if (p.next && p.open) { %>
         <p class="label">Today · <%= p.perDay %> call<%= p.perDay === 1 ? '' : 's' %> a day</p>
         <h2>Call <%= p.next.number %> · <%= p.next.call.title %></h2>
-        <p class="cp-meta"><%= clock(p.next.call.durationSeconds) %> · Call <%= p.next.number %> of <%= p.total %><% if (p.next.call.note) { %> · <%= p.next.call.note %><% } %></p>
+        <p class="cp-meta"><%= clock(p.next.call.durationSeconds) %> · <% if (p.next.again) { %>Again<%= p.next.transcript && p.next.transcript.accuracy != null ? ': your lowest score so far, ' + Math.round(p.next.transcript.accuracy) + '%' : '' %><% } else { %>Call <%= p.next.number %> of <%= p.total %><% } %><% if (p.next.call.note) { %> · <%= p.next.call.note %><% } %></p>
         <a class="btn btn-gold cp-today__action" href="/call-practice/<%= p.next.call.id %>" data-main-action><%= p.started ? 'Continue' : 'Start' %></a>
       <% } else if (p.next) { %>
         <p class="label">Today</p>

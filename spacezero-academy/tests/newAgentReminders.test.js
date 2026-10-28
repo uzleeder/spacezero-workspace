@@ -131,7 +131,7 @@ test('the 08:30 run: each supervisor\'s "Today with your new agents" and the Adm
   assert.match(mail.text, /OVERDUE\n- Aziz Tester · Set their working days · 5d overdue \(your admin was told\)\n[\s\S]*- Aziz Tester · Welcome 1:1 and introduce them to the team · 5d overdue \(your admin was told\)/);
   assert.match(mail.text, /Aziz Tester · Week 1 review · 1d overdue \(your admin is told after one more working day\)/);
   assert.match(mail.text, /FOR YOU TODAY \(about 1 h 25 min\)\n- Aziz Tester · EGF: search, compare fares and send a quote · 30 min\n[\s\S]*- Malika Tester · Welcome 1:1 and introduce them to the team · 30 min/);
-  assert.match(mail.text, /YOUR NEW AGENTS\n- Aziz Tester: day 6\. Dialpad and CRM sign-offs 2d late · [^\n]*\. Next: Set their working days\./);
+  assert.match(mail.text, /YOUR NEW AGENTS\n- Aziz Tester: day 6\. No activity for 5 working days · Dialpad and CRM sign-offs 2d late · [^\n]*\. Next: Set their working days\./);
   assert.match(mail.text, /Open New agents: http.*\/new-agents/);
   assert.equal(mail.key, `program-digest:${people.kamola.p.id}:${today}`);
 
@@ -155,8 +155,8 @@ test('without email set up, the morning message still arrives in the app', async
 
 test('the board says the admin has been told; the dashboard lists new-agent items first', async () => {
   const board = await as('kamola').get('/new-agents');
-  assert.match(board.text, /2 or more working days late\. Your admin has been told\./);
-  assert.match((await as('admin').get('/new-agents')).text, /2 or more working days late\. Admins have been told\./);
+  assert.match(board.text, /2 or more working days late, or Month 1 is over and they are not ready\. Your admin has been told\./);
+  assert.match((await as('admin').get('/new-agents')).text, /2 or more working days late, or Month 1 is over and they are not ready\. Admins have been told\./);
 
   const dash = await as('kamola').get('/dashboard');
   assert.equal(dash.status, 200);

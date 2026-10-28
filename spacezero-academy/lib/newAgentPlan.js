@@ -6,15 +6,25 @@
 // day carries the day's Call Practice calls (callsPerWeek ramps them week by week) and, unless a check-in or review is
 // already planned that day, a 5-minute supervisor check-in. A ready-made plan is created once per organization and the
 // Admin edits it from there. How an agent runs through it is lib/newAgentProgram.js.
+// New Travel Agents also get (lib/newAgentProgram.js onTravelPath): "Before day 1" items on day 0, owned by an Admin
+// (accounts tick themselves once the login is in the credential vault); a ramp of rampWeeks weeks after the 4 weeks
+// (rampCallsPerDay calls a day and a weekly review); and the "Ready for solo live calls" gate (readyAccuracy % and
+// readyWpm words a minute over the last readyCalls calls).
+// For now it is Month 1 only (SWITCHES.ramp off): no ramp, and the gate is checked at the end of Month 1. An Admin's
+// "Extend a week" at the end still gives one extra week of Call Practice and a review. rampWeeks is kept, not used.
 const { prisma } = require('./prisma');
 
 const WEEK_DAYS = 5; // a program week is 5 of the agent's working days
+const SWITCHES = { ramp: false }; // the ramp after Month 1: off for now (tests switch it on to keep it working)
 const CALLS_DEFAULT = [2, 3, 4, 5];
 const WEEK_TITLES_DEFAULT = ['Set up and listen', 'Systems hands-on', 'Practice', 'Supervised live calls'];
 const SYSTEMS = ['CRM', 'EGF', 'Ovago', 'Cockpit', 'GDS', 'Dialpad', 'Gmail', 'Google Flights'];
+const PRESTART_DAY = 0; // "Before day 1": due PRESTART_LEAD of the agent's working days before their first day
+const PRESTART_LEAD = 2;
 
 // auto: it ticks itself from real data (a finished training, the day's calls, a confirmed standard, the setup
-// checklist, the working days being set). The others are ticked by the supervisor.
+// checklist, the working days being set, a login saved in the vault). The others are ticked by their owner.
+// prestart: only on "Before day 1", and nowhere else.
 const KINDS = {
   TRAINING: { owner: 'AGENT', label: 'Training video', auto: true },
   READ: { owner: 'AGENT', label: 'Read a standard', auto: true },
@@ -26,6 +36,8 @@ const KINDS = {
   SIGN_OFF: { owner: 'SUPERVISOR', label: 'Sign-off', auto: false },
   REVIEW: { owner: 'SUPERVISOR', label: 'Review', auto: false },
   SUPERVISOR_TASK: { owner: 'SUPERVISOR', label: 'Task', auto: false },
+  ACCOUNT: { owner: 'ADMIN', label: 'Account', auto: true, prestart: true },
+  ADMIN_TASK: { owner: 'ADMIN', label: 'Admin task', auto: false, prestart: true },
   // the daily ones, never a plan step
   CALLS: { owner: 'AGENT', label: 'Call Practice', auto: true, daily: true },
 };
@@ -37,6 +49,8 @@ const weekTitles = (plan) => { const v = parse(plan && plan.weekTitlesJson, WEEK
 const weekOf = (day) => Math.max(1, Math.ceil(day / WEEK_DAYS));
 /** Calls a day on program day `day`: that week's number; past the last week, the last one. */
 const callsOn = (plan, day) => { const list = callsPerWeek(plan); return list[Math.min(weekOf(day), list.length) - 1]; };
+/** The gate's numbers, from the plan (defaults when an older plan has none). */
+const readyOf = (plan) => ({ accuracy: plan.readyAccuracy ?? 90, calls: plan.readyCalls ?? 10, wpm: plan.readyWpm ?? 35, rampWeeks: SWITCHES.ramp ? plan.rampWeeks ?? 8 : 0, rampCalls: plan.rampCallsPerDay ?? 5 });
 
 // The ready-made plan: [day, kind, title, minutes, system, how-to]. Training videos start without a course ("video
 // coming"): the Admin attaches each one when it is made, and the supervisor's demo covers it until then.
@@ -79,6 +93,15 @@ const DEFAULT_STEPS = [
   [20, 'REVIEW', 'Final review: ready for live calls, or extend a week', 20, null, 'Go through the 4 weeks together. Every sign-off should be done.'],
 ];
 
+// The ready-made "Before day 1" items for a new Travel Agent: [kind, title, system, how-to]. An account ticks itself
+// once its login is saved in the agent's credential vault; the Admin ticks the rest.
+const PRESTART_STEPS = [
+  ...['Gmail', 'Dialpad', 'CRM', 'EGF', 'Ovago', 'Cockpit', 'GDS'].map((system) => ['ACCOUNT', `${system} account`, system, `Create it and save the login in their credential vault. It ticks itself then.`]),
+  ['ADMIN_TASK', 'PC and headset ready at their desk', null, 'Switched on, signed in to Windows, headset tested.'],
+  ['ADMIN_TASK', 'Employment documents signed', null, 'Contract and the documents HR needs, signed and filed.'],
+];
+const prestartData = (offset = 0) => PRESTART_STEPS.map(([kind, title, system, howTo], i) => ({ dayOffset: PRESTART_DAY, kind, owner: KINDS[kind].owner, title, system, howTo, displayOrder: offset + i }));
+
 /** The organization's program plan with its steps in order, or null. */
 function findPlan(organizationId) {
   return prisma.developmentPath.findFirst({ where: { organizationId, program: true }, orderBy: { createdAt: 'asc' }, include: { steps: { orderBy: [{ dayOffset: 'asc' }, { displayOrder: 'asc' }] } } });
@@ -87,18 +110,23 @@ function findPlan(organizationId) {
 /** The plan, created from the ready-made one the first time (needs an active Admin to own it). */
 async function ensurePlan(organizationId) {
   const found = await findPlan(organizationId);
-  if (found) return found;
+  if (found && found.prestartSeeded) return found;
+  if (found) { // a plan made before "Before day 1" existed: its ready-made items are added once (an Admin may remove them)
+    const claimed = await prisma.developmentPath.updateMany({ where: { id: found.id, prestartSeeded: false }, data: { prestartSeeded: true } });
+    if (claimed.count && !found.steps.some((s) => s.dayOffset === PRESTART_DAY)) await prisma.developmentPathStep.createMany({ data: prestartData(-PRESTART_STEPS.length).map((d) => ({ ...d, pathId: found.id })) });
+    return findPlan(organizationId);
+  }
   const admin = await prisma.profile.findFirst({ where: { organizationId, role: 'ADMIN', status: 'ACTIVE', testOwnerAdminId: null }, orderBy: { createdAt: 'asc' }, select: { id: true } });
   if (!admin) return null;
   await prisma.developmentPath.create({
     data: {
       organizationId, program: true, name: 'New Agent Program', createdById: admin.id, lengthDays: 4 * WEEK_DAYS,
       callsPerWeekJson: JSON.stringify(CALLS_DEFAULT), weekTitlesJson: JSON.stringify(WEEK_TITLES_DEFAULT),
-      description: 'The first 4 weeks of every new Travel Agent and Flight Expert.',
-      steps: { create: DEFAULT_STEPS.map(([dayOffset, kind, title, minutes, system, howTo], i) => ({ dayOffset, kind, owner: KINDS[kind].owner, title, minutes, system, howTo, displayOrder: i })) },
+      description: 'The first 4 weeks of every new Travel Agent and Flight Expert.', prestartSeeded: true,
+      steps: { create: [...prestartData(-PRESTART_STEPS.length), ...DEFAULT_STEPS.map(([dayOffset, kind, title, minutes, system, howTo], i) => ({ dayOffset, kind, owner: KINDS[kind].owner, title, minutes, system, howTo, displayOrder: i }))] },
     },
   });
   return findPlan(organizationId);
 }
 
-module.exports = { WEEK_DAYS, CALLS_DEFAULT, WEEK_TITLES_DEFAULT, SYSTEMS, KINDS, PLAN_KINDS, DEFAULT_STEPS, callsPerWeek, weekTitles, weekOf, callsOn, findPlan, ensurePlan };
+module.exports = { WEEK_DAYS, SWITCHES, CALLS_DEFAULT, WEEK_TITLES_DEFAULT, SYSTEMS, PRESTART_DAY, PRESTART_LEAD, KINDS, PLAN_KINDS, DEFAULT_STEPS, PRESTART_STEPS, callsPerWeek, weekTitles, weekOf, callsOn, readyOf, findPlan, ensurePlan };

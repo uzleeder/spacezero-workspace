@@ -205,6 +205,8 @@ router.post('/employees/new', requireAdmin, async (req, res) => {
   if (data.supervisorId && !requiresSupervisor(data.role)) {
     return rerender('A supervisor can only be assigned to an Agent or Flight Expert.');
   }
+  // a new Travel Agent is never without a supervisor (lib/newAgentProgram.js: every item has a real owner)
+  if (data.role === 'TRAVEL_AGENT' && !data.supervisorId) return rerender(null, { supervisorId: ['Choose a supervisor: every new Travel Agent needs one.'] });
 
   const { raw, hash } = generateToken();
 
@@ -409,6 +411,8 @@ router.post('/employees/:id', requireAdmin, async (req, res) => {
 
   // A new role can bring new onboarding training (setup requirements already follow the role).
   if (existing.role !== data.role) await applyOnboarding({ ...existing, role: data.role }, { actorId: admin.id }).catch((err) => console.error('[onboarding] failed:', err.message || err));
+  // A new start date moves a Travel Agent's program that has not started yet (lib/newAgentProgram.js followStartDate).
+  if (data.role === 'TRAVEL_AGENT') await require('../../lib/newAgentProgram').followStartDate({ ...existing, role: data.role, employmentStartDate: new Date(data.employmentStartDate) }).catch((err) => console.error('[program] start date failed:', err.message || err));
 
   await logAudit({
     organizationId: admin.organizationId,

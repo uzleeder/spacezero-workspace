@@ -10,11 +10,22 @@ const { pathOf } = require('../lib/myTraining');
 const { startTraining } = require('../lib/trainingCompletion');
 
 // One path through the learner's training in a fixed order (lib/myTraining.js pathOf), with one main button.
+// A new Travel Agent sees "My day" instead (lib/newAgentBoard.js myDayFor), with "All my training" under it.
 router.get('/training', requireSession, async (req, res) => {
   // Anything already done (every practice passed, material finished) is finished now - it must not sit in Overdue.
   if (!require('../lib/requestContext').readOnly()) await require('../lib/trainingCompletion').autoFinishForProfile(req.profile.id).catch((err) => console.error('auto-finish failed', err.message));
-  const [list, callPractice] = await Promise.all([getMyTrainingList(req.profile.id, { progress: true }), require('../lib/callPractice').summaryFor(req.profile)]);
-  res.render('training', { title: 'My Training', path: pathOf(list), callPractice });
+  const [list, callPractice, myDay] = await Promise.all([
+    getMyTrainingList(req.profile.id, { progress: true }), require('../lib/callPractice').summaryFor(req.profile),
+    require('../lib/newAgentBoard').myDayFor(req.profile),
+  ]);
+  const all = req.query.all === '1';
+  res.render('training', { title: 'My Training', path: pathOf(list), callPractice: myDay ? null : callPractice, myDay: myDay && !all ? myDay : null, hasMyDay: Boolean(myDay) });
+});
+
+// My day's "Quick check": the new Travel Agent answers whether a sign-off, demo or 1:1 really happened (to the admins)
+router.post('/training/my-day/answer/:taskId', requireSession, async (req, res) => {
+  await require('../lib/newAgentBoard').answerCheck(req.profile, req.params.taskId, req.body.answer);
+  res.redirect('/training#my-day');
 });
 
 router.post('/training/:recipientId/start', requireSession, async (req, res) => {

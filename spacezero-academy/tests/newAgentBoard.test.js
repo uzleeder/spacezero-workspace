@@ -68,8 +68,8 @@ test('one group per agent: urgent, needs you, behind, not started, on track, fin
   assert.equal(board.groupOf({ ...base, tasks: [sup(6, { key: 'checkin:6', kind: 'CHECK_IN' })], pos: at6 }), 'ON_TRACK', 'the daily check-in alone does not count');
   assert.equal(board.groupOf({ ...base, profile: { status: 'INVITED' }, tasks: [], pos: at6 }), 'NOT_STARTED', 'not signed in yet');
   assert.equal(board.groupOf({ ...base, summary: { finished: true }, tasks: [], pos: { passed: 20, today: 21, started: true } }), 'FINISHED');
-  assert.equal(board.groupMeaning('URGENT', false), '2 or more working days late. Your admin has been told.');
-  assert.equal(board.groupMeaning('URGENT', true), '2 or more working days late. Admins have been told.');
+  assert.equal(board.groupMeaning('URGENT', false), '2 or more working days late, or Month 1 is over and they are not ready. Your admin has been told.');
+  assert.equal(board.groupMeaning('URGENT', true), '2 or more working days late, or Month 1 is over and they are not ready. Admins have been told.');
 });
 
 test('everything going on in one line, and the one next step with its button', () => {
@@ -121,12 +121,19 @@ test('a Supervisor\'s board: one line per agent in their group, everything going
   assert.match(line(people.aziz.p.id), /Dialpad and CRM sign-offs 2d late · Set their working days 5d late · /);
   assert.match(line(people.aziz.p.id), /calls short on 5 days/);
   assert.match(line(people.aziz.p.id), /class="na-line__late">5d</);
-  assert.match(line(people.aziz.p.id), new RegExp(`href="/new-agents/${people.aziz.p.id}#working-days">Set working days<`));
-  assert.match(line(people.aziz.p.id), /Travel Agent · hired \d+ \w+ · day 6 of 20/);
+  assert.doesNotMatch(line(people.aziz.p.id), /btn/, 'no buttons on the agent lines: Today has them');
+  assert.doesNotMatch(page.text, /data-na-today/, 'no Today section');
+  assert.match(line(people.aziz.p.id), /title="No activity for 5 working days · Dialpad and CRM sign-offs 2d late · [^"]*">Aziz Tester</, 'everything going on, on hover');
+  assert.match(line(people.aziz.p.id), /Travel Agent · started \w+ \d+ \w+/);
+  assert.match(line(people.aziz.p.id), /<span class="na-strong">Week 2<\/span> <span class="na-meta">day 6 of 20</);
+  assert.match(line(people.aziz.p.id), /<span class="na-meta na-trunc">0 of 6 · 2 late</, 'the sign-off blocks');
+  assert.match(page.text, /<span class="na-c na-c--act">Calls today<\/span>/, 'a Supervisor sees today\'s calls');
+  assert.match(page.text, /na-card-stat__label">Your new agents</, 'the summary cards');
+  assert.match(line(people.aziz.p.id), /No activity for 5 working days/);
   assert.match(page.text, /All <span class="na-fchip__n">2<\/span>/);
   assert.match(page.text, /na-fchip na-fchip--urgent" href="\/new-agents\?group=URGENT"><span class="na-dot" aria-hidden="true"><\/span>Urgent <span class="na-fchip__n">1</);
   assert.match(page.text, /na-fchip na-fchip--done is-empty" aria-disabled="true">/);
-  assert.match(page.text, /2 or more working days late\. Your admin has been told\./);
+  assert.match(page.text, /2 or more working days late, or Month 1 is over and they are not ready\. Your admin has been told\./);
   assert.doesNotMatch(page.text, /What you need to do/, 'no separate task lists any more');
   const urgent = await as('kamola').get('/new-agents?group=URGENT');
   assert.match(urgent.text, new RegExp(`data-na-agent="${people.aziz.p.id}"`));
@@ -134,8 +141,13 @@ test('a Supervisor\'s board: one line per agent in their group, everything going
   assert.equal((await as('bobur').get(`/new-agents/${people.aziz.p.id}`)).status, 404, 'another supervisor\'s agent');
   const agentPage = await as('kamola').get(`/new-agents/${people.aziz.p.id}`);
   assert.equal(agentPage.status, 200);
-  assert.match(agentPage.text, /<dt>What's going on<\/dt><dd>Dialpad and CRM sign-offs 2d late/);
-  assert.match(agentPage.text, /<dt>Next step<\/dt><dd>Set their working days<\/dd>/);
+  assert.match(agentPage.text, /class="na-next__what">Set their working days</, 'the one next step');
+  assert.match(agentPage.text, /href="\/new-agents\/[^"?]+\?tab=days#working-days">Set working days</, 'its button opens the Working days tab');
+  assert.match(agentPage.text, /title="No activity for 5 working days · Dialpad and CRM sign-offs 2d late/, 'everything going on, on hover');
+  assert.match(agentPage.text, /id="pane-plan" aria-labelledby="na-plan-title">/, 'the Plan tab first');
+  assert.match(agentPage.text, /id="pane-days" hidden>/);
+  assert.match((await as('kamola').get(`/new-agents/${people.aziz.p.id}?tab=days`)).text, /id="pane-days">/, 'a tab by its link');
+  assert.match(agentPage.text, /class="na-tile__label">Sign-offs</);
   assert.equal((await as('aziz').get('/new-agents')).status, 403);
   assert.equal((await as('aziz').get(`/new-agents/${people.aziz.p.id}`)).status, 403);
 });
@@ -144,8 +156,10 @@ test('an Admin sees everyone, is told who has no supervisor, and can narrow it t
   const page = await as('admin').get('/new-agents');
   for (const k of ['aziz', 'malika', 'jasur', 'dilnoza']) assert.match(page.text, new RegExp(`data-na-agent="${people[k].p.id}"`));
   assert.match(page.text, /1 new agent has no supervisor/);
-  assert.match(page.text, /2 or more working days late\. Admins have been told\./);
-  assert.match(page.text, /Travel Agent · hired \d+ \w+ · day 6 of 20 · Kamola Tester/, 'an Admin sees whose agent it is');
+  assert.match(page.text, /2 or more working days late, or Month 1 is over and they are not ready\. Admins have been told\./);
+  assert.match(page.text, /Travel Agent · Kamola Tester/, 'an Admin sees whose agent it is');
+  assert.match(page.text, /<span class="na-c na-c--act">Activity<\/span>/);
+  assert.match(page.text, /id="na-score-title" class="na-h3">Supervisors</, 'and how each supervisor keeps up');
   const one = await as('admin').get(`/new-agents?supervisor=${people.bobur.p.id}`);
   assert.match(one.text, new RegExp(`data-na-agent="${people.jasur.p.id}"`));
   assert.doesNotMatch(one.text, new RegExp(`data-na-agent="${people.aziz.p.id}"`));
@@ -170,8 +184,12 @@ test('ticking from the board: done once, by that supervisor; items that tick the
 test('a sign-off with what was watched; a review needs a verdict and a line, and "Extend a week" adds 5 days; undo takes it back', async () => {
   const signOff = await taskOf('aziz', { kind: 'SIGN_OFF', system: 'Dialpad' });
   await as('kamola').form(`/new-agents/${people.aziz.p.id}/tasks/${signOff.id}/done`, { note: 'Transfers confidently' });
-  const page = await as('kamola').get(`/new-agents/${people.aziz.p.id}`);
-  assert.match(page.text, /Dialpad<\/span><span class="na-meta">\d+ \w+, by you/);
+  let page = await as('kamola').get(`/new-agents/${people.aziz.p.id}`);
+  assert.match(page.text, /Dialpad<\/span><span class="na-meta">Waiting for an admin/, 'a Travel Agent\'s sign-off waits for an admin');
+  await as('admin').form(`/new-agents/${people.aziz.p.id}/tasks/${signOff.id}/confirm`, {});
+  page = await as('kamola').get(`/new-agents/${people.aziz.p.id}`);
+  assert.match(page.text, /Dialpad<\/span><span class="na-meta">\d+ \w+, by Admin Tester/);
+  assert.match(page.text, /seen by you, confirmed by Admin Tester/);
   assert.match(page.text, /Transfers confidently/);
 
   const review = await taskOf('aziz', { kind: 'REVIEW', title: 'Week 1 review' });
@@ -183,7 +201,8 @@ test('a sign-off with what was watched; a review needs a verdict and a line, and
   assert.match(longer.text, /data-na-week="5"/, 'an extra week appears');
   assert.match(longer.text, /Week 1 review · Extend a week/);
 
-  await as('kamola').form(`/new-agents/${people.aziz.p.id}/tasks/${review.id}/undo`, {});
+  assert.match(decodeURIComponent((await as('kamola').form(`/new-agents/${people.aziz.p.id}/tasks/${review.id}/undo`, {})).headers.location), /Only an admin takes a tick back/);
+  await as('admin').form(`/new-agents/${people.aziz.p.id}/tasks/${review.id}/undo`, {});
   assert.equal((await prisma.agentProgram.findUnique({ where: { id: programs.aziz.id } })).extraDays, 0);
   assert.equal((await prisma.agentProgramTask.findUnique({ where: { id: review.id } })).doneAt, null);
   const auto = await taskOf('aziz', { kind: 'CALLS', day: 1 });
@@ -199,23 +218,24 @@ test('working days and days off, set by the supervisor: setting them ticks their
   await as('kamola').form(`/new-agents/${people.aziz.p.id}/days-off`, { date: today });
   let page = await as('kamola').get(`/new-agents/${people.aziz.p.id}`);
   assert.match(page.text, /na-daysoff__list">\s*<li>/);
-  assert.match((await as('kamola').get('/new-agents')).text, /Travel Agent · hired \d+ \w+ · day off today/);
+  assert.match((await as('kamola').get('/new-agents')).text, /<span class="na-strong">Week \d<\/span> <span class="na-meta">day off today</);
   await as('kamola').form(`/new-agents/${people.aziz.p.id}/days-off`, { date: today, remove: '1' });
   page = await as('kamola').get(`/new-agents/${people.aziz.p.id}`);
-  assert.match(page.text, /Day 6 · today/);
+  assert.match(page.text, /Day 6 · \w+ \d+ \w+ · today/);
   assert.match(decodeURIComponent((await as('kamola').form(`/new-agents/${people.aziz.p.id}/days-off`, { date: '2020-01-01' })).headers.location), /inside the program/);
 });
 
-test('notes, extending a week by hand, and the "First month" tab on the employee record', async () => {
+test('notes, extending a week by hand, and the "New agent" tab on the employee record', async () => {
   await as('kamola').form(`/new-agents/${people.aziz.p.id}/notes`, { body: 'Booked extra EGF time for Monday.' });
   assert.equal(await prisma.coachingNote.count({ where: { profileId: people.aziz.p.id, authorId: people.kamola.p.id } }), 1);
   assert.match((await as('kamola').get(`/new-agents/${people.aziz.p.id}`)).text, /Booked extra EGF time for Monday\./);
   await as('kamola').form(`/new-agents/${people.aziz.p.id}/extend`, {});
   assert.equal((await prisma.agentProgram.findUnique({ where: { id: programs.aziz.id } })).extraDays, 5);
 
-  assert.match((await as('kamola').get(`/employees/${people.aziz.p.id}/training`)).text, new RegExp(`href="/new-agents/${people.aziz.p.id}">First month<`));
-  assert.doesNotMatch((await as('aziz').get(`/employees/${people.aziz.p.id}/training`)).text, /First month/, 'not for the agent');
-  assert.match((await as('kamola').get(`/team/${people.aziz.p.id}`)).text, /First month/);
+  assert.match((await as('kamola').get(`/employees/${people.aziz.p.id}/training`)).text, new RegExp(`href="/new-agents/${people.aziz.p.id}">New agent<`));
+  assert.doesNotMatch((await as('aziz').get(`/employees/${people.aziz.p.id}/training`)).text, />New agent</, 'not for the agent');
+  assert.match((await as('kamola').get(`/team/${people.aziz.p.id}`)).text, />New agent</);
+  assert.doesNotMatch((await as('kamola').get(`/new-agents/${people.aziz.p.id}`)).text, /\/extend" data-once/, 'no "Extend a week" in the header: the review verdict does it');
 });
 
 test('a stopped program is shown as it was, with nothing to tick', async () => {

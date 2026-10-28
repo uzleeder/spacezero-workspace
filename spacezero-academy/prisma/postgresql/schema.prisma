@@ -858,8 +858,9 @@ model PracticeCallTranscript {
   accuracy            Float?
   wordsPerMinute      Float?
   startedAt           DateTime     @default(now())
+  attempt             Int          @default(1) // 2, 3 ... when a Travel Agent who did every call hears their lowest-scored one again
 
-  @@unique([profileId, callId])
+  @@unique([profileId, callId, attempt])
   @@index([callId])
 }
 
@@ -1571,6 +1572,14 @@ model DevelopmentPath {
   callsPerWeekJson String? // New Agent Program: Call Practice calls a day in each program week, e.g. [2,3,4,5]
   weekTitlesJson   String? // New Agent Program: the name of each week
   dailyCheckIn     Boolean @default(true) // New Agent Program: a 5-minute supervisor check-in on every other day
+  // New Travel Agents only (lib/newAgentProgram.js onTravelPath): the ramp after the 4 weeks and the "Ready for solo
+  // live calls" gate, plus a one-time marker that the ready-made "Before day 1" items were added.
+  rampWeeks       Int     @default(8) // at most this many weeks of ramp after the 4 weeks
+  rampCallsPerDay Int     @default(5) // Call Practice calls a day during the ramp
+  readyAccuracy   Int     @default(90) // gate: average accuracy (%) over the last readyCalls calls
+  readyCalls      Int     @default(10)
+  readyWpm        Int     @default(35) // gate: average typing speed (words a minute) over the same calls
+  prestartSeeded  Boolean @default(false)
 
   steps    DevelopmentPathStep[]
   programs AgentProgram[]
@@ -1615,7 +1624,10 @@ model AgentProgram {
   workDaysConfirmedAt DateTime?
   daysOffJson         String           @default("[]")
   extraDays           Int              @default(0)
-  status              String           @default("ACTIVE") // ACTIVE | STOPPED | COMPLETED
+  rampExtraDays       Int              @default(0) // working days an Admin added to the ramp ("Extend ramp")
+  status              String           @default("ACTIVE") // ACTIVE | STOPPED | COMPLETED (approved for solo live calls)
+  approvedAt          DateTime?
+  approvedById        String?
   startedById         String?
   stoppedAt           DateTime?
   createdAt           DateTime         @default(now())
@@ -1648,6 +1660,14 @@ model AgentProgramTask {
   doneById   String? // null when it ticked itself from real data
   note       String?
   resultJson String?
+  // a Travel Agent's sign-off waits for an admin: the supervisor asked (what they saw is in note); doneAt is the confirm
+  requestedAt     DateTime?
+  requestedById   String?
+  // the agent's own answer to "did this happen?" (YES | NO | UNSURE), and an admin who looked at a flag and let it be
+  agentAnswer     String?
+  agentAnsweredAt DateTime?
+  flagClearedAt   DateTime?
+  flagClearedById String?
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 

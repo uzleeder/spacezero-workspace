@@ -1,7 +1,8 @@
 'use strict';
 
-// Manage Training -> New Agent Program (Admin): who is in it, how it runs (on or off, calls a day each week, daily
-// check-ins, week names), and the plan itself - the items of each day, added, changed or removed here. A change to the
+// Manage Training -> New Agent Program (Admin): who is in it, how it runs (calls a day each week, daily check-ins,
+// week names, and for new Travel Agents the ramp and the "Ready for solo live calls" targets), and the plan itself
+// (with the Admin's "Before day 1" items) - the items of each day, added, changed or removed here. A change to the
 // plan reaches every running program for the days still ahead; today and the past stay as they were
 // (lib/newAgentProgram.js). An Admin can also start it for someone already in their first months, at the right day,
 // set an agent's working days, and stop a program.
@@ -35,10 +36,10 @@ async function agentOf(req, id) {
 
 /** A plan item from a form, checked; { error } when something is wrong. */
 async function readItem(req, plan) {
-  const day = int(req.body.day, 1, MAX_DAY);
   const kind = plans.PLAN_KINDS.includes(req.body.kind) ? req.body.kind : null;
+  const day = kind && plans.KINDS[kind].prestart ? plans.PRESTART_DAY : int(req.body.day, 1, MAX_DAY); // an Admin's item is always before day 1
   const title = text(req.body.title, 160);
-  if (!day || !kind || title.length < 2) return { error: `An item needs a day (1-${MAX_DAY}), a kind and a title.` };
+  if (day === null || !kind || title.length < 2) return { error: `An item needs a day (1-${MAX_DAY}), a kind and a title.` };
   const minutes = req.body.minutes === '' || req.body.minutes == null ? null : int(req.body.minutes, 1, 240);
   if (minutes === null && req.body.minutes) return { error: 'Minutes are a whole number from 1 to 240.' };
   let courseId = null;
@@ -65,7 +66,7 @@ function weeksOf(plan, courseTitle, standardTitle) {
   for (let w = 1; (w - 1) * plans.WEEK_DAYS < lastDay; w += 1) {
     const days = [];
     for (let d = (w - 1) * plans.WEEK_DAYS + 1; d <= Math.min(w * plans.WEEK_DAYS, lastDay); d += 1) {
-      const steps = plan.steps.filter((s) => s.dayOffset === d).map((s) => ({
+      const steps = plan.steps.filter((s) => s.dayOffset === d && !(plans.KINDS[s.kind] || {}).prestart).map((s) => ({
         ...s, kindLabel: (plans.KINDS[s.kind] || {}).label || s.kind,
         courseTitle: s.courseId ? courseTitle.get(s.courseId) || 'Training no longer in the catalog' : null,
         standardTitle: s.standardId ? standardTitle.get(s.standardId) || 'Standard no longer available' : null,
@@ -94,7 +95,7 @@ router.get('/new-agent-program', adminOnly, async (req, res) => {
   for (const r of running) {
     const state = await program.refresh(r.id, { now });
     const sup = await prisma.supervisorAssignment.findFirst({ where: { agentId: state.program.profileId, unassignedAt: null }, select: { supervisor: { select: { fullName: true } } } });
-    people.push({ ...state, supervisor: sup ? sup.supervisor.fullName : null, workDays: program.workDaysLabel(JSON.parse(state.program.workDaysJson || '[]')), nextKey: state.pos.today ? null : program.dateOfDay(state.cal, state.pos.passed + 1) });
+    people.push({ ...state, stage: state.travel ? require('../../lib/newAgentBoard').stageText(state) : null, supervisor: sup ? sup.supervisor.fullName : null, workDays: program.workDaysLabel(JSON.parse(state.program.workDaysJson || '[]')), nextKey: state.pos.today ? null : program.dateOfDay(state.cal, state.pos.passed + 1) });
   }
   // people in their first months without a program, with the day they would be on now (Monday to Friday)
   const inProgram = await prisma.agentProgram.findMany({ where: { organizationId: org, status: 'ACTIVE' }, select: { profileId: true } });
@@ -110,21 +111,27 @@ router.get('/new-agent-program', adminOnly, async (req, res) => {
   res.render('admin/new-agent-program/index', {
     title: 'New Agent Program', plan, people, candidates, courses, standards, roleLabel, notice, supervisorEmails, error: typeof req.query.error === 'string' ? req.query.error.slice(0, 200) : '',
     weeks: weeksOf(plan, new Map(courses.map((c) => [c.id, c.title])), new Map(standards.map((s) => [s.id, s.title]))),
+    before: plan.steps.filter((s) => s.dayOffset === plans.PRESTART_DAY || (plans.KINDS[s.kind] || {}).prestart).map((s) => ({ ...s, kindLabel: (plans.KINDS[s.kind] || {}).label || s.kind })), ready: plans.readyOf(plan), rampOn: plans.SWITCHES.ramp, lead: plans.PRESTART_LEAD,
     calls: plans.callsPerWeek(plan), weekTitles: plans.weekTitles(plan), KINDS: plans.KINDS, PLAN_KINDS: plans.PLAN_KINDS, SYSTEMS: plans.SYSTEMS, maxDay: MAX_DAY, item: { dayOffset: 1, kind: 'DEMO' },
   });
 });
 
-// On or off, Call Practice calls a day in each week, the daily check-in and the week names.
+// Call Practice calls a day in each week, the daily check-in, the week names, and the Travel Agent ramp and targets.
+// It always starts by itself: there is no switch.
 router.post('/new-agent-program/settings', adminOnly, async (req, res) => {
   const plan = await planOf(req);
   if (!plan) return notFound(res);
   const weeks = Math.ceil(plan.lengthDays / plans.WEEK_DAYS);
   const calls = Array.from({ length: weeks }, (_, i) => int(req.body[`calls${i + 1}`], 1, 5));
   if (calls.some((c) => c === null)) return res.redirect(`${HOME}?error=${encodeURIComponent('Calls a day are a number from 1 to 5 for each week.')}`);
+  const now = plans.readyOf(plan);
+  const field = (name, current, lo, hi) => int(req.body[name] === undefined ? current : req.body[name], lo, hi); // a field left out keeps its value
+  const ramp = { rampWeeks: field('rampWeeks', plan.rampWeeks ?? 8, 1, 26), rampCallsPerDay: field('rampCallsPerDay', now.rampCalls, 1, 5), readyAccuracy: field('readyAccuracy', now.accuracy, 50, 100), readyCalls: field('readyCalls', now.calls, 3, 50), readyWpm: field('readyWpm', now.wpm, 5, 150) };
+  if (Object.values(ramp).some((v) => v === null)) return res.redirect(`${HOME}?error=${encodeURIComponent('Ramp: 1 to 26 weeks and 1 to 5 calls a day. Targets: accuracy 50 to 100%, over 3 to 50 calls, 5 to 150 words a minute.')}#ramp`);
   const titles = Array.from({ length: weeks }, (_, i) => text(req.body[`week${i + 1}`], 60) || plans.weekTitles(plan)[i] || `Week ${i + 1}`);
-  await prisma.developmentPath.update({ where: { id: plan.id }, data: { isActive: req.body.isActive === '1', dailyCheckIn: req.body.dailyCheckIn === '1', callsPerWeekJson: JSON.stringify(calls), weekTitlesJson: JSON.stringify(titles) } });
+  await prisma.developmentPath.update({ where: { id: plan.id }, data: { isActive: true, dailyCheckIn: req.body.dailyCheckIn === '1', callsPerWeekJson: JSON.stringify(calls), weekTitlesJson: JSON.stringify(titles), ...ramp } });
   await setSetting(req.profile.organizationId, 'program.supervisorEmails', req.body.supervisorEmails === '1', req.profile.id);
-  await audit(req, 'program.settings_changed', 'DevelopmentPath', plan.id, { isActive: req.body.isActive === '1', calls, dailyCheckIn: req.body.dailyCheckIn === '1', supervisorEmails: req.body.supervisorEmails === '1' });
+  await audit(req, 'program.settings_changed', 'DevelopmentPath', plan.id, { calls, dailyCheckIn: req.body.dailyCheckIn === '1', supervisorEmails: req.body.supervisorEmails === '1', ...ramp });
   res.redirect(`${HOME}?saved=1`);
 });
 
@@ -136,7 +143,7 @@ router.post('/new-agent-program/items', adminOnly, async (req, res) => {
   const last = await prisma.developmentPathStep.aggregate({ where: { pathId: plan.id }, _max: { displayOrder: true } });
   const step = await prisma.developmentPathStep.create({ data: { ...data, pathId: plan.id, displayOrder: (last._max.displayOrder || 0) + 1 } });
   await audit(req, 'program.item_added', 'DevelopmentPathStep', step.id, { day: data.dayOffset, kind: data.kind, title: data.title });
-  res.redirect(`${HOME}?added=1#day-${data.dayOffset}`);
+  res.redirect(`${HOME}?added=1#${data.dayOffset === plans.PRESTART_DAY ? 'before-day-1' : `day-${data.dayOffset}`}`);
 });
 
 async function stepOf(req) {
@@ -163,7 +170,7 @@ router.post('/new-agent-program/items/:id', adminOnly, async (req, res) => {
   if (error) return res.redirect(`${HOME}/items/${found.step.id}?error=${encodeURIComponent(error)}`);
   await prisma.developmentPathStep.update({ where: { id: found.step.id }, data });
   await audit(req, 'program.item_changed', 'DevelopmentPathStep', found.step.id, { day: data.dayOffset, kind: data.kind, courseId: data.courseId });
-  res.redirect(`${HOME}?saved=1#day-${data.dayOffset}`);
+  res.redirect(`${HOME}?saved=1#${data.dayOffset === plans.PRESTART_DAY ? 'before-day-1' : `day-${data.dayOffset}`}`);
 });
 
 router.post('/new-agent-program/items/:id/delete', adminOnly, async (req, res) => {
