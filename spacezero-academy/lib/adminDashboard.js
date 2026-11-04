@@ -74,7 +74,7 @@ async function fixLane(actor, { states, setups, active, now }) {
     const sups = [...new Set(agents.map((s) => (s.supervisor ? s.supervisor.fullName : 'no supervisor')))];
     cards.push(card('late', {
       title: `${plural(late.length, 'supervisor item')} ${reminders.ESCALATE_DAYS}+ days late`,
-      meta: `For ${names(agents.map((s) => s.profile.fullName))} · ${sups.length === 1 && sups[0] !== 'no supervisor' ? `owned by ${sups[0]}` : names(sups)}`,
+      meta: `For ${names(agents.map((s) => s.profile.fullName))}. ${sups.length === 1 ? (sups[0] === 'no supervisor' ? 'No supervisor.' : `Owned by ${sups[0]}.`) : `Owned by ${names(sups)}.`}`,
       people: agents.map((s) => s.profile), action: 'See items', href: agents.length === 1 ? `/new-agents/${agents[0].profile.id}` : '/new-agents',
     }));
   }
@@ -222,11 +222,11 @@ async function behindOf(actor, { states, learning, byId }) {
   for (const s of states) {
     const own = s.tasks.filter((t) => t.owner === 'AGENT' && np.stateOf(t, s.pos) === 'LATE' && !board.isHistory(t, s.pos, s.travel));
     const days = own.length ? Math.max(...own.map((t) => np.daysLate(t, s.pos))) : 0;
-    const sup = s.supervisor ? s.supervisor.fullName : 'no supervisor';
-    if (days) add(s.profile, 0, days, `New agent · ${sup}`, `${plural(days, 'day')} behind`, `/new-agents/${s.profile.id}`);
+    const sup = s.supervisor ? `supervisor ${s.supervisor.fullName}` : 'no supervisor';
+    if (days) add(s.profile, 0, days, `New agent, ${sup}`, `${plural(days, 'day')} behind`, `/new-agents/${s.profile.id}`);
     if (s.travel) {
       const streak = await reminders.lowStreak(s.profile.id);
-      if (streak) add(s.profile, 1, 0, `Call Practice ${Math.round(streak.last[streak.last.length - 1].accuracy)}%, needs ${plans.readyOf(s.plan || {}).accuracy}% · ${sup}`, `Low ${streak.last.length} calls in a row`, `/new-agents/${s.profile.id}`);
+      if (streak) add(s.profile, 1, 0, `Call Practice ${Math.round(streak.last[streak.last.length - 1].accuracy)}%, needs ${plans.readyOf(s.plan || {}).accuracy}%`, `Low ${streak.last.length} calls in a row`, `/new-agents/${s.profile.id}`);
     }
   }
   const by = (list) => { const m = new Map(); for (const l of list) m.set(l.profileId, [...(m.get(l.profileId) || []), l]); return m; };
@@ -241,7 +241,7 @@ async function behindOf(actor, { states, learning, byId }) {
   for (const r of slipping) add(byId.get(r.profileId), 4, 0, r.title, 'Skill slipping', `/employees/${r.profileId}/training`);
 
   const all = [...rows.values()].sort((a, b) => a.rank - b.rank || b.sort - a.sort || a.person.fullName.localeCompare(b.person.fullName));
-  return { total: all.length, rows: all.slice(0, BEHIND_SHOWN).map((r) => ({ ...r, face: face(r.person), why: r.others ? `${r.why} · +${r.others} more` : r.why })) };
+  return { total: all.length, rows: all.slice(0, BEHIND_SHOWN).map((r) => ({ ...r, face: face(r.person), why: r.others ? `${r.why} (+${plural(r.others, 'more issue')})` : r.why })) };
 }
 
 /** Everything the Admin dashboard shows, counted now. */

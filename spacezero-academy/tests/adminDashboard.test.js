@@ -108,7 +108,7 @@ test('the page shows the lanes and refreshes itself from /dashboard/live, which 
   const page = await get('admin', '/dashboard');
   assert.equal(page.status, 200);
   assert.match(page.headers['cache-control'], /no-store/);
-  for (const text of ['Urgent', 'Decision needed', 'Up next', 'Academy health', 'Falling behind', 'Dilnoza Tester has no supervisor', 'Live · updated just now']) assert.ok(page.text.includes(text), text);
+  for (const text of ['Urgent', 'Decision needed', 'Up next', 'Academy health', 'Falling behind', 'Dilnoza Tester has no supervisor', 'Updated just now']) assert.ok(page.text.includes(text), text);
   assert.match(page.text, /data-live="\/dashboard\/live"/);
   assert.match(page.text, /dashboard-live\.js/);
   assert.doesNotMatch(page.text, /Total employees|Quick actions|A world of knowledge/);

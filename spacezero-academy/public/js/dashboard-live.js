@@ -14,7 +14,7 @@
     var el = root.querySelector('[data-ago]');
     if (!el) return;
     var mins = Math.floor((Date.now() - last) / 60000);
-    el.textContent = mins < 1 ? 'Live · updated just now' : 'Live · updated ' + mins + ' min ago';
+    el.textContent = mins < 1 ? 'Updated just now' : 'Updated ' + mins + ' min ago';
   }
   function cards() {
     var out = {};
