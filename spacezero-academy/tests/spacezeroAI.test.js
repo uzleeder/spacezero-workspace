@@ -158,18 +158,22 @@ test('the sidebar names the workspace "SpaceZero Workspace", and the Admin badge
   assert.match(badge, /var LABEL = "ENGINEERED BY";/); assert.doesNotMatch(badge, /"CRAFTED BY"|"Crafted by/);
 });
 
-test('the dashboard globe marks Uzbekistan and is drawn by its own script', async () => {
-  const dash = await get(admin, '/dashboard');
-  assert.match(dash.text, /<svg [^>]*data-globe[ >]/);
-  assert.match(dash.text, />Uzbekistan<\/text>/);
-  assert.match(dash.text, /\/static\/js\/hero-globe\.js/);
+// The SpaceZero Standard card (views/partials/workspace-hero.ejs) is kept, but the one-glance dashboards
+// (approved 2026-11-04) do not show it; these tests render the card on its own.
+const heroOf = (profile) => require('ejs').renderFile(require('node:path').join(__dirname, '..', 'views', 'partials', 'workspace-hero.ejs'), { profile, asset: require('../lib/assets').asset });
+
+test('the globe marks Uzbekistan and is drawn by its own script', async () => {
+  const hero = await heroOf(admin);
+  assert.match(hero, /<svg [^>]*data-globe[ >]/);
+  assert.match(hero, />Uzbekistan<\/text>/);
+  assert.match(hero, /\/static\/js\/hero-globe\.js/);
   const js = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'js', 'hero-globe.js'), 'utf8');
   assert.match(js, /var TAS = \{ code: 'TAS', city: 'Tashkent', at: \[69\.2812, 41\.2579\] \};/);
   for (const code of ['JFK', 'LHR', 'IST', 'DXB', 'ICN', 'DEL']) assert.match(js, new RegExp(`code: '${code}'`));
   new Function(js);   // the script parses
 });
 
-test('every role gets the SpaceZero Standard card on its dashboard, in its own words', async () => {
+test('the SpaceZero Standard card speaks to every role in its own words; the dashboards do not show it', async () => {
   const expert = await makeUser('FLIGHT_EXPERT', 'expert');
   const cases = [
     [admin, /Extraordinary service\.<br>Starts with you\./, 'href="/admin/training"', 'Manage training'],
@@ -178,7 +182,8 @@ test('every role gets the SpaceZero Standard card on its dashboard, in its own w
     [expert, /Every flight\.<br>Built with expertise\./, 'href="/training"', 'Continue my training'],
   ];
   for (const [who, line, href, action] of cases) {
-    const page = (await get(who, '/dashboard')).text;
+    assert.doesNotMatch((await get(who, '/dashboard')).text, /THE SPACEZERO STANDARD|data-globe/, who.role);
+    const page = await heroOf(who);
     assert.match(page, /THE SPACEZERO STANDARD/, who.role);
     assert.doesNotMatch(page, /ABOVE9 STANDARD/i, who.role);
     assert.match(page, line, who.role);
@@ -206,8 +211,8 @@ test('the sidebar follows the theme: the badge colour matches it, and light mode
 test('abroad the globe shows only airport codes; only Uzbekistan is named in full', async () => {
   const js = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'js', 'hero-globe.js'), 'utf8');
   assert.match(js, /label\.textContent = r\.code;/);
-  const dash = (await get(admin, '/dashboard')).text;
-  assert.match(dash, />Uzbekistan<\/text>/); assert.match(dash, />TAS · Tashkent<\/text>/);
+  const hero = await heroOf(admin);
+  assert.match(hero, />Uzbekistan<\/text>/); assert.match(hero, />TAS · Tashkent<\/text>/);
 });
 
 test('Space AI message box: Enter sends, and a send icon inside the box replaces the Ask button', async () => {

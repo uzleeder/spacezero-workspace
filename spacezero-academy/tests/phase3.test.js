@@ -136,7 +136,8 @@ test('agent journey: a weak skill produces a next action with a reason from real
   assert.ok(item.action.href.includes(practice.id));
   const page = await get(p, '/dashboard');
   assert.equal(page.status, 200);
-  assert.match(page.text, /What should I practice next/i);
+  // the agent dashboard's Next card (lib/agentDashboard.js): the My Training step, or with none left, this practice
+  assert.match(page.text, /<section class="ag-next" id="next"/);
 });
 
 test('Flight Experts never receive sales skills or sales practice', async () => {
