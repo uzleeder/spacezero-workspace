@@ -52,7 +52,7 @@ test('AUTH REQUIRED: an anonymous request cannot reach the assistant', async () 
 test('GET /assistant renders the ask form for an authenticated session', async () => {
   const res = await get(admin, '/assistant');
   assert.equal(res.status, 200);
-  assert.match(res.text, /Ask SpaceZero AI/);
+  assert.match(res.text, /Ask Space AI/);
 });
 
 test('ADMIN SCOPE: facts sent to Gemini include both teams\' agents, and are organization-scoped', async () => {
@@ -140,4 +140,20 @@ test('RATE LIMIT: repeated questions in a short window are eventually blocked', 
     if (res.status === 429) { blocked = true; break; }
   }
   assert.ok(blocked, 'expected the assistant endpoint to rate-limit a burst of requests from one profile');
+});
+
+test('Space AI is a button in the bottom-right corner of every page (not a menu item), and not on its own page', async () => {
+  const dash = await get(admin, '/dashboard');
+  assert.match(dash.text, /class="space-ai no-print" data-space-ai/);
+  assert.match(dash.text, /<form method="post" action="\/assistant\/ask" class="space-ai__form">/);
+  assert.doesNotMatch(dash.text, /class="sidebar-link[^"]*" href="\/assistant"/);
+  assert.doesNotMatch((await get(admin, '/assistant')).text, /data-space-ai/);
+});
+
+test('the sidebar names the workspace "SpaceZero Workspace", and the Admin badge reads "Engineered by UzLeeder"', async () => {
+  const dash = await get(admin, '/dashboard');
+  assert.match(dash.text, /<div class="workspace-label"><span class="workspace-dot"><\/span> SpaceZero Workspace<\/div>/);
+  assert.doesNotMatch(dash.text, /Above9 Travel/);
+  const badge = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'js', 'uzleeder-crafted.js'), 'utf8');
+  assert.match(badge, /var LABEL = "ENGINEERED BY";/); assert.doesNotMatch(badge, /"CRAFTED BY"|"Crafted by/);
 });

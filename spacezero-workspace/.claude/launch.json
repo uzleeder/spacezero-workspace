@@ -4,8 +4,41 @@
     {
       "name": "spacezero-dev",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["--env-file-if-exists=.env", "--watch", "server.js"],
+      "runtimeArgs": [
+        "--env-file-if-exists=.env",
+        "--watch",
+        "server.js"
+      ],
       "port": 3000
+    },
+    {
+      "name": "spacezero-test",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "PORT=3002",
+        "APP_ORIGIN=http://localhost:3002",
+        "node",
+        "--env-file-if-exists=.env",
+        "--watch",
+        "server.js"
+      ],
+      "port": 3002,
+      "autoPort": false
+    },
+    {
+      "name": "spacezero-travel-path",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "PORT=3003",
+        "APP_ORIGIN=http://127.0.0.1:3003",
+        "node",
+        "--env-file-if-exists=.env",
+        "--watch",
+        "server.js"
+      ],
+      "port": 3003,
+      "url": "http://127.0.0.1:3003",
+      "autoPort": false
     }
   ]
 }

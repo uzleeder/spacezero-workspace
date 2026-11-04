@@ -35,11 +35,12 @@ const p = data.profile;
       <% if (data.tenureBand) { %><span class="badge"><%= data.tenureBand.label %></span><% } %>
     </div>
   </div>
-  <div class="grid grid-4 mt-24 divider-top" style="padding-top:20px">
-    <div><p class="text-sm text-muted">Employment start date</p><p style="font-weight:500;color:var(--navy-950)"><%= p.employmentStartDate.toLocaleDateString('en-US') %></p></div>
-    <div><p class="text-sm text-muted">Tenure</p><p style="font-weight:500;color:var(--navy-950)"><%= data.tenureMonths %> months</p></div>
-    <div><p class="text-sm text-muted">Last activity</p><p style="font-weight:500;color:var(--navy-950)"><%= p.lastActivityAt ? p.lastActivityAt.toLocaleString('en-US') : '—' %></p></div>
-    <div><p class="text-sm text-muted">Status</p><p style="font-weight:500;color:var(--navy-950)"><%= p.status %></p></div>
+  <% var STATUS_WORD = { ACTIVE: 'Active', INVITED: 'Invited', DISABLED: 'Disabled', ARCHIVED: 'Archived' }; %>
+  <div class="info-grid mt-24">
+    <div class="info-tile"><p class="k">Employment start</p><p class="v"><%= p.employmentStartDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) %></p></div>
+    <div class="info-tile"><p class="k">Tenure</p><p class="v"><%= data.tenureMonths %> month<%= data.tenureMonths === 1 ? '' : 's' %></p></div>
+    <div class="info-tile"><p class="k">Last activity</p><p class="v<%= p.lastActivityAt ? '' : ' is-missing' %>"><%= p.lastActivityAt ? p.lastActivityAt.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Not yet' %></p></div>
+    <div class="info-tile"><p class="k">Status</p><p class="v"><%= p.firedAt ? 'Fired' : (STATUS_WORD[p.status] || p.status) %></p></div>
   </div>
 </div>
 
@@ -50,11 +51,11 @@ const p = data.profile;
   // can never disagree with the sections below it.
   const skillAvg = data.hasSkillGraph && data.skills.length ? Math.round(data.skills.reduce((s, x) => s + x.currentScore, 0) / data.skills.length) : null;
 %>
-<div class="grid grid-4 mt-24">
+<div class="grid stat-row mt-24">
   <div class="card stat-card"><p class="label">Setup</p><p class="value"><%= data.setup.notStarted ? '—' : data.setup.percent + '%' %></p></div>
   <div class="card stat-card"><p class="label">Training</p><p class="value"><%= data.summary.completed %> / <%= data.summary.assigned %></p></div>
   <% if (skillAvg !== null) { %><div class="card stat-card"><p class="label">Skills</p><p class="value"><%= skillAvg %>%</p></div><% } %>
-  <% if (data.standardsAck && data.standardsAck.required > 0) { %><div class="card stat-card"><p class="label">Standards</p><p class="value"><%= data.standardsAck.pending %> Pending</p></div><% } %>
+  <% if (data.standardsAck && data.standardsAck.required > 0) { %><div class="card stat-card"><p class="label">Standards</p><p class="value"><%= data.standardsAck.pending %><span class="unit">pending</span></p></div><% } %>
   <% var canOpenSetup = p.id === profile.id || can('setup.view'); %>
   <% if (data.readiness) { %><a href="<%= p.status === 'INVITED' || !canOpenSetup ? '#' : (data.readiness.key === 'READY' ? '#' : '/employees/' + p.id + '/setup') %>" class="card stat-card card-link"><p class="label">Status</p><p class="value" style="font-size:18px"><span class="badge <%= data.readiness.tone %>"><%= data.readiness.label %></span></p></a><% } %>
 </div>
@@ -62,13 +63,13 @@ const p = data.profile;
 <div class="card mt-24">
   <div class="card-header row-between"><h2>Setup &amp; availability</h2><% if (canOpenSetup) { %><a href="/employees/<%= p.id %>/setup" class="link-gold text-sm">Open setup</a><% } %></div>
   <div class="card-body">
-    <div class="grid grid-4">
-      <div><p class="text-sm text-muted">Setup</p><div style="margin-top:4px"><%- include('setup-badge', { setup: data.setup }) %></div></div>
-      <div><p class="text-sm text-muted">Local phone</p><p style="font-weight:500;color:var(--navy-950)"><%= p.localPhone || 'Not set up' %></p></div>
-      <div><p class="text-sm text-muted">Current living address</p><p style="font-weight:500;color:var(--navy-950)"><%= data.hasAddress ? 'Address ✓' : 'Address missing' %></p></div>
-      <div><p class="text-sm text-muted">Vacation / leave</p>
-        <% if (data.upcomingLeave.length === 0) { %><p style="font-weight:500;color:var(--navy-950)">None planned</p>
-        <% } else { var l = data.upcomingLeave[0]; %><p style="font-weight:500;color:var(--navy-950)"><%= l.status === 'PENDING' ? 'Pending' : 'Approved' %> · <%= l.startDate.toISOString().slice(0, 10) %> → <%= l.endDate.toISOString().slice(0, 10) %></p><% } %>
+    <div class="info-grid">
+      <div class="info-tile"><p class="k">Setup</p><div style="margin-top:6px"><%- include('setup-badge', { setup: data.setup }) %></div></div>
+      <div class="info-tile"><p class="k">Local phone</p><p class="v<%= p.localPhone ? '' : ' is-missing' %>"><%= p.localPhone || 'Not added yet' %></p></div>
+      <div class="info-tile"><p class="k">Current address</p><p class="v<%= data.hasAddress ? '' : ' is-missing' %>"><%= data.hasAddress ? 'On file ✓' : 'Not added yet' %></p></div>
+      <div class="info-tile"><p class="k">Vacation / leave</p>
+        <% if (data.upcomingLeave.length === 0) { %><p class="v is-missing">None planned</p>
+        <% } else { var l = data.upcomingLeave[0]; %><p class="v"><%= l.status === 'PENDING' ? 'Pending' : 'Approved' %> · <%= l.startDate.toISOString().slice(0, 10) %> → <%= l.endDate.toISOString().slice(0, 10) %></p><% } %>
       </div>
     </div>
   </div>
@@ -152,25 +153,34 @@ const p = data.profile;
 
 <% if (data.hasSkillGraph) { %>
 <div class="card mt-24">
-  <div class="card-header"><h2>Skill Graph</h2><p>Current level and confidence for each skill.</p></div>
+  <div class="card-header row-between" style="gap:12px;flex-wrap:wrap">
+    <div><h2>Skill Graph</h2><p>Current level and confidence for each skill.</p></div>
+    <% if (skillAvg !== null) { %><span class="skill-avg">Average <strong><%= skillAvg %>%</strong></span><% } %>
+  </div>
   <div class="card-body">
     <% if (data.skills.length === 0) { %>
       <%- include('empty-state', { title: 'No skills defined for this role yet' }) %>
     <% } else { %>
-      <div class="grid grid-2">
-        <% data.skills.forEach(function (s) { %>
-          <div>
-            <div class="row-between" style="margin-bottom:4px">
-              <span style="font-weight:500;color:var(--navy-950);font-size:14px"><%= s.skill.name %></span>
-              <span class="text-sm text-muted"><%= Math.round(s.currentScore) %>%</span>
+      <div class="skill-grid">
+        <% data.skills.forEach(function (s) { var score = Math.round(s.currentScore); var lvl = s.evidenceCount === 0 ? 'none' : score >= 70 ? 'strong' : score >= 40 ? 'mid' : 'low'; %>
+          <div class="skill-tile skill-tile--<%= lvl %>">
+            <div class="skill-tile__top">
+              <span class="skill-tile__name"><%= s.skill.name %></span>
+              <span class="skill-tile__score"><%= score %>%</span>
             </div>
             <div class="progress-track"><div class="progress-fill" style="width:<%= s.currentScore %>%"></div></div>
-            <p class="text-sm text-muted" style="margin-top:4px">Evidence: <%= s.evidenceCount %> · Confidence: <%= Math.round(s.confidence) %>%</p>
+            <div class="skill-tile__meta">
+              <span><%= s.evidenceCount %> evidence</span>
+              <span><%= Math.round(s.confidence) %>% confidence</span>
+            </div>
             <% if (typeof canRecordEvidence !== 'undefined' && canRecordEvidence) { %>
-              <form method="post" action="/skills/<%= s.id %>/evidence" style="display:flex;gap:6px;margin-top:8px;align-items:center">
-                <input name="notes" minlength="10" maxlength="5000" placeholder="Evidence or coaching observation" aria-label="Evidence notes" required />
-                <button type="submit" class="btn btn-secondary btn-sm">Record</button>
-              </form>
+              <details class="skill-tile__record">
+                <summary>+ Record evidence</summary>
+                <form method="post" action="/skills/<%= s.id %>/evidence">
+                  <textarea name="notes" rows="3" minlength="10" maxlength="5000" placeholder="What did you observe? (at least 10 characters)" aria-label="Evidence notes for <%= s.skill.name %>" required></textarea>
+                  <button type="submit" class="btn btn-gold btn-sm">Record</button>
+                </form>
+              </details>
             <% } %>
           </div>
         <% }); %>

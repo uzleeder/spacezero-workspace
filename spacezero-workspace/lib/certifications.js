@@ -67,7 +67,7 @@ async function evaluate(definition, profile) {
 
 /** Issues the certificate when every requirement is met. Never issues twice while an ACTIVE one exists. */
 async function issueIfEligible(definition, profile, { issuedById = null, now = new Date() } = {}) {
-  if (!definition.isActive || (definition.roleKey && definition.roleKey !== profile.role) || profile.status !== 'ACTIVE') return null;
+  if (!definition.isActive || definition.kind === 'PROGRAM' || (definition.roleKey && definition.roleKey !== profile.role) || profile.status !== 'ACTIVE') return null;
   const active = await prisma.earnedCertification.findFirst({ where: { definitionId: definition.id, profileId: profile.id, status: 'ACTIVE' } });
   if (active) return null;
   const result = await evaluate(definition, profile);
@@ -86,7 +86,8 @@ async function issueIfEligible(definition, profile, { issuedById = null, now = n
 
 /** Evaluates every active definition for every active employee of the organization; also expires old ones. */
 async function evaluateOrganization(organizationId, { now = new Date() } = {}) {
-  const definitions = await prisma.certificationDefinition.findMany({ where: { organizationId, isActive: true } });
+  // "Ready for solo live calls" (kind PROGRAM) is only ever issued by a person approving it (lib/newAgentBoard.js approve)
+  const definitions = await prisma.certificationDefinition.findMany({ where: { organizationId, isActive: true, kind: { not: 'PROGRAM' } } });
   let issued = 0; let expired = 0;
   const lapsed = await prisma.earnedCertification.findMany({ where: { status: 'ACTIVE', expiresAt: { lt: now }, definition: { organizationId } }, include: { definition: true } });
   for (const e of lapsed) {

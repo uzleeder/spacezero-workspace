@@ -14,7 +14,7 @@ const NAV_SECTIONS = [
     title: 'Main',
     items: [
       { href: '/dashboard', label: 'Dashboard', roles: ALL_ROLES },
-      { href: '/training', label: 'My Training', roles: ALL_ROLES, activeAlso: ['/training-course', '/assessments'] },
+      { href: '/training', label: 'My Training', roles: ALL_ROLES, activeAlso: ['/training-course', '/assessments', '/call-practice'] },
       { href: '/ai-practice', label: 'AI Practice', roles: ['ADMIN'] },
       { href: '/library', label: 'Library', roles: ALL_ROLES, activeAlso: ['/admin/library'] },
     ],
@@ -26,17 +26,16 @@ const NAV_SECTIONS = [
         href: '/admin/employees',
         label: 'Employees & Teams',
         roles: ['ADMIN', 'SUPERVISOR'],
-        activeAlso: ['/admin/teams', '/admin/intelligence', '/employees', '/leave', '/admin/call-reviews', '/call-reviews'],
+        activeAlso: ['/admin/teams', '/admin/intelligence', '/employees', '/leave', '/admin/call-reviews', '/call-reviews', '/new-agents'],
         hrefByRole: { SUPERVISOR: '/team' },
-        activeAlsoByRole: { SUPERVISOR: ['/team-skills', '/employees', '/leave', '/call-reviews'] },
+        activeAlsoByRole: { SUPERVISOR: ['/team-skills', '/employees', '/leave', '/call-reviews', '/new-agents'] },
       },
-      { href: '/admin/training', label: 'Manage Training', roles: ['ADMIN', 'SUPERVISOR'], activeAlso: ['/assignments'] },
+      { href: '/admin/training', label: 'Manage Training', roles: ['ADMIN', 'SUPERVISOR'], activeAlso: ['/assignments', '/admin/call-practice', '/admin/new-agent-program'] },
     ],
   },
   {
     items: [
       { href: '/standards', label: 'Company Standards & Workflow', roles: ALL_ROLES, activeAlso: ['/admin/standards'] },
-      { href: '/assistant', label: 'SpaceZero AI', roles: ALL_ROLES },
       // ONE Settings entry for every Admin (Task 4). Inside: General and Security are ordinary,
       // day-to-day settings any Admin reaches; Advanced (the former separate "Admin Configuration")
       // only renders for an Admin who also holds System Configuration Access — that capability

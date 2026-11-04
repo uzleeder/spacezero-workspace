@@ -1,0 +1,18 @@
+<%# One agent's working days in the New Agent Program (routes/admin/newAgentProgram.js). Shifts vary, so each agent has
+    their own; day numbers, due dates and reminders follow them. Approved vacation is skipped by itself. %>
+<p class="steps-back"><a class="link-gold text-sm" href="/admin/new-agent-program">← New Agent Program</a></p>
+<div class="page-header steps-header"><div><h1><%= person.fullName %></h1><p>Which days does <%= person.fullName %> work?</p></div></div>
+<% if (error) { %><div class="form-alert error mt-16" role="alert">Choose at least one working day.</div><% } %>
+
+<form method="post" action="/admin/new-agent-program/agents/<%= person.id %>/days" class="card mt-16" style="max-width:640px;margin-bottom:40px" data-once>
+  <div class="card-body">
+    <fieldset class="nap-weekdays">
+      <legend class="visually-hidden">Working days</legend>
+      <% [1, 2, 3, 4, 5, 6, 7].forEach(function (d) { %>
+        <label class="checkbox-row"><input type="checkbox" name="days" value="<%= d %>"<%= workDays.indexOf(d) !== -1 ? ' checked' : '' %> /> <%= WEEKDAY_NAMES[d] %></label>
+      <% }); %>
+    </fieldset>
+    <p class="text-sm text-muted mt-16"><%= confirmed ? 'Set already. ' : 'Not set yet: Monday to Friday is used until it is. ' %>Day 8 means their 8th working day. Approved vacation is skipped by itself.</p>
+  </div>
+  <div class="step-actions"><a class="step-prev" href="/admin/new-agent-program">Cancel</a><button type="submit" class="btn btn-gold">Save working days</button></div>
+</form>

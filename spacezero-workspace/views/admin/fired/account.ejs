@@ -1,0 +1,43 @@
+<% const fmt = function (d) { return d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'; }; %>
+<%- include('../../partials/page-header', { pageTitle: account.key, pageDescription: 'Company account: every agent who held it and was fired. Visible to Admins only.', headerAction: '<a href="/admin/employees/fired" class="btn btn-secondary btn-sm">← Fired agents</a>' }) %>
+<%- include('../../partials/management-tabs', { tabs: tabs, sticky: true }) %>
+
+<% if (notice === 'fired') { %><div class="form-alert success mt-16" role="status">The agent has been fired. Their company account is kept here for the next agent.</div><% } %>
+
+<div class="card mt-24">
+  <div class="card-body row-between" style="gap:12px;flex-wrap:wrap">
+    <% if (account.holder) { %>
+      <div><p style="font-weight:600;margin:0">In use by <a class="link-gold" href="/admin/employees/<%= account.holder.id %>"><%= account.holder.fullName %></a></p>
+      <p class="text-sm text-muted" style="margin:4px 0 0">Since <%= fmt(account.holder.employmentStartDate) %> · <%= roleLabel(account.holder.role) %></p></div>
+    <% } else if (account.keeper) { %>
+      <div><p style="font-weight:600;margin:0">Free for a new agent</p>
+      <p class="text-sm text-muted" style="margin:4px 0 0">Username @<%= account.username %> · <%= account.savedLogins %> saved login<%= account.savedLogins === 1 ? '' : 's' %> will move to the new agent; none of the former agents' personal details will.</p></div>
+      <a class="btn btn-gold" href="/admin/employees/fired/account/new-agent?key=<%= encodeURIComponent(account.key) %>">Give this account to a new agent</a>
+    <% } %>
+  </div>
+</div>
+
+<div class="section-heading mt-24"><div><span class="eyebrow">FORMER AGENTS</span><h2><%= account.people.length %> agent<%= account.people.length === 1 ? ' has' : 's have' %> held this account</h2></div></div>
+
+<% account.people.forEach(function (p) { %>
+  <section class="card mt-16" data-former-agent="<%= p.id %>">
+    <div class="card-header row-between" style="gap:12px;flex-wrap:wrap">
+      <div><h2 style="margin:0"><%= p.passportName %></h2><p class="text-sm text-muted" style="margin:4px 0 0"><% if (p.passportName !== p.fullName) { %>Known in Workspace as <%= p.fullName %> · <% } %><%= roleLabel(p.role) %></p></div>
+      <span class="badge badge-danger">Fired <%= fmt(p.firedAt) %></span>
+    </div>
+    <div class="card-body">
+      <div class="info-grid">
+        <div class="info-tile"><span class="k">Employment</span><span class="v"><%= fmt(p.from) %> – <%= fmt(p.firedAt) %></span></div>
+        <div class="info-tile"><span class="k">Fired by</span><span class="v"><%= p.firedBy %></span></div>
+        <div class="info-tile"><span class="k">Phone</span><span class="v<%= p.phones.length ? '' : ' is-missing' %>"><%= p.phones.length ? p.phones.join(', ') : 'Not added' %></span></div>
+        <div class="info-tile"><span class="k">Telegram</span><span class="v<%= p.telegram ? '' : ' is-missing' %>"><%= p.telegram || 'Not added' %></span></div>
+        <div class="info-tile"><span class="k">Address</span><span class="v<%= p.address ? '' : ' is-missing' %>"><%= p.address || 'Not added' %></span></div>
+        <div class="info-tile"><span class="k">Passport</span><span class="v<%= p.passportNumber ? '' : ' is-missing' %>"><%= p.passportNumber || 'Not added' %><% if (p.passportExpiresAt) { %> <span class="text-muted text-sm">· expires <%= fmt(p.passportExpiresAt) %></span><% } %></span></div>
+        <div class="info-tile"><span class="k">Date of birth</span><span class="v<%= p.dateOfBirth ? '' : ' is-missing' %>"><%= p.dateOfBirth ? fmt(p.dateOfBirth) : 'Not added' %></span></div>
+      </div>
+      <div class="callout callout--danger mt-16"><p class="callout__title">Reason</p><p class="callout__text" style="white-space:pre-wrap"><%= p.reason %></p></div>
+      <p class="mt-16" style="margin-bottom:0"><a class="link-gold text-sm" href="/admin/employees/<%= p.id %>">Open the full record (training, setup, history) →</a></p>
+    </div>
+  </section>
+<% }); %>
+<div style="height:40px"></div>

@@ -1,7 +1,9 @@
-<%# `sticky` pins the tab bar under the topbar while the page scrolls (Employees & Teams area). %>
+<%# `sticky` pins the tab bar under the topbar while the page scrolls (Employees & Teams area). Only the closest tab is
+    active: /admin/employees/fired lights "Fired agents", not "Employees" as well. %>
+<% const matches = function (href) { return currentPath === href || currentPath.indexOf(href + '/') === 0; };
+   const best = tabs.filter(function (t) { return matches(t.href); }).sort(function (a, b) { return b.href.length - a.href.length; })[0]; %>
 <div class="tabs no-print<%= typeof sticky !== 'undefined' && sticky ? ' tabs--sticky' : '' %>">
   <% tabs.forEach(function (t) { %>
-    <% const active = currentPath === t.href || currentPath.indexOf(t.href + '/') === 0; %>
-    <a class="tab-link<%= active ? ' active' : '' %>" href="<%= t.href %>"><%= t.label %></a>
+    <a class="tab-link<%= best && best.href === t.href ? ' active' : '' %>" href="<%= t.href %>"><%= t.label %></a>
   <% }); %>
 </div>

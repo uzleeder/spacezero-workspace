@@ -15,7 +15,7 @@
   </div>
 </div>
 <%- include('../partials/my-dev-compact', { me: me }) %>
-<div class="grid grid-3">
+<div class="grid grid-3 mt-24">
   <div class="card stat-card"><p class="label">Agents on my team</p><p class="value"><%= agents.length %></p></div>
   <div class="card stat-card"><p class="label">Retakes required</p><p class="value"><%= retakeCount %></p></div>
   <div class="card stat-card"><p class="label">Active agents</p><p class="value"><%= agents.filter(a => a.status === 'ACTIVE').length %></p></div>

@@ -19,13 +19,25 @@
     <% } %>
     <div class="card mt-24">
       <div class="card-header"><h2>Manage account</h2></div>
+      <% if (employee.firedAt) { %>
+        <div class="card-body" data-fired-banner>
+          <div class="callout callout--danger">
+            <p class="callout__title">Fired on <%= employee.firedAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) %></p>
+            <p class="callout__text"><strong>Reason:</strong> <%= employee.firedReason %></p>
+          </div>
+          <div class="card-actions mt-16"><a class="btn btn-secondary" href="/admin/employees/fired/account?key=<%= encodeURIComponent(employee.accountKey) %>">Open in Fired agents</a></div>
+        </div>
+      <% } %>
+      <% if (typeof notice !== 'undefined' && (notice === 'handed-over' || notice === 'handed-over-no-email')) { %>
+        <div class="card-body"><div class="form-alert <%= notice === 'handed-over' ? 'success' : 'error' %>" role="status"><%= notice === 'handed-over' ? 'The company account was given to this new agent. An invitation was sent to the company email.' : 'The company account was given to this new agent, but the invitation email could not be sent. Use "Resend invitation".' %></div></div>
+      <% } %>
       <% if (employee.role !== 'ADMIN' && (employee.testOwnerAdminId === profile.id || (!employee.testOwnerAdminId && employee.createdById === profile.id))) { %>
         <form method="post" action="/admin/employees/<%= employee.id %>/personal-test-profile" class="card-body">
           <p class="text-sm text-muted"><%= employee.testOwnerAdminId ? 'Your personal test profile is hidden from other administrators in Login as.' : 'Mark only your personal test accounts. Regular employees remain available in Login as.' %></p>
           <button type="submit" class="btn btn-secondary mt-16"><%= employee.testOwnerAdminId ? 'Remove personal test designation' : 'Mark as my personal test profile' %></button>
         </form>
       <% } %>
-      <div class="card-body" style="display:flex;flex-wrap:wrap;gap:8px">
+      <div class="card-body card-actions">
         <% if (employee.status === 'INVITED') { %>
           <button type="button" class="btn btn-secondary" data-action="/admin/employees/<%= employee.id %>/resend-invite" data-success-message="Invitation sent">Resend invitation</button>
         <% } %>
@@ -36,13 +48,18 @@
         <% if (employee.status === 'DISABLED') { %>
           <button type="button" class="btn btn-secondary" data-action="/admin/employees/<%= employee.id %>/reactivate">Reactivate account</button>
         <% } %>
-        <% if (employee.status === 'ARCHIVED') { %>
+        <% if (employee.status === 'ARCHIVED' && !employee.firedAt) { %>
           <button type="button" class="btn btn-secondary" data-action="/admin/employees/<%= employee.id %>/unarchive">Unarchive</button>
+        <% } %>
+        <% if (employee.role !== 'ADMIN' && !employee.firedAt) { %>
+          <a href="/admin/employees/<%= employee.id %>/fire" class="btn btn-danger" data-fire-employee>Fire…</a>
         <% } %>
         <a href="/admin/employees/<%= employee.id %>/remove" class="btn btn-danger"><%= employee.status === 'ARCHIVED' ? 'Delete…' : 'Delete or archive…' %></a>
       </div>
     </div>
 
+    <%# a fired agent's record stays as it was: no editing of team, supervisor or role %>
+    <% if (!employee.firedAt) { %>
     <div class="card mt-24">
       <div class="card-header"><h2>Edit details</h2></div>
       <div class="card-body">
@@ -63,5 +80,6 @@
         }) %>
       </div>
     </div>
+    <% } %>
   </div>
 </div>

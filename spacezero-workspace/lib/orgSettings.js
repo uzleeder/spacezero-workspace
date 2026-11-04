@@ -91,6 +91,8 @@ const SCHEMA = {
   'training.minPassingScore': integer(50, 100, 70), // lowest passing score a mandatory training may use
   'training.retakeWaitMinutes': integer(0, 1440, 10), // minutes a learner waits after failing a practice before trying it again
   'calls.retentionDays': integer(0, 3650, 0), // 0 = keep customer calls until an Admin deletes them
+  'callPractice.callsPerDay': integer(1, 5, 2), // Call Practice: how many calls a new agent may do each day
+  'program.supervisorEmails': bool, // New Agent Program: also email the 08:30 message to supervisors (it always shows in the app)
   'scoring.config': scoring, // Skill Graph evidence weighting
   'skills.statusBands': bands, // Critical / Needs Improvement / Developing / Proficient / Strong
   'retention.schedule': schedule, // follow-up days after a training is completed

@@ -1,0 +1,61 @@
+<%#
+  Call Practice: one submitted call. The score, the one main button (the next call), then the answer key with every
+  word that was missed or typed differently marked, then the transcript as it was typed. `review` = the read-only view
+  an Admin, the employee's supervisor or the employee opens from the employee's Training tab.
+%>
+<%
+const acc = transcript.accuracy;
+const tone = acc == null ? '' : acc >= 90 ? ' cp-score--high' : acc >= 75 ? ' cp-score--mid' : ' cp-score--low';
+const minutes = Math.round((transcript.typingSeconds || 0) / 60);
+const typing = [transcript.wordsPerMinute != null ? Math.round(transcript.wordsPerMinute) + ' words a minute' : '', (minutes ? minutes + ' min' : 'under a minute') + ' of typing'].filter(Boolean).join(' · ');
+const next = !review && plan.next && plan.open ? plan.next : null;
+const submitted = new Date(transcript.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+%>
+<p class="steps-back"><a class="link-gold text-sm" href="<%= review ? review.backHref : '/call-practice' %>">← <%= review ? review.employee.fullName + ' · Training' : 'Call Practice' %></a></p>
+<div class="page-header steps-header">
+  <div><h1>Call <%= item.number %> · <%= call.title %></h1><p><%= review ? review.employee.fullName + ' · ' : '' %>Submitted <%= submitted %> · <%= clock(call.durationSeconds) %></p></div>
+</div>
+
+<section class="card result-card mt-16" data-cp-result>
+  <div class="card-body result-summary">
+    <div class="cp-score<%= tone %>" role="img" aria-label="Accuracy <%= acc != null ? Math.round(acc) + ' percent' : 'not scored' %>"><%= acc != null ? Math.round(acc) + '%' : '—' %></div>
+    <div class="result-summary__text">
+      <p class="step-eyebrow">Accuracy</p>
+      <p class="cp-result__main"><strong><%= counts.correct %> of <%= counts.referenceWords %></strong> words right</p>
+      <% if (counts.missed != null) { %><p class="step-text"><%= counts.missed %> missed · <%= counts.wrong %> typed differently · <%= counts.extra %> extra</p><% } %>
+      <p class="step-text"><%= typing.charAt(0).toUpperCase() + typing.slice(1) %></p>
+    </div>
+  </div>
+  <% if (!review) { %>
+  <div class="step-actions">
+    <a class="step-prev" href="/call-practice">← Call Practice</a>
+    <% if (next) { %><a class="btn btn-gold" href="/call-practice/<%= next.call.id %>" data-main-action>Next call</a>
+    <% } else { %><a class="btn btn-gold" href="/call-practice" data-main-action>Done</a><% } %>
+  </div>
+  <% if (!next && plan.next) { %><p class="step-wait">Call <%= plan.next.number %> opens tomorrow.</p><% } %>
+  <% } %>
+</section>
+
+<% if (playUrl) { %>
+<div class="card mt-16"><div class="card-body" data-protect><audio data-skin controls preload="metadata" controlsList="nodownload noremoteplayback" src="<%= playUrl %>" aria-label="The call"></audio></div></div>
+<% } %>
+
+<section class="card mt-16 cp-key" data-cp-key>
+  <div class="card-header"><div><h2>Answer key</h2><p>Words that were missed or typed differently are <mark class="cp-miss">marked</mark>, with what was typed after them.</p></div></div>
+  <div class="card-body cp-key__body"<%- profile.role === 'ADMIN' ? '' : ' data-protect' %>>
+    <% if (lines) { lines.forEach(function (line) { %>
+      <p class="cp-line"><% if (line.speaker) { %><span class="cp-who cp-who--<%= line.speaker.toLowerCase() %>"><%= line.speaker %></span><% } %><span class="cp-line__text"><% line.tokens.forEach(function (t, k) { %><%= k ? ' ' : '' %><% if (t.state === 'missed') { %><mark class="cp-miss"><%= t.text %></mark><% if (t.typed) { %> <s class="cp-typed" title="Typed"><%= t.typed %></s><% } %><% } else if (t.state === 'skip') { %><span class="cp-skip"><%= t.text %></span><% } else { %><%= t.text %><% } %><% }); %></span></p>
+    <% }); } else { %>
+      <p class="cp-plain"><%= call.referenceText %></p>
+    <% } %>
+  </div>
+</section>
+
+<details class="card mt-16 cp-yours">
+  <summary>The transcript as typed · <%= transcript.wordCount || 0 %> words</summary>
+  <div class="card-body"><p class="cp-plain"><%= transcript.submittedText %></p></div>
+</details>
+<div style="height:40px"></div>
+
+<% if (playUrl) { %><script src="<%= asset('/static/js/player-skin.js') %>" defer></script><% } %>
+<% if (profile.role !== 'ADMIN') { %><script src="<%= asset('/static/js/protect-materials.js') %>" defer></script><% } %>

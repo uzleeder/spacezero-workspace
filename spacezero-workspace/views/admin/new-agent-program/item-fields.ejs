@@ -1,0 +1,44 @@
+<%# The fields of one plan item (lib/newAgentPlan.js KINDS), shared by "Add an item" and the item's own page. %>
+<% const v = item || {}; %>
+<div class="nap-fields">
+  <div class="field nap-field--day"><label for="nap-day">Day</label><input id="nap-day" name="day" type="number" min="1" max="<%= maxDay %>" value="<%= v.dayOffset || 1 %>" required /></div>
+  <div class="field nap-field--kind">
+    <label for="nap-kind">Kind</label>
+    <select id="nap-kind" name="kind" required>
+      <optgroup label="The agent does it">
+        <% PLAN_KINDS.filter(function (k) { return KINDS[k].owner === 'AGENT'; }).forEach(function (k) { %><option value="<%= k %>"<%= v.kind === k ? ' selected' : '' %>><%= KINDS[k].label %></option><% }); %>
+      </optgroup>
+      <optgroup label="The supervisor does it">
+        <% PLAN_KINDS.filter(function (k) { return KINDS[k].owner === 'SUPERVISOR'; }).forEach(function (k) { %><option value="<%= k %>"<%= v.kind === k ? ' selected' : '' %>><%= KINDS[k].label %></option><% }); %>
+      </optgroup>
+      <optgroup label="An admin does it, before day 1 (Travel Agents)">
+        <% PLAN_KINDS.filter(function (k) { return KINDS[k].owner === 'ADMIN'; }).forEach(function (k) { %><option value="<%= k %>"<%= v.kind === k ? ' selected' : '' %>><%= KINDS[k].label %></option><% }); %>
+      </optgroup>
+    </select>
+  </div>
+  <div class="field nap-field--minutes"><label for="nap-minutes">Minutes</label><input id="nap-minutes" name="minutes" type="number" min="1" max="240" value="<%= v.minutes || '' %>" placeholder="Optional" /></div>
+</div>
+<div class="field mt-16"><label for="nap-title">Title</label><input id="nap-title" name="title" value="<%= v.title || '' %>" maxlength="160" required placeholder="Sign off Cockpit: a test booking on their own" /></div>
+<div class="field"><label for="nap-how">How to do it</label><textarea id="nap-how" name="howTo" rows="2" maxlength="500" placeholder="One or two sentences the supervisor or agent sees with it"><%= v.howTo || '' %></textarea></div>
+<div class="nap-fields">
+  <div class="field nap-field--wide">
+    <label for="nap-course">Training (for a training video)</label>
+    <select id="nap-course" name="courseId">
+      <option value="">Video coming: not attached yet</option>
+      <% courses.forEach(function (c) { %><option value="<%= c.id %>"<%= v.courseId === c.id ? ' selected' : '' %>><%= c.title %></option><% }); %>
+    </select>
+  </div>
+  <div class="field nap-field--wide">
+    <label for="nap-standard">Standard (for reading)</label>
+    <select id="nap-standard" name="standardId">
+      <option value="">None</option>
+      <% standards.forEach(function (s) { %><option value="<%= s.id %>"<%= v.standardId === s.id ? ' selected' : '' %>><%= s.title %></option><% }); %>
+    </select>
+  </div>
+  <div class="field nap-field--system">
+    <label for="nap-system">System</label>
+    <input id="nap-system" name="system" list="nap-systems" value="<%= v.system || '' %>" maxlength="40" placeholder="Optional" />
+    <datalist id="nap-systems"><% SYSTEMS.forEach(function (s) { %><option value="<%= s %>"></option><% }); %></datalist>
+  </div>
+</div>
+<p class="text-sm text-muted mt-8">Training videos, standards, the setup checklist, setting working days and accounts (once the login is in the vault) tick themselves. Their owner ticks the rest. An admin's item is always before day 1, whatever the day says.</p>

@@ -18,6 +18,8 @@ const DAY_MS = 86400000;
 /** Assigns the onboarding training that applies to this person. Returns the titles that were newly assigned. */
 async function applyOnboarding(profile, { actorId = null } = {}) {
   if (!profile || !['TRAVEL_AGENT', 'FLIGHT_EXPERT', 'SUPERVISOR'].includes(profile.role) || !['ACTIVE', 'INVITED'].includes(profile.status)) return [];
+  // a new Travel Agent or Flight Expert also starts the New Agent Program (lib/newAgentProgram.js), from their first day
+  await require('./newAgentProgram').autoStart(profile).catch((err) => console.error('[program] auto-start failed:', err.message || err));
   const courses = await prisma.trainingCourse.findMany({
     where: { organizationId: profile.organizationId, status: 'PUBLISHED', archivedAt: null, onboardingForNewHires: true, OR: [{ roleKey: null }, { roleKey: profile.role }] },
     select: { id: true, title: true, passingScore: true, createdById: true, publishedVersion: true },

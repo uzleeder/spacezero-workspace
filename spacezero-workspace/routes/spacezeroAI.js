@@ -1,6 +1,6 @@
 'use strict';
 
-// SpaceZero AI — read-only Q&A over information already inside SpaceZero. See lib/spacezeroAI.js
+// Space AI (formerly SpaceZero AI) — read-only Q&A over information already inside SpaceZero. See lib/spacezeroAI.js
 // for the authorization-first data flow; this route only handles the form, rate limiting and
 // audit-safe error display (never a stack trace, matching the app's own error page convention).
 const router = require('express').Router();
@@ -9,7 +9,7 @@ const { takeAiSlot } = require('../lib/rateLimit');
 const { answerQuestion, quickLinksFor } = require('../lib/spacezeroAI');
 
 function render(res, { question, result, error, role }, status = 200) {
-  res.status(status).render('assistant', { title: 'SpaceZero AI', question, result, error, quickLinks: quickLinksFor(role) });
+  res.status(status).render('assistant', { title: 'Space AI', question, result, error, quickLinks: quickLinksFor(role) });
 }
 
 router.get('/assistant', requireSession, (req, res) => {

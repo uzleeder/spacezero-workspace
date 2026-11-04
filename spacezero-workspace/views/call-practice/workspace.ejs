@@ -1,0 +1,51 @@
+<%#
+  Call Practice: one call, heard and typed (public/js/call-practice.js). The player stays in view while the trainee
+  types, and the keyboard does everything: Esc plays / pauses, Tab steps back, Alt+1 / Alt+2 start an Agent / Client
+  line. The text saves itself; Submit opens once the whole call has been heard. View-only like training material.
+%>
+<% const notices = { listen: 'Listen to the whole call first, then submit.', short: 'Type at least ' + minWords + ' words before you submit.' }; %>
+<p class="steps-back"><a class="link-gold text-sm" href="/call-practice">← Call Practice</a></p>
+<div class="page-header steps-header">
+  <div><h1>Call <%= item.number %> · <%= call.title %></h1><p><%= item.again ? 'Again' + (item.transcript && item.transcript.accuracy != null ? ', to beat your ' + Math.round(item.transcript.accuracy) + '%' : '') : 'Call ' + item.number + ' of ' + plan.total %> · <%= clock(call.durationSeconds) %><% if (call.note) { %> · <%= call.note %><% } %></p></div>
+</div>
+<% if (notice && notices[notice]) { %><div class="form-alert error mt-16" role="alert"><%= notices[notice] %></div><% } %>
+
+<section class="card cp-work mt-16" data-cp-work data-call="<%= call.id %>" data-frontier="<%= saved.frontier %>" data-position="<%= saved.position %>" data-listened="<%= saved.listened %>" data-min-words="<%= minWords %>">
+  <div class="cp-deck" data-protect>
+    <audio data-skin data-learning-media="<%= call.id %>" <%- saved.listened ? '' : 'data-lock' %> data-done="<%= saved.listened %>" controls preload="metadata" controlsList="nodownload noremoteplayback" src="<%= playUrl %>" aria-label="The call"></audio>
+    <div class="cp-tools">
+      <div class="cp-segs" role="group" aria-label="Speed">
+        <span class="cp-tools__label">Speed</span>
+        <button type="button" class="cp-seg" data-speed="0.75" aria-pressed="false">0.75×</button>
+        <button type="button" class="cp-seg is-on" data-speed="1" aria-pressed="true">1×</button>
+      </div>
+      <div class="cp-segs" role="group" aria-label="Start a new line">
+        <button type="button" class="cp-seg" data-label="Agent">Agent:</button>
+        <button type="button" class="cp-seg" data-label="Client">Client:</button>
+      </div>
+    </div>
+    <p class="cp-status" data-cp-listen role="status"><%= saved.listened ? '✓ You heard the whole call. Go back and check anything you missed.' : 'Listen to the end: skipping ahead is off, going back is free.' %></p>
+  </div>
+
+  <form method="post" action="/call-practice/<%= call.id %>/submit" data-once data-cp-form>
+    <div class="cp-type">
+      <label for="cp-text" class="visually-hidden">Your transcript</label>
+      <textarea id="cp-text" name="text" class="cp-text" rows="16" spellcheck="true" autocomplete="off" autocapitalize="sentences" placeholder="Agent: Hello, thank you for calling…" data-cp-text><%= saved.text %></textarea>
+      <input type="hidden" name="typingMs" value="0" data-cp-typing />
+      <p class="cp-keys"><kbd>Esc</kbd> play / pause <span aria-hidden="true">·</span> <kbd>Tab</kbd> back 5 s <span aria-hidden="true">·</span> <kbd>Alt</kbd>+<kbd>1</kbd> Agent <span aria-hidden="true">·</span> <kbd>Alt</kbd>+<kbd>2</kbd> Client</p>
+      <p class="cp-keys">Type <strong>[number]</strong> instead of card, passport and phone numbers.</p>
+      <p class="form-alert info cp-paste" data-cp-paste hidden role="status">Pasting is switched off. Type what you hear.</p>
+    </div>
+    <div class="step-actions">
+      <span class="cp-saved" data-cp-saved role="status"></span>
+      <button type="submit" class="btn btn-gold<%= saved.listened ? '' : ' is-waiting' %>" data-cp-submit<%= saved.listened ? '' : ' disabled' %>>Submit transcript</button>
+    </div>
+    <p class="step-wait" data-cp-hint><%= saved.listened ? 'Once submitted it is scored and cannot be changed.' : 'Submit opens when you have heard the whole call.' %></p>
+  </form>
+</section>
+
+<script src="<%= asset('/static/js/player-skin.js') %>" defer></script>
+<script src="<%= asset('/static/js/focus-pause.js') %>" defer></script>
+<script src="<%= asset('/static/js/protect-materials.js') %>" defer></script>
+<script src="<%= asset('/static/js/ai-practice.js') %>" defer></script>
+<script src="<%= asset('/static/js/call-practice.js') %>" defer></script>

@@ -33,7 +33,7 @@
           <%- include('partials/icon', { name: 'collapse' }) %>
         </button>
       </div>
-      <div class="workspace-label"><span class="workspace-dot"></span> Above9 Travel <span>WORKSPACE</span></div>
+      <div class="workspace-label"><span class="workspace-dot"></span> SpaceZero Workspace</div>
       <nav class="sidebar-nav" aria-label="Main navigation">
         <% nav.forEach(function (section) { %>
           <div class="sidebar-group">
@@ -43,7 +43,7 @@
               const matchesPath = function (p) { return currentPath === p || currentPath.indexOf(p + '/') === 0; };
               const active = matchesPath(item.href) || alsoPaths.some(matchesPath);
               const iconName = /employees|\/team$/.test(item.href) ? 'people' : /ai-practice/.test(item.href) ? 'upload' : /skill/.test(item.href) ? 'skills' : /admin\/library|call-review/.test(item.href) ? 'calls' : /library/.test(item.href) ? 'library' : /training/.test(item.href) ? 'training' : /notes/.test(item.href) ? 'notes' : /settings/.test(item.href) ? 'settings' : /profile/.test(item.href) ? 'profile' : /standards/.test(item.href) ? 'book' : /assistant/.test(item.href) ? 'ai' : 'dashboard'; %>
-              <a class="sidebar-link<%= active ? ' active' : '' %>" href="<%= item.href %>" <%- active ? 'aria-current="page"' : '' %>><%- include('partials/icon', { name: iconName }) %><span><%= item.label %></span></a>
+              <a class="sidebar-link<%= active ? ' active' : '' %>" href="<%= item.href %>" title="<%= item.label %>" <%- active ? 'aria-current="page"' : '' %>><%- include('partials/icon', { name: iconName }) %><span><%= item.label %></span></a>
             <% }); %>
           </div>
         <% }); %>
@@ -134,6 +134,21 @@
       </main>
     </div>
   </div>
+  <% if (!/^\/assistant(\/|$)/.test(currentPath)) { %>
+  <details class="space-ai no-print" data-space-ai>
+    <summary class="space-ai__fab" aria-label="Open Space AI" title="Space AI">
+      <%- include('partials/icon', { name: 'ai' }) %><span>Space AI</span>
+    </summary>
+    <div class="space-ai__panel" role="dialog" aria-label="Space AI">
+      <div class="space-ai__head"><strong>Space AI</strong><span>Read-only answers from what you are allowed to see.</span></div>
+      <form method="post" action="/assistant/ask" class="space-ai__form">
+        <label class="visually-hidden" for="space-ai-question">Ask Space AI</label>
+        <textarea id="space-ai-question" name="question" rows="3" maxlength="500" required placeholder="e.g. What requires my attention today?"></textarea>
+        <div class="space-ai__actions"><a href="/assistant" class="text-sm link-gold">Open Space AI</a><button type="submit" class="space-ai__ask btn btn-gold btn-sm">Ask</button></div>
+      </form>
+    </div>
+  </details>
+  <% } %>
   <script src="<%= asset('/static/js/app.js') %>"></script>
 </body>
 </html>

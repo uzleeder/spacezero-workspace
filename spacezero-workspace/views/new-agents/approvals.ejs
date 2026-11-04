@@ -1,0 +1,125 @@
+<%# New agents -> Waiting for you (routes/newAgents.js, lib/newAgentBoard.js approvalsFor): what only an Admin does for
+    new Travel Agents - approve for solo live calls, confirm or send back a supervisor's sign-off, decide at the end of
+    Month 1 (the ramp, while it is on) - and the flags: ticks that need a second look. Every form comes back here. %>
+<%
+const dm = function (d) { return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); };
+const when = function (d) { const x = new Date(d); return x.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Asia/Tashkent' }) + ', ' + x.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tashkent' }); };
+const anchored = new Set(decisions.map(function (a) { return a.profile.id; })); // the board's Review opens #agent-<id>
+const nameOf = function (id) { return names.get(id) || 'someone'; };
+const left = total;
+const icon = { ok: '<path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>', no: '<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3.5M8 10.8v.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' };
+const answerOf = function (t) { return t.agentAnswer ? { text: { YES: 'Yes', NO: 'No, it did not happen', UNSURE: 'Not sure' }[t.agentAnswer], at: t.agentAnsweredAt } : null; };
+const who = function (a) { return roleLabel(a.profile.role) + ' · ' + (a.supervisor ? a.supervisor.fullName : 'no supervisor'); };
+%>
+<p class="steps-back"><a class="link-gold text-sm" href="/new-agents">← New agents</a></p>
+<%- include('../partials/page-header', { pageTitle: 'Waiting for you', pageDescription: (left ? left + (left === 1 ? ' thing' : ' things') + ' only an admin can do' : 'Nothing only an admin can do is waiting') + (flags.length ? ', and ' + flags.length + (flags.length === 1 ? ' flag' : ' flags') + ' to look at' : '') + '. Supervisors can’t approve, or confirm their own sign-offs.' }) %>
+<% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
+
+<% if (!left && !flags.length) { %>
+  <div class="card mt-24" style="margin-bottom:40px"><div class="card-body"><%- include('../partials/empty-state', { title: 'Nothing is waiting for you', description: 'Approvals, sign-offs to confirm, end-of-month decisions and flags show up here.' }) %></div></div>
+<% } %>
+
+<% if (ready.length) { %>
+<section class="na-lgroup na-lgroup--needs na-q mt-24" aria-labelledby="q-ready">
+  <div class="na-lgroup__band"><h2 id="q-ready" class="na-lgroup__title">Ready for solo live calls</h2><span class="na-lgroup__count"><%= ready.length %></span><span class="na-meta">Every check is met. Only an admin approves.</span></div>
+  <% ready.forEach(function (r) { const a = r.a; const p = a.profile; %>
+    <div class="na-q__item" id="agent-<%= p.id %>">
+      <div class="na-q__who"><span class="na-av na-av--<%= a.hue %>" aria-hidden="true"><%= a.initials %></span><span class="na-line__who"><a class="na-strong" href="/new-agents/<%= p.id %>"><%= p.fullName %></a><span class="na-meta"><%= who(a) %> · <%= board.stageText(a).text %></span></span></div>
+      <div class="na-q__grid">
+        <ul class="na-signoffs">
+          <% a.readiness.checks.forEach(function (c) { %><li class="is-done"><span class="na-task__icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><%- icon.ok %></svg></span><span><%= c.label %></span><span class="na-meta"><%= c.detail %></span></li><% }); %>
+        </ul>
+        <div class="na-q__notes">
+          <% if (r.review) { %><div class="na-q__note"><span class="na-label">Final review, <%= dm(r.review.doneAt) %>, by <%= nameOf(r.review.doneById) %></span><span><%= r.review.note || 'No note.' %></span></div><% } %>
+          <% if (r.typing) { %><div class="na-q__note"><span class="na-label">How the calls were typed</span><span><%= r.typing %></span></div><% } %>
+        </div>
+      </div>
+      <div class="na-q__acts">
+        <form method="post" action="/new-agents/<%= p.id %>/approve" data-once><input type="hidden" name="from" value="approvals" /><button type="submit" class="btn btn-gold" data-confirm-msg="Approve <%= p.fullName %> for solo live calls? This closes their program and issues the certificate.">Approve for solo live calls</button></form>
+        <details class="na-act">
+          <summary class="btn btn-secondary">Not yet</summary>
+          <form method="post" action="/new-agents/<%= p.id %>/not-yet" class="na-act__form" data-once>
+            <input type="hidden" name="from" value="approvals" />
+            <label for="ny-<%= p.id %>">Tell <%= a.supervisor ? board.firstName(a.supervisor.fullName) : 'their supervisor' %> what is missing (saved as a note on <%= board.firstName(p.fullName) %>'s page)</label>
+            <textarea id="ny-<%= p.id %>" name="reason" rows="3" maxlength="1000" minlength="5" required></textarea>
+            <button type="submit" class="btn btn-gold btn-sm">Send</button>
+          </form>
+        </details>
+      </div>
+    </div>
+  <% }); %>
+</section>
+<% } %>
+
+<% if (confirms.length) { %>
+<section class="na-lgroup na-lgroup--needs na-q mt-24" aria-labelledby="q-signoffs">
+  <div class="na-lgroup__band"><h2 id="q-signoffs" class="na-lgroup__title">Sign-offs to confirm</h2><span class="na-lgroup__count"><%= confirms.length %></span><span class="na-meta">A sign-off counts toward Ready only after you confirm it.</span></div>
+  <% confirms.forEach(function (c) { const a = c.a; const p = a.profile; const t = c.task; const ans = answerOf(t); const first = !anchored.has(p.id); anchored.add(p.id); %>
+    <% if (first) { %><span id="agent-<%= p.id %>"></span><% } %>
+    <div class="na-q__item" id="task-<%= t.id %>">
+      <div class="na-q__who"><span class="na-av na-av--<%= a.hue %>" aria-hidden="true"><%= a.initials %></span><span class="na-line__who"><span class="na-strong"><%= t.title %></span><span class="na-meta"><a href="/new-agents/<%= p.id %>#task-<%= t.id %>"><%= p.fullName %></a> · day <%= t.day %> · asked by <%= nameOf(t.requestedById) %>, <%= when(t.requestedAt) %></span></span></div>
+      <div class="na-q__grid na-q__grid--3">
+        <div class="na-q__note"><span class="na-label">What <%= board.firstName(nameOf(t.requestedById)) %> saw</span><span><%= t.note || '—' %></span></div>
+        <% if (ans) { %><div class="na-q__note"><span class="na-label"><%= board.firstName(p.fullName) %>'s answer</span><span class="na-strong"><%= ans.text %></span><span class="na-meta"><%= when(ans.at) %></span></div><% } %>
+        <div class="na-q__note<%= c.flags.length ? ' is-flag' : '' %>"><span class="na-label">Flags</span><span><%= c.flags.length ? c.flags.map(function (f) { return f.reasons.join(', '); }).join('; ') : 'None' %></span></div>
+      </div>
+      <div class="na-q__acts">
+        <form method="post" action="/new-agents/<%= p.id %>/tasks/<%= t.id %>/confirm" data-once><input type="hidden" name="from" value="approvals" /><button type="submit" class="btn btn-gold">Confirm sign-off</button></form>
+        <details class="na-act">
+          <summary class="btn btn-secondary">Send back</summary>
+          <form method="post" action="/new-agents/<%= p.id %>/tasks/<%= t.id %>/send-back" class="na-act__form" data-once>
+            <input type="hidden" name="from" value="approvals" />
+            <label for="sb-<%= t.id %>">What should <%= board.firstName(nameOf(t.requestedById)) %> do again? (they are told; it is theirs again)</label>
+            <textarea id="sb-<%= t.id %>" name="reason" rows="2" maxlength="1000" required></textarea>
+            <button type="submit" class="btn btn-gold btn-sm">Send back</button>
+          </form>
+        </details>
+      </div>
+    </div>
+  <% }); %>
+</section>
+<% } %>
+
+<% if (decisions.length) { %>
+<section class="na-lgroup na-lgroup--urgent na-q mt-24" aria-labelledby="q-ramp">
+  <div class="na-lgroup__band"><h2 id="q-ramp" class="na-lgroup__title"><%= board.moreTime() === 'extend the ramp' ? 'Ramp decisions' : 'End of Month 1 decisions' %></h2><span class="na-lgroup__count"><%= decisions.length %></span><span class="na-meta"><%= board.moreTime() === 'extend the ramp' ? 'Every ramp week is used' : 'Their time is up' %> and not every check is met.</span></div>
+  <% decisions.forEach(function (a) { const p = a.profile; const r = a.readiness; %>
+    <div class="na-q__item" id="agent-<%= p.id %>">
+      <div class="na-q__who"><span class="na-av na-av--<%= a.hue %>" aria-hidden="true"><%= a.initials %></span><span class="na-line__who"><a class="na-strong" href="/new-agents/<%= p.id %>"><%= p.fullName %></a><span class="na-meta"><%= who(a) %> · <%= a.summary.overText %> · ready <%= r.metCount %> of <%= r.checks.length %></span></span></div>
+      <ul class="na-signoffs">
+        <% r.checks.forEach(function (c) { %><li class="<%= c.ok ? 'is-done' : 'is-late' %>"><span class="na-task__icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><%- c.ok ? icon.ok : icon.no %></svg></span><span><span class="visually-hidden"><%= c.ok ? 'Met: ' : 'Not met: ' %></span><%= c.label %></span><span class="na-meta"><%= c.detail %></span></li><% }); %>
+      </ul>
+      <div class="na-q__acts">
+        <form method="post" action="/new-agents/<%= p.id %>/extend-ramp" data-once><input type="hidden" name="from" value="approvals" /><button type="submit" class="btn btn-gold" data-confirm-msg="Add one more week (5 working days) of Call Practice and a review for <%= p.fullName %>?">Extend 1 week</button></form>
+        <details class="na-act">
+          <summary class="btn btn-secondary">Approve anyway</summary>
+          <form method="post" action="/new-agents/<%= p.id %>/approve" class="na-act__form" data-once>
+            <input type="hidden" name="from" value="approvals" /><input type="hidden" name="anyway" value="1" />
+            <label for="aa-<%= p.id %>">Why <%= board.firstName(p.fullName) %> is ready anyway (saved on the certificate and in the audit log)</label>
+            <textarea id="aa-<%= p.id %>" name="reason" rows="3" maxlength="1000" minlength="5" required></textarea>
+            <button type="submit" class="btn btn-gold btn-sm">Approve anyway</button>
+          </form>
+        </details>
+      </div>
+    </div>
+  <% }); %>
+</section>
+<% } %>
+
+<% if (flags.length) { %>
+<section class="na-lgroup na-lgroup--behind na-q mt-24" id="flags" aria-labelledby="q-flags" style="margin-bottom:40px">
+  <div class="na-lgroup__band"><h2 id="q-flags" class="na-lgroup__title">Flags</h2><span class="na-lgroup__count"><%= flags.length %></span><span class="na-meta">Ticks that look wrong. Nothing changes until you decide.</span></div>
+  <% flags.forEach(function (f) { const a = f.a; const p = a.profile; const t = f.task; %>
+    <div class="na-q__item na-q__item--row" id="flag-<%= t.id %>">
+      <div class="na-line__who">
+        <span class="na-strong"><%= p.fullName %>: <%= t.title %></span>
+        <span class="na-meta"><%= f.reasons.join(' · ') %>. Ticked by <%= nameOf(t.requestedById || t.doneById) %>, <%= when(f.at) %>.</span>
+      </div>
+      <div class="na-q__acts">
+        <% if (t.doneAt) { %><form method="post" action="/new-agents/<%= p.id %>/tasks/<%= t.id %>/undo" data-once><input type="hidden" name="from" value="approvals" /><button type="submit" class="btn btn-secondary btn-sm" data-confirm-msg="Take back &quot;<%= t.title %>&quot;? It is due again.">Take the tick back</button></form><% } else { %><a class="btn btn-secondary btn-sm" href="#task-<%= t.id %>">See the sign-off</a><% } %>
+        <form method="post" action="/new-agents/<%= p.id %>/tasks/<%= t.id %>/clear-flag" data-once><input type="hidden" name="from" value="approvals" /><button type="submit" class="btn btn-secondary btn-sm">Looks fine</button></form>
+      </div>
+    </div>
+  <% }); %>
+</section>
+<% } else { %><div style="margin-bottom:40px"></div><% } %>

@@ -6,6 +6,7 @@ function employeeManagementTabs(role) {
   if (role === 'SUPERVISOR') {
     return [
       { label: 'My Team', href: '/team' },
+      { label: 'New agents', href: '/new-agents' }, // the New Agent Program board (routes/newAgents.js)
       { label: 'Team Intelligence', href: '/team-skills' },
       { label: 'Vacation Overview', href: '/leave' },
     ];
@@ -13,17 +14,21 @@ function employeeManagementTabs(role) {
   return [
     { label: 'Employees', href: '/admin/employees' },
     { label: 'Teams', href: '/admin/teams' },
+    { label: 'New agents', href: '/new-agents' },
     { label: 'Intelligence', href: '/admin/intelligence' },
     { label: 'Vacation Overview', href: '/leave' },
+    { label: 'Fired agents', href: '/admin/employees/fired' }, // routes/admin/firedAgents.js
   ];
 }
 
 // `can` (server.js: res.locals.can) answers "may this viewer use capability X" — a Supervisor holds
 // none by default, and /assignments needs training.assign, so offering the tab to everyone made
 // every Training page show a tab that ends on "Access denied" for a Supervisor without the grant.
-const trainingTabs = (can) => [
+// Call Practice (the calls new agents type out) and the New Agent Program plan are managed by Admins only.
+const trainingTabs = (can, role) => [
   { label: 'Catalog', href: '/admin/training' },
   ...(!can || can('training.assign') ? [{ label: 'Assignments', href: '/assignments' }] : []),
+  ...(role === 'ADMIN' ? [{ label: 'Call Practice', href: '/admin/call-practice' }, { label: 'New Agent Program', href: '/admin/new-agent-program' }] : []),
 ];
 
 // The learner's own pages, listed in the top-right user menu (views/layout.ejs) next to "Profile & Settings":
@@ -51,7 +56,7 @@ function standardsTabs(role) {
 function tabsetsFor(role, can) {
   return {
     employees: employeeManagementTabs(role),
-    training: trainingTabs(can),
+    training: trainingTabs(can, role),
     learner: learnerTabs(role),
     library: libraryTabs(role),
     standards: standardsTabs(role),

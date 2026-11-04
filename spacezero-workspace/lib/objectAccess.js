@@ -32,7 +32,7 @@ async function objectAccess(req, res, next) {
   const url = req.path;
   // The collection export has its own admin and organization checks in the route.
   const employeeExport = req.method === 'GET' && url === '/admin/employees/export.xlsx';
-  if ((match = url.match(/^\/admin\/employees\/([^/]+)(?:\/.*)?$/)) && !['new', 'invite-pending'].includes(match[1]) && !employeeExport) {
+  if ((match = url.match(/^\/admin\/employees\/([^/]+)(?:\/.*)?$/)) && !['new', 'invite-pending', 'fired'].includes(match[1]) && !employeeExport) {
     table = 'Profile'; target = await prisma.profile.findUnique({ where: { id: match[1] } });
     allowed = actor.role === 'ADMIN' && target?.organizationId === actor.organizationId;
   } else if ((match = url.match(/^\/admin\/teams\/([^/]+)\/archive$/))) {

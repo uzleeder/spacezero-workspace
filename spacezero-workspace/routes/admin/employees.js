@@ -200,11 +200,16 @@ router.post('/employees/new', requireAdmin, async (req, res) => {
     prisma.profile.findUnique({ where: { username: data.username } }),
     prisma.profile.findUnique({ where: { email: data.email } }),
   ]);
+  if (usernameTaken && usernameTaken.firedAt) return rerender(null, { username: ['This username belongs to the company account of a fired agent. Use Fired agents → "Give this account to a new agent".'] });
   if (usernameTaken) return rerender(null, { username: ['This username is already taken.'] });
+  // a fired agent's company account is given to the next agent from Fired agents, so the saved logins move with it
+  if (emailTaken && emailTaken.firedAt) return rerender(null, { email: ['This is the company account of a fired agent. Open Employees & Teams → Fired agents and use "Give this account to a new agent".'] });
   if (emailTaken) return rerender(null, { email: ['This email is already registered.'] });
   if (data.supervisorId && !requiresSupervisor(data.role)) {
     return rerender('A supervisor can only be assigned to an Agent or Flight Expert.');
   }
+  // a new Travel Agent is never without a supervisor (lib/newAgentProgram.js: every item has a real owner)
+  if (data.role === 'TRAVEL_AGENT' && !data.supervisorId) return rerender(null, { supervisorId: ['Choose a supervisor: every new Travel Agent needs one.'] });
 
   const { raw, hash } = generateToken();
 
@@ -296,6 +301,7 @@ router.get('/employees/:id', requireAdmin, async (req, res) => {
     error: null,
     fieldErrors: {},
     canRecordEvidence: true,
+    notice: typeof req.query.notice === 'string' ? req.query.notice : '',
   });
 });
 
@@ -409,6 +415,8 @@ router.post('/employees/:id', requireAdmin, async (req, res) => {
 
   // A new role can bring new onboarding training (setup requirements already follow the role).
   if (existing.role !== data.role) await applyOnboarding({ ...existing, role: data.role }, { actorId: admin.id }).catch((err) => console.error('[onboarding] failed:', err.message || err));
+  // A new start date moves a Travel Agent's program that has not started yet (lib/newAgentProgram.js followStartDate).
+  if (data.role === 'TRAVEL_AGENT') await require('../../lib/newAgentProgram').followStartDate({ ...existing, role: data.role, employmentStartDate: new Date(data.employmentStartDate) }).catch((err) => console.error('[program] start date failed:', err.message || err));
 
   await logAudit({
     organizationId: admin.organizationId,

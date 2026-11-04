@@ -41,13 +41,14 @@ const NO_MANAGE_MESSAGE = 'You do not have permission to change this person\u201
 const NOT_ACTIVE_MESSAGE = 'Setup can only be saved once the account is active.';
 const impersonatingMessage = (req, ctx) => `You are viewing ${ctx.employee.fullName}\u2019s account as ${req.impersonation.adminName}. Only ${ctx.employee.fullName} can confirm their own items here \u2014 use \u201cReturn to admin and manage this Setup\u201d to change it yourself.`;
 async function frame(req, ctx) {
-  const [access, readinessMap, canViewSetup] = await Promise.all([
+  const [access, readinessMap, canViewSetup, firstMonth] = await Promise.all([
     credentialAccess(req.profile, ctx.employee, { impersonating: Boolean(req.impersonation) }),
     readinessFor(req.profile.organizationId, [ctx.employee]),
     canViewSetupTab(req.profile, ctx),
+    require('../lib/employeeTabs').inFirstMonth(req.profile, ctx),
   ]);
   const readiness = readinessMap.get(ctx.employee.id) || null;
-  return { tabs: employeeTabs(req.profile, ctx, { credentials: access.view || access.manage, canViewSetup }), employee: ctx.employee, isSelf: ctx.isSelf, roleLabel, readiness };
+  return { tabs: employeeTabs(req.profile, ctx, { credentials: access.view || access.manage, canViewSetup, firstMonth }), employee: ctx.employee, isSelf: ctx.isSelf, roleLabel, readiness };
 }
 
 async function renderSetup(req, res, ctx, extra = {}) {
@@ -573,8 +574,8 @@ async function trainingRemover(req) {
 router.get('/employees/:id/training', requireSession, async (req, res) => {
   const ctx = await loadEmployeeFor(req.profile, req.params.id);
   if (!ctx) return notFound(res);
-  const list = await getMyTrainingList(ctx.employee.id);
-  res.render('employee/training', { title: `${ctx.employee.fullName} — Training`, ...(await frame(req, ctx)), list, categoryLabel: require('../lib/trainingCategories').categoryLabel, canRemove: await trainingRemover(req), removed: req.query.removed === '1' });
+  const [list, callPractice] = await Promise.all([getMyTrainingList(ctx.employee.id), require('../lib/callPractice').reportFor(ctx.employee)]);
+  res.render('employee/training', { title: `${ctx.employee.fullName} — Training`, ...(await frame(req, ctx)), list, callPractice, clock: require('../lib/callPractice').clock, categoryLabel: require('../lib/trainingCategories').categoryLabel, canRemove: await trainingRemover(req), removed: req.query.removed === '1' });
 });
 
 // Admin only: take ONE assigned training away from this employee (the assignment stays for everyone else;

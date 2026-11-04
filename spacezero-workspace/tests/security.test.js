@@ -79,7 +79,7 @@ test('supervisor sees only assigned agents; agent and expert cannot read team da
 });
 test('actual local SMTP invitation delivery, activation, replay rejection, and reset', async () => {
   const name = 'invited_' + randomUUID().slice(0,8);
-  const created = await request(app).post('/admin/employees/new').set('Cookie',cookie).type('form').send({ fullName: 'Invited Employee', username: name, email: `${name}@example.invalid`, role:'TRAVEL_AGENT', employmentStartDate:'2026-01-01' });
+  const created = await request(app).post('/admin/employees/new').set('Cookie',cookie).type('form').send({ fullName: 'Invited Employee', username: name, email: `${name}@example.invalid`, role:'TRAVEL_AGENT', employmentStartDate:'2026-01-01', supervisorId: supervisor.id }); // a new Travel Agent needs a supervisor
   assert.equal(created.status,302);
   let invited = await prisma.profile.findUnique({ where: { username:name } });
   fixtures.push(invited);

@@ -1,0 +1,27 @@
+<%- include('../../partials/page-header', { pageTitle: 'Give ' + account.key + ' to a new agent', pageDescription: 'A new profile with this company email and username. The saved logins move to it; the personal details of former agents do not.', headerAction: '<a href="/admin/employees/fired/account?key=' + encodeURIComponent(account.key) + '" class="btn btn-secondary btn-sm">← Back</a>' }) %>
+
+<div class="card mt-24" style="max-width:760px">
+  <form method="post" action="/admin/employees/fired/account/new-agent" class="card-body" data-once>
+    <input type="hidden" name="key" value="<%= account.key %>" />
+    <% if (error) { %><div class="form-alert error" role="alert"><%= error %></div><% } %>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 20px">
+      <div class="field"><label>Company email</label><input value="<%= account.key %>" disabled /></div>
+      <div class="field"><label>Username</label><input value="@<%= account.username %>" disabled /></div>
+      <div class="field"><label>Role</label><input value="<%= roleLabel(account.keeper.role) %>" disabled /></div>
+      <div class="field"><label for="fullName">New agent's full name</label><input id="fullName" name="fullName" required minlength="2" maxlength="120" value="<%= values.fullName || '' %>" /></div>
+      <div class="field"><label for="employmentStartDate">Start date</label><input id="employmentStartDate" name="employmentStartDate" type="date" required value="<%= values.employmentStartDate || new Date().toISOString().slice(0, 10) %>" /></div>
+      <div class="field"><label for="teamId">Team</label><select id="teamId" name="teamId"><option value="">No team</option><% teams.forEach(function (t) { %><option value="<%= t.id %>" <%= values.teamId === t.id ? 'selected' : '' %>><%= t.name %></option><% }); %></select></div>
+      <div class="field"><label for="supervisorId">Supervisor</label><select id="supervisorId" name="supervisorId"><option value="">No supervisor</option><% supervisors.forEach(function (s) { %><option value="<%= s.id %>" <%= values.supervisorId === s.id ? 'selected' : '' %>><%= s.fullName %></option><% }); %></select></div>
+    </div>
+    <div class="form-alert info mt-16">
+      <strong><%= account.savedLogins %> saved login<%= account.savedLogins === 1 ? '' : 's' %></strong> (login names and passwords) will move to the new agent, who will be able to see them. Nothing else from the former agents is shown to the new agent: their notes, passport details, phone numbers, address, training and history stay with their own records.
+      An invitation will be sent to <strong><%= account.key %></strong>, and the new agent will choose their own Workspace password.
+      In Setup, the systems whose logins come with the account are marked as done; the new agent fills in everything else (passport, phone numbers, address and the other items).
+      <br><span class="text-muted">Tip: the former agent knew these system passwords, so consider changing them and updating them in the vault.</span>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
+      <button type="submit" class="btn btn-gold">Create the new agent</button>
+      <a href="/admin/employees/fired/account?key=<%= encodeURIComponent(account.key) %>" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>

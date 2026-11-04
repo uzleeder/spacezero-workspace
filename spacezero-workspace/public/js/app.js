@@ -188,7 +188,8 @@
     var filenameEl = dz.querySelector('[data-dz-filename]');
     if (!input) return;
     function updateFilename() {
-      if (filenameEl) filenameEl.textContent = input.files && input.files.length > 0 ? input.files[0].name : '';
+      var files = input.files || [];
+      if (filenameEl) filenameEl.textContent = files.length > 1 ? files.length + ' files: ' + Array.prototype.map.call(files, function (f) { return f.name; }).join(', ') : files.length ? files[0].name : '';
     }
     input.addEventListener('change', updateFilename);
     ['dragenter', 'dragover'].forEach(function (evt) {
@@ -381,6 +382,14 @@
 (function () {
   var box = document.querySelector('[data-viewas]');
   if (!box) return;
+  document.addEventListener('click', function (e) { if (box.open && !box.contains(e.target)) box.open = false; });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && box.open) { box.open = false; box.querySelector('summary').focus(); } });
+})();
+// Space AI (bottom-right): closes on outside click or Escape, and puts the cursor in the question box when opened.
+(function () {
+  var box = document.querySelector('[data-space-ai]');
+  if (!box) return;
+  box.addEventListener('toggle', function () { if (box.open) { var q = box.querySelector('textarea'); if (q) q.focus(); } });
   document.addEventListener('click', function (e) { if (box.open && !box.contains(e.target)) box.open = false; });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && box.open) { box.open = false; box.querySelector('summary').focus(); } });
 })();

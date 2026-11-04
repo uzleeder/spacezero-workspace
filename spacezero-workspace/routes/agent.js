@@ -13,8 +13,8 @@ const { startTraining } = require('../lib/trainingCompletion');
 router.get('/training', requireSession, async (req, res) => {
   // Anything already done (every practice passed, material finished) is finished now - it must not sit in Overdue.
   if (!require('../lib/requestContext').readOnly()) await require('../lib/trainingCompletion').autoFinishForProfile(req.profile.id).catch((err) => console.error('auto-finish failed', err.message));
-  const path = pathOf(await getMyTrainingList(req.profile.id, { progress: true }));
-  res.render('training', { title: 'My Training', path });
+  const [list, callPractice] = await Promise.all([getMyTrainingList(req.profile.id, { progress: true }), require('../lib/callPractice').summaryFor(req.profile)]);
+  res.render('training', { title: 'My Training', path: pathOf(list), callPractice });
 });
 
 router.post('/training/:recipientId/start', requireSession, async (req, res) => {
