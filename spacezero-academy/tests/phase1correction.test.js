@@ -488,7 +488,8 @@ test('dashboards show role-appropriate operational cards that link to management
   assert.match(adminPage.text, /Urgent|All clear/); assert.match(adminPage.text, /Academy health/); assert.match(adminPage.text, /data-live="\/dashboard\/live"/);
   assert.doesNotMatch(adminPage.text, /Total employees|Quick actions/);
   const supPage = await get(supA, '/dashboard');
-  assert.match(supPage.text, /Needs your attention/); assert.match(supPage.text, /href="\/team\?readiness=SETUP_REQUIRED"/); assert.doesNotMatch(supPage.text, /\/admin\/employees\?/);
+  // the supervisor's own dashboard (lib/supervisorDashboard.js): their team and their list, nothing from the admin side
+  assert.match(supPage.text, /Your team/); assert.match(supPage.text, /data-live="\/dashboard\/live"/); assert.doesNotMatch(supPage.text, /\/admin\/employees\?/);
   const agentPage = await get(agentA, '/dashboard');
   assert.match(agentPage.text, /My setup/); assert.doesNotMatch(agentPage.text, /Pending vacation requests/);
 });

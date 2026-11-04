@@ -177,7 +177,7 @@ test('NEEDS YOUR ATTENTION: admin sees the organization, a supervisor only their
   // the Admin's dashboard is the three lanes (lib/adminDashboard.js): the same items, as cards with a link
   assert.match(page.text, /Up next/); assert.match(page.text, /1 person not activated yet/); assert.match(page.text, /1 AI practice to review/); assert.match(page.text, /2 vacation requests/);
   assert.match(page.text, /href="\/leave\?status=PENDING"/); assert.match(page.text, /href="\/ai-practice\?tab=review"/); assert.match(page.text, /Retake needed/);
-  assert.match((await get(sup, '/dashboard')).text, /Needs your attention/);
+  assert.match((await get(sup, '/dashboard')).text, /Your team/); // the supervisor's own dashboard (lib/supervisorDashboard.js)
   assert.match((await get(agent, '/dashboard')).text, /Needs your attention/);
   assert.match((await get(agent, '/dashboard')).text, /Training overdue/);
   void lateR;

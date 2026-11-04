@@ -104,7 +104,7 @@ test('it is always up to date: a change elsewhere is on the next load, with noth
   await prisma.leaveRequest.updateMany({ where: { organizationId: org.id }, data: { status: 'PENDING' } });
 });
 
-test('the page shows the lanes and refreshes itself from /dashboard/live, which only an Admin can read', async () => {
+test('the page shows the lanes and refreshes itself from /dashboard/live, which gives an Admin this board and nobody else', async () => {
   const page = await get('admin', '/dashboard');
   assert.equal(page.status, 200);
   assert.match(page.headers['cache-control'], /no-store/);
@@ -118,7 +118,9 @@ test('the page shows the lanes and refreshes itself from /dashboard/live, which 
   assert.match(live.headers['cache-control'], /no-store/);
   assert.match(live.text, /Dilnoza Tester has no supervisor/);
   assert.doesNotMatch(live.text, /<html|<nav/i, 'the board alone, without the page around it');
-  assert.equal((await get('kamola', '/dashboard/live')).status, 403);
+  const supLive = await get('kamola', '/dashboard/live');
+  assert.equal(supLive.status, 200, 'a supervisor gets their own board there (lib/supervisorDashboard.js)');
+  assert.match(supLive.text, /Your team/); assert.doesNotMatch(supLive.text, /Dilnoza Tester has no supervisor|Decision needed/, 'never the admin board');
   assert.equal((await get('aziz', '/dashboard/live')).status, 403);
   assert.equal((await request(app).get('/dashboard/live')).status, 302, 'signed out: to the sign-in page');
 });
@@ -130,6 +132,6 @@ test('nothing to do: "All clear", and supervisors and agents keep their own dash
   const page = await get('calm', '/dashboard');
   assert.match(page.text, /All clear today\./); assert.match(page.text, /Nothing is waiting for you/);
   assert.doesNotMatch(page.text, /dash-lanes/);
-  assert.match((await get('kamola', '/dashboard')).text, /Needs your attention/);
+  assert.match((await get('kamola', '/dashboard')).text, /Your team/, 'the supervisor has their own dashboard (lib/supervisorDashboard.js)');
   assert.match((await get('aziz', '/dashboard')).text, /Needs your attention/);
 });

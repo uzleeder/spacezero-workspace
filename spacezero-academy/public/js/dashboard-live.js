@@ -1,5 +1,5 @@
 'use strict';
-// Keeps the Admin dashboard up to date (views/dashboard/admin.ejs): the board is reloaded from /dashboard/live every
+// Keeps the Admin and Supervisor dashboards up to date (views/dashboard/admin.ejs, supervisor.ejs): the board is reloaded from /dashboard/live every
 // minute, and when the tab is shown again, so a change anywhere in the academy appears without a page reload.
 // A card whose text changed glows once. If the session ended (the request is redirected) or fails, the board stays as is.
 (function () {
@@ -18,7 +18,7 @@
   }
   function cards() {
     var out = {};
-    root.querySelectorAll('.dash-card[data-key]').forEach(function (c) { out[c.getAttribute('data-key')] = c.textContent.replace(/\s+/g, ' '); });
+    root.querySelectorAll('[data-key]').forEach(function (c) { out[c.getAttribute('data-key')] = c.textContent.replace(/\s+/g, ' '); });
     return out;
   }
   function refresh() {
@@ -30,7 +30,7 @@
       .then(function (html) {
         root.innerHTML = html;
         last = Date.now();
-        root.querySelectorAll('.dash-card[data-key]').forEach(function (c) {
+        root.querySelectorAll('[data-key]').forEach(function (c) {
           var key = c.getAttribute('data-key');
           if (before[key] !== undefined && before[key] !== c.textContent.replace(/\s+/g, ' ')) c.classList.add('is-fresh');
         });

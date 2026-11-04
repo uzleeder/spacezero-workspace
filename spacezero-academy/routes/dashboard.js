@@ -6,12 +6,11 @@ const router = express.Router();
 const { prisma } = require('../lib/prisma');
 const { requireSession, requireRole } = require('../lib/authMiddleware');
 const { adminDashboard } = require('../lib/adminDashboard');
+const { supervisorDashboard } = require('../lib/supervisorDashboard');
 const { getMyTrainingSummary } = require('../lib/training');
-const { supervisedProfileIds } = require('../lib/authz');
 const { loadSetupForProfile } = require('../lib/employeeSetup');
 const { nextActions } = require('../lib/development');
 const { classifySkills, categorySummary } = require('../lib/skillIntel');
-const { teamIntelligence } = require('../lib/teamIntel');
 const { readinessFor } = require('../lib/readiness');
 const { attentionFor } = require('../lib/attention');
 
@@ -39,21 +38,26 @@ async function myDevelopment(profile) {
   };
 }
 
-/** The Admin dashboard's data (lib/adminDashboard.js) with the greeting and today's date, in Tashkent time. */
-async function adminBoard(profile, now = new Date()) {
+/** The greeting and today's date, in Tashkent time. */
+function hello(profile, now) {
   const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', hourCycle: 'h23' }).format(now));
   const part = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
-  return {
-    dash: await adminDashboard(profile, { now }),
-    greeting: `Good ${part}, ${profile.fullName.split(' ')[0]}.`,
-    today: new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', weekday: 'long', day: 'numeric', month: 'long' }).format(now),
-  };
+  return { greeting: `Good ${part}, ${profile.fullName.split(' ')[0]}.`, today: new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', weekday: 'long', day: 'numeric', month: 'long' }).format(now) };
+}
+/** The Admin dashboard's data (lib/adminDashboard.js). */
+async function adminBoard(profile, now = new Date()) {
+  return { dash: await adminDashboard(profile, { now }), ...hello(profile, now) };
+}
+/** The Supervisor dashboard's data (lib/supervisorDashboard.js): their own team only. */
+async function supervisorBoard(profile, now = new Date()) {
+  return { sdash: await supervisorDashboard(profile, { now }), ...hello(profile, now) };
 }
 
-// The inside of the Admin dashboard on its own, for public/js/dashboard-live.js to refresh it in place.
-router.get('/dashboard/live', requireRole('ADMIN'), async (req, res) => {
+// The inside of the Admin or Supervisor dashboard on its own, for public/js/dashboard-live.js to refresh it in place.
+router.get('/dashboard/live', requireRole('ADMIN', 'SUPERVISOR'), async (req, res) => {
   res.set('Cache-Control', 'private, no-store');
-  res.render('dashboard/admin-board', { layout: false, ...(await adminBoard(req.profile)) });
+  if (req.profile.role === 'ADMIN') return res.render('dashboard/admin-board', { layout: false, ...(await adminBoard(req.profile)) });
+  res.render('dashboard/supervisor-board', { layout: false, ...(await supervisorBoard(req.profile)) });
 });
 
 router.get('/dashboard', requireSession, async (req, res) => {
@@ -62,12 +66,7 @@ router.get('/dashboard', requireSession, async (req, res) => {
 
   if (profile.role === 'ADMIN') return res.render('dashboard/admin', { title: 'Dashboard', ...(await adminBoard(profile)) });
 
-  if (profile.role === 'SUPERVISOR') {
-    const agentIds = await supervisedProfileIds(profile.id);
-    const agents = await prisma.profile.findMany({ where: { id: { in: agentIds }, status: { not: 'ARCHIVED' } } });
-    const [intel, me, attention] = await Promise.all([teamIntelligence(profile.organizationId, agentIds, { limit: 5 }), myDevelopment(profile), attentionFor(profile)]);
-    return res.render('dashboard/supervisor', { title: 'Dashboard', agents, retakeCount: intel.summary.retakes, attention, intel, me });
-  }
+  if (profile.role === 'SUPERVISOR') return res.render('dashboard/supervisor', { title: 'Dashboard', ...(await supervisorBoard(profile)) });
 
   const [summary, setup, me, attention] = await Promise.all([getMyTrainingSummary(profile.id), loadSetupForProfile(profile.organizationId, profile), myDevelopment(profile), attentionFor(profile)]);
   const readiness = (await readinessFor(profile.organizationId, [profile], { setupMap: new Map([[profile.id, setup]]) })).get(profile.id) || null;
