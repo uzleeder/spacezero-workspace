@@ -113,7 +113,7 @@ test('the new agent finds the systems that came with the account done in Setup, 
   const lola = await agent('Lola', key, `lola_${org.id}`, { passport: ['Lola', 'Rossi', 'LR9999999'], phone: '+998 91 000 00 00', address: 'Samarkand 7' });
   for (const [system, systemKey] of [['Gmail', 'gmail'], ['CRM', 'crm']]) {
     const c = await prisma.credential.create({ data: { organizationId: org.id, ownerId: lola.id, system, systemKey, payloadEnc: 'x' } });
-    await prisma.credential.update({ where: { id: c.id }, data: { payloadEnc: encryptJson({ password: `${system}-pw` }, `cred:${org.id}:${lola.id}`) } });
+    await prisma.credential.update({ where: { id: c.id }, data: { payloadEnc: encryptJson({ username: `lola.${system}`, password: `${system}-pw`, note: 'Call me on my sister phone +998 93 777 77 77' }, `cred:${org.id}:${lola.id}`) } });
   }
   assert.equal((await post(admin, `/admin/employees/${lola.id}/fire`, { reason: 'Moved abroad' })).status, 302);
   assert.equal((await post(admin, '/admin/employees/fired/account/new-agent', { key, fullName: 'Nodira Saidova', employmentStartDate: '2026-11-05', supervisorId: supervisor.id })).status, 302);
@@ -127,4 +127,24 @@ test('the new agent finds the systems that came with the account done in Setup, 
   assert.notEqual(row('passport_details').status, 'COMPLETED');                                       // personal: the new agent fills it in
   // the former agent's own Setup items are not copied
   assert.equal(await prisma.employeeSetupItem.count({ where: { profileId: next.id, requirement: { credentialSystem: false } } }), 0);
+});
+
+test('the new agent sees only the passwords from the former agent: no note, no name, no personal details anywhere', async () => {
+  const key = `lola.${org.id}@above9.test`;
+  const next = await prisma.profile.findFirst({ where: { email: key } });
+  const logins = await prisma.credential.findMany({ where: { ownerId: next.id } });
+  for (const c of logins) {
+    const p = decryptJson(c.payloadEnc, `cred:${org.id}:${next.id}`);
+    assert.match(p.password, /-pw$/); assert.match(p.username, /^lola./);                         // login and password pass on
+    assert.equal(p.note, '');                                                                          // the former agent's own note does not
+  }
+  await prisma.profile.update({ where: { id: next.id }, data: { status: 'ACTIVE' } });
+  await login(next);
+  const traces = /Lola Rossi|LR9999999|Samarkand 7|998 91 000 00 00|sister phone|Moved abroad/;
+  for (const url of ['/dashboard', '/profile', `/employees/${next.id}/setup`, `/employees/${next.id}/credentials`, '/training', '/notifications']) {
+    const page = await get(next, url);
+    assert.ok([200, 302].includes(page.status), url);
+    assert.doesNotMatch(page.text, traces, url);
+  }
+  for (const url of ['/admin/employees/fired', `/admin/employees/fired/account?key=${encodeURIComponent(key)}`]) assert.ok([403, 404].includes((await get(next, url)).status), url);
 });

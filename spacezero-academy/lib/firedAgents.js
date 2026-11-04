@@ -117,8 +117,11 @@ async function handOverAccount(admin, accountKey, { fullName, employmentStartDat
     // with the old owner and sealed again to the new agent - a plain owner change would leave it unreadable.
     const logins = await tx.credential.findMany({ where: { ownerId: keeper.id } });
     for (const c of logins) {
-      const payload = decryptJson(c.payloadEnc, `cred:${c.organizationId}:${keeper.id}`);
-      await tx.credential.update({ where: { id: c.id }, data: { ownerId: profile.id, payloadEnc: encryptJson(payload, `cred:${c.organizationId}:${profile.id}`), updatedById: admin.id } });
+      const opened = decryptJson(c.payloadEnc, `cred:${c.organizationId}:${keeper.id}`);
+      // Only what is needed to use the system passes on: the login, the password and the account id. The free-text note
+      // is the former agent's own writing (it may hold anything personal), so it does not.
+      const payload = { username: opened.username || '', password: opened.password || '', accountId: opened.accountId || '', note: '' };
+      await tx.credential.update({ where: { id: c.id }, data: { ownerId: profile.id, createdById: admin.id, payloadEnc: encryptJson(payload, `cred:${c.organizationId}:${profile.id}`), updatedById: admin.id } });
     }
     const moved = { count: logins.length };
     // Setup: the systems whose logins came with the account are already done for the new agent (they have the

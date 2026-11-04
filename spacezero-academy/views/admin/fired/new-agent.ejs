@@ -14,7 +14,7 @@
       <div class="field"><label for="supervisorId">Supervisor</label><select id="supervisorId" name="supervisorId"><option value="">No supervisor</option><% supervisors.forEach(function (s) { %><option value="<%= s.id %>" <%= values.supervisorId === s.id ? 'selected' : '' %>><%= s.fullName %></option><% }); %></select></div>
     </div>
     <div class="form-alert info mt-16">
-      <strong><%= account.savedLogins %> saved login<%= account.savedLogins === 1 ? '' : 's' %></strong> (system passwords) will move to the new agent, who will be able to see them. The former agents' passport details, phone numbers, address, training and history stay with their own records and are never shown to the new agent.
+      <strong><%= account.savedLogins %> saved login<%= account.savedLogins === 1 ? '' : 's' %></strong> (login names and passwords) will move to the new agent, who will be able to see them. Nothing else from the former agents is shown to the new agent: their notes, passport details, phone numbers, address, training and history stay with their own records.
       An invitation will be sent to <strong><%= account.key %></strong>, and the new agent will choose their own Workspace password.
       In Setup, the systems whose logins come with the account are marked as done; the new agent fills in everything else (passport, phone numbers, address and the other items).
       <br><span class="text-muted">Tip: the former agent knew these system passwords, so consider changing them and updating them in the vault.</span>
