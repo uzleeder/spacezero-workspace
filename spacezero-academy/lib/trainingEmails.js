@@ -4,7 +4,8 @@ const { randomUUID } = require('node:crypto');
 const { prisma } = require('./prisma');
 const mailer = require('./mailer');
 const { formatDeadline } = require('./trainingDeadline');
-const { completionFromAssessments } = require('./trainingCompletion');
+const { isSubmitted, courseAttempt } = require('./trainingCompletion');
+const { getSetting } = require('./orgSettings');
 // A training that has been assigned gets ONE assignment email, then ONE reminder a day (every 24 hours) until it is completed.
 const REMINDER_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const RETRY_CAP_MS = 3 * 60 * 60 * 1000; // a failed delivery is retried with a growing delay, never longer than this
@@ -36,10 +37,53 @@ async function queueAgain(recipientIds, now = new Date()) {
   return queued;
 }
 
-// Practice passes and the final Submit training action must both be complete.
+// Finished = the same rule as everywhere else in the app (My Training, dashboards, reports): the training was submitted
+// and no retake was asked for since. Submitting already required every practice to be passed. The worker used to
+// re-check the practices against the training as it is NOW, so editing a finished training (a practice added, a pass
+// mark or required attempts raised) made people who had finished it get the "not completed yet" link every day.
 function completed(recipient) {
-  const state = completionFromAssessments(recipient, recipient.assignment.course.assessments);
-  return state.passedAll && state.submitted;
+  return isSubmitted(recipient.attempts);
+}
+
+// The same training finished in another copy of it after this copy was assigned (two assignments of one training, e.g.
+// a practice-only one and the whole training): this copy is done too. A copy assigned AFTER they finished is a new
+// round on purpose and still gets its emails. The whole training covers a practice-only copy, not the other way round.
+async function finishedInAnotherCopy(recipient) {
+  const others = await prisma.trainingAssignmentRecipient.findMany({
+    where: { profileId: recipient.profileId, id: { not: recipient.id }, assignment: { courseId: recipient.assignment.courseId } },
+    select: { assignment: { select: { assessmentId: true } }, attempts: { where: { assessmentId: null }, select: { status: true, attemptNumber: true, createdAt: true, completedAt: true, assessmentId: true } } },
+  });
+  return others.some((o) => {
+    if (o.assignment.assessmentId && o.assignment.assessmentId !== recipient.assignment.assessmentId) return false;
+    const c = courseAttempt(o.attempts);
+    return Boolean(c && c.status === 'COMPLETED' && c.completedAt && new Date(c.completedAt) >= new Date(recipient.createdAt));
+  });
+}
+
+// Admin switches (Manage Training -> Training emails): the whole company, the person's teams, this training.
+async function emailsOff(recipient) {
+  if (recipient.assignment.course.trainingEmailsOff) return 'Paused: emails are off for this training';
+  if (!(await getSetting(recipient.assignment.organizationId, 'email.trainingEmails'))) return 'Paused: training emails are off';
+  const off = await prisma.teamMembership.findFirst({ where: { profileId: recipient.profileId, team: { trainingEmailsOff: true, archivedAt: null } }, select: { id: true } });
+  return off ? "Paused: emails are off for this person's team" : null;
+}
+const PAUSED = /^Paused: /;
+
+/** Stops the emails of a training the moment it is finished (this copy, and older copies it covers). */
+async function stopForFinished(recipient) {
+  const covered = await prisma.trainingAssignmentRecipient.findMany({
+    where: { profileId: recipient.profileId, createdAt: { lte: new Date() }, assignment: { courseId: recipient.assignment.courseId, ...(recipient.assignment.assessmentId ? { assessmentId: recipient.assignment.assessmentId } : {}) } },
+    select: { id: true },
+  });
+  const ids = [recipient.id, ...covered.map((c) => c.id)];
+  return prisma.trainingEmailSchedule.updateMany({ where: { recipientId: { in: ids }, claimToken: null }, data: { nextSendAt: null, payloadJson: null, lastError: null } });
+}
+
+/** An Admin turned emails back on: paused emails are looked at again now (each is re-checked before sending). */
+async function resumePaused(organizationId) {
+  const r = await prisma.trainingEmailSchedule.updateMany({ where: { lastError: { startsWith: 'Paused: ' }, claimToken: null, recipient: { assignment: { organizationId } } }, data: { nextSendAt: new Date(), lastError: null } });
+  kick();
+  return r.count;
 }
 
 function eligibility(recipient) {
@@ -83,8 +127,15 @@ async function processNext({ now = new Date(), send = mailer.sendEmailMessage } 
   try {
     const recipient = await prisma.trainingAssignmentRecipient.findUnique({ where: { id: job.recipientId }, include: { profile: true, assignment: { include: { course: { include: { assessments: true } } } }, attempts: true } });
     if (!recipient) return true; // FK cascade already removed the job.
-    const reason = eligibility(recipient);
+    // Everything required done but never submitted: finish it now (as the app does), then there is nothing to remind.
+    if (!completed(recipient) && recipient.profile.status === 'ACTIVE') {
+      const { autoFinishForProfile } = require('./trainingCompletion');
+      if (await autoFinishForProfile(recipient.profileId, { id: recipient.id }).catch(() => 0)) recipient.attempts = await prisma.trainingAttempt.findMany({ where: { recipientId: recipient.id } });
+    }
+    const reason = eligibility(recipient) || (await finishedInAnotherCopy(recipient) ? 'Training completed' : null);
     if (reason) { await finish({ nextSendAt: null, payloadJson: null, lastError: reason === 'Training completed' ? null : reason }); return true; }
+    const paused = await emailsOff(recipient);
+    if (paused) { await finish({ nextSendAt: new Date(now.getTime() + REMINDER_INTERVAL_MS), lastError: paused }); return true; }   // nothing sent; turning it back on resumes
     if (job.kind === 'REMINDER') {
       // 24 hours after the last email, however the deadline stands
       const earliest = new Date((job.lastSentAt ? job.lastSentAt.getTime() : 0) + REMINDER_INTERVAL_MS);
@@ -125,4 +176,4 @@ function start() {
   kick();
 }
 function stop() { if (timer) clearInterval(timer); timer = null; }
-module.exports = { enqueueAssignment, queueAgain, processNext, drain, kick, start, stop, completed, REMINDER_INTERVAL_MS };
+module.exports = { enqueueAssignment, queueAgain, processNext, drain, kick, start, stop, completed, finishedInAnotherCopy, stopForFinished, resumePaused, emailsOff, PAUSED, REMINDER_INTERVAL_MS };

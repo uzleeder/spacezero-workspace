@@ -2539,3 +2539,19 @@ html[data-theme="dark"] .ai-tool:hover { color: #f2f0fa; }
 .ai-composer__bar { justify-content: flex-end; gap: 4px; }   /* image, microphone and voice chat sit right beside Send */
 .hero-art svg.is-tappable { cursor: pointer; -webkit-tap-highlight-color: transparent; }   /* tap the globe: more flights */
 .hero-art .globe-trail--extra { stroke-opacity: .8; }
+
+/* ---- Manage Training -> Training emails: on/off switches ---- */
+.email-switch-form { margin: 0; flex: none; }
+.email-switch { display: inline-flex; align-items: center; gap: 9px; padding: 4px 6px; border: 0; background: transparent; cursor: pointer; font-weight: 600; font-size: 13px; color: var(--card-muted, #6b7280); border-radius: 999px; }
+.email-switch:focus-visible { outline: 2px solid var(--gold-500, #dca878); outline-offset: 2px; }
+.email-switch__track { position: relative; width: 42px; height: 24px; border-radius: 999px; background: #c9ccd6; transition: background .15s var(--ease); }
+.email-switch__knob { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 999px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .15s var(--ease); }
+.email-switch.is-on { color: var(--card-title, #101823); }
+.email-switch.is-on .email-switch__track { background: #3fb68b; }
+.email-switch.is-on .email-switch__knob { transform: translateX(18px); }
+.email-switch-list { display: flex; flex-direction: column; gap: 6px; }
+.email-switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 12px; background: var(--tile-bg); border: 1px solid var(--tile-border); }
+.email-switch-row__name { margin: 0; font-weight: 600; font-size: 14px; color: var(--card-title); overflow-wrap: anywhere; }
+.email-switch-row__meta { margin: 2px 0 0; font-size: 12px; color: var(--card-muted); }
+.email-switch-row.is-overridden { opacity: .55; }
+html[data-theme="dark"] .email-switch__track { background: #3a3760; }

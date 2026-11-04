@@ -1,0 +1,47 @@
+<%# Manage Training -> Training emails (routes/admin/trainingEmails.js). %>
+<%- include('../partials/page-header', { pageTitle: 'Training emails', pageDescription: 'Turn the "New training" email and the daily reminder off or on for everyone, a team, or one training. In-app notifications are not affected.' }) %>
+<%- include('../partials/management-tabs', { tabs: tabsets.training }) %>
+
+<% if (notice) { %><div class="form-alert success mt-16" role="status"><%= notice %></div><% } %>
+
+<div class="card mt-24">
+  <div class="card-body row-between" style="gap:16px;flex-wrap:wrap">
+    <div>
+      <h2 style="margin:0">Everyone</h2>
+      <p class="text-sm text-muted" style="margin:4px 0 0">The main switch. While it is off, no training emails go to anyone, whatever the switches below say.</p>
+    </div>
+    <%- include('../partials/email-switch', { target: 'all', id: '', on: allOn, name: 'everyone' }) %>
+  </div>
+  <div class="card-body text-sm text-muted">
+    Off pauses the emails; nothing is lost. Turning a switch back on resumes them at once. People who finished a training never get emails about it.
+    <% if (paused) { %><strong style="color:var(--card-title)"> <%= paused %> email<%= paused === 1 ? ' is' : 's are' %> paused right now.</strong><% } %>
+  </div>
+</div>
+
+<div class="grid grid-2 mt-24">
+  <section class="card">
+    <div class="card-header"><h2>Teams</h2><p>Off: no training emails for the members of that team.</p></div>
+    <div class="card-body email-switch-list">
+      <% if (!teams.length) { %><p class="text-muted text-sm">No teams yet.</p><% } %>
+      <% teams.forEach(function (t) { %>
+        <div class="email-switch-row<%= allOn ? '' : ' is-overridden' %>" data-team="<%= t.id %>">
+          <div><p class="email-switch-row__name"><%= t.name %></p><p class="email-switch-row__meta"><%= t._count.memberships %> member<%= t._count.memberships === 1 ? '' : 's' %></p></div>
+          <%- include('../partials/email-switch', { target: 'team', id: t.id, on: !t.trainingEmailsOff, name: t.name }) %>
+        </div>
+      <% }); %>
+    </div>
+  </section>
+  <section class="card">
+    <div class="card-header"><h2>Trainings</h2><p>Off: no emails about that training for anyone.</p></div>
+    <div class="card-body email-switch-list">
+      <% if (!courses.length) { %><p class="text-muted text-sm">No published trainings yet.</p><% } %>
+      <% courses.forEach(function (c) { %>
+        <div class="email-switch-row<%= allOn ? '' : ' is-overridden' %>" data-course="<%= c.id %>">
+          <div><p class="email-switch-row__name"><%= c.title %></p></div>
+          <%- include('../partials/email-switch', { target: 'course', id: c.id, on: !c.trainingEmailsOff, name: c.title }) %>
+        </div>
+      <% }); %>
+    </div>
+  </section>
+</div>
+<div style="height:40px"></div>

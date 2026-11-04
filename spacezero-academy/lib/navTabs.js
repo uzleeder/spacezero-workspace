@@ -28,7 +28,7 @@ function employeeManagementTabs(role) {
 const trainingTabs = (can, role) => [
   { label: 'Catalog', href: '/admin/training' },
   ...(!can || can('training.assign') ? [{ label: 'Assignments', href: '/assignments' }] : []),
-  ...(role === 'ADMIN' ? [{ label: 'Call Practice', href: '/admin/call-practice' }, { label: 'New Agent Program', href: '/admin/new-agent-program' }] : []),
+  ...(role === 'ADMIN' ? [{ label: 'Call Practice', href: '/admin/call-practice' }, { label: 'New Agent Program', href: '/admin/new-agent-program' }, { label: 'Training emails', href: '/admin/training-emails' }] : []),
 ];
 
 // The learner's own pages, listed in the top-right user menu (views/layout.ejs) next to "Profile & Settings":

@@ -22,10 +22,13 @@ async function person(role, organizationId = org.id) {
   return p;
 }
 const post = (actor, url, body = {}) => request(app).post(url).set('Cookie', cookies[actor.id]).type('form').send(body);
-async function assignment({ profileId = learner.id, dueDate = now, actor = admin, enqueue = true, courseId = course.id } = {}) {
+// Fixtures finish trainings on a fake 2099 clock. A copy is, by default, assigned after any of those finishes (a new round),
+// so a finish in an earlier test never counts for it (lib/trainingEmails.js finishedInAnotherCopy).
+const FRESH = new Date('2100-01-01T00:00:00Z');
+async function assignment({ profileId = learner.id, dueDate = now, actor = admin, enqueue = true, courseId = course.id, assignedAt = FRESH } = {}) {
   return prisma.$transaction(async tx => {
     const a = await tx.trainingAssignment.create({ data: { organizationId: org.id, courseId, assignedById: actor.id, scope: 'INDIVIDUAL', dueDate } });
-    const r = await tx.trainingAssignmentRecipient.create({ data: { assignmentId: a.id, profileId } });
+    const r = await tx.trainingAssignmentRecipient.create({ data: { assignmentId: a.id, profileId, createdAt: assignedAt } });
     await tx.trainingAttempt.create({ data: { recipientId: r.id, profileId, attemptNumber: 1, status: 'NOT_STARTED' } });
     if (enqueue) await emails.enqueueAssignment(tx, r.id, now);
     return r;
@@ -114,7 +117,7 @@ test('a multi-assessment training is not complete after passing only one compone
   assert.equal(emails.completed(r), false, 'practice passes alone do not submit the course');
   r.attempts.push({ assessmentId: null, attemptNumber: 4, status: 'COMPLETED', completedAt: now });
   assert.equal(emails.completed(r), true);
-  r.assignment.requiredAttempts = 2; assert.equal(emails.completed(r), false);
+  r.assignment.requiredAttempts = 2; assert.equal(emails.completed(r), true, 'editing a finished training does not re-open it for reminders');
 });
 
 test('a later course retake overrides an older submission for reminders', () => {
@@ -127,7 +130,7 @@ test('a later course retake overrides an older submission for reminders', () => 
   r.attempts[1].status = 'COMPLETED'; assert.equal(emails.completed(r), true);
 });
 
-test('reminders continue after passing practice and stop only after Submit training', async () => {
+test('passing every practice finishes the training (as the app does) and the reminders stop', async () => {
   const c = await prisma.trainingCourse.create({ data: { organizationId: org.id, title: 'Submission reminder course', status: 'PUBLISHED', createdById: admin.id } });
   const a = await prisma.assessment.create({ data: { organizationId: org.id, courseId: c.id, createdById: admin.id, title: 'Submission quiz', createdVia: 'ADMIN_MANUAL', type: 'QUIZ', status: 'APPROVED', version: 1, passingScore: 70, level: 1 } });
   const r = await assignment({ courseId: c.id }); const sent = [];
@@ -135,10 +138,9 @@ test('reminders continue after passing practice and stop only after Submit train
   await emails.processNext({ now, send });
   await prisma.trainingAttempt.create({ data: { recipientId: r.id, profileId: learner.id, assessmentId: a.id, attemptNumber: 2, status: 'COMPLETED', score: 90, completedAt: now } });
   await emails.processNext({ now: later(24 * H), send });
-  assert.equal(sent.length, 2, 'passing practice leaves the course unsubmitted');
-  assert.equal((await post(learner, `/training/${r.id}/complete`)).status, 302);
-  await emails.processNext({ now: later(48 * H), send });
-  assert.equal(sent.length, 2); assert.equal((await job(r)).nextSendAt, null);
+  assert.equal(sent.length, 1, 'everything required is done: the training is finished, not reminded');
+  assert.equal((await job(r)).nextSendAt, null);
+  assert.ok(emails.completed(await prisma.trainingAssignmentRecipient.findUnique({ where: { id: r.id }, include: { attempts: true } })));
 });
 
 test('daily-reminder migration moves existing schedules to 24 hours, preserves retries and never backfills assignments', async () => {
@@ -266,4 +268,83 @@ test('onboarding queues mail once and role assignments skip disabled employees',
   const response = await post(admin, '/assignments', { courseId: course.id, scope: 'ROLE', targetRole: 'FLIGHT_EXPERT' });
   assert.equal(response.status, 302);
   assert.equal(await prisma.trainingAssignmentRecipient.count({ where: { profileId: disabled.id } }), 0);
+});
+
+test('BUG FIX: someone who finished a training gets no more emails about it, even after the training is edited', async () => {
+  const c = await prisma.trainingCourse.create({ data: { organizationId: org.id, title: 'Edited after finishing', status: 'PUBLISHED', createdById: admin.id } });
+  const quiz = await prisma.assessment.create({ data: { organizationId: org.id, courseId: c.id, createdById: admin.id, title: 'Quiz one', createdVia: 'ADMIN_MANUAL', type: 'QUIZ', status: 'APPROVED', version: 1, passingScore: 70, level: 1 } });
+  const r = await assignment({ courseId: c.id }); const sent = [];
+  const send = async (m) => sent.push(m);
+  await emails.processNext({ now, send });
+  await prisma.trainingAttempt.create({ data: { recipientId: r.id, profileId: learner.id, assessmentId: quiz.id, attemptNumber: 2, status: 'COMPLETED', score: 90, completedAt: now } });
+  assert.equal((await post(learner, `/training/${r.id}/complete`)).status, 302);
+  assert.equal((await job(r)).nextSendAt, null, 'Submit training stops the reminders at once');
+  // the Admin edits the training afterwards: a second practice and a higher bar
+  await prisma.assessment.create({ data: { organizationId: org.id, courseId: c.id, createdById: admin.id, title: 'Quiz two', createdVia: 'ADMIN_MANUAL', type: 'QUIZ', status: 'APPROVED', version: 1, passingScore: 95, level: 1 } });
+  await prisma.trainingAssignment.update({ where: { id: r.assignmentId }, data: { requiredAttempts: 3 } });
+  await prisma.trainingEmailSchedule.update({ where: { recipientId: r.id }, data: { kind: 'REMINDER', nextSendAt: later(24 * H) } });   // as if still queued
+  await emails.processNext({ now: later(48 * H), send });
+  assert.equal(sent.length, 1, 'only the first "New training" email was ever sent');
+});
+
+test('BUG FIX: finishing the training in one copy stops the other copy; a copy assigned after finishing is a new round', async () => {
+  const c = await prisma.trainingCourse.create({ data: { organizationId: org.id, title: 'Two copies', status: 'PUBLISHED', createdById: admin.id } });
+  const first = await assignment({ courseId: c.id, enqueue: false, assignedAt: now });
+  const second = await assignment({ courseId: c.id, assignedAt: now });                       // the same training assigned again (a team assignment, say)
+  await prisma.trainingAttempt.create({ data: { recipientId: first.id, profileId: learner.id, attemptNumber: 2, status: 'COMPLETED', completedAt: later(H) } });   // finished in the first copy
+  const sent = []; const send = async (m) => sent.push(m);
+  await emails.processNext({ now: later(2 * H), send });
+  assert.equal(sent.length, 0); assert.equal((await job(second)).nextSendAt, null);
+  await assignment({ courseId: c.id, assignedAt: later(3 * H) });          // assigned AFTER they finished: a new round on purpose
+  await emails.processNext({ now: later(4 * H), send });
+  assert.equal(sent.length, 1); assert.equal(sent[0].subject, 'New training: Two copies');
+});
+
+test('everything required done but never submitted: the training is finished instead of emailed', async () => {
+  const c = await prisma.trainingCourse.create({ data: { organizationId: org.id, title: 'Done but not submitted', status: 'PUBLISHED', createdById: admin.id } });
+  const quiz = await prisma.assessment.create({ data: { organizationId: org.id, courseId: c.id, createdById: admin.id, title: 'Only quiz', createdVia: 'ADMIN_MANUAL', type: 'QUIZ', status: 'APPROVED', version: 1, passingScore: 70, level: 1 } });
+  const r = await assignment({ courseId: c.id }); const sent = [];
+  await prisma.trainingAttempt.create({ data: { recipientId: r.id, profileId: learner.id, assessmentId: quiz.id, attemptNumber: 2, status: 'COMPLETED', score: 95, completedAt: now } });
+  await emails.processNext({ now, send: async (m) => sent.push(m) });
+  assert.equal(sent.length, 0);
+  assert.ok(emails.completed(await prisma.trainingAssignmentRecipient.findUnique({ where: { id: r.id }, include: { attempts: true } })));
+});
+
+test('Admin switches: off for everyone, a team or a training pauses the emails; on resumes them', async () => {
+  const sent = []; const send = async (m) => sent.push(m);
+  const page = await request(app).get('/admin/training-emails').set('Cookie', cookies[admin.id]);
+  assert.equal(page.status, 200); assert.match(page.text, /Training emails/);
+  assert.match(page.text, /role="switch" aria-checked="true" aria-label="Training emails for everyone"/);
+  assert.ok([302, 403].includes((await post(sup, '/admin/training-emails', { target: 'all', on: '0' })).status));   // Admins only
+  // everyone
+  assert.equal((await post(admin, '/admin/training-emails', { target: 'all', on: '0' })).status, 302);
+  const r = await assignment();
+  await emails.processNext({ now, send });
+  assert.equal(sent.length, 0); assert.match((await job(r)).lastError, /^Paused: /); assert.ok((await job(r)).nextSendAt > now);
+  assert.match((await request(app).get('/admin/training-emails').set('Cookie', cookies[admin.id])).text, /1 email is paused right now/);
+  assert.equal((await post(admin, '/admin/training-emails', { target: 'all', on: '1' })).status, 302);
+  assert.ok((await job(r)).nextSendAt <= later(H), 'turning it back on resumes the paused email at once');
+  await emails.processNext({ now: later(H), send });
+  assert.equal(sent.length, 1);
+  // one team
+  const team = await prisma.team.create({ data: { organizationId: org.id, name: 'Mail team' } });
+  await prisma.teamMembership.create({ data: { teamId: team.id, profileId: learner.id } });
+  assert.equal((await post(admin, '/admin/training-emails', { target: 'team', id: team.id, on: '0' })).status, 302);
+  const r2 = await assignment();
+  await emails.processNext({ now: later(2 * H), send });
+  assert.equal(sent.length, 1); assert.match((await job(r2)).lastError, /team/);
+  assert.equal((await post(admin, '/admin/training-emails', { target: 'team', id: team.id, on: '1' })).status, 302);
+  await emails.processNext({ now: later(3 * H), send });
+  assert.equal(sent.length, 2);
+  // one training
+  assert.equal((await post(admin, '/admin/training-emails', { target: 'course', id: course.id, on: '0' })).status, 302);
+  const r3 = await assignment();
+  await emails.processNext({ now: later(4 * H), send });
+  assert.equal(sent.length, 2); assert.match((await job(r3)).lastError, /this training/);
+  assert.equal((await post(admin, '/admin/training-emails', { target: 'course', id: course.id, on: '1' })).status, 302);
+  await prisma.teamMembership.deleteMany({ where: { teamId: team.id } });
+  // a team of another organization cannot be switched
+  const foreignTeam = await prisma.team.create({ data: { organizationId: outsider.organizationId, name: 'Foreign team' } });
+  assert.equal((await post(admin, '/admin/training-emails', { target: 'team', id: foreignTeam.id, on: '0' })).status, 404);
+  assert.equal((await prisma.team.findUnique({ where: { id: foreignTeam.id } })).trainingEmailsOff, false);
 });

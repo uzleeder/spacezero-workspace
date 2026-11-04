@@ -194,24 +194,24 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  profiles          Profile[]
-  teams             Team[]
-  skills            Skill[]
-  courses           TrainingCourse[]
-  assignments       TrainingAssignment[]
-  categories        LibraryCategory[]
-  items             LibraryItem[]
-  auditLogs         AuditLog[]
-  tenureBands       TenureBand[]
-  practiceMaterials PracticeMaterial[]
-  notes             Note[]
-  assessments       Assessment[]
-  callBatches       CallBatch[]
-  setupRequirements SetupRequirement[]
-  credentials       Credential[]
-  leaveRequests     LeaveRequest[]
-  orgSettings       OrgSetting[]
-  standardsItems    StandardsItem[]
+  profiles               Profile[]
+  teams                  Team[]
+  skills                 Skill[]
+  courses                TrainingCourse[]
+  assignments            TrainingAssignment[]
+  categories             LibraryCategory[]
+  items                  LibraryItem[]
+  auditLogs              AuditLog[]
+  tenureBands            TenureBand[]
+  practiceMaterials      PracticeMaterial[]
+  notes                  Note[]
+  assessments            Assessment[]
+  callBatches            CallBatch[]
+  setupRequirements      SetupRequirement[]
+  credentials            Credential[]
+  leaveRequests          LeaveRequest[]
+  orgSettings            OrgSetting[]
+  standardsItems         StandardsItem[]
   supervisorCapabilities SupervisorCapability[]
 }
 
@@ -282,62 +282,62 @@ model Profile {
   archivedAt DateTime?
 
   // Relations
-  teamMemberships          TeamMembership[]
-  supervisorOf             SupervisorAssignment[]        @relation("SupervisorAssignments")
-  supervisedBy             SupervisorAssignment[]        @relation("AgentAssignments")
-  employeeSkills           EmployeeSkill[]
-  coursesCreated           TrainingCourse[]              @relation("CourseCreatedBy")
-  coursesSubmitted         TrainingCourse[]              @relation("CourseSubmittedBy")
-  assignmentsCreated       TrainingAssignment[]          @relation("AssignmentCreatedBy")
-  trainingRecipient        TrainingAssignmentRecipient[]
-  trainingAttempts         TrainingAttempt[]
-  libraryItemsCreated      LibraryItem[]                 @relation("LibraryItemCreatedBy")
-  libraryFavorites         LibraryFavorite[]
-  libraryRecentlyViewed    LibraryRecentlyViewed[]
-  notifications            Notification[]
-  auditLogs                AuditLog[]                    @relation("AuditActor")
-  invitation               Invitation?
-  passwordResetTokens      PasswordResetToken[]
-  sessions                 Session[]
-  certificates             Certificate[]
-  callReviewsAsAgent       CallReview[]                  @relation("CallReviewAgent")
-  callReviewsAsSupervisor  CallReview[]                  @relation("CallReviewSupervisor")
-  skillEvidenceRecorded    SkillEvidence[]               @relation("SkillEvidenceRecordedBy")
-  practiceMaterials        PracticeMaterial[]
-  notes                    Note[]
-  trainingAnalysesApproved TrainingAnalysis[]            @relation("TrainingAnalysisApprovedBy")
-  assessmentsCreated       Assessment[]                  @relation("AssessmentCreatedBy")
-  assessmentsApproved      Assessment[]                  @relation("AssessmentApprovedBy")
-  callBatchesUploaded      CallBatch[]                   @relation("CallBatchUploadedBy")
-  callBatchesAsTarget      CallBatch[]                   @relation("CallBatchTargetAgent")
-  callBatchesApproved      CallBatch[]                   @relation("CallBatchApprovedBy")
-  mediaProgress            MediaProgress[]
-  practiceCallTranscripts  PracticeCallTranscript[]
-  agentProgram             AgentProgram?
-  localPhone               String?
-  currentAddressEnc        String?
-  passportNumberEnc        String?
-  passportExpiresAt        DateTime?
-  passportFirstName        String?
-  passportMiddleName       String?
-  passportLastName         String?
-  dateOfBirth              DateTime?
+  teamMemberships            TeamMembership[]
+  supervisorOf               SupervisorAssignment[]        @relation("SupervisorAssignments")
+  supervisedBy               SupervisorAssignment[]        @relation("AgentAssignments")
+  employeeSkills             EmployeeSkill[]
+  coursesCreated             TrainingCourse[]              @relation("CourseCreatedBy")
+  coursesSubmitted           TrainingCourse[]              @relation("CourseSubmittedBy")
+  assignmentsCreated         TrainingAssignment[]          @relation("AssignmentCreatedBy")
+  trainingRecipient          TrainingAssignmentRecipient[]
+  trainingAttempts           TrainingAttempt[]
+  libraryItemsCreated        LibraryItem[]                 @relation("LibraryItemCreatedBy")
+  libraryFavorites           LibraryFavorite[]
+  libraryRecentlyViewed      LibraryRecentlyViewed[]
+  notifications              Notification[]
+  auditLogs                  AuditLog[]                    @relation("AuditActor")
+  invitation                 Invitation?
+  passwordResetTokens        PasswordResetToken[]
+  sessions                   Session[]
+  certificates               Certificate[]
+  callReviewsAsAgent         CallReview[]                  @relation("CallReviewAgent")
+  callReviewsAsSupervisor    CallReview[]                  @relation("CallReviewSupervisor")
+  skillEvidenceRecorded      SkillEvidence[]               @relation("SkillEvidenceRecordedBy")
+  practiceMaterials          PracticeMaterial[]
+  notes                      Note[]
+  trainingAnalysesApproved   TrainingAnalysis[]            @relation("TrainingAnalysisApprovedBy")
+  assessmentsCreated         Assessment[]                  @relation("AssessmentCreatedBy")
+  assessmentsApproved        Assessment[]                  @relation("AssessmentApprovedBy")
+  callBatchesUploaded        CallBatch[]                   @relation("CallBatchUploadedBy")
+  callBatchesAsTarget        CallBatch[]                   @relation("CallBatchTargetAgent")
+  callBatchesApproved        CallBatch[]                   @relation("CallBatchApprovedBy")
+  mediaProgress              MediaProgress[]
+  practiceCallTranscripts    PracticeCallTranscript[]
+  agentProgram               AgentProgram?
+  localPhone                 String?
+  currentAddressEnc          String?
+  passportNumberEnc          String?
+  passportExpiresAt          DateTime?
+  passportFirstName          String?
+  passportMiddleName         String?
+  passportLastName           String?
+  dateOfBirth                DateTime?
   // Fired agents (lib/firedAgents.js): a company account (email + saved system logins) outlives the people who use it.
   // accountKey = that company account (its email); firedAt/firedReason/firedById = when, why and by whom this person was let go.
-  accountKey               String?
-  firedAt                  DateTime?
-  firedReason              String?
-  firedById                String?
-  setupItems               EmployeeSetupItem[]
-  setupItemsVerified       EmployeeSetupItem[]           @relation("SetupItemVerifiedBy")
-  credentialsOwned         Credential[]                  @relation("CredentialOwner")
-  credentialGrantsOwned    CredentialGrant[]             @relation("CredentialGrantOwner")
-  credentialGrantsReceived CredentialGrant[]             @relation("CredentialGrantee")
-  leaveRequests            LeaveRequest[]                @relation("LeaveRequester")
-  leaveReviewed            LeaveRequest[]                @relation("LeaveReviewer")
-  assignGrants             TrainingAssignGrant[]         @relation("AssignGrantSupervisor")
-  standardsAcknowledgements StandardsAcknowledgement[]
-  supervisorCapabilityGrants SupervisorCapability[]       @relation("SupervisorCapabilityGrant")
+  accountKey                 String?
+  firedAt                    DateTime?
+  firedReason                String?
+  firedById                  String?
+  setupItems                 EmployeeSetupItem[]
+  setupItemsVerified         EmployeeSetupItem[]           @relation("SetupItemVerifiedBy")
+  credentialsOwned           Credential[]                  @relation("CredentialOwner")
+  credentialGrantsOwned      CredentialGrant[]             @relation("CredentialGrantOwner")
+  credentialGrantsReceived   CredentialGrant[]             @relation("CredentialGrantee")
+  leaveRequests              LeaveRequest[]                @relation("LeaveRequester")
+  leaveReviewed              LeaveRequest[]                @relation("LeaveReviewer")
+  assignGrants               TrainingAssignGrant[]         @relation("AssignGrantSupervisor")
+  standardsAcknowledgements  StandardsAcknowledgement[]
+  supervisorCapabilityGrants SupervisorCapability[]        @relation("SupervisorCapabilityGrant")
 
   @@index([organizationId])
   @@index([role])
@@ -347,16 +347,18 @@ model Profile {
 }
 
 model Team {
-  setupTargets   SetupRequirementTarget[] @relation("SetupTargetTeam")
-  id             String                   @id @default(cuid())
-  organizationId String
-  organization   Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  name           String
-  description    String?
-  createdById    String?
-  createdAt      DateTime                 @default(now())
-  updatedAt      DateTime                 @updatedAt
-  archivedAt     DateTime?
+  setupTargets      SetupRequirementTarget[] @relation("SetupTargetTeam")
+  id                String                   @id @default(cuid())
+  organizationId    String
+  organization      Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name              String
+  description       String?
+  createdById       String?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  archivedAt        DateTime?
+  /// Admin switch (Manage Training -> Training emails): no training emails for this team's members while true.
+  trainingEmailsOff Boolean                  @default(false)
 
   memberships         TeamMembership[]
   trainingAssignments TrainingAssignment[]
@@ -491,26 +493,28 @@ model TrainingCourse {
   // Assign form starts from. Intended audience is guidance for the assigner; it never assigns by itself.
   // The one shared Training Category (PRODUCT / SALES / SYSTEM_WORKFLOW - see lib/trainingCategories.js). Null only for
   // trainings that existed before categories: they are kept as they are until an Admin picks the right one.
-  trainingCategory String?
-  audienceJson    String?
-  defaultDueDate  DateTime?
-  id              String               @id @default(cuid())
-  organizationId  String
-  organization    Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  title           String
-  description     String?
-  roleKey         UserRole?
-  status          TrainingStatus       @default(DRAFT)
-  thumbnailUrl    String?
-  durationMinutes Int?
-  mandatory       Boolean              @default(true)
-  passingScore    Int                  @default(70)
-  assignPolicy    TrainingAssignPolicy @default(ADMIN_ONLY)
-  createdById     String
-  createdBy       Profile              @relation("CourseCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  archivedAt      DateTime?
+  /// Admin switch (Manage Training -> Training emails): no assignment/reminder emails for this training while true.
+  trainingEmailsOff Boolean              @default(false)
+  trainingCategory  String?
+  audienceJson      String?
+  defaultDueDate    DateTime?
+  id                String               @id @default(cuid())
+  organizationId    String
+  organization      Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  title             String
+  description       String?
+  roleKey           UserRole?
+  status            TrainingStatus       @default(DRAFT)
+  thumbnailUrl      String?
+  durationMinutes   Int?
+  mandatory         Boolean              @default(true)
+  passingScore      Int                  @default(70)
+  assignPolicy      TrainingAssignPolicy @default(ADMIN_ONLY)
+  createdById       String
+  createdBy         Profile              @relation("CourseCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  archivedAt        DateTime?
 
   // Supervisor Training Creation review workflow (spec: Create & Prepare -> Submit for Admin
   // Approval -> Admin Request Changes | Approve & Send to Training). A Supervisor with the
@@ -606,27 +610,27 @@ model TrainingAssignmentRecipient {
   createdAt    DateTime           @default(now())
 
   emailSchedule TrainingEmailSchedule?
-  attempts TrainingAttempt[]
+  attempts      TrainingAttempt[]
 
   @@unique([assignmentId, profileId])
   @@index([profileId])
 }
 
 model TrainingEmailSchedule {
-  recipientId      String @id
+  recipientId      String                      @id
   recipient        TrainingAssignmentRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
-  kind             String @default("ASSIGNED")
-  sequence         Int @default(0)
+  kind             String                      @default("ASSIGNED")
+  sequence         Int                         @default(0)
   nextSendAt       DateTime?
   lastSentAt       DateTime?
   assignmentSentAt DateTime?
   claimToken       String?
   claimedAt        DateTime?
   payloadJson      String?
-  retryCount       Int @default(0)
+  retryCount       Int                         @default(0)
   lastError        String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
 
   @@index([nextSendAt])
 }
@@ -1207,29 +1211,29 @@ enum TrainingAssignPolicy {
 // rolesJson null = applies to every role, otherwise a JSON array of UserRole values.
 model SetupRequirement {
   // Who is responsible (EMPLOYEE | SUPERVISOR | ADMIN) and when it is due: a fixed date, or N days after the employee's start date.
-  ownerRole         String?
-  dueDays           Int?
-  dueDate           DateTime?
-  category          String?
-  verification      SetupVerification        @default(MANAGEMENT_VERIFICATION)
-  audience          SetupAudience            @default(ALL_EMPLOYEES)
-  targets           SetupRequirementTarget[]
-  id                String                   @id @default(cuid())
-  organizationId    String
-  organization      Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  key               String
-  label             String
-  description       String?
-  kind              SetupRequirementKind     @default(MANUAL)
-  rolesJson         String?
-  required          Boolean                  @default(true)
-  companyControlled Boolean                  @default(false)
-  allowPersonalAccount Boolean               @default(false)
-  credentialSystem  Boolean                  @default(false)
-  displayOrder      Int                      @default(0)
-  archivedAt        DateTime?
-  createdAt         DateTime                 @default(now())
-  updatedAt         DateTime                 @updatedAt
+  ownerRole            String?
+  dueDays              Int?
+  dueDate              DateTime?
+  category             String?
+  verification         SetupVerification        @default(MANAGEMENT_VERIFICATION)
+  audience             SetupAudience            @default(ALL_EMPLOYEES)
+  targets              SetupRequirementTarget[]
+  id                   String                   @id @default(cuid())
+  organizationId       String
+  organization         Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  key                  String
+  label                String
+  description          String?
+  kind                 SetupRequirementKind     @default(MANUAL)
+  rolesJson            String?
+  required             Boolean                  @default(true)
+  companyControlled    Boolean                  @default(false)
+  allowPersonalAccount Boolean                  @default(false)
+  credentialSystem     Boolean                  @default(false)
+  displayOrder         Int                      @default(0)
+  archivedAt           DateTime?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
 
   items EmployeeSetupItem[]
 
@@ -1405,21 +1409,21 @@ model SupervisorCapability {
 // ---------------------------------------------------------------------------
 
 model StandardsItem {
-  id             String               @id @default(cuid())
-  organizationId String
-  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  contentType    StandardsContentType
-  title          String
-  category       String?
+  id               String               @id @default(cuid())
+  organizationId   String
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contentType      StandardsContentType
+  title            String
+  category         String?
   // null = everyone; otherwise a JSON array of UserRole values (see lib/richContent.js's isVisibleToRole).
   rolesJson        String?
-  quickReference   Boolean            @default(false)
+  quickReference   Boolean              @default(false)
   archivedAt       DateTime?
-  currentVersionId String?            @unique
-  currentVersion   StandardsVersion?  @relation("CurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  currentVersionId String?              @unique
+  currentVersion   StandardsVersion?    @relation("CurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
   createdById      String
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
 
   versions         StandardsVersion[]         @relation("ItemVersions")
   acknowledgements StandardsAcknowledgement[]
@@ -1434,9 +1438,9 @@ model StandardsItem {
 // silently rewrite historical published content" — acknowledgements stay
 // bound to the exact version a person accepted).
 model StandardsVersion {
-  id     String         @id @default(cuid())
-  itemId String
-  item   StandardsItem  @relation("ItemVersions", fields: [itemId], references: [id], onDelete: Cascade)
+  id      String         @id @default(cuid())
+  itemId  String
+  item    StandardsItem  @relation("ItemVersions", fields: [itemId], references: [id], onDelete: Cascade)
   version Int
   status  TrainingStatus @default(DRAFT)
 
@@ -1582,12 +1586,12 @@ model DevelopmentPath {
   dailyCheckIn     Boolean @default(true) // New Agent Program: a 5-minute supervisor check-in on every other day
   // New Travel Agents only (lib/newAgentProgram.js onTravelPath): the ramp after the 4 weeks and the "Ready for solo
   // live calls" gate, plus a one-time marker that the ready-made "Before day 1" items were added.
-  rampWeeks       Int     @default(8) // at most this many weeks of ramp after the 4 weeks
-  rampCallsPerDay Int     @default(5) // Call Practice calls a day during the ramp
-  readyAccuracy   Int     @default(90) // gate: average accuracy (%) over the last readyCalls calls
-  readyCalls      Int     @default(10)
-  readyWpm        Int     @default(35) // gate: average typing speed (words a minute) over the same calls
-  prestartSeeded  Boolean @default(false)
+  rampWeeks        Int     @default(8) // at most this many weeks of ramp after the 4 weeks
+  rampCallsPerDay  Int     @default(5) // Call Practice calls a day during the ramp
+  readyAccuracy    Int     @default(90) // gate: average accuracy (%) over the last readyCalls calls
+  readyCalls       Int     @default(10)
+  readyWpm         Int     @default(35) // gate: average typing speed (words a minute) over the same calls
+  prestartSeeded   Boolean @default(false)
 
   steps    DevelopmentPathStep[]
   programs AgentProgram[]
@@ -1649,25 +1653,25 @@ model AgentProgram {
 // One item of one agent's program, copied from the plan so later plan edits never rewrite what already happened.
 // key: "step:<stepId>" for a plan item, "calls:<day>" / "checkin:<day>" for the daily ones.
 model AgentProgramTask {
-  id         String       @id @default(cuid())
-  programId  String
-  program    AgentProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
-  key        String
-  stepId     String?
-  day        Int
-  owner      String
-  kind       String
-  title      String
-  howTo      String?
-  minutes    Int?
-  courseId   String?
-  standardId String?
-  system     String?
-  target     Int? // calls: how many calls that day
-  doneAt     DateTime?
-  doneById   String? // null when it ticked itself from real data
-  note       String?
-  resultJson String?
+  id              String       @id @default(cuid())
+  programId       String
+  program         AgentProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  key             String
+  stepId          String?
+  day             Int
+  owner           String
+  kind            String
+  title           String
+  howTo           String?
+  minutes         Int?
+  courseId        String?
+  standardId      String?
+  system          String?
+  target          Int? // calls: how many calls that day
+  doneAt          DateTime?
+  doneById        String? // null when it ticked itself from real data
+  note            String?
+  resultJson      String?
   // a Travel Agent's sign-off waits for an admin: the supervisor asked (what they saw is in note); doneAt is the confirm
   requestedAt     DateTime?
   requestedById   String?
@@ -1676,8 +1680,8 @@ model AgentProgramTask {
   agentAnsweredAt DateTime?
   flagClearedAt   DateTime?
   flagClearedById String?
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   @@unique([programId, key])
   @@index([programId, day])
@@ -1825,17 +1829,17 @@ model AiChat {
 /// role: "user" | "assistant". kind (assistant only): "answer" | "unknown" (no data: contact an Admin) |
 /// "technical" (the AI could not run: contact the engineer) | "limit" (too many questions).
 model AiChatMessage {
-  id        String   @id @default(cuid())
-  chatId    String
-  chat      AiChat   @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  role      String
-  kind      String   @default("answer")
-  content   String
-  imagePath String?
-  imageMime String?
-  imageName String?
-  sourcesJson String @default("[]")
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  chatId      String
+  chat        AiChat   @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  role        String
+  kind        String   @default("answer")
+  content     String
+  imagePath   String?
+  imageMime   String?
+  imageName   String?
+  sourcesJson String   @default("[]")
+  createdAt   DateTime @default(now())
 
   @@index([chatId, createdAt])
 }

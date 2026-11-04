@@ -1,0 +1,10 @@
+<%# One on/off switch of Manage Training -> Training emails. Params: target ('all' | 'team' | 'course'), id, on, name. %>
+<form method="post" action="/admin/training-emails" class="email-switch-form">
+  <input type="hidden" name="target" value="<%= target %>" />
+  <input type="hidden" name="id" value="<%= id %>" />
+  <input type="hidden" name="on" value="<%= on ? '0' : '1' %>" />
+  <button type="submit" class="email-switch<%= on ? ' is-on' : '' %>" role="switch" aria-checked="<%= on ? 'true' : 'false' %>" aria-label="Training emails for <%= name %>" title="<%= on ? 'Turn off' : 'Turn on' %> training emails for <%= name %>">
+    <span class="email-switch__track" aria-hidden="true"><span class="email-switch__knob"></span></span>
+    <span class="email-switch__text"><%= on ? 'On' : 'Off' %></span>
+  </button>
+</form>
