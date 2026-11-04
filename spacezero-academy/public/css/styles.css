@@ -2136,3 +2136,61 @@ html[data-theme="dark"] .na-tile .na-bar__fill--plain { background: #c6c3de; }
 html[data-theme="dark"] .na-tabs { border-color: #2e2b52; }
 html[data-theme="dark"] .na-tab[aria-current="page"] { border-bottom-color: #dca878; }
 html[data-theme="dark"] .na-tab__n { background: #34305c; color: #c6c3de; }
+
+/* =====================================================================================================================
+   Card system v2 - one look for every card on the site (profiles, dashboards, lists, settings). Last in the file so it
+   wins over the older card rules above; colours come from the tokens below, set once for light and once for dark.
+   ===================================================================================================================== */
+:root {
+  --card-bg: #ffffff; --card-border: #e6e9ef; --card-divider: #eef1f5; --card-title: #101e32; --card-muted: #6b7487;
+  --card-shadow: 0 1px 2px rgba(16, 30, 50, .04), 0 14px 34px -24px rgba(16, 30, 50, .30);
+  --card-shadow-hover: 0 2px 4px rgba(16, 30, 50, .05), 0 18px 40px -22px rgba(16, 30, 50, .38);
+  --tile-bg: #f7f8fb; --tile-border: #eceff4; --card-accent: #dca878;
+  --callout-danger-bg: #fef2f2; --callout-danger-border: #fecaca; --callout-danger-text: #991b1b;
+}
+html[data-theme="dark"] {
+  --card-bg: linear-gradient(180deg, #211e40 0%, #1b1935 72%); --card-border: #2f2b55; --card-divider: #2b2850;
+  --card-title: #f2f0fa; --card-muted: #a29fc2;
+  --card-shadow: 0 0 0 1px rgba(255, 255, 255, .02) inset, 0 16px 36px -24px rgba(0, 0, 0, .7);
+  --card-shadow-hover: 0 0 0 1px rgba(220, 168, 120, .10) inset, 0 20px 44px -22px rgba(0, 0, 0, .8);
+  --tile-bg: rgba(255, 255, 255, .03); --tile-border: #2f2b55;
+  --callout-danger-bg: rgba(242, 139, 130, .08); --callout-danger-border: rgba(242, 139, 130, .35); --callout-danger-text: #f6b3ad;
+}
+
+.card, html[data-theme="dark"] .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px; box-shadow: var(--card-shadow); }
+.card-header, html[data-theme="dark"] .card-header { padding: 18px 22px 15px; border-bottom: 1px solid var(--card-divider); align-items: center; }
+.card-header h2, html[data-theme="dark"] .card-header h2 { font-size: 15.5px; font-weight: 600; letter-spacing: -.2px; color: var(--card-title); }
+.card-header p, html[data-theme="dark"] .card-header p { color: var(--card-muted); }
+.card-body { padding: 20px 22px; }
+.card-body + .card-body { border-top: 1px solid var(--card-divider); }
+
+/* clickable cards lift a little and pick up the gold accent */
+a.card, .card-link { transition: transform .18s var(--ease, ease), box-shadow .18s var(--ease, ease), border-color .18s var(--ease, ease); }
+a.card:hover, .card-link:hover, html[data-theme="dark"] .card-link:hover { transform: translateY(-2px); box-shadow: var(--card-shadow-hover); border-color: rgba(220, 168, 120, .45); background: var(--card-bg); }
+@media (prefers-reduced-motion: reduce) { a.card:hover, .card-link:hover { transform: none; } }
+
+/* stat tiles: small uppercase label, one big number that never wraps, a gold accent on the edge */
+.stat-card, .kpi { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; min-height: 108px; padding: 18px 20px 18px 22px; }
+.stat-card::before, .kpi::before { content: ""; position: absolute; left: 0; top: 18px; bottom: 18px; width: 3px; border-radius: 0 3px 3px 0; background: var(--card-accent); opacity: .85; }
+.stat-card .label, .kpi .label, html[data-theme="dark"] .stat-card .label { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--card-muted); margin: 0; line-height: 1.4; }
+.stat-card .value, .kpi .value, html[data-theme="dark"] .stat-card .value { font-size: 30px; font-weight: 600; letter-spacing: -.8px; line-height: 1.15; margin: 10px 0 0; color: var(--card-title); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.stat-card .value .unit { font-size: 14px; font-weight: 500; letter-spacing: 0; color: var(--card-muted); margin-left: 6px; }
+.stat-card .hint { margin-top: 6px; font-size: 12px; color: var(--card-muted); }
+.kpi-grid--compact .kpi { min-height: 92px; }
+.kpi-grid--compact .kpi .value { font-size: 22px; }
+
+/* facts inside a card: small labelled tiles instead of loose text */
+.info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 12px; }
+.info-tile { background: var(--tile-bg); border: 1px solid var(--tile-border); border-radius: 12px; padding: 12px 14px; min-width: 0; }
+.info-tile .k { display: block; margin: 0; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--card-muted); }
+.info-tile .v { display: block; margin: 6px 0 0; font-size: 14px; font-weight: 600; color: var(--card-title); overflow-wrap: anywhere; }
+.info-tile .v.is-missing { color: var(--card-muted); font-weight: 500; }
+
+/* a notice inside a card, and a row of actions */
+.callout { border-radius: 12px; padding: 14px 16px; border: 1px solid var(--tile-border); background: var(--tile-bg); }
+.callout--danger { background: var(--callout-danger-bg); border-color: var(--callout-danger-border); }
+.callout--danger .callout__title { color: var(--callout-danger-text); }
+.callout__title { margin: 0; font-weight: 600; font-size: 14px; }
+.callout__text { margin: 6px 0 0; font-size: 13px; color: var(--card-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.card-actions .btn { flex: 1 1 auto; justify-content: center; }

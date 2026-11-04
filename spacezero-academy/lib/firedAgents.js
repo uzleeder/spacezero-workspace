@@ -81,7 +81,7 @@ async function accountDetail(admin, accountKey) {
     people: people.map((p) => ({
       id: p.id, passportName: passportName(p), fullName: p.fullName, role: p.role,
       from: p.employmentStartDate, firedAt: p.firedAt, reason: p.firedReason, firedBy: firers.get(p.firedById) || 'an Admin',
-      phones: [p.phonePrimary, p.phoneSecondary, p.localPhone, p.phoneUzbekistan, p.whatsappNumber].filter(Boolean),
+      phones: [...new Set([p.phonePrimary, p.phoneSecondary, p.localPhone, p.phoneUzbekistan, p.whatsappNumber].map((n) => String(n || '').trim()).filter(Boolean))],
       telegram: p.telegramContact || '', address: readAddress(p), passportNumber: readPassport(p), passportExpiresAt: p.passportExpiresAt, dateOfBirth: p.dateOfBirth,
     })),
   };

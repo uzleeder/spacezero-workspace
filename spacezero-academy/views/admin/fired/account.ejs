@@ -26,17 +26,16 @@
       <span class="badge badge-danger">Fired <%= fmt(p.firedAt) %></span>
     </div>
     <div class="card-body">
-      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 24px">
-        <div><p class="label">Employment</p><p><%= fmt(p.from) %> – <%= fmt(p.firedAt) %></p></div>
-        <div><p class="label">Fired by</p><p><%= p.firedBy %></p></div>
-        <div><p class="label">Phone</p><p><%= p.phones.length ? p.phones.join(', ') : '—' %></p></div>
-        <div><p class="label">Telegram</p><p><%= p.telegram || '—' %></p></div>
-        <div><p class="label">Address</p><p><%= p.address || '—' %></p></div>
-        <div><p class="label">Passport</p><p><%= p.passportNumber || '—' %><% if (p.passportExpiresAt) { %> <span class="text-muted">· expires <%= fmt(p.passportExpiresAt) %></span><% } %></p></div>
-        <div><p class="label">Date of birth</p><p><%= fmt(p.dateOfBirth) %></p></div>
+      <div class="info-grid">
+        <div class="info-tile"><span class="k">Employment</span><span class="v"><%= fmt(p.from) %> – <%= fmt(p.firedAt) %></span></div>
+        <div class="info-tile"><span class="k">Fired by</span><span class="v"><%= p.firedBy %></span></div>
+        <div class="info-tile"><span class="k">Phone</span><span class="v<%= p.phones.length ? '' : ' is-missing' %>"><%= p.phones.length ? p.phones.join(', ') : 'Not added' %></span></div>
+        <div class="info-tile"><span class="k">Telegram</span><span class="v<%= p.telegram ? '' : ' is-missing' %>"><%= p.telegram || 'Not added' %></span></div>
+        <div class="info-tile"><span class="k">Address</span><span class="v<%= p.address ? '' : ' is-missing' %>"><%= p.address || 'Not added' %></span></div>
+        <div class="info-tile"><span class="k">Passport</span><span class="v<%= p.passportNumber ? '' : ' is-missing' %>"><%= p.passportNumber || 'Not added' %><% if (p.passportExpiresAt) { %> <span class="text-muted text-sm">· expires <%= fmt(p.passportExpiresAt) %></span><% } %></span></div>
+        <div class="info-tile"><span class="k">Date of birth</span><span class="v<%= p.dateOfBirth ? '' : ' is-missing' %>"><%= p.dateOfBirth ? fmt(p.dateOfBirth) : 'Not added' %></span></div>
       </div>
-      <p class="label mt-16">Reason</p>
-      <p style="white-space:pre-wrap;margin:0"><%= p.reason %></p>
+      <div class="callout callout--danger mt-16"><p class="callout__title">Reason</p><p class="callout__text" style="white-space:pre-wrap"><%= p.reason %></p></div>
       <p class="mt-16" style="margin-bottom:0"><a class="link-gold text-sm" href="/admin/employees/<%= p.id %>">Open the full record (training, setup, history) →</a></p>
     </div>
   </section>
