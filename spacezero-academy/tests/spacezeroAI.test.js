@@ -160,10 +160,52 @@ test('the sidebar names the workspace "SpaceZero Workspace", and the Admin badge
 
 test('the dashboard globe marks Uzbekistan and is drawn by its own script', async () => {
   const dash = await get(admin, '/dashboard');
-  assert.match(dash.text, /<svg [^>]*data-globe>/);
+  assert.match(dash.text, /<svg [^>]*data-globe[ >]/);
   assert.match(dash.text, />Uzbekistan<\/text>/);
   assert.match(dash.text, /\/static\/js\/hero-globe\.js/);
   const js = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'js', 'hero-globe.js'), 'utf8');
-  assert.match(js, /var TASHKENT = \[69\.24, 41\.3\];/);
+  assert.match(js, /var TAS = \{ code: 'TAS', city: 'Tashkent', at: \[69\.2812, 41\.2579\] \};/);
+  for (const code of ['JFK', 'LHR', 'IST', 'DXB', 'ICN', 'DEL']) assert.match(js, new RegExp(`code: '${code}'`));
   new Function(js);   // the script parses
+});
+
+test('every role gets the SpaceZero Standard card on its dashboard, in its own words', async () => {
+  const expert = await makeUser('FLIGHT_EXPERT', 'expert');
+  const cases = [
+    [admin, /Extraordinary service\.<br>Starts with you\./, 'href="/admin/training"', 'Manage training'],
+    [sup1, /Great teams\.<br>Start with great coaching\./, 'href="/team"', 'Open my team'],
+    [agent1, /Turn every call into a trip your client remembers\./, 'href="/training"', 'Continue my training'],
+    [expert, /Every flight\.<br>Built with expertise\./, 'href="/training"', 'Continue my training'],
+  ];
+  for (const [who, line, href, action] of cases) {
+    const page = (await get(who, '/dashboard')).text;
+    assert.match(page, /THE SPACEZERO STANDARD/, who.role);
+    assert.doesNotMatch(page, /ABOVE9 STANDARD/i, who.role);
+    assert.match(page, line, who.role);
+    assert.ok(page.includes(`${href} class="btn hero-btn">${action}`), who.role);
+    assert.match(page, /data-world="\/static\/data\/world-countries-110m\.json/, who.role);
+  }
+});
+
+test('the map file is served, with Uzbekistan in it', async () => {
+  const res = await get(admin, '/static/data/world-countries-110m.json');
+  assert.equal(res.status, 200);
+  const topo = JSON.parse(res.text);
+  assert.ok(topo.objects.countries.geometries.length > 170);
+  assert.ok(topo.objects.countries.geometries.some((g) => g.id === '860' && g.properties.name === 'Uzbekistan'));
+});
+
+test('the sidebar follows the theme: the badge colour matches it, and light mode has its own sidebar styles', async () => {
+  const dark = (await get(admin, '/dashboard')).text;
+  const theme = /<html lang="en" data-theme="(\w+)"/.exec(dark)[1];
+  assert.match(dark, new RegExp(`<uzleeder-crafted theme="${theme === 'dark' ? 'dark' : 'light'}" size="sm">`));
+  const css = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'css', 'styles.css'), 'utf8');
+  assert.match(css, /html:not\(\[data-theme="dark"\]\) \.sidebar \{ background: #ffffff;/);
+});
+
+test('abroad the globe shows only airport codes; only Uzbekistan is named in full', async () => {
+  const js = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'js', 'hero-globe.js'), 'utf8');
+  assert.match(js, /label\.textContent = r\.code;/);
+  const dash = (await get(admin, '/dashboard')).text;
+  assert.match(dash, />Uzbekistan<\/text>/); assert.match(dash, />TAS · Tashkent<\/text>/);
 });

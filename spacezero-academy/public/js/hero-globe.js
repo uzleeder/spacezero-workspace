@@ -1,8 +1,12 @@
-/* Dashboard globe: a real turning sphere (orthographic projection) with Uzbekistan marked.
+/* Dashboard globe: a real turning sphere (orthographic projection) with every country and its borders,
+ * Uzbekistan marked, and flights from Tashkent International (TAS).
+ * Map data: Natural Earth 1:110m countries (public domain) via world-atlas 2.0.2 (ISC),
+ * served from /static/data/world-countries-110m.json (TopoJSON, decoded here).
+ *
  * One 20-second loop:
  *   0 – 7 s    the plane flies once around the orbit (behind the globe on the far half)
- *   7 – 9.5 s  the globe brings Uzbekistan to the front and the plane lands in Tashkent
- *   9.5 – 17 s a fleet takes off from Tashkent for the world (gold trails over the horizon)
+ *   7 – 9.5 s  the globe brings Uzbekistan to the front and the plane lands at TAS
+ *   9.5 – 17 s planes take off from TAS for JFK, LHR, IST, DXB, ICN and DEL (trails over the horizon)
  *   17 – 20 s  the trails fade while the globe turns on, and the loop starts again
  * With "reduce motion" one still frame is drawn. Nothing runs while the globe is off screen.
  */
@@ -14,45 +18,46 @@
   var RAD = Math.PI / 180;
   var CX = 204, CY = 133, R = 101;
   var TILT = 18 * RAD;                                  // we look at the globe slightly from above
+  var SIN_T = Math.sin(TILT), COS_T = Math.cos(TILT);
   var ORX = 155, ORY = 48, OROT = -18 * RAD;            // the orbit ellipse (same as in the markup)
   var LOOP = 20;
 
-  // Continents, coarse, as [x, y] on a 360 x 180 map (x = lon + 180, y = 90 - lat).
-  var MAP = [
-    [[15, 25], [40, 20], [85, 18], [105, 28], [125, 38], [115, 45], [100, 60], [83, 65], [75, 70], [63, 58], [55, 42], [40, 30]],
-    [[100, 80], [120, 82], [145, 97], [140, 112], [122, 128], [110, 143], [105, 130], [110, 108], [100, 95]],
-    [[170, 54], [171, 47], [178, 42], [185, 38], [190, 32], [205, 20], [220, 24], [220, 45], [208, 50], [195, 52]],
-    [[163, 75], [175, 55], [190, 53], [212, 59], [223, 78], [231, 79], [220, 105], [215, 115], [200, 125], [192, 108], [189, 86], [172, 85]],
-    [[220, 45], [240, 35], [260, 18], [290, 15], [320, 18], [350, 24], [340, 32], [320, 40], [310, 50], [300, 60], [288, 72], [280, 80], [260, 82], [252, 70], [238, 65], [228, 60]],
-    [[294, 112], [310, 102], [325, 102], [333, 117], [325, 128], [310, 122], [295, 124]],
-    [[120, 10], [140, 8], [155, 14], [145, 24], [128, 22]]
+  // Airports: [lon, lat] of the airport itself
+  var TAS = { code: 'TAS', city: 'Tashkent', at: [69.2812, 41.2579] };
+  var ROUTES = [
+    { code: 'JFK', city: 'New York', at: [-73.7781, 40.6413], side: 'left' },
+    { code: 'LHR', city: 'London', at: [-0.4543, 51.4700], side: 'left' },
+    { code: 'IST', city: 'Istanbul', at: [28.7519, 41.2753], side: 'left' },
+    { code: 'DXB', city: 'Dubai', at: [55.3657, 25.2532], side: 'left' },
+    { code: 'ICN', city: 'Seoul', at: [126.4407, 37.4602], side: 'right' },
+    { code: 'DEL', city: 'Delhi', at: [77.1000, 28.5562], side: 'right' }
   ];
-  var LAND = MAP.map(function (poly) { return densify(poly.map(function (p) { return [p[0] - 180, 90 - p[1]]; }), 3); });
-  // Uzbekistan, [lon, lat]
-  var UZ = densify([[56.0, 41.3], [56.0, 45.0], [58.6, 45.6], [61.0, 44.4], [62.0, 43.5], [65.0, 43.7], [66.1, 42.9], [68.0, 41.0], [69.0, 41.4], [71.0, 42.2], [73.1, 40.8], [71.5, 40.2], [70.5, 40.9], [69.3, 40.7], [68.5, 39.5], [67.4, 39.1], [67.4, 37.3], [66.5, 37.4], [64.5, 38.9], [62.4, 40.0], [61.0, 41.2], [58.0, 42.5], [57.0, 41.3]], 1);
-  var TASHKENT = [69.24, 41.3];
-  var DESTINATIONS = [[-74.0, 40.7], [-0.1, 51.5], [139.7, 35.7], [151.2, -33.9], [18.4, -33.9], [-46.6, -23.5]]; // New York, London, Tokyo, Sydney, Cape Town, São Paulo
+  var UZ_LABEL_AT = [63.5, 47.2];                        // where the country name sits (just above the country)
 
   var el = function (sel) { return svg.querySelector(sel); };
-  var gratEl = el('[data-graticule]'), landEl = el('[data-land]'), uzEl = el('[data-uz]');
-  var markEl = el('[data-uz-mark]'), planeFront = el('[data-plane-front]'), planeBack = el('[data-plane-back]');
-  var trailsEl = el('[data-trails]'), fleetEl = el('[data-fleet]');
-  var fleet = DESTINATIONS.map(function (to) {
-    var trail = document.createElementNS(NS, 'path'); trail.setAttribute('class', 'globe-trail'); trailsEl.appendChild(trail);
-    var g = document.createElementNS(NS, 'g'); g.setAttribute('class', 'globe-plane globe-plane--small');
-    var use = document.createElementNS(NS, 'use'); use.setAttribute('href', '#workspace-aircraft'); g.appendChild(use); fleetEl.appendChild(g);
-    return { from: vec(TASHKENT), to: vec(to), trail: trail, plane: g };
+  var gratEl = el('[data-graticule]'), landEl = el('[data-land]'), bordersEl = el('[data-borders]'), uzEl = el('[data-uz]');
+  var markEl = el('[data-uz-mark]'), uzNameEl = el('[data-uz-name]'), planeFront = el('[data-plane-front]'), planeBack = el('[data-plane-back]');
+  var trailsEl = el('[data-trails]'), fleetEl = el('[data-fleet]'), portsEl = el('[data-ports]');
+
+  var countries = [], uzRings = [];
+  function mk(tag, cls, parent) { var n = document.createElementNS(NS, tag); if (cls) n.setAttribute('class', cls); parent.appendChild(n); return n; }
+
+  var fleet = ROUTES.map(function (r, i) {
+    var trail = mk('path', 'globe-trail', trailsEl);
+    var g = mk('g', 'globe-plane globe-plane--small', fleetEl);
+    mk('use', '', g).setAttribute('href', '#workspace-aircraft');
+    var port = mk('g', 'globe-port', portsEl);
+    mk('circle', 'globe-port-dot', port).setAttribute('r', '1.8');
+    var label = mk('text', 'globe-port-label', port);
+    label.textContent = r.code;                            // abroad only the airport code; Uzbekistan keeps its full names
+    var left = r.side === 'left';                         // each label keeps one side, so neighbours do not overlap
+    label.setAttribute('text-anchor', left ? 'end' : 'start'); label.setAttribute('x', left ? '-4' : '4'); label.setAttribute('y', '2.6');
+    var from = vec(TAS.at), to = vec(r.at);
+    var angle = Math.acos(Math.max(-1, Math.min(1, from[0] * to[0] + from[1] * to[1] + from[2] * to[2])));
+    return { route: r, from: from, to: to, trail: trail, plane: g, port: port, label: label, start: 9.6 + i * 0.45, dur: 2.2 + 3.4 * angle / Math.PI };
   });
 
-  function densify(poly, step) {
-    var out = [];
-    for (var i = 0; i < poly.length; i++) {
-      var a = poly[i], b = poly[(i + 1) % poly.length];
-      var n = Math.max(1, Math.ceil(Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1])) / step));
-      for (var k = 0; k < n; k++) out.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]);
-    }
-    return out;
-  }
+  // ---- geometry ----
   function vec(ll) { var l = ll[0] * RAD, p = ll[1] * RAD; return [Math.cos(p) * Math.cos(l), Math.cos(p) * Math.sin(l), Math.sin(p)]; }
   function unvec(v) { return [Math.atan2(v[1], v[0]) / RAD, Math.asin(Math.max(-1, Math.min(1, v[2]))) / RAD]; }
   function slerp(a, b, u) {
@@ -63,27 +68,40 @@
   }
   // [screenX, screenY, depth]; depth > 0 is the side facing us
   function project(lon, lat, lam0) {
-    var l = (lon - lam0) * RAD, p = lat * RAD;
-    var x = R * Math.cos(p) * Math.sin(l);
-    var y = R * (Math.cos(TILT) * Math.sin(p) - Math.sin(TILT) * Math.cos(p) * Math.cos(l));
-    var z = Math.sin(TILT) * Math.sin(p) + Math.cos(TILT) * Math.cos(p) * Math.cos(l);
-    return [CX + x, CY - y, z];
+    var l = (lon - lam0) * RAD, p = lat * RAD, cp = Math.cos(p), sp = Math.sin(p), cl = Math.cos(l);
+    return [CX + R * cp * Math.sin(l), CY - R * (COS_T * sp - SIN_T * cp * cl), SIN_T * sp + COS_T * cp * cl];
+  }
+  // a ring prepared once: radians and the latitude terms, so a frame only needs sin/cos of the longitude
+  function prep(ring) {
+    var n = ring.length, out = { lon: new Float64Array(n), cp: new Float64Array(n), sp: new Float64Array(n) };
+    for (var i = 0; i < n; i++) { out.lon[i] = ring[i][0] * RAD; out.cp[i] = Math.cos(ring[i][1] * RAD); out.sp[i] = Math.sin(ring[i][1] * RAD); }
+    return out;
   }
   var f = function (n) { return Math.round(n * 10) / 10; };
-  function polyPath(poly, lam0) {
-    var pts = poly.map(function (q) { return project(q[0], q[1], lam0); });
-    if (!pts.some(function (p) { return p[2] > 0; })) return '';
-    return 'M' + pts.map(function (p) {
-      if (p[2] > 0) return f(p[0]) + ' ' + f(p[1]);
-      var dx = p[0] - CX, dy = p[1] - CY, k = R / (Math.hypot(dx, dy) || 1);   // far side: pinned to the edge of the globe
-      return f(CX + dx * k) + ' ' + f(CY + dy * k);
-    }).join('L') + 'Z';
+  // fill outline: points on the far side are pinned to the edge of the globe, so a country cut by the horizon is cut there
+  function ringFill(r, lam0r) {
+    var d = '', any = false, n = r.lon.length;
+    for (var i = 0; i < n; i++) {
+      var l = r.lon[i] - lam0r, cp = r.cp[i], sp = r.sp[i], cl = Math.cos(l);
+      var x = R * cp * Math.sin(l), y = -R * (COS_T * sp - SIN_T * cp * cl), z = SIN_T * sp + COS_T * cp * cl;
+      if (z > 0) any = true; else { var k = R / (Math.hypot(x, y) || 1); x *= k; y *= k; }
+      d += (i ? 'L' : 'M') + f(CX + x) + ' ' + f(CY + y);
+    }
+    return any ? d + 'Z' : '';
   }
-  function linePath(points) {   // only the parts on the near side
+  // border line: only the parts on the near side
+  function ringLine(r, lam0r) {
+    var d = '', pen = false, n = r.lon.length;
+    for (var i = 0; i <= n; i++) {
+      var j = i % n, l = r.lon[j] - lam0r, cp = r.cp[j], sp = r.sp[j], cl = Math.cos(l);
+      var z = SIN_T * sp + COS_T * cp * cl;
+      if (z > 0.01) { d += (pen ? 'L' : 'M') + f(CX + R * cp * Math.sin(l)) + ' ' + f(CY - R * (COS_T * sp - SIN_T * cp * cl)); pen = true; } else pen = false;
+    }
+    return d;
+  }
+  function linePath(points) {
     var d = '', pen = false;
-    points.forEach(function (p) {
-      if (p[2] > 0.02) { d += (pen ? 'L' : 'M') + f(p[0]) + ' ' + f(p[1]); pen = true; } else pen = false;
-    });
+    points.forEach(function (p) { if (p[2] > 0.02) { d += (pen ? 'L' : 'M') + f(p[0]) + ' ' + f(p[1]); pen = true; } else pen = false; });
     return d;
   }
   function graticule(lam0) {
@@ -92,12 +110,34 @@
     [-60, -30, 0, 30, 60].forEach(function (la) { pts = []; for (lon = -180; lon <= 180; lon += 4) pts.push(project(lon, la, lam0)); d += linePath(pts); });
     return d;
   }
+
+  // ---- TopoJSON (world-atlas) to rings of [lon, lat] ----
+  function decode(topo) {
+    var sx = topo.transform.scale[0], sy = topo.transform.scale[1], tx = topo.transform.translate[0], ty = topo.transform.translate[1];
+    var arcs = topo.arcs.map(function (a) { var x = 0, y = 0; return a.map(function (p) { x += p[0]; y += p[1]; return [x * sx + tx, y * sy + ty]; }); });
+    function ring(ids) {
+      var out = [];
+      ids.forEach(function (i, k) {
+        var a = i < 0 ? arcs[~i].slice().reverse() : arcs[i];
+        for (var j = k ? 1 : 0; j < a.length; j++) out.push(a[j]);
+      });
+      return out;
+    }
+    return topo.objects.countries.geometries.map(function (g) {
+      var polys = g.type === 'Polygon' ? [g.arcs] : g.type === 'MultiPolygon' ? g.arcs : [];
+      var rings = [];
+      polys.forEach(function (poly) { poly.forEach(function (r) { rings.push(prep(ring(r))); }); });
+      return { id: g.id, name: g.properties && g.properties.name, rings: rings };
+    });
+  }
+
+  // ---- motion helpers ----
   function orbitPoint(theta) {
     var lx = ORX * Math.cos(theta), ly = ORY * Math.sin(theta);
     return [CX + lx * Math.cos(OROT) - ly * Math.sin(OROT), CY + lx * Math.sin(OROT) + ly * Math.cos(OROT), ly];
   }
   function place(g, x, y, angle, scale, opacity) {
-    g.setAttribute('transform', 'translate(' + f(x) + ' ' + f(y) + ') rotate(' + f(angle) + ') scale(' + scale + ')');
+    g.setAttribute('transform', 'translate(' + f(x) + ' ' + f(y) + ')' + (angle === null ? '' : ' rotate(' + f(angle) + ')') + (scale === 1 ? '' : ' scale(' + scale + ')'));
     g.style.opacity = opacity; g.style.visibility = opacity > 0.01 ? 'visible' : 'hidden';
   }
   var hide = function (g) { g.style.visibility = 'hidden'; };
@@ -109,7 +149,7 @@
     return (2 * u3 - 3 * u2 + 1) * p0 + (u3 - 2 * u2 + u) * m0 * dur + (-2 * u3 + 3 * u2) * p1 + (u3 - u2) * m1 * dur;
   }
   // The globe turns west to east all the time, slowing down to face Uzbekistan for the landing.
-  var FACE = TASHKENT[0] - 8;
+  var FACE = TAS.at[0] - 14;
   function centerLon(t) {
     if (t < 9.5) return hermite(FACE + 200, FACE, -40, 0, 9.5, t / 9.5);
     if (t < 17) return hermite(FACE, FACE - 20, 0, -6, 7.5, (t - 9.5) / 7.5);
@@ -117,13 +157,19 @@
   }
 
   function frame(t) {
-    var lam0 = centerLon(t);
+    var lam0 = centerLon(t), lam0r = lam0 * RAD;
     gratEl.setAttribute('d', graticule(lam0));
-    landEl.setAttribute('d', LAND.map(function (p) { return polyPath(p, lam0); }).join(''));
-    uzEl.setAttribute('d', polyPath(UZ, lam0));
-    var tash = project(TASHKENT[0], TASHKENT[1], lam0);
-    if (tash[2] > 0.15) { markEl.setAttribute('transform', 'translate(' + f(tash[0]) + ' ' + f(tash[1]) + ')'); markEl.style.visibility = 'visible'; markEl.style.opacity = Math.min(1, (tash[2] - 0.15) * 4); }
-    else markEl.style.visibility = 'hidden';
+    if (countries.length) {
+      var fill = '', lines = '';
+      countries.forEach(function (c) { c.rings.forEach(function (r) { fill += ringFill(r, lam0r); lines += ringLine(r, lam0r); }); });
+      landEl.setAttribute('d', fill);
+      bordersEl.setAttribute('d', lines);
+      uzEl.setAttribute('d', uzRings.map(function (r) { return ringFill(r, lam0r); }).join(''));
+    }
+    var tas = project(TAS.at[0], TAS.at[1], lam0);
+    if (tas[2] > 0.15) { place(markEl, tas[0], tas[1], null, 1, Math.min(1, (tas[2] - 0.15) * 4)); } else hide(markEl);
+    var nameAt = project(UZ_LABEL_AT[0], UZ_LABEL_AT[1], lam0);
+    if (nameAt[2] > 0.2) place(uzNameEl, nameAt[0], nameAt[1], null, 1, Math.min(1, (nameAt[2] - 0.2) * 4)); else hide(uzNameEl);
     markEl.classList.toggle('is-busy', t > 8.8 && t < 15);
 
     // 1) once around the orbit, starting at its left end and passing in front first
@@ -134,45 +180,63 @@
       place(front ? planeFront : planeBack, p[0], p[1], heading(p, q), 0.62, 1);
       hide(front ? planeBack : planeFront);
     } else if (t < 9.5) {
-      // 2) down to Tashkent on a curve, getting smaller as it lands
+      // 2) down to TAS on a curve, getting smaller as it lands
       hide(planeBack);
-      var u = easeInOut((t - 7) / 2.5), p0 = orbitPoint(-Math.PI), p2 = tash;
+      var u = easeInOut((t - 7) / 2.5), p0 = orbitPoint(-Math.PI), p2 = tas;
       var p1 = [(p0[0] + p2[0]) / 2, Math.min(p0[1], p2[1]) - 55];
       var bz = function (s) { var a = 1 - s; return [a * a * p0[0] + 2 * a * s * p1[0] + s * s * p2[0], a * a * p0[1] + 2 * a * s * p1[1] + s * s * p2[1]]; };
       var pos = bz(u), ahead = bz(Math.min(1, u + 0.02));
-      place(planeFront, pos[0], pos[1], u < 0.99 ? heading(pos, ahead) : 0, 0.62 - 0.36 * u, u > 0.85 ? (1 - u) / 0.15 : 1);
+      place(planeFront, pos[0], pos[1], heading(pos, ahead), 0.62 - 0.36 * u, u > 0.85 ? (1 - u) / 0.15 : 1);
     } else { hide(planeFront); hide(planeBack); }
 
-    // 3) the fleet leaves Uzbekistan in every direction
-    fleet.forEach(function (fl, i) {
-      var start = 9.6 + i * 0.5, dur = 4.6, u = clamp01((t - start) / dur);
+    // 3) the fleet leaves TAS for its airports
+    fleet.forEach(function (fl) {
+      var u = clamp01((t - fl.start) / fl.dur);
       var fade = t > 16 ? clamp01(1 - (t - 16) / 2.5) : 1;
-      if (t < start || fade <= 0) { fl.trail.setAttribute('d', ''); hide(fl.plane); return; }
+      if (t < fl.start || fade <= 0) { fl.trail.setAttribute('d', ''); hide(fl.plane); hide(fl.port); return; }
       var pts = [];
-      for (var k = 0; k <= 40; k++) { var s = (k / 40) * u, ll = unvec(slerp(fl.from, fl.to, s)); pts.push(project(ll[0], ll[1], lam0)); }
+      for (var k = 0; k <= 40; k++) { var ll = unvec(slerp(fl.from, fl.to, (k / 40) * u)); pts.push(project(ll[0], ll[1], lam0)); }
       fl.trail.setAttribute('d', linePath(pts));
       fl.trail.style.opacity = fade;
       var head = pts[pts.length - 1], next = unvec(slerp(fl.from, fl.to, Math.min(1, u + 0.01))), nx = project(next[0], next[1], lam0);
       if (u < 1 && head[2] > 0.03) place(fl.plane, head[0], head[1], heading(head, nx), 0.3, Math.min(1, head[2] * 5) * fade);
       else hide(fl.plane);
+      // the destination airport shows once the plane is on its way, while it faces us
+      var port = project(fl.route.at[0], fl.route.at[1], lam0);
+      if (port[2] > 0.12) {
+        place(fl.port, port[0], port[1], null, 1, Math.min(1, (port[2] - 0.12) * 4) * fade * Math.min(1, u * 3));
+      } else hide(fl.port);
     });
   }
 
   var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reduce) { frame(12); return; }
-  var t0 = null, shown = true, raf = 0, last = 0;
+  var t0 = null, shown = true, raf = 0, last = 0, lastDraw = 0;
   function tick(now) {
     raf = 0;
     if (t0 === null) t0 = now - last * 1000;
-    last = ((now - t0) / 1000) % LOOP;
-    frame(last);
+    if (now - lastDraw > 30) { last = ((now - t0) / 1000) % LOOP; frame(last); lastDraw = now; }   // ~30 frames a second is plenty
     if (shown) raf = requestAnimationFrame(tick);
   }
-  frame(0);
-  if ('IntersectionObserver' in window) {
-    new IntersectionObserver(function (entries) {
-      shown = entries[0].isIntersecting;
-      if (shown && !raf) { t0 = null; raf = requestAnimationFrame(tick); }
-    }).observe(svg);
-  } else raf = requestAnimationFrame(tick);
+  function start() {
+    if (reduce) { frame(12.5); return; }
+    frame(0);
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(function (entries) {
+        shown = entries[0].isIntersecting;
+        if (shown && !raf) { t0 = null; raf = requestAnimationFrame(tick); }
+      }).observe(svg);
+    } else raf = requestAnimationFrame(tick);
+  }
+  var url = svg.getAttribute('data-world');
+  if (url && window.fetch) {
+    fetch(url, { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (topo) {
+      if (topo) {
+        countries = decode(topo);
+        var uz = countries.filter(function (c) { return c.id === '860'; })[0];
+        uzRings = uz ? uz.rings : [];
+      }
+      if (reduce) frame(12.5);
+    }).catch(function () { /* the globe still turns, without countries */ });
+  }
+  start();
 })();

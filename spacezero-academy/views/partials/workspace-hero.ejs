@@ -1,15 +1,25 @@
+<%
+// One hero for every role: the same SpaceZero standard, said the way each role lives it.
+const HERO = {
+  ADMIN: { title: 'Extraordinary service.<br>Starts with you.', text: 'Build the knowledge. Put it into practice.<br>Make every client experience exceptional.', href: '/admin/training', action: 'Manage training' },
+  SUPERVISOR: { title: 'Great teams.<br>Start with great coaching.', text: 'See where each agent stands. Coach the skills that matter.<br>Lift every call to the standard.', href: '/team', action: 'Open my team' },
+  TRAVEL_AGENT: { title: 'Extraordinary service.<br>Starts with you.', text: 'Learn the destinations, the fares and the product.<br>Turn every call into a trip your client remembers.', href: '/training', action: 'Continue my training' },
+  FLIGHT_EXPERT: { title: 'Every flight.<br>Built with expertise.', text: 'Master the fares, the rules and the routes.<br>Give every traveller the right answer the first time.', href: '/training', action: 'Continue my training' },
+};
+const hero = HERO[profile.role] || HERO.TRAVEL_AGENT;
+%>
 <section class="workspace-hero">
   <div class="hero-copy">
-    <div class="eyebrow"><span></span> THE ABOVE9 STANDARD</div>
-    <h2>Extraordinary service.<br>Starts with you.</h2>
-    <p>Build the knowledge. Put it into practice.<br>Make every client experience exceptional.</p>
-    <a href="<%= profile.role === 'ADMIN' ? '/admin/training' : '/training' %>" class="btn hero-btn"><%= profile.role === 'ADMIN' ? 'Manage training' : 'Explore my training' %> <span aria-hidden="true">↗</span></a>
+    <div class="eyebrow"><span></span> THE SPACEZERO STANDARD</div>
+    <h2><%- hero.title %></h2>
+    <p><%- hero.text %></p>
+    <a href="<%= hero.href %>" class="btn hero-btn"><%= hero.action %> <span aria-hidden="true">↗</span></a>
   </div>
   <div class="hero-art" aria-hidden="true">
     <%# A real turning globe (public/js/hero-globe.js): one loop around the orbit, a landing in Tashkent,
         then a fleet leaving Uzbekistan for the world. The far half of the orbit and anything on the far
         side of the globe are hidden behind it. %>
-    <svg viewBox="0 0 400 270" fill="none" focusable="false" data-globe>
+    <svg viewBox="0 0 400 270" fill="none" focusable="false" data-globe data-world="<%= asset('/static/data/world-countries-110m.json') %>">
       <defs>
         <mask id="workspace-behind-globe" maskUnits="userSpaceOnUse" x="-60" y="-60" width="520" height="390">
           <rect x="-60" y="-60" width="520" height="390" fill="white"/>
@@ -40,6 +50,7 @@
       <g clip-path="url(#workspace-globe-clip)">
         <path class="globe-grid" data-graticule/>
         <path class="globe-land" data-land/>
+        <path class="globe-borders" data-borders/>
         <path class="globe-uz" data-uz/>
         <g data-trails></g>
         <circle cx="204" cy="133" r="101" fill="url(#workspace-shade)"/>
@@ -49,10 +60,12 @@
         <path class="orbit-front-glow" d="M359 133A155 48 0 0 1 49 133" filter="url(#workspace-glow)"/>
         <path class="orbit-front" d="M359 133A155 48 0 0 1 49 133"/>
       </g>
+      <g data-ports></g>
+      <g class="globe-uz-name" data-uz-name style="visibility:hidden"><text class="globe-uz-label" text-anchor="middle">Uzbekistan</text></g>
       <g class="globe-uz-mark" data-uz-mark style="visibility:hidden">
         <circle class="globe-uz-pulse" r="7"/>
-        <circle class="globe-uz-dot" r="2.4"/>
-        <text class="globe-uz-label" x="7" y="-7">Uzbekistan</text>
+        <circle class="globe-uz-dot" r="2.2"/>
+        <text class="globe-port-label globe-port-label--home" x="6" y="9">TAS · Tashkent</text>
       </g>
       <g data-fleet></g>
       <g class="globe-plane" data-plane-front style="visibility:hidden"><use href="#workspace-aircraft"/></g>

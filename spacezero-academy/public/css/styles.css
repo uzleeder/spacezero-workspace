@@ -2269,3 +2269,42 @@ html[data-theme="dark"] .skill-tile__record > summary { color: #e8bb90; }
 .hero-art .globe-uz-label { font: 600 9px/1 Outfit, system-ui, sans-serif; letter-spacing: .04em; fill: #fff3df; paint-order: stroke; stroke: #15122e; stroke-width: 2.5px; stroke-linejoin: round; }
 @keyframes globe-uz-pulse { 0% { transform: scale(.5); opacity: 1; } 100% { transform: scale(2.1); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .hero-art .globe-uz-pulse { animation: none; } }
+
+/* ---- Globe v4: real countries and borders (Natural Earth), airports with labels ---- */
+.hero-art .globe-land { fill: #8ea2f0; fill-opacity: .14; stroke: none; fill-rule: evenodd; }
+.hero-art .globe-borders { fill: none; stroke: #c3cdfa; stroke-opacity: .5; stroke-width: .45; stroke-linejoin: round; }
+.hero-art .globe-uz { fill: #e2ad7a; fill-opacity: .8; stroke: #fbe3bd; stroke-width: .8; }
+.hero-art .globe-uz-label { font: 700 9px/1 Outfit, system-ui, sans-serif; letter-spacing: .05em; fill: #fff3df; paint-order: stroke; stroke: #15122e; stroke-width: 2.6px; stroke-linejoin: round; }
+.hero-art .globe-port-dot { fill: #f6d9a8; stroke: #15122e; stroke-width: .8; }
+.hero-art .globe-port-label { font: 600 7.5px/1 Outfit, system-ui, sans-serif; fill: #f2eefc; paint-order: stroke; stroke: #15122e; stroke-width: 2.4px; stroke-linejoin: round; }
+.hero-art .globe-port-label--home { fill: #fbe3bd; font-size: 8px; }
+
+/* ---- Sidebar follows the theme: light sidebar in light mode, the night-blue one in dark mode ---- */
+html:not([data-theme="dark"]) .sidebar { background: #ffffff; border-right-color: #e6e8ef; color: #1c2233; }
+html:not([data-theme="dark"]) .sidebar .brand-mark--dark .brand-mark-box { border-color: #e2d3bf; color: #b9844f; background: #fbf6ef; }
+html:not([data-theme="dark"]) .sidebar .brand-mark--dark .brand-mark-word { color: #161a2b; }
+html:not([data-theme="dark"]) .sidebar .brand-mark--dark .brand-mark-rule { background: #e3e6ee; }
+html:not([data-theme="dark"]) .sidebar .brand-mark--dark .brand-mark-sub { color: #6b7387; }
+html:not([data-theme="dark"]) .sidebar-collapse-btn { color: #8a91a3; }
+html:not([data-theme="dark"]) .sidebar-collapse-btn:hover { background: #f1f2f6; color: #161a2b; }
+html:not([data-theme="dark"]) .workspace-label { color: #3a4155; border-color: #eceef3; }
+html:not([data-theme="dark"]) .sidebar-section-title { color: #8a91a3; }
+html:not([data-theme="dark"]) .sidebar-link { color: #3a4155; }
+html:not([data-theme="dark"]) .sidebar-link:hover { background: #f4f5f8; color: #161a2b; }
+html:not([data-theme="dark"]) .sidebar-link.active { background: #fbf3e8; color: #9a6532; border-color: #f0dcc2; }
+html:not([data-theme="dark"]) .sidebar-link.active svg { opacity: 1; }
+html:not([data-theme="dark"]) .sidebar-note { color: #b9844f; }
+html:not([data-theme="dark"]) .sidebar-note span { color: #6b7387; }
+html:not([data-theme="dark"]) .sidebar-footer { border-top-color: #eceef3; }
+html:not([data-theme="dark"]) .sidebar-loginas { background: #fbf6ef; border-color: #f0e2cf; }
+html:not([data-theme="dark"]) .sidebar-loginas .sidebar-section-title { color: #9a6532; }
+html:not([data-theme="dark"]) .sidebar-viewas summary { color: #1c2233; background: #ffffff; border-color: #e6e8ef; }
+html:not([data-theme="dark"]) .sidebar-viewas summary:hover, html:not([data-theme="dark"]) .sidebar-viewas details[open] summary { background: #f4f5f8; }
+html:not([data-theme="dark"]) .sidebar-viewas .viewas-caret { color: #b9844f; }
+html:not([data-theme="dark"]) .viewas-menu { background: #ffffff; border-color: #e6e8ef; }
+html:not([data-theme="dark"]) .viewas-menu a { color: #3a4155; }
+html:not([data-theme="dark"]) .viewas-menu a:hover, html:not([data-theme="dark"]) .viewas-menu a:focus-visible { background: #f4f5f8; color: #161a2b; }
+html:not([data-theme="dark"]) .viewas-menu .pill { color: #6b7387; border-color: #e3e6ee; }
+html:not([data-theme="dark"]) .sidebar.collapsed .sidebar-group + .sidebar-group { border-top-color: #eceef3; }
+@media (max-width: 1023px) { html:not([data-theme="dark"]) .sidebar { box-shadow: 0 0 40px rgba(16,24,35,.18); } }
+.hero-art .globe-trail { stroke: #f6d39f; stroke-width: 1.5; stroke-dasharray: 3.5 2.5; stroke-opacity: 1; filter: drop-shadow(0 0 2px rgba(246,211,159,.7)); }
