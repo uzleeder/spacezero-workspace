@@ -346,7 +346,7 @@ test('Employees & Teams shows the team hierarchy, role filters, and address/phon
   assert.doesNotMatch(list.text, /Secret Lane/);
   for (const [who, url] of [[admin, '/dashboard'], [supA, '/team'], [admin, '/admin/teams'], [admin, `/admin/employees/${agentA.id}`], [supA, `/team/${agentA.id}`]]) assert.doesNotMatch((await get(who, url)).text, /Secret Lane/, url);
   const overview = await get(admin, `/admin/employees/${agentA.id}`);
-  assert.match(overview.text, /Setup &amp; availability/); assert.match(overview.text, /Address ✓/); assert.match(overview.text, /\+998 90 111 22 33/);
+  assert.match(overview.text, /Setup &amp; availability/); assert.match(overview.text, /Current address<\/p><p class="v">On file ✓/); assert.match(overview.text, /\+998 90 111 22 33/);
   assert.match((await get(admin, `/employees/${agentA.id}/setup`)).text, /Secret Lane/); // only the authorized profile view shows it
   // an admin of another organization cannot archive our team by ID
   assert.equal((await post(outsider, `/admin/teams/${teamA.id}/archive`)).status, 404);

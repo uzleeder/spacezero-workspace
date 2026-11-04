@@ -200,7 +200,10 @@ router.post('/employees/new', requireAdmin, async (req, res) => {
     prisma.profile.findUnique({ where: { username: data.username } }),
     prisma.profile.findUnique({ where: { email: data.email } }),
   ]);
+  if (usernameTaken && usernameTaken.firedAt) return rerender(null, { username: ['This username belongs to the company account of a fired agent. Use Fired agents → "Give this account to a new agent".'] });
   if (usernameTaken) return rerender(null, { username: ['This username is already taken.'] });
+  // a fired agent's company account is given to the next agent from Fired agents, so the saved logins move with it
+  if (emailTaken && emailTaken.firedAt) return rerender(null, { email: ['This is the company account of a fired agent. Open Employees & Teams → Fired agents and use "Give this account to a new agent".'] });
   if (emailTaken) return rerender(null, { email: ['This email is already registered.'] });
   if (data.supervisorId && !requiresSupervisor(data.role)) {
     return rerender('A supervisor can only be assigned to an Agent or Flight Expert.');
@@ -298,6 +301,7 @@ router.get('/employees/:id', requireAdmin, async (req, res) => {
     error: null,
     fieldErrors: {},
     canRecordEvidence: true,
+    notice: typeof req.query.notice === 'string' ? req.query.notice : '',
   });
 });
 
