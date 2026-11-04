@@ -2481,3 +2481,31 @@ html[data-theme="dark"] [data-ai-app] {
 .ai-read-aloud { margin-top:8px; padding:4px 8px; font-size:11px; color:var(--text-secondary); background:transparent; }
 .space-ai__form { flex-shrink:0; }
 @media (prefers-reduced-motion:reduce) { .is-listening [data-ai-mic] svg { animation:none; } }
+
+/* ---- Space AI button: a round icon at rest; pointing at it (or keyboard focus, or open) widens it to "Space AI" ---- */
+.space-ai__fab { gap: 0; width: auto; height: 52px; min-width: 52px; padding: 0 15px; justify-content: center;
+  transition: transform .15s var(--ease), box-shadow .15s var(--ease), padding .25s var(--ease); }
+.space-ai__fab svg { width: 22px; height: 22px; flex: none; }
+.space-ai__fab span { display: inline-block; max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; margin-left: 0;
+  transition: max-width .28s var(--ease), opacity .2s var(--ease), margin-left .28s var(--ease); }
+.space-ai__fab:hover, .space-ai__fab:focus-visible, .space-ai[open] .space-ai__fab { padding: 0 20px 0 16px; }
+.space-ai__fab:hover span, .space-ai__fab:focus-visible span, .space-ai[open] .space-ai__fab span { max-width: 90px; opacity: 1; margin-left: 9px; }
+@media (max-width: 640px) {                              /* phones: no pointer to hover with, so it stays a round icon */
+  .space-ai__fab, .space-ai__fab:hover, .space-ai[open] .space-ai__fab { width: 48px; min-width: 48px; height: 48px; padding: 0; }
+  .space-ai__fab span, .space-ai__fab:hover span, .space-ai[open] .space-ai__fab span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .space-ai__fab, .space-ai__fab span { transition: none; } }
+
+/* ---- The SpaceZero Standard card in light mode: warm ivory to soft lavender, dark text; dark mode keeps night blue ---- */
+html:not([data-theme="dark"]) .workspace-hero { background: linear-gradient(120deg, #fdf8f0 0%, #f6f0fb 52%, #e9eefc 100%); color: #1b1531; border: 1px solid #ece4f2; box-shadow: 0 18px 40px -30px rgba(36,31,74,.45); }
+html:not([data-theme="dark"]) .hero-copy h2 { color: #1b1531; }
+html:not([data-theme="dark"]) .hero-copy p { color: #5d5a76; }
+html:not([data-theme="dark"]) .hero-copy .eyebrow { color: #a8713d; }
+html:not([data-theme="dark"]) .hero-copy .eyebrow span { background: #c98f5c; }
+html:not([data-theme="dark"]) .hero-btn { background: #241f4a; color: #fdf8f0; }
+html:not([data-theme="dark"]) .hero-btn:hover { background: #352e66; }
+html:not([data-theme="dark"]) .hero-art { background: radial-gradient(ellipse at center, rgba(120,104,190,.16), transparent 70%); }
+html:not([data-theme="dark"]) .hero-coordinate { color: #7d7896; }
+html:not([data-theme="dark"]) .hero-art .planet-halo { stroke: #6f64b0; stroke-opacity: .25; }
+html:not([data-theme="dark"]) .hero-art .orbit-back { stroke: #c98f5c; stroke-opacity: .45; }
+html:not([data-theme="dark"]) .hero-art .orbit-front-glow { stroke-opacity: .3; }
