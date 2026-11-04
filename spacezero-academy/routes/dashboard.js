@@ -4,7 +4,8 @@ const express = require('express');
 const router = express.Router();
 
 const { prisma } = require('../lib/prisma');
-const { requireSession } = require('../lib/authMiddleware');
+const { requireSession, requireRole } = require('../lib/authMiddleware');
+const { adminDashboard } = require('../lib/adminDashboard');
 const { getMyTrainingSummary } = require('../lib/training');
 const { supervisedProfileIds } = require('../lib/authz');
 const { loadSetupForProfile } = require('../lib/employeeSetup');
@@ -38,22 +39,28 @@ async function myDevelopment(profile) {
   };
 }
 
+/** The Admin dashboard's data (lib/adminDashboard.js) with the greeting and today's date, in Tashkent time. */
+async function adminBoard(profile, now = new Date()) {
+  const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', hourCycle: 'h23' }).format(now));
+  const part = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+  return {
+    dash: await adminDashboard(profile, { now }),
+    greeting: `Good ${part}, ${profile.fullName.split(' ')[0]}.`,
+    today: new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', weekday: 'long', day: 'numeric', month: 'long' }).format(now),
+  };
+}
+
+// The inside of the Admin dashboard on its own, for public/js/dashboard-live.js to refresh it in place.
+router.get('/dashboard/live', requireRole('ADMIN'), async (req, res) => {
+  res.set('Cache-Control', 'private, no-store');
+  res.render('dashboard/admin-board', { layout: false, ...(await adminBoard(req.profile)) });
+});
+
 router.get('/dashboard', requireSession, async (req, res) => {
   const profile = req.profile;
   res.set('Cache-Control', 'private, no-store');
 
-  if (profile.role === 'ADMIN') {
-    const orgId = profile.organizationId;
-    const [employeeCount, teamCount, courseCount, pendingInvites, me, attention] = await Promise.all([
-      prisma.profile.count({ where: { organizationId: orgId, status: { not: 'ARCHIVED' } } }),
-      prisma.team.count({ where: { organizationId: orgId, archivedAt: null } }),
-      prisma.trainingCourse.count({ where: { organizationId: orgId, status: 'PUBLISHED' } }),
-      prisma.profile.count({ where: { organizationId: orgId, status: 'INVITED' } }),
-      myDevelopment(profile),
-      attentionFor(profile), // independent of the rest, so it runs alongside instead of after
-    ]);
-    return res.render('dashboard/admin', { title: 'Dashboard', employeeCount, teamCount, courseCount, pendingInvites, attention, me });
-  }
+  if (profile.role === 'ADMIN') return res.render('dashboard/admin', { title: 'Dashboard', ...(await adminBoard(profile)) });
 
   if (profile.role === 'SUPERVISOR') {
     const agentIds = await supervisedProfileIds(profile.id);

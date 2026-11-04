@@ -1,0 +1,106 @@
+<%# The inside of the Admin dashboard: rendered with the page, and again on its own by GET /dashboard/live. %>
+<header class="dash-head">
+  <div>
+    <p class="dash-eyebrow"><%= today %></p>
+    <h1 class="dash-title"><%= greeting %> <%= dash.headline %></h1>
+  </div>
+  <span class="dash-live"><span class="dash-live__dot" aria-hidden="true"></span><span data-ago>Live · updated just now</span></span>
+</header>
+
+<% if (dash.broken.length) { %>
+  <section class="dash-broken" aria-label="Something broke in the background">
+    <span class="dash-broken__label"><span class="dash-broken__dot" aria-hidden="true"></span>Something broke</span>
+    <% dash.broken.forEach(function (b) { %>
+      <span class="dash-broken__item"><%= b.text %> <a href="<%= b.href %>"><%= b.action %> →</a></span>
+    <% }); %>
+  </section>
+<% } %>
+
+<% if (dash.total) { %>
+  <div class="dash-lanes">
+    <% dash.lanes.forEach(function (l) { %>
+      <section class="dash-lane dash-lane--<%= l.key %>" aria-labelledby="lane-<%= l.key %>">
+        <div class="dash-lane__head">
+          <span class="dash-lane__count<%= l.cards.length ? '' : ' is-zero' %>"><%= l.cards.length %></span>
+          <span class="dash-lane__name">
+            <h2 id="lane-<%= l.key %>"><%= l.name %></h2>
+            <span><%= l.hint %></span>
+          </span>
+        </div>
+        <% if (!l.cards.length) { %>
+          <p class="dash-lane__empty"><span aria-hidden="true">✓</span> Nothing here</p>
+        <% } %>
+        <% l.cards.forEach(function (c) { %>
+          <article class="dash-card" data-key="<%= c.key %>">
+            <h3 class="dash-card__title"><%= c.title %></h3>
+            <% if (c.meta) { %><p class="dash-card__meta"><%= c.meta %></p><% } %>
+            <div class="dash-card__foot">
+              <span class="dash-faces" aria-hidden="true">
+                <% c.faces.forEach(function (f) { %><span class="na-av na-av--<%= f.hue %> dash-face" title="<%= f.name %>"><%= f.initials %></span><% }); %>
+                <% if (c.more) { %><span class="dash-face dash-face--more">+<%= c.more %></span><% } %>
+              </span>
+              <a class="dash-btn" href="<%= c.href %>" aria-label="<%= c.action %>: <%= c.title %>"><%= c.action %></a>
+            </div>
+          </article>
+        <% }); %>
+      </section>
+    <% }); %>
+  </div>
+<% } else { %>
+  <section class="dash-clear" aria-label="All clear">
+    <span class="dash-clear__check" aria-hidden="true">✓</span>
+    <span>
+      <span class="dash-clear__title">All clear</span>
+      <span class="dash-clear__text">Nothing is waiting for you. Anything new appears here by itself.</span>
+    </span>
+  </section>
+<% } %>
+
+<div class="dash-bottom">
+  <section class="dash-panel" aria-labelledby="dash-health">
+    <div class="dash-panel__head">
+      <h2 id="dash-health">Academy health</h2>
+      <span class="dash-muted">Green ring = on target</span>
+    </div>
+    <div class="dash-rings">
+      <% dash.rings.forEach(function (r) { var C = 2 * Math.PI * 40; var dash_ = r.pct === null ? 0 : C * Math.min(100, Math.max(0, r.pct)) / 100; %>
+        <a class="dash-ring dash-ring--<%= r.status %>" href="<%= r.href %>">
+          <span class="dash-ring__dial">
+            <svg width="96" height="96" viewBox="0 0 96 96" aria-hidden="true" focusable="false">
+              <circle class="dash-ring__track" cx="48" cy="48" r="40"></circle>
+              <% if (r.pct !== null && r.pct > 0) { %><circle class="dash-ring__arc" cx="48" cy="48" r="40" stroke-dasharray="<%= dash_.toFixed(1) %> <%= C.toFixed(1) %>" transform="rotate(-90 48 48)"></circle><% } %>
+            </svg>
+            <span class="dash-ring__value"><%= r.value %></span>
+          </span>
+          <span class="dash-ring__label"><%= r.label %></span>
+          <span class="dash-ring__note<%= typeof r.delta === 'number' ? (r.delta > 0 ? ' is-up' : r.delta < 0 ? ' is-down' : '') : '' %>"><%= r.note %></span>
+          <span class="visually-hidden"><%= r.status === 'ok' ? 'On target.' : r.status === 'low' ? 'Below target.' : '' %></span>
+        </a>
+      <% }); %>
+    </div>
+  </section>
+
+  <section class="dash-panel dash-panel--list" aria-labelledby="dash-behind">
+    <div class="dash-panel__head">
+      <h2 id="dash-behind">Falling behind</h2>
+      <% if (dash.behind.total) { %><span class="dash-muted"><%= dash.behind.total %> <%= dash.behind.total === 1 ? 'person' : 'people' %></span><% } %>
+      <a class="dash-panel__link" href="/admin/employees">Everyone →</a>
+    </div>
+    <% if (dash.behind.rows.length) { %>
+      <ul class="dash-behind">
+        <% dash.behind.rows.forEach(function (b) { %>
+          <li>
+            <a href="<%= b.href %>">
+              <span class="na-av na-av--<%= b.face.hue %>" aria-hidden="true"><%= b.face.initials %></span>
+              <span class="dash-behind__who"><span class="dash-behind__name"><%= b.person.fullName %></span><span class="dash-behind__why"><%= b.why %></span></span>
+              <span class="dash-tag"><%= b.tag %></span>
+            </a>
+          </li>
+        <% }); %>
+      </ul>
+      <% if (dash.behind.total > dash.behind.rows.length) { %><p class="dash-muted dash-behind__more">+<%= dash.behind.total - dash.behind.rows.length %> more on their pages</p><% } %>
+    <% } else { %>
+      <p class="dash-behind__none"><span aria-hidden="true">✓</span> Everyone is on plan with their training.</p>
+    <% } %>
+  </section>
+</div>

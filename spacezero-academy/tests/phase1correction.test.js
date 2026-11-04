@@ -484,8 +484,9 @@ test('the employee record tabs render for authorized viewers and hide Credential
 test('dashboards show role-appropriate operational cards that link to management views', async () => {
   const adminPage = await get(admin, '/dashboard');
   // "Needs your attention" lists only what needs doing, each with a link to where it is done
-  assert.match(adminPage.text, /Needs your attention/); assert.match(adminPage.text, /Employees needing setup/);
-  assert.match(adminPage.text, /href="\/admin\/employees\?readiness=SETUP_REQUIRED"/);
+  // the Admin's is the three-lanes dashboard (lib/adminDashboard.js): lanes or "All clear", health and who is behind, refreshed live
+  assert.match(adminPage.text, /Urgent|All clear/); assert.match(adminPage.text, /Academy health/); assert.match(adminPage.text, /data-live="\/dashboard\/live"/);
+  assert.doesNotMatch(adminPage.text, /Total employees|Quick actions/);
   const supPage = await get(supA, '/dashboard');
   assert.match(supPage.text, /Needs your attention/); assert.match(supPage.text, /href="\/team\?readiness=SETUP_REQUIRED"/); assert.doesNotMatch(supPage.text, /\/admin\/employees\?/);
   const agentPage = await get(agentA, '/dashboard');

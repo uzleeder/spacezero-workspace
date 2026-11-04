@@ -174,7 +174,9 @@ test('NEEDS YOUR ATTENTION: admin sees the organization, a supervisor only their
   assert.equal(keys(await attentionFor(admin)).ai, 1); assert.equal(keys(await attentionFor(sup)).ai, undefined);
   // dashboards render it with links
   const page = await get(admin, '/dashboard');
-  assert.match(page.text, /Needs your attention/); assert.match(page.text, /Pending profile activation/); assert.match(page.text, /AI Practice ready for review/); assert.match(page.text, /Pending vacation requests/);
+  // the Admin's dashboard is the three lanes (lib/adminDashboard.js): the same items, as cards with a link
+  assert.match(page.text, /Up next/); assert.match(page.text, /1 person not activated yet/); assert.match(page.text, /1 AI practice to review/); assert.match(page.text, /2 vacation requests/);
+  assert.match(page.text, /href="\/leave\?status=PENDING"/); assert.match(page.text, /href="\/ai-practice\?tab=review"/); assert.match(page.text, /Retake needed/);
   assert.match((await get(sup, '/dashboard')).text, /Needs your attention/);
   assert.match((await get(agent, '/dashboard')).text, /Needs your attention/);
   assert.match((await get(agent, '/dashboard')).text, /Training overdue/);
