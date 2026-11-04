@@ -1,13 +1,14 @@
-<%- include('partials/page-header', { pageTitle: 'SpaceZero AI', pageDescription: 'Ask about information already inside SpaceZero — setup, training, skills, standards, leave. Read-only, and scoped to what you\'re authorized to see.' }) %>
+<%- include('partials/page-header', { pageTitle: 'Space AI', pageDescription: 'Ask about information already inside SpaceZero — setup, training, skills, standards, leave. Read-only, and scoped to what you\'re authorized to see.' }) %>
 
 <div class="card mt-24">
   <div class="card-body">
     <form method="post" action="/assistant/ask">
-      <div class="field">
-        <label for="question">Ask SpaceZero AI…</label>
-        <input id="question" name="question" value="<%= question %>" maxlength="500" placeholder="e.g. Who isn't fully set up?" autofocus />
+      <label for="question" class="ai-page-label">Ask Space AI…</label>
+      <div class="ai-composer ai-composer--page">
+        <textarea id="question" name="question" rows="2" maxlength="500" required placeholder="e.g. Who isn't fully set up?" data-enter-send autofocus><%= question %></textarea>
+        <button type="submit" class="ai-send" aria-label="Send" title="Send (Enter)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 2.5 10.6 13.4"/><path d="M21.5 2.5 14.6 21.4l-4-8-8-4z"/></svg></button>
       </div>
-      <button type="submit" class="btn btn-gold mt-16">Ask</button>
+      <p class="ai-hint" style="margin-top:8px">Enter to send · Shift + Enter for a new line</p>
     </form>
     <p class="text-sm text-muted mt-16">Try: "Who isn't fully set up?" · "Which employees have unresolved setup issues?" · "Who has overdue training?" · "Who needs a retake?" · "Which employees haven't acknowledged required standards?" · "What requires my attention today?"</p>
   </div>

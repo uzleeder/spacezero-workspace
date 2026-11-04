@@ -4,7 +4,7 @@
 <a class="card card-link mt-24" href="/admin/intelligence" style="display:block"><div class="card-body row-between" style="gap:16px;flex-wrap:wrap"><div><p class="label" style="font-weight:600;color:var(--navy-950)">Organization intelligence</p><p class="text-sm text-muted" style="margin-top:4px">How capable is our workforce? Skill gaps, team comparison, and which training works.</p></div><span class="btn btn-gold btn-sm">Open</span></div></a>
 <%- include('../partials/my-dev-compact', { me: me }) %>
 
-<div class="grid grid-2">
+<div class="grid grid-2 mt-24">
   <a class="card stat-card card-link" href="/admin/employees"><p class="label">Total employees</p><p class="value"><%= employeeCount %></p></a>
   <a class="card stat-card card-link" href="/admin/teams"><p class="label">Teams</p><p class="value"><%= teamCount %></p></a>
   <a class="card stat-card card-link" href="/admin/training"><p class="label">Published trainings</p><p class="value"><%= courseCount %></p></a>

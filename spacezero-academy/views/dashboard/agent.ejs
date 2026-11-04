@@ -1,5 +1,7 @@
 <%- include('../partials/page-header', { pageTitle: 'Welcome, ' + profile.fullName.split(' ')[0], pageDescription: roleLabel(profile.role), headerAction: '<a href="/skill-graph" class="btn btn-secondary">My Skill DNA</a>' }) %>
 
+<%- include('../partials/workspace-hero') %>
+
 <div class="card" style="margin-bottom:16px"><div class="card-body row-between" style="gap:16px;flex-wrap:wrap"><div><p class="label" style="font-weight:600;color:var(--navy-950)">My status</p><p class="text-sm text-muted" style="margin-top:4px"><%= readiness && readiness.reasons.length ? readiness.reasons.join(' · ') : 'Activated, set up and mandatory training done.' %></p></div><%- include('../partials/readiness-badge', { readiness: readiness }) %></div></div>
 <%- include('../partials/attention', { attention: attention }) %>
 

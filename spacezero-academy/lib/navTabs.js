@@ -17,6 +17,7 @@ function employeeManagementTabs(role) {
     { label: 'New agents', href: '/new-agents' },
     { label: 'Intelligence', href: '/admin/intelligence' },
     { label: 'Vacation Overview', href: '/leave' },
+    { label: 'Fired agents', href: '/admin/employees/fired' }, // routes/admin/firedAgents.js
   ];
 }
 

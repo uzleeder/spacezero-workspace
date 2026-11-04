@@ -181,18 +181,18 @@ test('AUDIT: granting and revoking System Configuration Access is recorded with 
   assert.doesNotMatch(dump, /passwordHash|payloadEnc/);
 });
 
-test('NAVIGATION: Company Standards & Workflow, SpaceZero AI, Settings are in that order, after Management — ONE Settings entry, no separate Advanced item', async () => {
+test('NAVIGATION: Company Standards & Workflow, then Settings, after Management (Space AI is the corner button), after Management — ONE Settings entry, no separate Advanced item', async () => {
   const { navForRole } = require('../lib/nav');
   const labels = navForRole('ADMIN').flatMap((s) => s.items.map((i) => i.label));
   assert.deepEqual(labels.filter((l) => /settings/i.test(l)), ['Settings']); // exactly one, plain "Settings"
   assert.ok(!labels.includes('Settings & Security'));
   assert.ok(!labels.includes('Admin Configuration'));
   const iStandards = labels.indexOf('Company Standards & Workflow');
-  const iAssistant = labels.indexOf('SpaceZero AI');
   const iSettings = labels.indexOf('Settings');
   const iTraining = labels.indexOf('Manage Training');
   assert.ok(iTraining >= 0, labels.join(' > '));
-  assert.ok(iTraining < iStandards && iStandards < iAssistant && iAssistant < iSettings, labels.join(' > '));
+  assert.ok(iTraining < iStandards && iStandards < iSettings, labels.join(' > '));
+  assert.ok(!labels.some((l) => /AI$/.test(l) && l !== 'AI Practice'), labels.join(' > '));   // Space AI is not a menu item
 });
 
 test('ALI AHMED, TOM ALLEN, JOE GODWIN: the current real Manager/Admin accounts each end up with System Configuration Access, without being named in any authorization check', async () => {
