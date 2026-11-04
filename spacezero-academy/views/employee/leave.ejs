@@ -38,7 +38,7 @@
             <p style="font-weight:500;color:var(--navy-950)"><%= leave.TYPE_LABEL[r.leaveType] %> · <%= r.startDate.toISOString().slice(0, 10) %> → <%= r.endDate.toISOString().slice(0, 10) %> (<%= r.days %> day<%= r.days === 1 ? '' : 's' %>)</p>
             <% if (r.note) { %><p class="text-sm text-muted">Your note: <%= r.note %></p><% } %>
             <% if (r.managementNote) { %><p class="text-sm">Management note: <%= r.managementNote %></p><% } %>
-            <% if (r.reviewedBy) { %><p class="text-sm text-muted">Reviewed by <%= r.reviewedBy.fullName %> on <%= r.reviewedAt.toLocaleDateString('en-US') %></p><% } %>
+            <%- include('../partials/leave-decision', { r: r }) %>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <span class="badge <%= r.status === 'APPROVED' ? 'badge-success' : r.status === 'REJECTED' ? 'badge-danger' : r.status === 'PENDING' ? 'badge-warning' : '' %>"><%= leave.STATUS_LABEL[r.status] %></span>

@@ -10,6 +10,7 @@
       </div>
       <span class="badge <%= request.status === 'APPROVED' ? 'badge-success' : request.status === 'REJECTED' ? 'badge-danger' : request.status === 'PENDING' ? 'badge-warning' : '' %>"><%= leave.STATUS_LABEL[request.status] %></span>
     </div>
+    <div class="mt-16"><%- include('../partials/leave-decision', { r: request }) %></div>
     <% if (request.note) { %><p class="mt-16">Employee note: <%= request.note %></p><% } %>
     <% if (request.recommendation !== 'NONE') { %><p class="mt-16 text-sm">Supervisor <%= request.recommendation === 'RECOMMEND_APPROVE' ? 'recommends approval' : 'recommends rejection' %><%= request.supervisorNote ? ': ' + request.supervisorNote : '' %></p><% } %>
     <% if (request.managementNote) { %><p class="mt-16 text-sm">Management note: <%= request.managementNote %></p><% } %>

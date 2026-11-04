@@ -81,7 +81,7 @@ const dateRange = function (a, b) {
     <% } else { %>
       <div class="table-wrap">
         <table class="table-zebra table-compact">
-          <thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Days</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Days</th><th>Status</th><th>Decided by</th><th></th></tr></thead>
           <tbody>
             <% requests.forEach(function (r) { %>
               <tr data-href="/leave/<%= r.id %>">
@@ -90,7 +90,8 @@ const dateRange = function (a, b) {
                 <td style="white-space:nowrap"><%= dateRange(r.startDate, r.endDate) %></td>
                 <td><%= r.days %></td>
                 <td><span class="badge <%= r.status === 'APPROVED' ? 'badge-success' : r.status === 'REJECTED' ? 'badge-danger' : r.status === 'PENDING' ? 'badge-warning' : '' %>"><%= leave.STATUS_LABEL[r.status] %></span>
-                  <% if (r.recommendation !== 'NONE') { %><p class="leave-reco text-sm text-muted">Supervisor: <%= r.recommendation === 'RECOMMEND_APPROVE' ? 'approve' : 'reject' %></p><% } %></td>
+                  </td>
+                <td class="leave-decided"><%- include('../partials/leave-decision', { r: r }) %></td>
                 <td><a class="btn btn-secondary btn-sm" href="/leave/<%= r.id %>">Open</a></td>
               </tr>
             <% }); %>
