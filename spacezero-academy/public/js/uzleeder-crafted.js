@@ -1,4 +1,4 @@
-/* UzLeeder digital signature — "Crafted by UzLeeder" badge for websites UzLeeder builds.
+/* UzLeeder digital signature — "Engineered by UzLeeder" badge for websites UzLeeder builds.
  *
  *   <uzleeder-crafted theme="dark" size="sm"></uzleeder-crafted>
  *
@@ -11,7 +11,7 @@
  *   size="sm|md"              default: md
  *   fonts="none"              do not load the Outfit wordmark font (falls back to the system font)
  *
- * Motion: at rest only the mark sways ("CRAFTED BY" stays still). On hover / keyboard focus the wordmark
+ * Motion: at rest only the mark sways ("ENGINEERED BY" stays still). On hover / keyboard focus the wordmark
  * types the UzLeeder family in brackets, like the site intro: <UzLeeder> -> <LeeCodes> -> <Max's Code> -> ...
  * The badge's link and label follow whichever word is on screen (click while "LeeCodes" shows -> t.me/leecodes).
  * Leaving returns it to the normal wordmark/link. "Reduce motion": no waving, words swap without typing.
@@ -22,7 +22,7 @@
 (function () {
   if (!window.customElements || customElements.get("uzleeder-crafted")) return;
   var HOME = "https://uzleeder.vercel.app/?ref=crafted";
-  var LABEL_DEFAULT = "Crafted by UzLeeder (opens uzleeder.vercel.app)";
+  var LABEL_DEFAULT = "Engineered by UzLeeder (opens uzleeder.vercel.app)";
   // each word in two colours, like the wordmark ([text, "ink" | "red"]), and where it links while it is shown
   var WORDS = [
     { name: "UzLeeder", url: HOME, host: "uzleeder.vercel.app", parts: [["Uz", "ink"], ["Leeder", "red"]] },
@@ -38,7 +38,7 @@
     w.parts.forEach(function (p) { if (n <= 0) return; var t = p[0].slice(0, n); n -= t.length; out += '<span class="' + (p[1] === "red" ? "lee" : "uz") + '">' + escH(t) + "</span>"; });
     return out;
   }
-  var LABEL = "CRAFTED BY";
+  var LABEL = "ENGINEERED BY";
 
   var css =
     ":host{display:block;--cb-muted:#8e97ab;--cb-ink:#ffffff;--cb-red:#f0384e;--cb-inner:#ffffff;--cb-ring:rgba(240,56,78,.55)}" +
@@ -109,7 +109,7 @@
       // the link follows the word on screen: click while "LeeCodes" shows -> t.me/leecodes
       function linkTo(x) {
         a.href = x.url;
-        a.setAttribute("aria-label", x.url === HOME ? LABEL_DEFAULT : "Crafted by UzLeeder — " + x.name + " (opens " + x.host + ")");
+        a.setAttribute("aria-label", x.url === HOME ? LABEL_DEFAULT : "Engineered by UzLeeder — " + x.name + " (opens " + x.host + ")");
       }
       function stop() {
         active = false; clearTimeout(timer); timer = null;

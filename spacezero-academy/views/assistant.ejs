@@ -1,10 +1,10 @@
-<%- include('partials/page-header', { pageTitle: 'SpaceZero AI', pageDescription: 'Ask about information already inside SpaceZero — setup, training, skills, standards, leave. Read-only, and scoped to what you\'re authorized to see.' }) %>
+<%- include('partials/page-header', { pageTitle: 'Space AI', pageDescription: 'Ask about information already inside SpaceZero — setup, training, skills, standards, leave. Read-only, and scoped to what you\'re authorized to see.' }) %>
 
 <div class="card mt-24">
   <div class="card-body">
     <form method="post" action="/assistant/ask">
       <div class="field">
-        <label for="question">Ask SpaceZero AI…</label>
+        <label for="question">Ask Space AI…</label>
         <input id="question" name="question" value="<%= question %>" maxlength="500" placeholder="e.g. Who isn't fully set up?" autofocus />
       </div>
       <button type="submit" class="btn btn-gold mt-16">Ask</button>

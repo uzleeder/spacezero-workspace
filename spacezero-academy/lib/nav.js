@@ -36,7 +36,6 @@ const NAV_SECTIONS = [
   {
     items: [
       { href: '/standards', label: 'Company Standards & Workflow', roles: ALL_ROLES, activeAlso: ['/admin/standards'] },
-      { href: '/assistant', label: 'SpaceZero AI', roles: ALL_ROLES },
       // ONE Settings entry for every Admin (Task 4). Inside: General and Security are ordinary,
       // day-to-day settings any Admin reaches; Advanced (the former separate "Admin Configuration")
       // only renders for an Admin who also holds System Configuration Access — that capability

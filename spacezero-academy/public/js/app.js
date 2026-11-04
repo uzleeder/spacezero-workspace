@@ -385,6 +385,14 @@
   document.addEventListener('click', function (e) { if (box.open && !box.contains(e.target)) box.open = false; });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && box.open) { box.open = false; box.querySelector('summary').focus(); } });
 })();
+// Space AI (bottom-right): closes on outside click or Escape, and puts the cursor in the question box when opened.
+(function () {
+  var box = document.querySelector('[data-space-ai]');
+  if (!box) return;
+  box.addEventListener('toggle', function () { if (box.open) { var q = box.querySelector('textarea'); if (q) q.focus(); } });
+  document.addEventListener('click', function (e) { if (box.open && !box.contains(e.target)) box.open = false; });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && box.open) { box.open = false; box.querySelector('summary').focus(); } });
+})();
 // Closes the notification bell dropdown on outside click or Escape. Opening it never marks
 // anything read — that only happens when a row (or "See all") is actually clicked.
 (function () {

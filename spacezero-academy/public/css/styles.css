@@ -2194,3 +2194,65 @@ a.card:hover, .card-link:hover, html[data-theme="dark"] .card-link:hover { trans
 .callout__text { margin: 6px 0 0; font-size: 13px; color: var(--card-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 .card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .card-actions .btn { flex: 1 1 auto; justify-content: center; }
+
+/* ===========================================================================
+   Layout pass v3 — cards never touch, a tidy collapsed sidebar, Space AI
+   button (bottom-right) and phone-friendly pages.
+   ========================================================================= */
+/* Cards and grids that follow each other on a page always keep a gap. Zero specificity (:where), so a
+   page's own mt-16 / mt-24 still decides when it sets one. */
+:where(.container > .card, .container > section.card, .container > .grid, .container > .card-link) + :where(.card, section.card, .grid, .card-link, .section-heading) { margin-top: 24px; }
+:where(.card-body > .card) + :where(.card) { margin-top: 16px; }
+
+/* Sidebar: tooltips come from the title attribute; collapsed = an even column of centred icons */
+.workspace-label { gap: 9px; }
+@media (min-width: 1024px) {
+  .sidebar.collapsed .sidebar-nav { padding: 0 12px 15px; }
+  .sidebar.collapsed .sidebar-link { position: relative; width: 48px; height: 44px; margin: 0 auto 6px; padding: 0; justify-content: center; gap: 0; border-radius: 12px; }
+  .sidebar.collapsed .sidebar-link.active:after { position: absolute; right: 5px; top: 50%; margin: -2.5px 0 0; }
+  .sidebar.collapsed .sidebar-group + .sidebar-group { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.07); }
+  .sidebar.collapsed .sidebar-brand { padding: 22px 14px; }
+  .sidebar.collapsed .sidebar-footer { padding: 12px; }
+}
+
+/* Space AI: a round button in the bottom-right corner on every page; it opens a small ask box */
+.space-ai { position: fixed; right: 22px; bottom: 22px; z-index: 70; }
+.space-ai > summary { list-style: none; }
+.space-ai > summary::-webkit-details-marker { display: none; }
+.space-ai__fab { display: inline-flex; align-items: center; gap: 8px; height: 50px; padding: 0 20px 0 16px; border-radius: 999px; cursor: pointer; user-select: none;
+  background: linear-gradient(135deg, #e8bb90, #dca878 55%, #c98f5c); color: #1b1531; font-weight: 600; font-size: 14px;
+  box-shadow: 0 12px 30px -10px rgba(220,168,120,.75), 0 2px 6px rgba(16,24,35,.25); transition: transform .15s var(--ease), box-shadow .15s var(--ease); }
+.space-ai__fab:hover { transform: translateY(-2px); box-shadow: 0 16px 34px -10px rgba(220,168,120,.85), 0 3px 8px rgba(16,24,35,.25); }
+.space-ai__fab svg { width: 20px; height: 20px; }
+.space-ai[open] .space-ai__fab { box-shadow: 0 0 0 4px rgba(220,168,120,.25), 0 2px 6px rgba(16,24,35,.25); }
+.space-ai__panel { position: absolute; right: 0; bottom: calc(100% + 12px); width: min(360px, calc(100vw - 32px)); padding: 16px;
+  background: var(--card-bg, #fff); border: 1px solid var(--card-border, #e3e7ed); border-radius: 16px; box-shadow: 0 24px 60px -20px rgba(16,24,35,.45); }
+.space-ai__head strong { display: block; font-size: 15px; color: var(--card-title, #101823); }
+.space-ai__head span { display: block; margin-top: 2px; font-size: 12px; color: var(--card-muted, #6b7280); }
+.space-ai__form textarea { width: 100%; margin-top: 12px; resize: vertical; min-height: 76px; }
+.space-ai__actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+@media print { .space-ai { display: none; } }
+
+/* Phones and small tablets */
+@media (max-width: 1023px) {
+  .sidebar { box-shadow: 0 0 40px rgba(0,0,0,.35); }
+}
+@media (max-width: 640px) {
+  .main-content { padding: 18px 16px 96px; }        /* room under the last card for the Space AI button */
+  .topbar { padding: 10px 14px; height: 60px; gap: 8px; }
+  .topbar .breadcrumb { margin-left: 8px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; gap: 8px; }
+  .topbar .breadcrumb strong { overflow: hidden; text-overflow: ellipsis; }
+  .topbar-profile-link .name, .topbar-profile-link .role { display: none; }
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: minmax(0, 1fr); }
+  .grid-4:has(> .stat-card), .grid-3:has(> .stat-card) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .card-body, .card-header { padding-left: 16px; padding-right: 16px; }
+  .info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .stat-card .value, .kpi .value { font-size: 24px; }
+  .row-between { flex-wrap: wrap; gap: 10px; }
+  .page-header h1, .page-title { font-size: 26px; line-height: 1.2; }
+  .space-ai { right: 14px; bottom: 14px; }
+  .space-ai__fab { height: 48px; padding: 0 16px 0 14px; }
+  .space-ai__fab span { display: none; }
+  .space-ai__fab { width: 48px; padding: 0; justify-content: center; }
+}
+body:has(.sidebar.open) .space-ai { display: none; }   /* the phone menu drawer covers the page: no button on top of it */
