@@ -2594,3 +2594,4 @@ html[data-theme="dark"] .cred-status.is-missing { background: rgba(245,196,81,.1
 .email-switch-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 16px; align-items: start; }
 .email-switch-row > div:first-child { min-width: 0; }
 @media (max-width: 1100px) { .email-switch-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (min-width: 1024px) { .sidebar.collapsed .sidebar-link.active:after { display: none; } }   /* collapsed: the gold tile alone marks the page you are on */
