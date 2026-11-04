@@ -971,7 +971,6 @@ html[data-theme="dark"] .tabs--sticky { background: #121027; box-shadow: inset 0
 html[data-theme="dark"] .employee-directory__sticky { background: #1b1935; }
 @media (max-width: 1023px) { .employee-directory { --directory-top: 112px; } }
 
-
 /* ---------------------------------------------------------------------------
    Phase 3 — Skill DNA, development and intelligence
    ------------------------------------------------------------------------- */
@@ -1972,37 +1971,6 @@ html[data-theme="dark"] .na-lgroup--done, html[data-theme="dark"] .na-fchip--don
   .na-line__next { order: 4; flex: 1 1 100%; }
 }
 
-/* A new Travel Agent's path (partials/stage-line): four steps, where they are now in words. */
-.stage-line { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-.stage-line__step { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding-top: 8px; border-top: 4px solid var(--border-subtle); font-size: 13px; line-height: 18px; color: var(--ink-500); }
-.stage-line__step.is-done { border-top-color: var(--emerald-600); }
-.stage-line__step.is-now { border-top-color: var(--gold-500); color: var(--navy-950); font-weight: 600; }
-.stage-line__detail { font-weight: 400; color: var(--ink-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-html[data-theme="dark"] .stage-line__step { border-top-color: #2e2b52; color: #a29fc2; }
-html[data-theme="dark"] .stage-line__step.is-done { border-top-color: #56d494; }
-html[data-theme="dark"] .stage-line__step.is-now { border-top-color: #dca878; color: #f2f0fa; }
-html[data-theme="dark"] .stage-line__detail { color: #a29fc2; }
-
-/* My day on My Training (partials/my-day): one ordered checklist. */
-.myday .card-body { display: flex; flex-direction: column; gap: 14px; }
-.myday__head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-.myday__title { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; color: var(--navy-950); }
-.myday__meta { margin: 0; font-size: 14px; line-height: 20px; color: var(--ink-500); }
-.myday__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.myday__row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border-subtle); }
-.myday__mark { flex: 0 0 18px; display: inline-flex; padding-top: 1px; color: var(--ink-300); }
-.myday__row.is-done .myday__mark { color: var(--emerald-600); }
-.myday__row.is-late .myday__mark { color: var(--amber-700); }
-.myday__main { display: flex; flex-direction: column; min-width: 0; }
-.myday__name { font-size: 15px; line-height: 22px; font-weight: 600; color: var(--navy-950); }
-a.myday__name { text-decoration: none; }
-a.myday__name:hover { text-decoration: underline; text-underline-offset: 2px; }
-.myday__row.is-done .myday__name { font-weight: 400; color: var(--ink-500); }
-html[data-theme="dark"] .myday__title, html[data-theme="dark"] .myday__name { color: #f2f0fa; }
-html[data-theme="dark"] .myday__meta, html[data-theme="dark"] .myday__row.is-done .myday__name { color: #a29fc2; }
-html[data-theme="dark"] .myday__row { border-color: #2e2b52; }
-html[data-theme="dark"] .myday__row.is-late .myday__mark { color: #f5c451; }
-
 /* New agents -> Waiting for you (new-agents/approvals): one card per group, one item per thing to decide. */
 .na-q .na-lgroup__band { cursor: default; }
 .na-q .na-lgroup__title { margin: 0; }
@@ -2019,14 +1987,6 @@ html[data-theme="dark"] .myday__row.is-late .myday__mark { color: #f5c451; }
 html[data-theme="dark"] .na-q__item { border-color: #2e2b52; }
 html[data-theme="dark"] .na-q__note { background: #221f40; color: #c6c3de; }
 html[data-theme="dark"] .na-q__note.is-flag { background: rgba(245,196,81,.12); border-color: rgba(245,196,81,.45); color: #f2f0fa; }
-.myday__checks { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid var(--border-subtle); }
-.myday__label { margin: 0; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-500); }
-.myday__check { display: flex; flex-direction: column; gap: 8px; }
-.myday__q { margin: 0; font-size: 15px; line-height: 22px; font-weight: 600; color: var(--navy-950); }
-.myday__answers { display: flex; flex-wrap: wrap; gap: 8px; }
-html[data-theme="dark"] .myday__checks { border-color: #2e2b52; }
-html[data-theme="dark"] .myday__q { color: #f2f0fa; }
-html[data-theme="dark"] .myday__label { color: #a29fc2; }
 
 /* The agent's weeks (new-agents/agent): compact folds like a course outline. A finished week is one line; this week is
    open with the days before and after it folded; Overdue sits on top so a fold never hides anything late. */
@@ -2076,17 +2036,6 @@ html[data-theme="dark"] .na-task--done .na-task__title { color: #c6c3de; }
   .naw__bar { display: none; }
   .na-task__kind { display: none; }
 }
-.myday__ready { display: flex; flex-direction: column; gap: 8px; padding-top: 14px; border-top: 1px solid var(--border-subtle); }
-.myday__readylist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.myday__readylist li { display: flex; align-items: center; gap: 10px; font-size: 14px; line-height: 20px; color: var(--navy-950); }
-.myday__readylist li > span:nth-child(2) { flex: 1 1 auto; min-width: 0; }
-.myday__readylist li .myday__mark { color: var(--ink-300); }
-.myday__readylist li.is-done .myday__mark { color: var(--emerald-600); }
-.mymonth { display: flex; flex-direction: column; gap: 10px; }
-html[data-theme="dark"] .myday__ready { border-color: #2e2b52; }
-html[data-theme="dark"] .myday__readylist li { color: #f2f0fa; }
-html[data-theme="dark"] .myday__readylist li .myday__mark { color: #7571aa; }
-html[data-theme="dark"] .myday__readylist li.is-done .myday__mark { color: #56d494; }
 
 /* One agent's page (new-agents/agent): a short header, the next step, four numbers, then one tab at a time. */
 .na-agent-head__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }

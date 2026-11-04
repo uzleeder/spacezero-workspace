@@ -60,7 +60,7 @@ const who = function (a) { return roleLabel(a.profile.role) + ' · ' + (a.superv
       <div class="na-q__who"><span class="na-av na-av--<%= a.hue %>" aria-hidden="true"><%= a.initials %></span><span class="na-line__who"><span class="na-strong"><%= t.title %></span><span class="na-meta"><a href="/new-agents/<%= p.id %>#task-<%= t.id %>"><%= p.fullName %></a> · day <%= t.day %> · asked by <%= nameOf(t.requestedById) %>, <%= when(t.requestedAt) %></span></span></div>
       <div class="na-q__grid na-q__grid--3">
         <div class="na-q__note"><span class="na-label">What <%= board.firstName(nameOf(t.requestedById)) %> saw</span><span><%= t.note || '—' %></span></div>
-        <div class="na-q__note"><span class="na-label"><%= board.firstName(p.fullName) %>'s answer</span><span class="na-strong"><%= ans ? ans.text : 'Not answered yet' %></span><span class="na-meta"><%= ans ? when(ans.at) : 'Asked on their My day' %></span></div>
+        <% if (ans) { %><div class="na-q__note"><span class="na-label"><%= board.firstName(p.fullName) %>'s answer</span><span class="na-strong"><%= ans.text %></span><span class="na-meta"><%= when(ans.at) %></span></div><% } %>
         <div class="na-q__note<%= c.flags.length ? ' is-flag' : '' %>"><span class="na-label">Flags</span><span><%= c.flags.length ? c.flags.map(function (f) { return f.reasons.join(', '); }).join('; ') : 'None' %></span></div>
       </div>
       <div class="na-q__acts">
