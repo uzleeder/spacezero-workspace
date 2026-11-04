@@ -244,6 +244,7 @@ model TenureBand {
 // ---------------------------------------------------------------------------
 
 model Profile {
+  officeDesks                OfficeDesk[]                @relation("OfficeDeskPerson")
   officeItems                OfficeItem[]                @relation("OfficeItemHolder")
   aiChats                    AiChat[]
   coachingNotesAbout         CoachingNote[]              @relation("CoachingNoteSubject")
@@ -1904,4 +1905,29 @@ model OfficeItem {
 
   @@index([organizationId])
   @@index([holderId])
+}
+
+/// Office Management -> Desks by team: each desk (computer) number, who sits there, what is on the desk and the
+/// computer's password (encrypted, AAD "officedesk:<id>"; shown only to the office manager on request, audited).
+/// team: the team label shown ("Team Enzo"); personName: who sits there when no profile matches (e.g. "New").
+model OfficeDesk {
+  id             String   @id @default(cuid())
+  organizationId String
+  number         Int
+  team           String?
+  profileId      String?
+  profile        Profile? @relation("OfficeDeskPerson", fields: [profileId], references: [id], onDelete: SetNull)
+  personName     String?
+  monitor        String?
+  pcCase         String?
+  keyboard       String?
+  mouse          String?
+  headphone      String?
+  passwordEnc    String?
+  note           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, number])
+  @@index([profileId])
 }

@@ -236,6 +236,40 @@
 </div>
 <% } %>
 <% if (passAccess.statusVisible) { %>
+<% if (typeof myDesk !== 'undefined' && myDesk) { %>
+<div class="card mt-24" id="my-pc">
+  <div class="card-header"><h2>My PC</h2><p>Your computer at the office. Ask the office manager if something is wrong with it.</p></div>
+  <div class="card-body">
+    <div class="info-grid">
+      <div class="info-tile"><p class="k">PC number</p><p class="v"><%= myDesk.number %></p></div>
+      <div class="info-tile"><p class="k">Monitor</p><p class="v<%= myDesk.monitor ? '' : ' is-missing' %>"><%= myDesk.monitor || 'Not recorded' %></p></div>
+      <div class="info-tile"><p class="k">Headphone</p><p class="v<%= myDesk.headphone ? '' : ' is-missing' %>"><%= myDesk.headphone || 'None yet' %></p></div>
+      <div class="info-tile"><p class="k">PC password</p>
+        <% if (myDesk.hasPassword) { %><p class="v desk-pw"><span class="desk-pw__value" data-pw-value>•••••</span><button type="button" class="desk-pw__show" data-my-pw>Show</button></p>
+        <% } else { %><p class="v is-missing">Not recorded</p><% } %>
+      </div>
+    </div>
+    <% if (myDesk.pcCase || myDesk.keyboard || myDesk.mouse) { %><p class="text-sm text-muted mt-16">Also on your desk: <%= [myDesk.pcCase && 'case ' + myDesk.pcCase, myDesk.keyboard && 'keyboard ' + myDesk.keyboard, myDesk.mouse && 'mouse ' + myDesk.mouse].filter(Boolean).join(' · ') %></p><% } %>
+  </div>
+</div>
+<script>
+// "Show" asks the server for your own PC password (recorded in the audit log) and hides it again after 20 seconds.
+(function () {
+  var btn = document.querySelector('[data-my-pw]'); if (!btn) return;
+  var value = btn.parentNode.querySelector('[data-pw-value]'), timer = null;
+  function hide() { value.textContent = '•••••'; value.classList.remove('is-shown'); btn.textContent = 'Show'; timer = null; }
+  btn.addEventListener('click', function () {
+    if (timer) { clearTimeout(timer); hide(); return; }
+    btn.disabled = true;
+    fetch('/my/desk/password', { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) { btn.disabled = false; if (!data) return; value.textContent = data.password || '(none)'; value.classList.add('is-shown'); btn.textContent = 'Hide'; timer = setTimeout(hide, 20000); })
+      .catch(function () { btn.disabled = false; });
+  });
+})();
+</script>
+<% } %>
+
 <div class="card mt-24" id="passport-card">
   <div class="card-header row-between">
     <h2>Passport Details</h2>

@@ -1,0 +1,21 @@
+<%# Add or edit one desk (Office Management -> Desks by team). d = the desk, or null to add one. people = everyone active. %>
+<% var v = function (k) { return d && d[k] ? d[k] : ''; }; var key = d ? d.id : 'new'; %>
+<form method="post" action="<%= d ? '/office/desks/' + d.id : '/office/desks' %>" class="desk-form" autocomplete="off">
+  <div class="field"><label for="dn-<%= key %>">Desk number</label><input id="dn-<%= key %>" name="number" type="number" min="1" max="9999" required value="<%= d ? d.number : '' %>" inputmode="numeric" /></div>
+  <div class="field"><label for="dp-<%= key %>">Who sits here</label>
+    <select id="dp-<%= key %>" name="profileId"><option value="">Nobody / not in the list</option><% people.forEach(function (p) { %><option value="<%= p.id %>"<%= d && d.profileId === p.id ? ' selected' : '' %>><%= p.fullName %></option><% }); %></select>
+  </div>
+  <div class="field"><label for="dw-<%= key %>">Or a name</label><input id="dw-<%= key %>" name="personName" maxlength="80" value="<%= v('personName') %>" placeholder="e.g. New agent" /></div>
+  <div class="field"><label for="dt-<%= key %>">Team</label><input id="dt-<%= key %>" name="team" maxlength="80" value="<%= v('team') %>" placeholder="e.g. Team Enzo" /></div>
+  <div class="field"><label for="dm-<%= key %>">Monitor</label><input id="dm-<%= key %>" name="monitor" maxlength="80" value="<%= v('monitor') %>" /></div>
+  <div class="field"><label for="dc-<%= key %>">Case</label><input id="dc-<%= key %>" name="pcCase" maxlength="80" value="<%= v('pcCase') %>" /></div>
+  <div class="field"><label for="dk-<%= key %>">Keyboard</label><input id="dk-<%= key %>" name="keyboard" maxlength="80" value="<%= v('keyboard') %>" /></div>
+  <div class="field"><label for="ds-<%= key %>">Mouse</label><input id="ds-<%= key %>" name="mouse" maxlength="80" value="<%= v('mouse') %>" /></div>
+  <div class="field"><label for="dh-<%= key %>">Headphone</label><input id="dh-<%= key %>" name="headphone" maxlength="80" value="<%= v('headphone') %>" /></div>
+  <div class="field"><label for="dpw-<%= key %>">Computer password</label><input id="dpw-<%= key %>" name="password" type="password" maxlength="200" autocomplete="new-password" placeholder="<%= d && d.hasPassword ? 'Leave blank to keep the saved one' : 'Optional' %>" /></div>
+  <div class="field desk-form__note"><label for="dno-<%= key %>">Note</label><input id="dno-<%= key %>" name="note" maxlength="500" value="<%= v('note') %>" /></div>
+  <div class="desk-form__actions">
+    <% if (d && d.hasPassword) { %><label class="desk-form__clear"><input type="checkbox" name="clearPassword" value="1" /> Remove the saved password</label><% } %>
+    <button type="submit" class="btn btn-gold btn-sm"><%= d ? 'Save desk' : 'Add desk' %></button>
+  </div>
+</form>

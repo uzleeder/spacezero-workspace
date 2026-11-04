@@ -2634,3 +2634,24 @@ html[data-theme="dark"] .cred-status.is-missing { background: rgba(245,196,81,.1
 .office-product__meta { font-size: 11.5px; color: var(--card-muted); }
 .office-product__warn { color: var(--amber-700); font-weight: 600; }
 html[data-theme="dark"] .office-product__warn { color: #f5c451; }
+
+/* ---- Office Management: desks by team ---- */
+.desk-team { border-top: 1px solid var(--card-divider, #eceef3); }
+.desk-team__name { margin: 0; padding: 14px 20px 8px; font-size: 15px; color: var(--card-title); }
+.desk-team__name span { margin-left: 6px; font-size: 12px; font-weight: 500; color: var(--card-muted); }
+.desk-table td { vertical-align: top; white-space: nowrap; }
+.desk-table td.desk-note { white-space: normal; min-width: 160px; max-width: 260px; }
+.desk-no { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 26px; padding: 0 6px; border-radius: 8px; font-weight: 700; font-size: 12.5px; background: rgba(220,168,120,.16); color: var(--gold-600); }
+.desk-pw { display: flex; align-items: center; gap: 8px; }
+.desk-pw__value { font-family: ui-monospace, Consolas, monospace; letter-spacing: .08em; color: var(--card-muted); }
+.desk-pw__value.is-shown { color: var(--card-title); letter-spacing: 0; user-select: all; }
+.desk-pw__show { padding: 2px 9px; border-radius: 999px; border: 1px solid var(--tile-border); background: var(--tile-bg); color: var(--gold-600); font-size: 11.5px; font-weight: 600; cursor: pointer; }
+.desk-pw__show:hover { border-color: var(--gold-400); }
+.desk-form { display: grid; grid-template-columns: repeat(2, minmax(150px, 1fr)); gap: 8px 10px; min-width: 340px; }
+.desk-form .field { margin: 0; }
+.desk-form__note, .desk-form__actions { grid-column: 1 / -1; }
+.desk-form__actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.desk-form__clear { font-size: 12px; color: var(--card-muted); display: inline-flex; gap: 6px; align-items: center; }
+.desk-add .office-edit__panel { position: absolute; right: 20px; z-index: 5; box-shadow: 0 18px 40px -20px rgba(16,24,35,.4); }
+.desk-add { position: static; }
+@media (max-width: 640px) { .desk-form { grid-template-columns: 1fr; min-width: 0; } .desk-add .office-edit__panel { left: 16px; right: 16px; } }

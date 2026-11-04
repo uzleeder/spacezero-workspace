@@ -95,3 +95,47 @@ test('the page counts every type and every product, and a product tile shows onl
   const only = (await get(fred, '/office?product=Mouse')).text;
   assert.match(only, /<strong>Mouse 3<\/strong>/); assert.doesNotMatch(only, /<strong>Mouse pad 1<\/strong>/);
 });
+
+test('desks by team: Fred adds a desk with its things and computer password; the password is encrypted and shown only on request', async () => {
+  const team = await prisma.team.create({ data: { organizationId: org.id, name: 'Team Desk' } });
+  await prisma.teamMembership.create({ data: { teamId: team.id, profileId: agent.id } });
+  assert.equal((await post(fred, '/office/desks', { number: '7', profileId: agent.id, monitor: 'Ziffler', pcCase: 'myPro', keyboard: '4Tech', mouse: '4Tech', headphone: 'Logi', password: 'Pc-Secret-77', note: 'Window seat' })).status, 302);
+  const desk = await prisma.officeDesk.findFirst({ where: { organizationId: org.id, number: 7 } });
+  assert.ok(desk.passwordEnc); assert.doesNotMatch(desk.passwordEnc, /Pc-Secret-77/);           // encrypted at rest
+
+  const page = (await get(fred, '/office')).text;
+  assert.match(page, /Desks by team/); assert.match(page, /Team Desk/); assert.match(page, /<strong>Max Agent<\/strong>/);
+  assert.match(page, /Ziffler/); assert.match(page, /Window seat/); assert.match(page, new RegExp(`data-pw-show="${desk.id}"`));
+  assert.doesNotMatch(page, /Pc-Secret-77/, 'the page never contains the password');
+
+  const shown = await post(fred, `/office/desks/${desk.id}/password`);
+  assert.equal(shown.status, 200); assert.equal(shown.body.password, 'Pc-Secret-77'); assert.match(shown.headers['cache-control'], /no-store/);
+  assert.ok(await prisma.auditLog.findFirst({ where: { organizationId: org.id, action: 'office.desk_password_viewed', targetId: desk.id, actorId: fred.id } }));
+
+  // nobody else can see it, Admins included
+  for (const who of [admin, sup, agent]) assert.equal((await post(who, `/office/desks/${desk.id}/password`)).status, 404, who.fullName);
+
+  // saving without typing a password keeps it; "Remove" clears it; a desk number is used once
+  assert.equal((await post(fred, `/office/desks/${desk.id}`, { number: '7', profileId: agent.id, monitor: 'Redmi' })).status, 302);
+  assert.equal((await post(fred, `/office/desks/${desk.id}/password`)).body.password, 'Pc-Secret-77');
+  assert.equal((await prisma.officeDesk.findUnique({ where: { id: desk.id } })).monitor, 'Redmi');
+  const dup = await post(fred, '/office/desks', { number: '7', personName: 'Someone' });
+  assert.match(dup.headers.location, /error=.*Desk%207%20already%20exists/);
+  assert.equal((await post(fred, `/office/desks/${desk.id}`, { number: '7', clearPassword: '1' })).status, 302);
+  assert.equal((await post(fred, `/office/desks/${desk.id}/password`)).body.password, null);
+  assert.equal((await post(fred, `/office/desks/${desk.id}/delete`)).status, 302);
+  assert.equal(await prisma.officeDesk.count({ where: { id: desk.id } }), 0);
+});
+
+test('"My PC" on the Setup page: each person sees their own PC number, monitor, headphone and password (on request), nobody else\'s', async () => {
+  assert.equal((await post(fred, '/office/desks', { number: '12', profileId: agent.id, monitor: 'Redmi', headphone: 'Logi', pcCase: 'myPro', password: 'Agent-PC-12' })).status, 302);
+  const own = (await get(agent, `/employees/${agent.id}/setup`)).text;
+  assert.match(own, /<h2>My PC<\/h2>/); assert.match(own, /PC number<\/p><p class="v">12</); assert.match(own, /Redmi/); assert.match(own, /Logi/);
+  assert.doesNotMatch(own, /Agent-PC-12/, 'the page never contains the password');
+  const shown = await post(agent, '/my/desk/password');
+  assert.equal(shown.status, 200); assert.equal(shown.body.password, 'Agent-PC-12');
+  assert.ok(await prisma.auditLog.findFirst({ where: { action: 'office.own_desk_password_viewed', actorId: agent.id } }));
+  // an Admin looking at the agent's Setup does not get "My PC"; someone without a desk gets nothing
+  assert.doesNotMatch((await get(admin, `/employees/${agent.id}/setup`)).text, /<h2>My PC<\/h2>/);
+  assert.equal((await post(sup, '/my/desk/password')).status, 404);
+});

@@ -35,6 +35,81 @@
 </div>
 <% } %>
 
+<% var deskCount = deskGroups.reduce(function (n, g) { return n + g.desks.length; }, 0); %>
+<div class="card mt-24">
+  <div class="card-header row-between" style="gap:12px;flex-wrap:wrap">
+    <div><h2>Desks by team</h2><p><%= deskCount %> desk<%= deskCount === 1 ? '' : 's' %>: who sits where, what is on each desk and the computer password. Passwords stay hidden until you press Show.</p></div>
+    <details class="office-edit desk-add">
+      <summary class="btn btn-secondary btn-sm">+ Add desk</summary>
+      <div class="office-edit__panel"><%- include('../partials/office-desk-form', { d: null, people: people }) %></div>
+    </details>
+  </div>
+  <% if (!deskGroups.length) { %>
+    <div class="card-body"><p class="text-muted text-sm">No desks yet.</p></div>
+  <% } %>
+  <% deskGroups.forEach(function (g) { %>
+    <div class="desk-team">
+      <h3 class="desk-team__name"><%= g.team %> <span><%= g.desks.length %> desk<%= g.desks.length === 1 ? '' : 's' %></span></h3>
+      <div class="table-wrap">
+        <table class="table-zebra table-compact desk-table">
+          <thead><tr><th>Desk</th><th>Person</th><th>Monitor</th><th>Case</th><th>Keyboard</th><th>Mouse</th><th>Headphone</th><th>PC password</th><th>Note</th><th></th></tr></thead>
+          <tbody>
+            <% g.desks.forEach(function (d) { %>
+              <tr>
+                <td><span class="desk-no"><%= d.number %></span></td>
+                <td><strong><%= d.who %></strong></td>
+                <td><%= d.monitor || '—' %></td>
+                <td><%= d.pcCase || '—' %></td>
+                <td><%= d.keyboard || '—' %></td>
+                <td><%= d.mouse || '—' %></td>
+                <td><%= d.headphone || '—' %></td>
+                <td class="desk-pw">
+                  <% if (d.hasPassword) { %>
+                    <span class="desk-pw__value" data-pw-value>•••••</span>
+                    <button type="button" class="desk-pw__show" data-pw-show="<%= d.id %>">Show</button>
+                  <% } else { %><span class="text-muted">—</span><% } %>
+                </td>
+                <td class="text-sm text-muted desk-note"><%= d.note || '' %></td>
+                <td>
+                  <details class="office-edit">
+                    <summary class="btn btn-secondary btn-sm">Edit</summary>
+                    <div class="office-edit__panel desk-edit">
+                      <%- include('../partials/office-desk-form', { d: d, people: people }) %>
+                      <form method="post" action="/office/desks/<%= d.id %>/delete" onsubmit="return confirm('Remove desk <%= d.number %>?')">
+                        <button type="submit" class="btn btn-ghost btn-sm office-edit__remove">Remove desk</button>
+                      </form>
+                    </div>
+                  </details>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% }); %>
+</div>
+<script>
+// "Show" asks the server for one desk's password (recorded in the audit log), shows it for 20 seconds, then hides it again.
+document.querySelectorAll('[data-pw-show]').forEach(function (btn) {
+  var cell = btn.closest('.desk-pw'), value = cell.querySelector('[data-pw-value]'), timer = null;
+  function hide() { value.textContent = '•••••'; value.classList.remove('is-shown'); btn.textContent = 'Show'; timer = null; }
+  btn.addEventListener('click', function () {
+    if (timer) { clearTimeout(timer); hide(); return; }
+    btn.disabled = true;
+    fetch('/office/desks/' + encodeURIComponent(btn.getAttribute('data-pw-show')) + '/password', { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        btn.disabled = false;
+        if (!data) return;
+        value.textContent = data.password || '(none)'; value.classList.add('is-shown'); btn.textContent = 'Hide';
+        timer = setTimeout(hide, 20000);
+      })
+      .catch(function () { btn.disabled = false; });
+  });
+});
+</script>
+
 <div class="card mt-24">
   <div class="card-header"><h2>Add items</h2><p>Several of the same at once? Set "How many" (e.g. Headphones × 25).</p></div>
   <form method="post" action="/office/items" class="card-body office-add">

@@ -73,8 +73,10 @@ async function renderSetup(req, res, ctx, extra = {}) {
       else if (passAccess.view) passportMasked = maskPassportNumber(plain);
     } catch { /* undecryptable: treated as not shown */ }
   }
+  const myDesk = ctx.isSelf && !req.impersonation ? await require('../lib/officeDesks').deskOf(ctx.employee.id) : null;
   res.render('employee/setup', {
     title: `${ctx.employee.fullName} — Setup`,
+    myDesk,
     ...(await frame(req, ctx)),
     setup,
     STATUSES,
