@@ -157,3 +157,13 @@ test('the sidebar names the workspace "SpaceZero Workspace", and the Admin badge
   const badge = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'js', 'uzleeder-crafted.js'), 'utf8');
   assert.match(badge, /var LABEL = "ENGINEERED BY";/); assert.doesNotMatch(badge, /"CRAFTED BY"|"Crafted by/);
 });
+
+test('the dashboard globe marks Uzbekistan and is drawn by its own script', async () => {
+  const dash = await get(admin, '/dashboard');
+  assert.match(dash.text, /<svg [^>]*data-globe>/);
+  assert.match(dash.text, />Uzbekistan<\/text>/);
+  assert.match(dash.text, /\/static\/js\/hero-globe\.js/);
+  const js = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'js', 'hero-globe.js'), 'utf8');
+  assert.match(js, /var TASHKENT = \[69\.24, 41\.3\];/);
+  new Function(js);   // the script parses
+});
