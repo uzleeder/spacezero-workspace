@@ -51,7 +51,7 @@ const p = data.profile;
   // can never disagree with the sections below it.
   const skillAvg = data.hasSkillGraph && data.skills.length ? Math.round(data.skills.reduce((s, x) => s + x.currentScore, 0) / data.skills.length) : null;
 %>
-<div class="grid grid-4 mt-24">
+<div class="grid stat-row mt-24">
   <div class="card stat-card"><p class="label">Setup</p><p class="value"><%= data.setup.notStarted ? '—' : data.setup.percent + '%' %></p></div>
   <div class="card stat-card"><p class="label">Training</p><p class="value"><%= data.summary.completed %> / <%= data.summary.assigned %></p></div>
   <% if (skillAvg !== null) { %><div class="card stat-card"><p class="label">Skills</p><p class="value"><%= skillAvg %>%</p></div><% } %>
@@ -153,25 +153,34 @@ const p = data.profile;
 
 <% if (data.hasSkillGraph) { %>
 <div class="card mt-24">
-  <div class="card-header"><h2>Skill Graph</h2><p>Current level and confidence for each skill.</p></div>
+  <div class="card-header row-between" style="gap:12px;flex-wrap:wrap">
+    <div><h2>Skill Graph</h2><p>Current level and confidence for each skill.</p></div>
+    <% if (skillAvg !== null) { %><span class="skill-avg">Average <strong><%= skillAvg %>%</strong></span><% } %>
+  </div>
   <div class="card-body">
     <% if (data.skills.length === 0) { %>
       <%- include('empty-state', { title: 'No skills defined for this role yet' }) %>
     <% } else { %>
-      <div class="grid grid-2">
-        <% data.skills.forEach(function (s) { %>
-          <div>
-            <div class="row-between" style="margin-bottom:4px">
-              <span style="font-weight:500;color:var(--navy-950);font-size:14px"><%= s.skill.name %></span>
-              <span class="text-sm text-muted"><%= Math.round(s.currentScore) %>%</span>
+      <div class="skill-grid">
+        <% data.skills.forEach(function (s) { var score = Math.round(s.currentScore); var lvl = s.evidenceCount === 0 ? 'none' : score >= 70 ? 'strong' : score >= 40 ? 'mid' : 'low'; %>
+          <div class="skill-tile skill-tile--<%= lvl %>">
+            <div class="skill-tile__top">
+              <span class="skill-tile__name"><%= s.skill.name %></span>
+              <span class="skill-tile__score"><%= score %>%</span>
             </div>
             <div class="progress-track"><div class="progress-fill" style="width:<%= s.currentScore %>%"></div></div>
-            <p class="text-sm text-muted" style="margin-top:4px">Evidence: <%= s.evidenceCount %> · Confidence: <%= Math.round(s.confidence) %>%</p>
+            <div class="skill-tile__meta">
+              <span><%= s.evidenceCount %> evidence</span>
+              <span><%= Math.round(s.confidence) %>% confidence</span>
+            </div>
             <% if (typeof canRecordEvidence !== 'undefined' && canRecordEvidence) { %>
-              <form method="post" action="/skills/<%= s.id %>/evidence" style="display:flex;gap:6px;margin-top:8px;align-items:center">
-                <input name="notes" minlength="10" maxlength="5000" placeholder="Evidence or coaching observation" aria-label="Evidence notes" required />
-                <button type="submit" class="btn btn-secondary btn-sm">Record</button>
-              </form>
+              <details class="skill-tile__record">
+                <summary>+ Record evidence</summary>
+                <form method="post" action="/skills/<%= s.id %>/evidence">
+                  <textarea name="notes" rows="3" minlength="10" maxlength="5000" placeholder="What did you observe? (at least 10 characters)" aria-label="Evidence notes for <%= s.skill.name %>" required></textarea>
+                  <button type="submit" class="btn btn-gold btn-sm">Record</button>
+                </form>
+              </details>
             <% } %>
           </div>
         <% }); %>

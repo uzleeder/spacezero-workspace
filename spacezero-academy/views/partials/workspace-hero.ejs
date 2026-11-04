@@ -8,40 +8,60 @@
   <div class="hero-art" aria-hidden="true">
     <svg viewBox="0 0 400 270" fill="none" focusable="false">
       <defs>
-        <mask id="workspace-behind-globe" maskUnits="userSpaceOnUse" x="0" y="0" width="400" height="270">
-          <rect width="400" height="270" fill="white"/>
-          <circle cx="204" cy="133" r="102" fill="black"/>
+        <%# Depth: the orbit is drawn in two halves. The far half (and the plane while it is there) is masked out
+            where the globe covers it; the near half and the plane on it are drawn on top of the globe. %>
+        <mask id="workspace-behind-globe" maskUnits="userSpaceOnUse" x="-60" y="-60" width="520" height="390">
+          <rect x="-60" y="-60" width="520" height="390" fill="white"/>
+          <circle cx="204" cy="133" r="103" fill="black"/>
         </mask>
+        <clipPath id="workspace-globe-clip"><circle cx="204" cy="133" r="101"/></clipPath>
         <path id="workspace-aircraft" d="M21 0C21-1 19-2 16-2L3-3-9-17-15-17-8-3-19-2-24-7-27-7-24 0-27 7-24 7-19 2-8 3-15 17-9 17 3 3 16 2C19 2 21 1 21 0Z"/>
-        <radialGradient id="workspace-sphere" cx="32%" cy="24%" r="80%">
-          <stop stop-color="#4a3f7a" stop-opacity=".55"/>
-          <stop offset=".6" stop-color="#241f4a" stop-opacity=".32"/>
-          <stop offset="1" stop-color="#13112a" stop-opacity=".8"/>
+        <path id="workspace-land" d="M15 25 40 20 85 18 105 28 125 38 115 45 100 60 83 65 75 70 63 58 55 42 40 30Z M100 80 120 82 145 97 140 112 122 128 110 143 105 130 110 108 100 95Z M170 54 171 47 178 42 185 38 190 32 205 20 220 24 220 45 208 50 195 52Z M163 75 175 55 190 53 212 59 223 78 231 79 220 105 215 115 200 125 192 108 189 86 172 85Z M220 45 240 35 260 18 290 15 320 18 350 24 340 32 320 40 310 50 300 60 288 72 280 80 260 82 252 70 238 65 228 60Z M294 112 310 102 325 102 333 117 325 128 310 122 295 124Z M120 10 140 8 155 14 145 24 128 22Z"/>
+        <radialGradient id="workspace-sphere" cx="34%" cy="28%" r="78%">
+          <stop stop-color="#5a4f93"/>
+          <stop offset=".55" stop-color="#2c2659"/>
+          <stop offset="1" stop-color="#15122e"/>
+        </radialGradient>
+        <radialGradient id="workspace-shade" cx="70%" cy="72%" r="65%">
+          <stop offset=".35" stop-color="#0b0a1c" stop-opacity="0"/>
+          <stop offset="1" stop-color="#0b0a1c" stop-opacity=".6"/>
         </radialGradient>
         <linearGradient id="workspace-grid" x1="120" y1="42" x2="284" y2="225" gradientUnits="userSpaceOnUse">
-          <stop stop-color="#b3aed4" stop-opacity=".8"/>
-          <stop offset="1" stop-color="#5c5490" stop-opacity=".28"/>
+          <stop stop-color="#c9c4ea" stop-opacity=".55"/>
+          <stop offset="1" stop-color="#7b72b4" stop-opacity=".18"/>
         </linearGradient>
-        <linearGradient id="workspace-flight" x1="53" y1="220" x2="348" y2="66" gradientUnits="userSpaceOnUse">
-          <stop stop-color="#dca878" stop-opacity=".1"/>
-          <stop offset=".55" stop-color="#f0dcc0"/>
-          <stop offset="1" stop-color="#dca878" stop-opacity=".3"/>
+        <linearGradient id="workspace-orbit-front" x1="49" y1="0" x2="359" y2="0" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#dca878" stop-opacity=".35"/>
+          <stop offset=".5" stop-color="#f6d9a8"/>
+          <stop offset="1" stop-color="#dca878" stop-opacity=".35"/>
         </linearGradient>
+        <filter id="workspace-glow" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="2.4"/></filter>
       </defs>
-      <circle class="planet-halo" cx="204" cy="133" r="120"/>
-      <circle class="planet-surface" cx="204" cy="133" r="101" fill="url(#workspace-sphere)"/>
-      <g class="planet-grid" stroke="url(#workspace-grid)">
-        <circle cx="204" cy="133" r="101"/>
-        <ellipse class="planet-meridian" cx="204" cy="133" rx="101" ry="101"/>
-        <ellipse class="planet-meridian planet-meridian-two" cx="204" cy="133" rx="101" ry="101"/>
-        <ellipse class="planet-meridian planet-meridian-three" cx="204" cy="133" rx="101" ry="101"/>
-        <ellipse cx="204" cy="133" rx="101" ry="35"/>
-        <path d="M103 133h202 M117 82Q204 116 291 82 M117 184Q204 150 291 184"/>
+      <circle class="planet-halo" cx="204" cy="133" r="122"/>
+      <g transform="rotate(-18 204 133)">
+        <%# far half of the orbit: behind the globe %>
+        <path class="orbit-back" mask="url(#workspace-behind-globe)" d="M49 133A155 48 0 0 1 359 133"/>
+        <g mask="url(#workspace-behind-globe)"><g class="orbit-plane orbit-plane-back"><use class="plane-mark" href="#workspace-aircraft"/></g></g>
       </g>
-      <path class="flight-path" d="M66 190A155 57-24 1 1 342 76A155 57-24 1 1 66 190Z"/>
-      <g mask="url(#workspace-behind-globe)"><g class="orbit-plane"><use class="plane-mark" href="#workspace-aircraft"/></g></g>
-      <g class="orbit-plane orbit-plane-front">
-        <use class="plane-mark" href="#workspace-aircraft"/>
+      <circle class="planet-surface" cx="204" cy="133" r="101" fill="url(#workspace-sphere)"/>
+      <g clip-path="url(#workspace-globe-clip)">
+        <g class="planet-land"><g transform="translate(103 32) scale(1.122)"><use href="#workspace-land"/><use href="#workspace-land" x="-360"/></g></g>
+        <g class="planet-grid" stroke="url(#workspace-grid)">
+          <ellipse class="planet-meridian" cx="204" cy="133" rx="101" ry="101"/>
+          <ellipse class="planet-meridian planet-meridian-two" cx="204" cy="133" rx="101" ry="101"/>
+          <ellipse class="planet-meridian planet-meridian-three" cx="204" cy="133" rx="101" ry="101"/>
+          <path d="M103 133h202"/>
+          <ellipse cx="204" cy="133" rx="101" ry="30"/>
+          <path d="M115 85Q204 112 293 85 M115 181Q204 154 293 181"/>
+        </g>
+        <circle cx="204" cy="133" r="101" fill="url(#workspace-shade)"/>
+      </g>
+      <circle class="planet-rim" cx="204" cy="133" r="101"/>
+      <g transform="rotate(-18 204 133)">
+        <%# near half of the orbit and the plane on it: in front of the globe %>
+        <path class="orbit-front-glow" d="M359 133A155 48 0 0 1 49 133" filter="url(#workspace-glow)"/>
+        <path class="orbit-front" d="M359 133A155 48 0 0 1 49 133"/>
+        <g class="orbit-plane orbit-plane-front"><use class="plane-mark" href="#workspace-aircraft"/></g>
       </g>
     </svg>
     <div class="hero-coordinate">KNOWLEDGE → CONFIDENCE → EXCELLENCE</div>

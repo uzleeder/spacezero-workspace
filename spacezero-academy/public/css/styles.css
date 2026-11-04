@@ -2256,3 +2256,53 @@ a.card:hover, .card-link:hover, html[data-theme="dark"] .card-link:hover { trans
   .space-ai__fab { width: 48px; padding: 0; justify-content: center; }
 }
 body:has(.sidebar.open) .space-ai { display: none; }   /* the phone menu drawer covers the page: no button on top of it */
+
+/* ---- Dashboard globe v2: continents, a gold orbit with real depth (far half behind the globe) ---- */
+.hero-art .planet-halo { stroke: #8f89bd; stroke-width: .6; stroke-opacity: .14; }
+.hero-art .planet-rim { stroke: #b9b2e6; stroke-opacity: .45; stroke-width: 1; }
+.hero-art .planet-grid { stroke-width: .7; }
+.hero-art .planet-land use { fill: #9fb4ff; fill-opacity: .1; stroke: #b9c6ff; stroke-opacity: .55; stroke-width: .8; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.hero-art .planet-land { animation: planet-land 48s linear infinite; }
+@keyframes planet-land { from { transform: translateX(0); } to { transform: translateX(404px); } }
+.hero-art .orbit-back { stroke: #dca878; stroke-opacity: .32; stroke-width: 1.4; stroke-linecap: round; }
+.hero-art .orbit-front { stroke: url(#workspace-orbit-front); stroke-width: 2.4; stroke-linecap: round; }
+.hero-art .orbit-front-glow { stroke: #f0c890; stroke-opacity: .45; stroke-width: 5; stroke-linecap: round; }
+/* the plane flies the whole loop: in front of the globe for the first half, behind it for the second */
+.hero-art .orbit-plane { offset-path: path('M49 133A155 48 0 0 0 359 133A155 48 0 0 0 49 133'); offset-anchor: 0px 0px; offset-rotate: auto; animation: planet-flight 14s linear infinite; }
+.hero-art .orbit-plane-front { animation: planet-flight 14s linear infinite, planet-near 14s step-end infinite; }
+.hero-art .orbit-plane-back .plane-mark { opacity: .55; }
+@keyframes planet-near { 0% { visibility: visible; } 50% { visibility: hidden; } }
+.hero-art .plane-mark { transform: scale(.68); }
+@media (prefers-reduced-motion: reduce) {
+  .hero-art .planet-land { animation: none; transform: translateX(120px); }
+  .hero-art .orbit-plane, .hero-art .orbit-plane-front { animation: none; offset-distance: 22%; visibility: visible; }
+}
+
+/* ---- Skill Graph: one tile per skill, the score coloured by level, evidence form folded away ---- */
+.skill-avg { font-size: 13px; color: var(--card-muted); padding: 6px 12px; border-radius: 999px; background: var(--tile-bg); border: 1px solid var(--tile-border); white-space: nowrap; }
+.skill-avg strong { color: var(--card-title); margin-left: 4px; }
+.skill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; align-items: start; }
+.skill-tile { --lvl: #8e89b8; display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 14px 16px; border-radius: 14px; background: var(--tile-bg); border: 1px solid var(--tile-border); transition: border-color .15s var(--ease); }
+.skill-tile:hover { border-color: color-mix(in srgb, var(--lvl) 45%, var(--tile-border)); }
+.skill-tile--low { --lvl: #e5736a; }
+.skill-tile--mid { --lvl: #dca878; }
+.skill-tile--strong { --lvl: #3fb68b; }
+.skill-tile__top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.skill-tile__name { font-size: 14px; font-weight: 600; color: var(--card-title); min-width: 0; overflow-wrap: anywhere; }
+.skill-tile__score { flex: none; font-size: 13px; font-weight: 700; color: var(--lvl); padding: 2px 9px; border-radius: 999px; background: color-mix(in srgb, var(--lvl) 14%, transparent); }
+.skill-tile .progress-track { height: 6px; margin: 0; }
+.skill-tile .progress-fill { background: var(--lvl); }
+.skill-tile--none .progress-fill { background: #8e89b8; }
+.skill-tile__meta { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--card-muted); }
+.skill-tile__when { margin: 0; font-size: 12px; color: var(--card-muted); }
+.skill-tile__record { margin-top: 2px; border-top: 1px dashed var(--tile-border); padding-top: 10px; }
+.skill-tile__record > summary { list-style: none; cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--gold-600, #c9915e); width: max-content; }
+.skill-tile__record > summary::-webkit-details-marker { display: none; }
+.skill-tile__record[open] > summary { margin-bottom: 8px; }
+.skill-tile__record form { display: flex; flex-direction: column; gap: 8px; }
+.skill-tile__record textarea { width: 100%; min-height: 70px; resize: vertical; font-size: 13px; }
+.skill-tile__record .btn { align-self: flex-end; }
+html[data-theme="dark"] .skill-tile__record > summary { color: #e8bb90; }
+@media (max-width: 640px) { .skill-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; } }
+.stat-row { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }   /* 4 or 5 tiles share one row instead of one left alone */
+@media (max-width: 640px) { .stat-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

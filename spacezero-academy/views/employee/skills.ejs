@@ -5,19 +5,20 @@
     <% if (skills.length === 0) { %>
       <%- include('../partials/empty-state', { title: 'No skills tracked yet' }) %>
     <% } else { %>
-      <% skills.forEach(function (s) { %>
-        <div style="margin-top:14px">
-          <div class="row-between" style="margin-bottom:4px">
-            <span style="font-weight:500;color:var(--navy-950);font-size:14px"><%= s.skill.name %></span>
-            <span class="text-sm text-muted"><%= Math.round(s.currentScore) %>%<% if (s.evidenceCount > 0) { %> — <%= competencyLabel(Math.round(s.currentScore)) %><% } %></span>
-          </div>
-          <div class="progress-track"><div class="progress-fill navy" style="width:<%= Math.round(s.currentScore) %>%"></div></div>
+      <div class="skill-grid">
+      <% skills.forEach(function (s) { var score = Math.round(s.currentScore); var lvl = s.evidenceCount === 0 ? 'none' : score >= 70 ? 'strong' : score >= 40 ? 'mid' : 'low'; %>
+        <div class="skill-tile skill-tile--<%= lvl %>">
+          <div class="skill-tile__top"><span class="skill-tile__name"><%= s.skill.name %></span><span class="skill-tile__score"><%= score %>%</span></div>
+          <div class="progress-track"><div class="progress-fill" style="width:<%= score %>%"></div></div>
+          <div class="skill-tile__meta"><span><%= s.evidenceCount %> evidence points</span><span>Confidence <%= Math.round(s.confidence) %>%</span></div>
+          <% if (s.evidenceCount > 0) { %><p class="skill-tile__when"><%= competencyLabel(score) %></p><% } %>
           <% if (!isSelf && ['ADMIN', 'SUPERVISOR'].includes(profile.role) && s.evidenceCount > 0 && s.currentScore < 70) { %>
-            <p class="text-sm" style="margin-top:4px"><span class="badge badge-danger">Priority improvement</span><% if (can('training.assign')) { %> <a class="link-gold" href="/assignments?personId=<%= employee.id %>">Assign practice</a><% } %></p>
+            <p class="skill-tile__when"><span class="badge badge-danger">Priority improvement</span><% if (can('training.assign')) { %> <a class="link-gold" href="/assignments?personId=<%= employee.id %>">Assign practice</a><% } %></p>
           <% } %>
-          <p class="text-sm text-muted" style="margin-top:4px">Confidence <%= Math.round(s.confidence) %>% · <%= s.evidenceCount %> evidence points · Last assessed: <%= s.lastAssessedAt ? s.lastAssessedAt.toLocaleDateString('en-US') : 'never' %></p>
+          <p class="skill-tile__when">Last assessed: <%= s.lastAssessedAt ? s.lastAssessedAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'never' %></p>
         </div>
       <% }); %>
+      </div>
     <% } %>
   </div>
 </div>
