@@ -2233,9 +2233,9 @@ body:has(.sidebar.open) .space-ai { display: none; }   /* the phone menu drawer 
 .skill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; align-items: start; }
 .skill-tile { --lvl: #8e89b8; display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 14px 16px; border-radius: 14px; background: var(--tile-bg); border: 1px solid var(--tile-border); transition: border-color .15s var(--ease); }
 .skill-tile:hover { border-color: color-mix(in srgb, var(--lvl) 45%, var(--tile-border)); }
-.skill-tile--low { --lvl: #e5736a; }
+.skill-tile--low { --lvl: var(--red-600); }
 .skill-tile--mid { --lvl: #dca878; }
-.skill-tile--strong { --lvl: #3fb68b; }
+.skill-tile--strong { --lvl: var(--emerald-600); }
 .skill-tile__top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .skill-tile__name { font-size: 14px; font-weight: 600; color: var(--card-title); min-width: 0; overflow-wrap: anywhere; }
 .skill-tile__score { flex: none; font-size: 13px; font-weight: 700; color: var(--lvl); padding: 2px 9px; border-radius: 999px; background: color-mix(in srgb, var(--lvl) 14%, transparent); }
@@ -2544,32 +2544,32 @@ html[data-theme="dark"] .ai-tool:hover { color: #f2f0fa; }
 .email-switch-form { margin: 0; flex: none; }
 .email-switch { display: inline-flex; align-items: center; gap: 9px; padding: 4px 6px; border: 0; background: transparent; cursor: pointer; font-weight: 600; font-size: 13px; color: var(--card-muted, #6b7280); border-radius: 999px; }
 .email-switch:focus-visible { outline: 2px solid var(--gold-500, #dca878); outline-offset: 2px; }
-.email-switch__track { position: relative; width: 42px; height: 24px; border-radius: 999px; background: #c9ccd6; transition: background .15s var(--ease); }
+.email-switch__track { position: relative; width: 42px; height: 24px; border-radius: 999px; background: var(--border-strong); transition: background .15s var(--ease); }
 .email-switch__knob { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 999px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .15s var(--ease); }
 .email-switch.is-on { color: var(--card-title, #101823); }
-.email-switch.is-on .email-switch__track { background: #3fb68b; }
+.email-switch.is-on .email-switch__track { background: var(--gold-500); }
 .email-switch.is-on .email-switch__knob { transform: translateX(18px); }
 .email-switch-list { display: flex; flex-direction: column; gap: 6px; }
 .email-switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 12px; background: var(--tile-bg); border: 1px solid var(--tile-border); }
-.email-switch-row__name { margin: 0; font-weight: 600; font-size: 14px; color: var(--card-title); overflow-wrap: anywhere; }
+.email-switch-row__name { margin: 0; font-weight: 600; font-size: 14px; color: var(--card-title); overflow-wrap: break-word; }
 .email-switch-row__meta { margin: 2px 0 0; font-size: 12px; color: var(--card-muted); }
 .email-switch-row.is-overridden { opacity: .55; }
-html[data-theme="dark"] .email-switch__track { background: #3a3760; }
+html[data-theme="dark"] .email-switch__track { background: var(--border-strong); }
 
 /* ---- Credential vault: one tile per required system ---- */
 .cred-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
 .cred-tile { display: flex; flex-direction: column; gap: 14px; min-width: 0; padding: 16px; border-radius: 14px; background: var(--tile-bg); border: 1px solid var(--tile-border); transition: border-color .15s var(--ease); }
 .cred-tile:focus-within { border-color: var(--gold-500, #dca878); box-shadow: 0 0 0 3px rgba(220,168,120,.14); }
-.cred-tile.is-saved { border-color: rgba(63,182,139,.35); }
+.cred-tile.is-saved { border-color: var(--gold-400); }
 .cred-tile__head { display: flex; align-items: center; gap: 10px; }
 .cred-tile__icon { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 10px; font-size: 12px; font-weight: 700; letter-spacing: .03em; background: rgba(220,168,120,.16); color: #b9844f; }
-.cred-tile.is-saved .cred-tile__icon { background: rgba(63,182,139,.14); color: #2f9a73; }
+.cred-tile.is-saved .cred-tile__icon { background: var(--emerald-50); color: var(--emerald-700); }
 .cred-tile__title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .cred-tile__title strong { font-size: 15px; color: var(--card-title); }
 .cred-tile__optional { font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--card-muted); padding: 2px 7px; border-radius: 999px; border: 1px solid var(--tile-border); }
 .cred-status { flex: none; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
-.cred-status.is-missing { background: #fff6e0; color: #a1590b; }
-.cred-status.is-saved { background: rgba(63,182,139,.14); color: #2f9a73; }
+.cred-status.is-missing { background: var(--amber-50); color: var(--amber-700); }
+.cred-status.is-saved { background: var(--emerald-50); color: var(--emerald-700); }
 .cred-tile__fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .cred-tile__fields .field { margin: 0; min-width: 0; }
 .cred-tile__fields label { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 600; color: var(--card-muted); }
@@ -2583,7 +2583,14 @@ html[data-theme="dark"] .cred-status.is-missing { background: rgba(245,196,81,.1
 .leave-decision { margin: 0; font-size: 12.5px; color: var(--card-muted); line-height: 1.5; }
 .leave-decision strong { color: var(--card-title); font-weight: 600; }
 .leave-decision__verb { font-weight: 600; }
-.leave-decision--approved .leave-decision__verb { color: #2f9a73; }
-.leave-decision--rejected .leave-decision__verb { color: #c2413b; }
+.leave-decision--approved .leave-decision__verb { color: var(--emerald-700); }
+.leave-decision--rejected .leave-decision__verb { color: var(--red-700); }
 .leave-decision__reco { display: block; font-size: 11.5px; }
 .leave-decided { min-width: 130px; max-width: 220px; }
+.email-switch-row__controls { display: flex; align-items: center; gap: 10px; flex: none; }
+.email-freq { margin: 0; }
+.email-freq select { min-height: 34px; padding: 4px 30px 4px 10px; font-size: 13px; border-radius: 10px; }
+@media (max-width: 640px) { .email-switch-row { flex-wrap: wrap; } .email-switch-row__controls { width: 100%; justify-content: space-between; } }
+.email-switch-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 16px; align-items: start; }
+.email-switch-row > div:first-child { min-width: 0; }
+@media (max-width: 1100px) { .email-switch-grid { grid-template-columns: minmax(0, 1fr); } }

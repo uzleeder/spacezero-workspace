@@ -18,7 +18,7 @@
   </div>
 </div>
 
-<div class="grid grid-2 mt-24">
+<div class="email-switch-grid mt-24">
   <section class="card">
     <div class="card-header"><h2>Teams</h2><p>Off: no training emails for the members of that team.</p></div>
     <div class="card-body email-switch-list">
@@ -32,13 +32,23 @@
     </div>
   </section>
   <section class="card">
-    <div class="card-header"><h2>Trainings</h2><p>Off: no emails about that training for anyone.</p></div>
+    <div class="card-header"><h2>Trainings</h2><p>How often each training reminds, and Off: no emails about it.</p></div>
     <div class="card-body email-switch-list">
       <% if (!courses.length) { %><p class="text-muted text-sm">No published trainings yet.</p><% } %>
       <% courses.forEach(function (c) { %>
         <div class="email-switch-row<%= allOn ? '' : ' is-overridden' %>" data-course="<%= c.id %>">
-          <div><p class="email-switch-row__name"><%= c.title %></p></div>
-          <%- include('../partials/email-switch', { target: 'course', id: c.id, on: !c.trainingEmailsOff, name: c.title }) %>
+          <div><p class="email-switch-row__name"><%= c.title %></p><p class="email-switch-row__meta">Reminder <%= cadenceText(c.reminderEveryDays) %></p></div>
+          <div class="email-switch-row__controls">
+            <form method="post" action="/admin/training-emails/frequency" class="email-freq">
+              <input type="hidden" name="id" value="<%= c.id %>" />
+              <label class="visually-hidden" for="freq-<%= c.id %>">How often to remind about <%= c.title %></label>
+              <select id="freq-<%= c.id %>" name="days" onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.submit()">
+                <% choices.forEach(function (d) { %><option value="<%= d %>"<%= c.reminderEveryDays === d ? ' selected' : '' %>><%= d === 1 ? 'Every day' : d === 7 ? 'Once a week' : 'Every ' + d + ' days' %></option><% }); %>
+              </select>
+              <noscript><button type="submit" class="btn btn-secondary btn-sm">Save</button></noscript>
+            </form>
+            <%- include('../partials/email-switch', { target: 'course', id: c.id, on: !c.trainingEmailsOff, name: c.title }) %>
+          </div>
         </div>
       <% }); %>
     </div>

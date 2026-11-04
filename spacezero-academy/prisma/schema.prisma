@@ -497,6 +497,8 @@ model TrainingCourse {
   // The one shared Training Category (PRODUCT / SALES / SYSTEM_WORKFLOW - see lib/trainingCategories.js). Null only for
   // trainings that existed before categories: they are kept as they are until an Admin picks the right one.
   /// Admin switch (Manage Training -> Training emails): no assignment/reminder emails for this training while true.
+  /// Admin setting (Manage Training -> Training emails): the reminder is sent every N days (1 daily, 2, 3, 7 weekly).
+  reminderEveryDays Int                  @default(1)
   trainingEmailsOff Boolean              @default(false)
   trainingCategory  String?
   audienceJson      String?

@@ -348,3 +348,31 @@ test('Admin switches: off for everyone, a team or a training pauses the emails; 
   assert.equal((await post(admin, '/admin/training-emails', { target: 'team', id: foreignTeam.id, on: '0' })).status, 404);
   assert.equal((await prisma.team.findUnique({ where: { id: foreignTeam.id } })).trainingEmailsOff, false);
 });
+
+test('an Admin sets how often a training reminds: weekly means one reminder a week, and the email says so', async () => {
+  const c = await prisma.trainingCourse.create({ data: { organizationId: org.id, title: 'Weekly course', status: 'PUBLISHED', createdById: admin.id } });
+  assert.equal((await post(admin, '/admin/training-emails/frequency', { id: c.id, days: '7' })).status, 302);
+  assert.equal((await prisma.trainingCourse.findUnique({ where: { id: c.id } })).reminderEveryDays, 7);
+  const page = await request(app).get('/admin/training-emails').set('Cookie', cookies[admin.id]);
+  assert.match(page.text, new RegExp(`id="freq-${c.id}" name="days"`)); assert.match(page.text, /<option value="7" selected>Once a week<\/option>/);
+  const r = await assignment({ courseId: c.id }); const sent = [];
+  const send = async (m) => sent.push(m);
+  await emails.processNext({ now, send });
+  assert.match(sent[0].text, /we will remind you once a week/);
+  assert.equal((await job(r)).nextSendAt.getTime(), later(7 * 24 * H).getTime());
+  await emails.processNext({ now: later(3 * 24 * H), send });
+  assert.equal(sent.length, 1, 'no reminder after 3 days on a weekly training');
+  await emails.processNext({ now: later(7 * 24 * H), send });
+  assert.equal(sent.length, 2); assert.match(sent[1].text, /You will get this reminder once a week/);
+  // switching to every 2 days moves the queued reminder to 2 days after the last email
+  assert.equal((await post(admin, '/admin/training-emails/frequency', { id: c.id, days: '2' })).status, 302);
+  assert.equal((await job(r)).nextSendAt.getTime(), later(9 * 24 * H).getTime());
+  await emails.processNext({ now: later(9 * 24 * H), send });
+  assert.equal(sent.length, 3); assert.match(sent[2].text, /every 2 days/);
+  // only the listed choices, only Admins, only their own trainings
+  assert.equal((await post(admin, '/admin/training-emails/frequency', { id: c.id, days: '5' })).status, 400);
+  assert.ok([302, 403].includes((await post(sup, '/admin/training-emails/frequency', { id: c.id, days: '1' })).status));
+  assert.equal((await prisma.trainingCourse.findUnique({ where: { id: c.id } })).reminderEveryDays, 2);
+  const foreign = await prisma.trainingCourse.create({ data: { organizationId: outsider.organizationId, title: 'Foreign course', status: 'PUBLISHED', createdById: outsider.id } });
+  assert.equal((await post(admin, '/admin/training-emails/frequency', { id: foreign.id, days: '7' })).status, 404);
+});

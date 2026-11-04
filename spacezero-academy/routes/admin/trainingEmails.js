@@ -17,10 +17,10 @@ router.get('/training-emails', requireAdmin, async (req, res) => {
   const [allOn, teams, courses, paused] = await Promise.all([
     getSetting(org, 'email.trainingEmails'),
     prisma.team.findMany({ where: { organizationId: org, archivedAt: null }, select: { id: true, name: true, trainingEmailsOff: true, _count: { select: { memberships: true } } }, orderBy: { name: 'asc' } }),
-    prisma.trainingCourse.findMany({ where: { organizationId: org, archivedAt: null, status: 'PUBLISHED' }, select: { id: true, title: true, trainingEmailsOff: true }, orderBy: { title: 'asc' } }),
+    prisma.trainingCourse.findMany({ where: { organizationId: org, archivedAt: null, status: 'PUBLISHED' }, select: { id: true, title: true, trainingEmailsOff: true, reminderEveryDays: true }, orderBy: { title: 'asc' } }),
     prisma.trainingEmailSchedule.count({ where: { lastError: { startsWith: 'Paused: ' }, nextSendAt: { not: null }, recipient: { assignment: { organizationId: org } } } }),
   ]);
-  res.render('admin/training-emails', { title: 'Training emails', allOn, teams, courses, paused, notice: String(req.query.notice || '').slice(0, 200) });
+  res.render('admin/training-emails', { title: 'Training emails', allOn, teams, courses, paused, choices: trainingEmails.REMINDER_CHOICES, cadenceText: trainingEmails.cadenceText, notice: String(req.query.notice || '').slice(0, 200) });
 });
 
 router.post('/training-emails', requireAdmin, async (req, res) => {
@@ -49,6 +49,19 @@ router.post('/training-emails', requireAdmin, async (req, res) => {
   await logAudit({ organizationId: org, actorId: req.profile.id, action: on ? 'training_emails.turned_on' : 'training_emails.turned_off', targetTable, targetId: target === 'all' ? org : id, metadata: { target, name: label } });
   if (on) await trainingEmails.resumePaused(org);
   res.redirect('/admin/training-emails?notice=' + encodeURIComponent(`Training emails for ${label} are ${on ? 'on' : 'off'}.`));
+});
+
+// How often one training's reminder is sent: every 1, 2, 3 or 7 days.
+router.post('/training-emails/frequency', requireAdmin, async (req, res) => {
+  const org = req.profile.organizationId;
+  const days = Number(req.body.days);
+  if (!trainingEmails.REMINDER_CHOICES.includes(days)) return res.status(400).send('Choose every day, every 2 or 3 days, or once a week.');
+  const course = await prisma.trainingCourse.findFirst({ where: { id: String(req.body.id || ''), organizationId: org, archivedAt: null }, select: { id: true, title: true } });
+  if (!course) return res.status(404).render('not-found', { layout: false });
+  await prisma.trainingCourse.update({ where: { id: course.id }, data: { reminderEveryDays: days } });
+  await trainingEmails.rescheduleCourse(course.id, days);
+  await logAudit({ organizationId: org, actorId: req.profile.id, action: 'training_emails.frequency_changed', targetTable: 'TrainingCourse', targetId: course.id, metadata: { name: course.title, everyDays: days } });
+  res.redirect('/admin/training-emails?notice=' + encodeURIComponent(`Reminders for ${course.title}: ${trainingEmails.cadenceText(days)}.`));
 });
 
 module.exports = router;

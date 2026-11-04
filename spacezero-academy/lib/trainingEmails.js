@@ -6,8 +6,14 @@ const mailer = require('./mailer');
 const { formatDeadline } = require('./trainingDeadline');
 const { isSubmitted, courseAttempt } = require('./trainingCompletion');
 const { getSetting } = require('./orgSettings');
-// A training that has been assigned gets ONE assignment email, then ONE reminder a day (every 24 hours) until it is completed.
+// A training that has been assigned gets ONE assignment email, then ONE reminder every N days until it is completed.
+// N is set per training by an Admin (Manage Training -> Training emails): every day (default), 2 or 3 days, or weekly.
 const REMINDER_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const REMINDER_CHOICES = [1, 2, 3, 7];
+const everyDays = (course) => (REMINDER_CHOICES.includes(course && course.reminderEveryDays) ? course.reminderEveryDays : 1);
+const intervalMs = (course) => everyDays(course) * REMINDER_INTERVAL_MS;
+/** "once a day" / "every 2 days" / "once a week": how the emails describe the cadence. */
+const cadenceText = (days) => (days === 1 ? 'once a day' : days === 7 ? 'once a week' : `every ${days} days`);
 const RETRY_CAP_MS = 3 * 60 * 60 * 1000; // a failed delivery is retried with a growing delay, never longer than this
 const LEASE_MS = 2 * 60 * 1000;
 const POLL_MS = 15000;
@@ -79,6 +85,16 @@ async function stopForFinished(recipient) {
   return prisma.trainingEmailSchedule.updateMany({ where: { recipientId: { in: ids }, claimToken: null }, data: { nextSendAt: null, payloadJson: null, lastError: null } });
 }
 
+/** An Admin changed how often a training reminds: its queued reminders follow the new interval from the last email. */
+async function rescheduleCourse(courseId, days, now = new Date()) {
+  const jobs = await prisma.trainingEmailSchedule.findMany({ where: { kind: 'REMINDER', claimToken: null, nextSendAt: { not: null }, lastSentAt: { not: null }, recipient: { assignment: { courseId } } }, select: { recipientId: true, lastSentAt: true } });
+  for (const j of jobs) {
+    const next = new Date(Math.max(j.lastSentAt.getTime() + days * REMINDER_INTERVAL_MS, now.getTime()));
+    await prisma.trainingEmailSchedule.updateMany({ where: { recipientId: j.recipientId, claimToken: null }, data: { nextSendAt: next } });
+  }
+  return jobs.length;
+}
+
 /** An Admin turned emails back on: paused emails are looked at again now (each is re-checked before sending). */
 async function resumePaused(organizationId) {
   const r = await prisma.trainingEmailSchedule.updateMany({ where: { lastError: { startsWith: 'Paused: ' }, claimToken: null, recipient: { assignment: { organizationId } } }, data: { nextSendAt: new Date(), lastError: null } });
@@ -107,7 +123,8 @@ function messageFor(recipient, kind, now = new Date()) {
     ? `Your training "${a.course.title}" is not completed yet${overdue ? ' and is overdue' : ''}.`
     : `A new training was assigned to you: "${a.course.title}".`;
   const invited = recipient.profile.status === 'INVITED' ? '\nFirst, activate your account with your invitation email.\n' : '';
-  const footer = reminder ? 'You will get this reminder once a day until you complete it.' : 'If it is not completed, we will remind you once a day.';
+  const cadence = cadenceText(everyDays(a.course));
+  const footer = reminder ? `You will get this reminder ${cadence} until you complete it.` : `If it is not completed, we will remind you ${cadence}.`;
   return {
     from: process.env.RESEND_FROM || process.env.SMTP_FROM,
     to: recipient.profile.email,
@@ -137,8 +154,8 @@ async function processNext({ now = new Date(), send = mailer.sendEmailMessage } 
     const paused = await emailsOff(recipient);
     if (paused) { await finish({ nextSendAt: new Date(now.getTime() + REMINDER_INTERVAL_MS), lastError: paused }); return true; }   // nothing sent; turning it back on resumes
     if (job.kind === 'REMINDER') {
-      // 24 hours after the last email, however the deadline stands
-      const earliest = new Date((job.lastSentAt ? job.lastSentAt.getTime() : 0) + REMINDER_INTERVAL_MS);
+      // the training's interval after the last email, however the deadline stands
+      const earliest = new Date((job.lastSentAt ? job.lastSentAt.getTime() : 0) + intervalMs(recipient.assignment.course));
       if (now < earliest) { await finish({ nextSendAt: earliest, payloadJson: null }); return true; }
     }
     if (!mailer.isEmailConfigured() && send === mailer.sendEmailMessage) throw new Error('Email is not configured');
@@ -146,7 +163,7 @@ async function processNext({ now = new Date(), send = mailer.sendEmailMessage } 
     if (!job.payloadJson) await prisma.trainingEmailSchedule.updateMany({ where: { recipientId: job.recipientId, claimToken: token }, data: { payloadJson: JSON.stringify(message) } });
     await send(message, { idempotencyKey: `training-${job.recipientId}-${job.sequence}` });
     // Successful delivery acceptance controls the interval; retry attempts do not advance it.
-    await finish({ lastSentAt: now, ...(job.kind === 'ASSIGNED' ? { assignmentSentAt: now } : {}), kind: 'REMINDER', sequence: { increment: 1 }, nextSendAt: new Date(now.getTime() + REMINDER_INTERVAL_MS), payloadJson: null, retryCount: 0, lastError: null });
+    await finish({ lastSentAt: now, ...(job.kind === 'ASSIGNED' ? { assignmentSentAt: now } : {}), kind: 'REMINDER', sequence: { increment: 1 }, nextSendAt: new Date(now.getTime() + intervalMs(recipient.assignment.course)), payloadJson: null, retryCount: 0, lastError: null });
   } catch {
     // Do not record provider response bodies, tokens or the email payload in logs.
     await finish({ nextSendAt: new Date(now.getTime() + Math.min(RETRY_CAP_MS, 30000 * 2 ** Math.min(job.retryCount, 9))), retryCount: { increment: 1 }, lastError: 'Email was not accepted. It will be retried automatically.' });
@@ -176,4 +193,4 @@ function start() {
   kick();
 }
 function stop() { if (timer) clearInterval(timer); timer = null; }
-module.exports = { enqueueAssignment, queueAgain, processNext, drain, kick, start, stop, completed, finishedInAnotherCopy, stopForFinished, resumePaused, emailsOff, PAUSED, REMINDER_INTERVAL_MS };
+module.exports = { enqueueAssignment, queueAgain, processNext, drain, kick, start, stop, completed, finishedInAnotherCopy, stopForFinished, resumePaused, emailsOff, PAUSED, REMINDER_INTERVAL_MS, REMINDER_CHOICES, cadenceText, rescheduleCourse };
