@@ -105,3 +105,26 @@ test('only Admins see Fired agents', async () => {
     assert.equal((await get(supervisor, url)).status, 403, url);
   }
 });
+
+test('the new agent finds the systems that came with the account done in Setup, and fills in everything personal', async () => {
+  const { loadSetupForProfile, ensureDefaultRequirements } = require('../lib/employeeSetup');
+  await ensureDefaultRequirements(org.id);
+  const key = `lola.${org.id}@above9.test`;
+  const lola = await agent('Lola', key, `lola_${org.id}`, { passport: ['Lola', 'Rossi', 'LR9999999'], phone: '+998 91 000 00 00', address: 'Samarkand 7' });
+  for (const [system, systemKey] of [['Gmail', 'gmail'], ['CRM', 'crm']]) {
+    const c = await prisma.credential.create({ data: { organizationId: org.id, ownerId: lola.id, system, systemKey, payloadEnc: 'x' } });
+    await prisma.credential.update({ where: { id: c.id }, data: { payloadEnc: encryptJson({ password: `${system}-pw` }, `cred:${org.id}:${lola.id}`) } });
+  }
+  assert.equal((await post(admin, `/admin/employees/${lola.id}/fire`, { reason: 'Moved abroad' })).status, 302);
+  assert.equal((await post(admin, '/admin/employees/fired/account/new-agent', { key, fullName: 'Nodira Saidova', employmentStartDate: '2026-11-05', supervisorId: supervisor.id })).status, 302);
+
+  const next = await prisma.profile.findFirst({ where: { email: key } });
+  const setup = await loadSetupForProfile(org.id, next);
+  const row = (k) => setup.rows.find((r) => r.requirement.key === k);
+  assert.equal(row('gmail').status, 'COMPLETED'); assert.equal(row('crm').status, 'COMPLETED');       // came with the account
+  assert.match(row('gmail').item.note, /Came with the company account/);
+  assert.notEqual(row('gds').status, 'COMPLETED');                                                    // not in the vault: still to do
+  assert.notEqual(row('passport_details').status, 'COMPLETED');                                       // personal: the new agent fills it in
+  // the former agent's own Setup items are not copied
+  assert.equal(await prisma.employeeSetupItem.count({ where: { profileId: next.id, requirement: { credentialSystem: false } } }), 0);
+});

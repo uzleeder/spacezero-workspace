@@ -121,6 +121,16 @@ async function handOverAccount(admin, accountKey, { fullName, employmentStartDat
       await tx.credential.update({ where: { id: c.id }, data: { ownerId: profile.id, payloadEnc: encryptJson(payload, `cred:${c.organizationId}:${profile.id}`), updatedById: admin.id } });
     }
     const moved = { count: logins.length };
+    // Setup: the systems whose logins came with the account are already done for the new agent (they have the
+    // passwords). Everything personal - passport, phone, address, the other confirmations - stays to do: they fill it in.
+    const systems = await tx.setupRequirement.findMany({ where: { organizationId: admin.organizationId, credentialSystem: true }, select: { id: true, key: true, label: true } });
+    const byName = new Map(systems.map((r) => [r.label.trim().toLowerCase(), r]));
+    const byKey = new Map(systems.map((r) => [r.key, r]));
+    const inherited = new Set(logins.map((c) => (byKey.get(c.systemKey) || byName.get(String(c.system || '').trim().toLowerCase()) || {}).id).filter(Boolean));
+    const now = new Date();
+    for (const requirementId of inherited) {
+      await tx.employeeSetupItem.create({ data: { profileId: profile.id, requirementId, status: 'COMPLETED', employeeConfirmedAt: now, verifiedById: admin.id, verifiedAt: now, updatedById: admin.id, note: 'Came with the company account: the saved login was handed over from the previous agent.' } });
+    }
     if (teamId) await tx.teamMembership.create({ data: { teamId, profileId: profile.id } });
     if (supervisorId) await tx.supervisorAssignment.create({ data: { supervisorId, agentId: profile.id, teamId: teamId || undefined, assignedById: admin.id } });
     await tx.invitation.create({ data: { profileId: profile.id, tokenHash: token.hash, invitedById: admin.id, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) } });

@@ -16,6 +16,7 @@
     <div class="form-alert info mt-16">
       <strong><%= account.savedLogins %> saved login<%= account.savedLogins === 1 ? '' : 's' %></strong> (system passwords) will move to the new agent, who will be able to see them. The former agents' passport details, phone numbers, address, training and history stay with their own records and are never shown to the new agent.
       An invitation will be sent to <strong><%= account.key %></strong>, and the new agent will choose their own Workspace password.
+      In Setup, the systems whose logins come with the account are marked as done; the new agent fills in everything else (passport, phone numbers, address and the other items).
       <br><span class="text-muted">Tip: the former agent knew these system passwords, so consider changing them and updating them in the vault.</span>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
