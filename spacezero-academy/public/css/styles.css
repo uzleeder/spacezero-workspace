@@ -2655,3 +2655,8 @@ html[data-theme="dark"] .office-product__warn { color: #f5c451; }
 .desk-add .office-edit__panel { position: absolute; right: 20px; z-index: 5; box-shadow: 0 18px 40px -20px rgba(16,24,35,.4); }
 .desk-add { position: static; }
 @media (max-width: 640px) { .desk-form { grid-template-columns: 1fr; min-width: 0; } .desk-add .office-edit__panel { left: 16px; right: 16px; } }
+.pc-form { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--tile-border); }
+.pc-form__title { margin: 0 0 10px; font-weight: 600; font-size: 14px; color: var(--card-title); }
+.pc-form__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px 12px; }
+.pc-form__grid .field { margin: 0; }
+.pc-form__actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }

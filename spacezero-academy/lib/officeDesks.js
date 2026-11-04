@@ -84,9 +84,55 @@ async function ownPassword(profileId) {
   return { desk: d, password: d.passwordEnc ? decryptText(d.passwordEnc, aadOf(d.id)) : null };
 }
 
+/** Is the person's PC filled in for Setup? Complete = PC number, monitor, headphone and password; partial = a desk with some of it. */
+const pcState = (desk) => !desk ? 'NONE' : desk.number && desk.monitor && desk.headphone && desk.passwordEnc ? 'COMPLETE' : 'PARTIAL';
+
+/**
+ * The person fills in their own PC on their Setup page ("My PC"). Their desk is updated, or created; a PC number the
+ * office manager recorded without a person is claimed; a number that belongs to someone else is refused.
+ */
+async function saveOwnDesk(actor, body) {
+  const number = Number(body.number);
+  if (!Number.isInteger(number) || number < 1 || number > 9999) return { error: 'Write your PC number (the number on your computer or desk).' };
+  const fields = {};
+  for (const f of FIELDS) fields[f] = clean(body[f], 80) || null;
+  const password = String(body.password || '').slice(0, 200);
+  const mine = await prisma.officeDesk.findFirst({ where: { organizationId: actor.organizationId, profileId: actor.id } });
+  const atNumber = await prisma.officeDesk.findFirst({ where: { organizationId: actor.organizationId, number }, include: { profile: { select: { fullName: true } } } });
+  if (atNumber && atNumber.profileId && atNumber.profileId !== actor.id) return { error: `PC ${number} is recorded for ${atNumber.profile.fullName}. Check the number, or ask the office manager.` };
+  let desk;
+  if (atNumber && (!mine || mine.id !== atNumber.id)) {
+    // the office manager recorded this PC without a person: it is theirs now (their old desk record, if any, is freed)
+    if (mine) await prisma.officeDesk.update({ where: { id: mine.id }, data: { profileId: null } });
+    desk = await prisma.officeDesk.update({ where: { id: atNumber.id }, data: { ...pickFilled(fields, atNumber), profileId: actor.id, personName: null } });
+  } else if (mine) {
+    desk = await prisma.officeDesk.update({ where: { id: mine.id }, data: { ...fields, number } });
+  } else {
+    desk = await prisma.officeDesk.create({ data: { ...fields, number, organizationId: actor.organizationId, profileId: actor.id } });
+  }
+  if (password) desk = await prisma.officeDesk.update({ where: { id: desk.id }, data: { passwordEnc: encryptText(password, aadOf(desk.id)) } });
+  const state = pcState(desk);
+  if (state === 'COMPLETE') await tickPcItem(actor);
+  return { desk, state };
+}
+/** My PC is complete: the person's Setup item "PC" is ticked for them (their own confirmation), like ticking it themselves. */
+async function tickPcItem(actor) {
+  const requirement = await prisma.setupRequirement.findFirst({ where: { organizationId: actor.organizationId, key: 'pc', archivedAt: null }, select: { id: true } });
+  if (!requirement) return;
+  const item = await prisma.employeeSetupItem.findUnique({ where: { profileId_requirementId: { profileId: actor.id, requirementId: requirement.id } } });
+  if (item && (item.status === 'NOT_REQUIRED' || (item.status === 'COMPLETED' && (item.verifiedById || item.employeeConfirmedAt)))) return;
+  const now = new Date();
+  const data = { status: 'COMPLETED', employeeConfirmedAt: now, updatedById: actor.id, note: 'Filled in My PC.' };
+  if (item) await prisma.employeeSetupItem.update({ where: { id: item.id }, data });
+  else await prisma.employeeSetupItem.create({ data: { profileId: actor.id, requirementId: requirement.id, ...data } });
+}
+
+// when claiming a desk the office manager already filled in, an empty field keeps what is recorded
+const pickFilled = (fields, existing) => Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, v || existing[k] || null]));
+
 async function deleteDesk(actor, id) {
   const { count } = await prisma.officeDesk.deleteMany({ where: { id: String(id), organizationId: actor.organizationId } });
   return count > 0;
 }
 
-module.exports = { desksByTeam, saveDesk, revealPassword, deleteDesk, deskOf, ownPassword, aadOf, FIELDS };
+module.exports = { desksByTeam, saveDesk, saveOwnDesk, pcState, revealPassword, deleteDesk, deskOf, ownPassword, aadOf, FIELDS };

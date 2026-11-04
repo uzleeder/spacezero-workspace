@@ -41,7 +41,7 @@ const ROLES = ['TRAVEL_AGENT', 'FLIGHT_EXPERT', 'SUPERVISOR', 'ADMIN'];
 // they are companyControlled, and effectiveRule() forces MANAGEMENT_VERIFICATION for those regardless
 // of this field, so the setting below cannot weaken company-owned accounts.
 const DEFAULT_REQUIREMENTS = [
-  { key: 'pc', label: 'PC', category: 'Equipment', verification: 'EMPLOYEE_CONFIRMATION' },
+  { key: 'pc', label: 'PC', category: 'Equipment', verification: 'EMPLOYEE_CONFIRMATION', description: 'Fill in My PC on this page: PC number, monitor, headphone and the PC password.' },
   { key: 'egf', label: 'EGF', category: 'System Access', credentialSystem: true, verification: 'EMPLOYEE_CONFIRMATION' },
   { key: 'ovago', label: 'Ovago', category: 'System Access', credentialSystem: true, verification: 'EMPLOYEE_CONFIRMATION' },
   { key: 'cockpit', label: 'Cockpit', category: 'System Access', credentialSystem: true, verification: 'EMPLOYEE_CONFIRMATION' },

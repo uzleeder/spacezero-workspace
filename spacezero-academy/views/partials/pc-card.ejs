@@ -7,8 +7,10 @@
 <div class="card mt-24 pc-card" id="my-pc">
   <div class="card-header"><h2><%= own ? 'My PC' : 'PC' %></h2><p><%= own ? 'Your computer at the office. Tell the office manager if something is wrong with it.' : 'Their computer at the office.' %></p></div>
   <div class="card-body">
+    <% if (typeof notice !== 'undefined' && notice) { %><div class="form-alert success" role="status" style="margin-bottom:12px"><%= notice %></div><% } %>
+    <% if (typeof error !== 'undefined' && error) { %><div class="form-alert error" role="alert" style="margin-bottom:12px"><%= error %></div><% } %>
     <% if (!desk) { %>
-      <p class="text-sm text-muted" style="margin:0">No desk recorded yet.</p>
+      <p class="text-sm text-muted" style="margin:0"><%= typeof editable !== 'undefined' && editable ? 'Not filled in yet. Fill in your PC below.' : 'No desk recorded yet.' %></p>
     <% } else { %>
       <div class="info-grid">
         <div class="info-tile"><p class="k">PC number</p><p class="v"><%= desk.number %></p></div>
@@ -22,6 +24,21 @@
         <% } %>
       </div>
       <% if (desk.pcCase || desk.keyboard || desk.mouse) { %><p class="text-sm text-muted mt-16" style="margin-bottom:0">Also on the desk: <%= [desk.pcCase && 'case ' + desk.pcCase, desk.keyboard && 'keyboard ' + desk.keyboard, desk.mouse && 'mouse ' + desk.mouse].filter(Boolean).join(' · ') %></p><% } %>
+    <% } %>
+    <% if (typeof editable !== 'undefined' && editable) { var dv = function (k) { return desk && desk[k] ? desk[k] : ''; }; %>
+      <form method="post" action="/my/desk" class="pc-form" autocomplete="off">
+        <p class="pc-form__title"><%= desk ? 'Update my PC' : 'Fill in my PC' %></p>
+        <div class="pc-form__grid">
+          <div class="field"><label for="pc-number">PC number</label><input id="pc-number" name="number" type="number" min="1" max="9999" required inputmode="numeric" value="<%= desk ? desk.number : '' %>" placeholder="e.g. 12" /></div>
+          <div class="field"><label for="pc-monitor">Monitor</label><input id="pc-monitor" name="monitor" maxlength="80" required value="<%= dv('monitor') %>" placeholder="e.g. Ziffler" /></div>
+          <div class="field"><label for="pc-headphone">Headphone</label><input id="pc-headphone" name="headphone" maxlength="80" required value="<%= dv('headphone') %>" placeholder="e.g. Logi" /></div>
+          <div class="field"><label for="pc-password">PC password</label><input id="pc-password" name="password" type="password" maxlength="200" autocomplete="new-password" <%= desk && desk.hasPassword ? '' : 'required' %> placeholder="<%= desk && desk.hasPassword ? 'Leave blank to keep the saved one' : 'The password you sign in to your PC with' %>" /></div>
+          <div class="field"><label for="pc-case">Case (optional)</label><input id="pc-case" name="pcCase" maxlength="80" value="<%= dv('pcCase') %>" placeholder="e.g. myPro" /></div>
+          <div class="field"><label for="pc-keyboard">Keyboard (optional)</label><input id="pc-keyboard" name="keyboard" maxlength="80" value="<%= dv('keyboard') %>" /></div>
+          <div class="field"><label for="pc-mouse">Mouse (optional)</label><input id="pc-mouse" name="mouse" maxlength="80" value="<%= dv('mouse') %>" /></div>
+        </div>
+        <div class="pc-form__actions"><button type="submit" class="btn btn-gold btn-sm">Save my PC</button><span class="text-sm text-muted">The password is stored encrypted. Only you and the office manager can show it.</span></div>
+      </form>
     <% } %>
   </div>
 </div>

@@ -68,6 +68,16 @@ router.post('/office/desks/:id/delete', requireSession, onlyOfficeManager, async
   back(res, 'Desk removed.');
 });
 
+// "My PC" on a person's own Setup page: they fill in their PC (number, monitor, headphone, password ...).
+router.post('/my/desk', requireSession, async (req, res) => {
+  if (req.impersonation) return res.status(404).render('not-found', { layout: false });
+  const out = await desks.saveOwnDesk(req.profile, req.body);
+  const to = `/employees/${req.profile.id}/setup`;
+  if (out.error) return res.redirect(`${to}?pcError=${encodeURIComponent(out.error)}#my-pc`);
+  await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'office.own_desk_saved', targetTable: 'OfficeDesk', targetId: out.desk.id, metadata: { number: out.desk.number, passwordChanged: Boolean(req.body.password) } });
+  res.redirect(`${to}?pc=saved#my-pc`);
+});
+
 // "My PC" on a person's own Setup page: their own computer's password, on request. Never for anyone else's desk.
 router.post('/my/desk/password', requireSession, async (req, res) => {
   if (req.impersonation) return res.status(404).json({ error: 'Not found' });
