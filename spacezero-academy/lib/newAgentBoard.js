@@ -11,8 +11,8 @@
 // the admins cover from that first day: coverOf), the "Ready for solo live calls" gate (readinessOf, approve), the
 // end-of-ramp decision (extendRamp). untrackedHires is the daily check that every new Travel Agent is accounted for.
 // Admin checks, Travel Agents only (nobody marks their own work as passed): only an admin approves and takes a tick
-// back; a supervisor's sign-off is a request an admin confirms (requestSignOff, confirmSignOff, sendBack); the agent
-// answers "did this happen?" (checksFor, answerCheck); flagsOf names the ticks that need a second look (clearFlag).
+// back; a supervisor's sign-off is a request an admin confirms (requestSignOff, confirmSignOff, sendBack); flagsOf names
+// the ticks that need a second look (clearFlag).
 // An Admin's "Waiting for you" page is approvalsFor.
 const { prisma } = require('./prisma');
 const { logAudit } = require('./audit');
@@ -50,11 +50,7 @@ const MANUAL = Object.keys(plans.KINDS).filter((k) => !plans.KINDS[k].auto);
 /** A Travel Agent's sign-off the supervisor asked for, waiting for an admin to confirm it (np.stateOf: CONFIRM). */
 const awaitsAdmin = (t) => Boolean(t.requestedAt && !t.doneAt);
 const needsSupervisor = (t) => !awaitsAdmin(t) && (t.owner === 'SUPERVISOR' || t.kind === 'AGENT_TASK');
-// the items a new Travel Agent is asked about ("did this happen?"), and the ones a flag can be on
-const ASKED = ['SIGN_OFF', 'DEMO', 'CHECK_IN'];
-const ASK_DAYS = 7; // asked for this many calendar days after the tick
 const BURST = { count: 3, minutes: 5 }; // this many ticks by one person within these minutes is flagged
-const ANSWERS = { YES: 'Yes', NO: 'No, it did not happen', UNSURE: 'Not sure' };
 // the 5-minute check-in planned on most days: it never makes an agent "need you" on its own
 const isDailyCheckIn = (t) => String(t.key || '').startsWith('checkin:');
 const ACTIONS = { SIGN_OFF: 'Sign off', REVIEW: 'Write review', SCHEDULE: 'Set working days', AGENT_TASK: 'Confirm done', ACCOUNT: 'Add login' };
@@ -64,7 +60,7 @@ const gateOpen = (summary) => Boolean(summary && summary.travel && (summary.stag
 const moreTime = () => (plans.SWITCHES.ramp ? 'extend the ramp' : 'extend a week');
 /**
  * A Travel Agent's missed calls day can never be made up: once it has been to their supervisor (+1) and the admins
- * (+2) it is history - it no longer keeps them Urgent or Behind, and My day does not show it.
+ * (+2) it is history - it no longer keeps them Urgent or Behind.
  */
 const isHistory = (t, pos, travel) => Boolean(travel && t.kind === 'CALLS' && !t.doneAt && np.daysLate(t, pos) > URGENT_DAYS);
 
@@ -347,22 +343,6 @@ function flagsOf({ tasks, cal, profile, supervisor, travel }) {
   return out.sort((a, b) => b.at - a.at);
 }
 
-/** The question a new Travel Agent answers about an item someone else ticked. */
-function questionOf(t, who) {
-  if (t.kind === 'SIGN_OFF') return `Did ${who} watch you do this on your own: ${String(t.title).replace(/^Sign off\s*/i, '')}?`;
-  if (t.kind === 'DEMO') return `Did ${who} go through this with you: ${t.title}?`;
-  return `Did you have this with ${who}: ${t.title}?`;
-}
-/** What a new Travel Agent is asked on My day: sign-offs, demos and 1:1s someone else ticked in the last ASK_DAYS days, not answered yet. */
-function checksOf({ tasks, profile, travel }, names, now = new Date()) {
-  if (!travel) return [];
-  const by = (t) => t.requestedById || t.doneById;
-  const at = (t) => t.requestedAt || t.doneAt;
-  return tasks.filter((t) => ASKED.includes(t.kind) && !isDailyCheckIn(t) && !t.agentAnswer && at(t) && by(t) && by(t) !== profile.id && now - new Date(at(t)) <= ASK_DAYS * DAY_MS)
-    .sort((a, b) => new Date(at(a)) - new Date(at(b)))
-    .map((t) => ({ id: t.id, question: questionOf(t, names.get(by(t)) ? firstName(names.get(by(t))) : 'your supervisor') }));
-}
-
 /** A Travel Agent's stage in words: { stage, label: 'Month 1', detail: 'day 7 of 20' }; null for anyone else. */
 function stageText(a) {
   const s = a.summary;
@@ -372,7 +352,7 @@ function stageText(a) {
       : s.stage === 'MONTH_1' ? (a.pos.today ? `day ${a.pos.today} of ${s.length}` : 'day off today')
         : !plans.SWITCHES.ramp ? (s.rampOver ? `Month 1 ended ${shortDate(np.dateOfDay(a.cal, s.lengths.month1))}` : `day ${a.pos.today ? a.pos.today - s.lengths.month1 : a.pos.passed - s.lengths.month1} of ${s.lengths.ramp}`)
           : s.rampOver ? 'over' : `week ${s.rampWeek} of ${s.rampWeeks}`;
-  // the steps of the path line (partials/stage-line); with the ramp off, the time after Month 1 is still Month 1's step
+  // the steps of the agent's path; with the ramp off, the time after Month 1 is still Month 1's step
   const path = plans.SWITCHES.ramp ? [['PRE_START', 'Pre-start'], ['MONTH_1', 'Month 1'], ['RAMP', 'Ramp'], ['LIVE', 'Live']] : [['PRE_START', 'Before day 1'], ['MONTH_1', 'Month 1'], ['LIVE', 'Ready for solo live calls']];
   const at = path.findIndex(([k]) => k === (s.stage === 'RAMP' && !plans.SWITCHES.ramp ? 'MONTH_1' : s.stage));
   const stepDetail = s.stage === 'RAMP' && !plans.SWITCHES.ramp ? `${s.stageLabel} · ${detail}` : detail;
@@ -414,86 +394,6 @@ function cellsOf(a, { isAdmin = false, now = new Date() } = {}) {
     oneone: !a.pos.started ? `Starts ${shortDate(a.cal.startKey)}` : a.lastCheckIn ? `1:1 ${ago(a.lastCheckIn, now)}` : '1:1 not yet',
     dots: Array.from({ length: target }, (_, i) => i < a.callsToday),
     callsMeta: !a.pos.started ? 'Not started' : !a.pos.today ? 'Day off today' : target ? `${Math.min(a.callsToday, target)} of ${target} today` : 'No calls today',
-  };
-}
-
-// "My day": the agent's own items, in the order they are best done
-const DAY_ORDER = ['SETUP', 'CALLS', 'TRAINING', 'READ', 'AGENT_TASK'];
-/** Where an item of the agent's own opens. */
-function hrefOf(t, profileId) {
-  if (t.kind === 'CALLS') return '/call-practice';
-  if (t.kind === 'TRAINING' && t.courseId) return `/training-course/${t.courseId}`;
-  if (t.kind === 'READ' && t.standardId) return `/standards/${t.standardId}`;
-  if (t.kind === 'SETUP') return `/employees/${profileId}/setup`;
-  return null;
-}
-
-/**
- * "My month" on My day: the weeks of Month 1 (and an extra week) with the agent's own items and what they do with their
- * supervisor - no daily check-ins, nothing of an admin's - each said for the agent. A finished week folds into one line;
- * this week is open. [{ number, name, range, note, isNow, isDone, done, total, percent, days: [{ label, isToday, items }] }]
- */
-function monthOf(a, sup) {
-  const who = sup ? firstName(sup.fullName) : 'your supervisor';
-  const titles = plans.weekTitles(a.plan);
-  const m1Weeks = Math.ceil(a.summary.lengths.month1 / plans.WEEK_DAYS);
-  const theirs = a.tasks.filter((t) => !isPrestart(t) && !isDailyCheckIn(t) && t.owner !== 'ADMIN');
-  const kindOf = (t) => (t.owner === 'AGENT' ? (t.kind === 'AGENT_TASK' ? 'Your task' : (plans.KINDS[t.kind] || {}).label || '') : t.kind === 'SIGN_OFF' ? `${who} watches you` : `with ${who}`);
-  const whenOf = (t, state, key) => (state === 'DONE' ? `Done ${shortDate(dayKey(t.doneAt)).slice(4)}` : state === 'LATE' ? `${np.daysLate(t, a.pos)}d late`
-    : state === 'TODAY' ? (t.kind === 'CALLS' ? `${Math.min(a.callsToday, t.target)} of ${t.target} today` : 'Today') : state === 'WAITING' ? 'Video coming' : state === 'CONFIRM' ? 'Waiting for an admin' : shortDate(key));
-  return a.weeks.map((w) => {
-    const first = (w.number - 1) * plans.WEEK_DAYS + 1; const last = w.number * plans.WEEK_DAYS;
-    const isNow = a.pos.started && w.number === a.summary.week && a.pos.passed < a.summary.lengths.total;
-    const open = theirs.filter((t) => t.day >= first && t.day <= last && !t.doneAt && t.kind !== 'CALLS' && np.stateOf(t, a.pos) !== 'WAITING').length;
-    const isDone = a.pos.started && last <= a.pos.passed && !open;
-    const fromKey = np.dateOfDay(a.cal, first); const toKey = np.dateOfDay(a.cal, Math.min(last, a.summary.lengths.total));
-    const days = [];
-    for (let d = first; d <= last; d += 1) {
-      const key = np.dateOfDay(a.cal, d);
-      const items = theirs.filter((t) => t.day === d).map((t) => { const state = np.stateOf(t, a.pos); return { id: t.id, title: t.title, kind: kindOf(t), state: state.toLowerCase(), when: whenOf(t, state, key) }; });
-      if (items.length) days.push({ label: `Day ${d}${key ? ` · ${shortDate(key)}` : ''}${a.pos.today === d ? ' · today' : ''}`, isToday: a.pos.today === d, items });
-    }
-    return {
-      number: w.number, name: w.number > m1Weeks ? 'Extra week' : `Week ${w.number}${titles[w.number - 1] ? ` · ${titles[w.number - 1]}` : ''}`,
-      range: fromKey ? `${shortDate(fromKey)} – ${shortDate(toKey)}` : '', isNow, isDone, done: w.done, total: w.total, percent: w.percent,
-      note: isDone ? 'done' : isNow ? (a.pos.today ? `day ${a.pos.today} today` : 'day off today') : last <= a.pos.passed ? 'not finished' : fromKey ? `starts ${shortDate(fromKey)}` : '', days,
-    };
-  });
-}
-
-/**
- * A new Travel Agent's "My day" (My Training): today's own items and anything still open from before, in one ordered
- * checklist with how much is done; who they see today; their numbers against the targets in the ramp. null for anyone
- * not on the path.
- */
-async function myDayFor(profile, { now = new Date() } = {}) {
-  if (!np.onTravelPath(profile)) return null;
-  const program = await prisma.agentProgram.findUnique({ where: { profileId: profile.id }, select: { id: true, status: true } });
-  if (!program || program.status === 'STOPPED') return null;
-  const a = await agentState(program.id, profile, { now });
-  const name = (person) => (person ? firstName(person.fullName) : 'your supervisor');
-  const sup = a.ownerOf({ owner: 'SUPERVISOR' });
-  // today's own items, and what is still open from before (a past day's calls cannot be done any more)
-  const mine = a.tasks.filter((t) => t.owner === 'AGENT' && np.stateOf(t, a.pos) !== 'WAITING' && (t.day === a.pos.today || (!t.doneAt && t.kind !== 'CALLS' && np.stateOf(t, a.pos) === 'LATE')));
-  const rank = (t) => (t.doneAt || t.day === a.pos.today ? 1 : 0); // what is still open from before comes first
-  mine.sort((x, y) => rank(x) - rank(y) || np.daysLate(y, a.pos) - np.daysLate(x, a.pos) || DAY_ORDER.indexOf(x.kind) - DAY_ORDER.indexOf(y.kind));
-  const rows = mine.map((t) => {
-    const late = t.doneAt ? 0 : np.daysLate(t, a.pos);
-    const when = late === 1 ? 'From yesterday' : late > 1 ? `${late} working days late` : '';
-    const what = t.kind === 'CALLS' ? `${Math.min(a.callsToday, t.target)} of ${t.target} done` : t.kind === 'AGENT_TASK' ? `${name(sup)} confirms this` : (plans.KINDS[t.kind] || {}).label;
-    return { id: t.id, title: t.title, done: Boolean(t.doneAt), late, href: t.doneAt ? null : hrefOf(t, profile.id), meta: [when, what].filter(Boolean).join(' · ') };
-  });
-  const withYou = a.tasks.filter((t) => t.owner === 'SUPERVISOR' && t.day === a.pos.today && !t.doneAt).map(shortTitle);
-  const done = rows.filter((r) => r.done).length;
-  const askers = [...new Set(a.tasks.map((t) => t.requestedById || t.doneById).filter(Boolean))];
-  const names = new Map((askers.length ? await prisma.profile.findMany({ where: { id: { in: askers } }, select: { id: true, fullName: true } }) : []).map((p) => [p.id, p.fullName]));
-  return {
-    stage: stageText(a), summary: a.summary, rows, done, total: rows.length, percent: rows.length ? Math.round((done / rows.length) * 100) : 0,
-    dayOff: a.pos.started && !a.pos.today, startKey: a.cal.startKey, supervisorName: sup ? sup.fullName : null, withYou: withYou.length ? `With ${name(sup)} today: ${listOf(withYou)}` : '',
-    readiness: a.summary.stage === 'RAMP' || (!plans.SWITCHES.ramp && a.summary.stage === 'MONTH_1') ? a.readiness : null, approvedAt: a.program.approvedAt,
-    checkKey: np.dateOfDay(a.cal, a.summary.lengths.month1), // the end of Month 1: the ready check
-    checks: a.program.status === 'ACTIVE' ? checksOf(a, names, now) : [], answers: ANSWERS,
-    month: monthOf(a, sup),
   };
 }
 
@@ -846,22 +746,6 @@ async function clearFlag(actor, program, task) {
   return null;
 }
 
-/** A new Travel Agent answers "did this happen?" about an item someone else ticked. "No" goes to an admin. */
-async function answerCheck(profile, taskId, answer) {
-  if (!ANSWERS[answer]) return 'Choose an answer.';
-  const program = np.onTravelPath(profile) ? await prisma.agentProgram.findUnique({ where: { profileId: profile.id } }) : null;
-  if (!program || program.status !== 'ACTIVE') return 'This question is closed.';
-  const saved = await prisma.agentProgramTask.updateMany({ where: { id: String(taskId), programId: program.id, kind: { in: ASKED }, agentAnswer: null }, data: { agentAnswer: answer, agentAnsweredAt: new Date() } });
-  if (!saved.count) return null;
-  await audit(profile, program, 'program.agent_answered', { taskId, answer });
-  if (answer === 'NO') {
-    const task = await prisma.agentProgramTask.findUnique({ where: { id: String(taskId) }, select: { title: true } });
-    const admin = await adminFor(profile);
-    if (admin) await notifyOnce(admin.id, `program-said-no:${taskId}`, { type: 'program.flag', title: `${profile.fullName} says something did not happen`, body: task ? task.title : '', link: '/new-agents/approvals#flags' });
-  }
-  return null;
-}
-
 async function extend(actor, program) {
   await prisma.agentProgram.update({ where: { id: program.id }, data: { extraDays: { increment: EXTEND_DAYS } } });
   await audit(actor, program, 'program.extended', { days: EXTEND_DAYS });
@@ -898,8 +782,8 @@ module.exports = {
   GROUPS, VERDICTS, MANUAL, URGENT_DAYS, EXTEND_DAYS,
   IDLE_DAYS, TRACK_DAYS,
   shortDate, ago, hueOf, initials, firstName, needsSupervisor, isDailyCheckIn, isPrestart, isHistory, groupMeaning, groupOf, shortTitle, goingOnOf, nextStepOf, maxLateOf, weeksOf, agentDayOf, signOffsOf, lastCheckInOf, supervisorTasksOf, duration,
-  ownerOf, readinessOf, idleDaysOf, stageText, myDayFor,
+  ownerOf, readinessOf, idleDaysOf, stageText,
   coverOf, adminFor, agentState, visiblePrograms, boardFor, untrackedHires, attentionCounts, notesFor, completeTask, undoTask, extend, readyDefinition, approve, extendRamp, setWorkDays, setDayOff, addNote,
-  ASKED, ANSWERS, BURST, awaitsAdmin, gateOpen, moreTime, monthOf, cellsOf, progressOf, qualityOf, flagsOf, checksOf, cardsOf, scorecardOf, approvalsFor, isReady,
-  requestSignOff, confirmSignOff, sendBack, clearFlag, answerCheck, notYet,
+  BURST, awaitsAdmin, gateOpen, moreTime, cellsOf, progressOf, qualityOf, flagsOf, cardsOf, scorecardOf, approvalsFor, isReady,
+  requestSignOff, confirmSignOff, sendBack, clearFlag, notYet,
 };

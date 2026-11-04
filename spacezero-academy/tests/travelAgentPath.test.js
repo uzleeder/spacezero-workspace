@@ -2,8 +2,8 @@
 // The new Travel Agent path (lib/newAgentProgram.js onTravelPath, lib/newAgentBoard.js, lib/newAgentReminders.js):
 // Before day 1, the ramp, the "Ready for solo live calls" gate, an owner for every item who is a real, active person
 // (the admins cover a supervisor who is away), Today, the check that every hire is accounted for, Call Practice
-// repeats, My day, the admin checks (only an admin approves, confirms a supervisor's sign-off and takes a tick back;
-// the agent answers "did this happen?"; flags) - and Flight Experts exactly as before. The ramp is switched off for now
+// repeats, the admin checks (only an admin approves, confirms a supervisor's sign-off and takes a tick back; flags), the
+// agent's own My Training as before the program - and Flight Experts exactly as before. The ramp is switched off for now
 // (plans.SWITCHES): these tests switch it on to keep it working, and the last ones check Month 1 only.
 const { test, before, after, mock } = require('node:test');
 const assert = require('node:assert/strict');
@@ -197,7 +197,8 @@ test('the gate: "4 of 5 met"; Approve only when every criterion is met; Approve 
   await require('../lib/certifications').evaluateOrganization(org.id);
   assert.equal(await prisma.earnedCertification.count({ where: { definitionId: cert[0].definitionId } }), 1, 'the automation never issues it');
   assert.equal((await cp.stateFor(people.ready.p)).eligible, false, 'approved: Call Practice is over');
-  assert.match((await as('ready').get('/training')).text, /Approved for solo live calls/);
+  assert.doesNotMatch((await as('ready').get('/training')).text, /data-call-practice/, 'no Call Practice button any more');
+  assert.ok(await prisma.notification.findFirst({ where: { profileId: people.ready.p.id, title: 'Ready for solo live calls' } }), 'the agent is told');
 });
 
 test('end of the ramp: urgent, an Admin decides (extend the ramp or approve anyway)', async () => {
@@ -256,19 +257,17 @@ test('the admins\' 08:30 message: can\'t be tracked, decisions, who they cover, 
   assert.match(note.body, /call library: about \d+ days? left/);
 });
 
-test('a new Travel Agent needs a supervisor; My day replaces the training path for them, not for a Flight Expert', async () => {
+test('a new Travel Agent needs a supervisor; on My Training they see their path and the Call Practice button, as before', async () => {
   const res = await as('admin').form('/admin/employees/new', { fullName: 'No Sup', username: `tap.nosup.${Date.now() % 100000}`, email: `tap_${org.id}_nosup@example.invalid`, role: 'TRAVEL_AGENT', employmentStartDate: np.addDays(today, 5) });
   assert.equal(res.status, 200);
   assert.match(res.text, /every new Travel Agent needs one/);
   assert.equal(await prisma.profile.count({ where: { email: `tap_${org.id}_nosup@example.invalid` } }), 0);
 
   const mine = await as('cover').get('/training');
-  assert.match(mine.text, /data-my-day/);
-  assert.match(mine.text, /All my training/);
-  assert.doesNotMatch(mine.text, /data-call-practice/, 'the Call Practice line is a row of My day now');
-  assert.match((await as('cover').get('/training?all=1')).text, /← My day/);
-  const expert = await as('fe').get('/training');
-  assert.doesNotMatch(expert.text, /data-my-day/);
+  assert.match(mine.text, /Finish each training to unlock the next/);
+  assert.match(mine.text, /data-call-practice/, 'the one Call Practice button');
+  assert.doesNotMatch(mine.text, /data-my-day|My month|Quick check|Ready for solo live calls/, 'nothing of the supervisor side');
+  assert.equal((await as('cover').form('/training/my-day/answer/x', { answer: 'NO' })).status, 404);
 });
 
 test('admin checks: a supervisor\'s sign-off waits for an admin, who confirms or sends it back; its owner is a real, active admin', async () => {
@@ -311,18 +310,12 @@ test('admin checks: a supervisor\'s sign-off waits for an admin, who confirms or
   for (const x of s.tasks) assert.ok(s.ownerOf(x) && s.ownerOf(x).status === 'ACTIVE', `${x.title} has a real, active owner`);
 });
 
-test('admin checks: the agent answers "did this happen?" on My day; a No, or a burst of ticks, is a flag an admin can let be', async () => {
+test('admin checks: an earlier "it did not happen" answer, or a burst of ticks, is a flag an admin can let be', async () => {
   const s0 = await board.agentState(programs.checked.id, people.checked.p);
   const welcome = s0.tasks.find((t) => t.kind === 'CHECK_IN' && !board.isDailyCheckIn(t));
   await as('sara').form(`/new-agents/${people.checked.p.id}/tasks/${welcome.id}/done`, {});
-  const day = await as('checked').get('/training');
-  assert.match(day.text, /Quick check/);
-  assert.match(day.text, new RegExp(`Did you have this with Sara: ${welcome.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\?`));
-  await as('checked').form(`/training/my-day/answer/${welcome.id}`, { answer: 'NO' });
-  assert.equal((await prisma.agentProgramTask.findUnique({ where: { id: welcome.id } })).agentAnswer, 'NO');
-  assert.ok(await prisma.notification.findFirst({ where: { profileId: people.hirer.p.id, type: 'program.flag' } }), 'a No goes to an admin');
-  await as('checked').form(`/training/my-day/answer/${welcome.id}`, { answer: 'YES' });
-  assert.equal((await prisma.agentProgramTask.findUnique({ where: { id: welcome.id } })).agentAnswer, 'NO', 'answered once');
+  // agents are not asked any more; an answer saved before still counts
+  await prisma.agentProgramTask.update({ where: { id: welcome.id }, data: { agentAnswer: 'NO', agentAnsweredAt: new Date() } });
   let s = await board.agentState(programs.checked.id, people.admin.p);
   const flag = s.flags.find((f) => f.task.id === welcome.id);
   assert.ok(flag && /Checked says it did not happen/.test(flag.text));
@@ -382,7 +375,7 @@ test('Month 1 only (the ramp off): the ready check is at the end of Month 1, an 
     assert.match(page.text, /id="week-1" data-na-week="1">/, 'a finished week is folded');
     assert.match(page.text, /naw__badge--done/);
     const mine = await as('m1').get('/training');
-    assert.match(mine.text, /data-my-month/); assert.match(mine.text, /Ready for solo live calls: what it takes by/);
+    assert.match(mine.text, /Finish each training to unlock the next/); assert.doesNotMatch(mine.text, /data-my-month/);
     assert.equal(await board.approve(people.admin.p, s), null, 'an admin approves at the end of Month 1');
     assert.equal((await prisma.agentProgram.findUnique({ where: { id: programs.m1.id } })).status, 'COMPLETED');
 
