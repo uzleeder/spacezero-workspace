@@ -1,8 +1,8 @@
 <% const fmt = function (d) { return d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'; }; %>
-<%- include('../../partials/page-header', { pageTitle: account.key, pageDescription: 'Company account · everyone who held it and was let go. Visible to Admins only.', headerAction: '<a href="/admin/employees/fired" class="btn btn-secondary btn-sm">← Fired agents</a>' }) %>
+<%- include('../../partials/page-header', { pageTitle: account.key, pageDescription: 'Company account: every agent who held it and was fired. Visible to Admins only.', headerAction: '<a href="/admin/employees/fired" class="btn btn-secondary btn-sm">← Fired agents</a>' }) %>
 <%- include('../../partials/management-tabs', { tabs: tabs, sticky: true }) %>
 
-<% if (notice === 'fired') { %><div class="form-alert success mt-16" role="status">The agent was let go. Their company account is kept here for the next agent.</div><% } %>
+<% if (notice === 'fired') { %><div class="form-alert success mt-16" role="status">The agent has been fired. Their company account is kept here for the next agent.</div><% } %>
 
 <div class="card mt-24">
   <div class="card-body row-between" style="gap:12px;flex-wrap:wrap">
@@ -11,13 +11,13 @@
       <p class="text-sm text-muted" style="margin:4px 0 0">Since <%= fmt(account.holder.employmentStartDate) %> · <%= roleLabel(account.holder.role) %></p></div>
     <% } else if (account.keeper) { %>
       <div><p style="font-weight:600;margin:0">Free for a new agent</p>
-      <p class="text-sm text-muted" style="margin:4px 0 0">Username @<%= account.username %> · <%= account.savedLogins %> saved login<%= account.savedLogins === 1 ? '' : 's' %> will move to the new agent. Nothing personal moves.</p></div>
+      <p class="text-sm text-muted" style="margin:4px 0 0">Username @<%= account.username %> · <%= account.savedLogins %> saved login<%= account.savedLogins === 1 ? '' : 's' %> will move to the new agent; none of the former agents' personal details will.</p></div>
       <a class="btn btn-gold" href="/admin/employees/fired/account/new-agent?key=<%= encodeURIComponent(account.key) %>">Give this account to a new agent</a>
     <% } %>
   </div>
 </div>
 
-<div class="section-heading mt-24"><div><span class="eyebrow">FORMER AGENTS</span><h2><%= account.people.length %> agent<%= account.people.length === 1 ? '' : 's' %> held this account</h2></div></div>
+<div class="section-heading mt-24"><div><span class="eyebrow">FORMER AGENTS</span><h2><%= account.people.length %> agent<%= account.people.length === 1 ? ' has' : 's have' %> held this account</h2></div></div>
 
 <% account.people.forEach(function (p) { %>
   <section class="card mt-16" data-former-agent="<%= p.id %>">
@@ -27,7 +27,7 @@
     </div>
     <div class="card-body">
       <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 24px">
-        <div><p class="label">Worked</p><p><%= fmt(p.from) %> – <%= fmt(p.firedAt) %></p></div>
+        <div><p class="label">Employment</p><p><%= fmt(p.from) %> – <%= fmt(p.firedAt) %></p></div>
         <div><p class="label">Fired by</p><p><%= p.firedBy %></p></div>
         <div><p class="label">Phone</p><p><%= p.phones.length ? p.phones.join(', ') : '—' %></p></div>
         <div><p class="label">Telegram</p><p><%= p.telegram || '—' %></p></div>

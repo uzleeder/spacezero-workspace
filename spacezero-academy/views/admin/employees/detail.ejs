@@ -27,7 +27,7 @@
         </div>
       <% } %>
       <% if (typeof notice !== 'undefined' && (notice === 'handed-over' || notice === 'handed-over-no-email')) { %>
-        <div class="card-body"><div class="form-alert <%= notice === 'handed-over' ? 'success' : 'error' %>" role="status"><%= notice === 'handed-over' ? 'The company account was given to this new agent. An invitation was sent to the company email.' : 'The company account was given to this new agent, but the invitation email could not be sent. Use Resend invitation.' %></div></div>
+        <div class="card-body"><div class="form-alert <%= notice === 'handed-over' ? 'success' : 'error' %>" role="status"><%= notice === 'handed-over' ? 'The company account was given to this new agent. An invitation was sent to the company email.' : 'The company account was given to this new agent, but the invitation email could not be sent. Use "Resend invitation".' %></div></div>
       <% } %>
       <% if (employee.role !== 'ADMIN' && (employee.testOwnerAdminId === profile.id || (!employee.testOwnerAdminId && employee.createdById === profile.id))) { %>
         <form method="post" action="/admin/employees/<%= employee.id %>/personal-test-profile" class="card-body">

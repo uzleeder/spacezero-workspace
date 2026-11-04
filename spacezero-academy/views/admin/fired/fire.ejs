@@ -5,13 +5,13 @@
     <% if (error) { %><div class="form-alert error" role="alert"><%= error %></div><% } %>
     <h2 style="margin-top:0">What happens</h2>
     <ul class="text-sm" style="line-height:1.7;padding-left:18px">
-      <li><strong><%= employee.fullName %></strong> can no longer sign in, and leaves their team and supervisor.</li>
-      <li>They move to <strong>Fired agents</strong>, under the company account <strong><%= employee.email %></strong>. Only Admins can see them there.</li>
-      <li>The company account is kept for the next agent: its email, username and <strong><%= savedLogins %> saved login<%= savedLogins === 1 ? '' : 's' %></strong>. You can give it to a new agent from Fired agents.</li>
-      <li>Their personal details (passport, phones, address) and their history stay with them only. They never pass to the next agent.</li>
+      <li><strong><%= employee.fullName %></strong> will no longer be able to sign in, will be removed from their team, and will no longer report to their supervisor.</li>
+      <li>They will move to <strong>Fired agents</strong>, under the company account <strong><%= employee.email %></strong>, where only Admins can see them.</li>
+      <li>The company account (its email, username and <strong><%= savedLogins %> saved login<%= savedLogins === 1 ? '' : 's' %></strong>) is kept for the next agent. You can give it to a new agent from Fired agents.</li>
+      <li>Their personal details (passport, phone numbers, address) and their history stay with their own record and are never passed on to the next agent.</li>
     </ul>
     <div class="field mt-16">
-      <label for="reason">Reason <span class="text-muted">(required, Admins only)</span></label>
+      <label for="reason">Reason <span class="text-muted">(required; visible to Admins only)</span></label>
       <textarea id="reason" name="reason" rows="4" required minlength="3" maxlength="2000" placeholder="Why is this agent being let go?"><%= reason %></textarea>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">

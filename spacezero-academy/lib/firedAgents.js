@@ -101,8 +101,8 @@ async function handOverAccount(admin, accountKey, { fullName, employmentStartDat
   if (!employmentStartDate || Number.isNaN(start.getTime())) return { error: 'Choose the start date.' };
   if (await holderOf(admin.organizationId, key)) return { error: 'This account already has an agent.' };
   const keeper = await prisma.profile.findFirst({ where: { organizationId: admin.organizationId, firedAt: { not: null }, email: key } });
-  if (!keeper) return { error: 'This account is not free to give to a new agent.' };
-  if (teamId && !await prisma.team.findFirst({ where: { id: teamId, organizationId: admin.organizationId, archivedAt: null } })) return { error: 'Choose a team of this company.' };
+  if (!keeper) return { error: 'This account cannot be given to a new agent right now.' };
+  if (teamId && !await prisma.team.findFirst({ where: { id: teamId, organizationId: admin.organizationId, archivedAt: null } })) return { error: "Choose one of this company's teams." };
   if (supervisorId && !await prisma.profile.findFirst({ where: { id: supervisorId, organizationId: admin.organizationId, role: 'SUPERVISOR', status: { not: 'ARCHIVED' } } })) return { error: 'Choose an active supervisor.' };
   if (keeper.role === 'TRAVEL_AGENT' && !supervisorId) return { error: 'Choose a supervisor: every Travel Agent needs one.' };
 

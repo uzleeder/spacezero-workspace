@@ -1,11 +1,11 @@
-<%- include('../../partials/page-header', { pageTitle: 'Employees & Teams', pageDescription: 'Fired agents, one row per company account. Open an account to see everyone who held it.' }) %>
+<%- include('../../partials/page-header', { pageTitle: 'Employees & Teams', pageDescription: 'Fired agents, listed by company account. Open an account to see every agent who has held it.' }) %>
 <%- include('../../partials/management-tabs', { tabs: tabs, sticky: true }) %>
 
 <% if (notice) { %><div class="form-alert success mt-16" role="status">Done.</div><% } %>
 
 <div class="card mt-24">
   <% if (!rows.length) { %>
-    <div class="card-body"><%- include('../../partials/empty-state', { title: 'No fired agents', description: 'When an agent is let go (Fire, on their profile), their company account appears here.' }) %></div>
+    <div class="card-body"><%- include('../../partials/empty-state', { title: 'No fired agents', description: 'When an agent is fired (Fire… on their profile), their company account will appear here.' }) %></div>
   <% } else { %>
     <table class="table-zebra" data-fired-accounts>
       <thead><tr><th>Company account</th><th>Last agent</th><th>Fired</th><th>Former agents</th><th>Now</th></tr></thead>

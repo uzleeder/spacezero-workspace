@@ -1,4 +1,4 @@
-<%- include('../../partials/page-header', { pageTitle: 'Give ' + account.key + ' to a new agent', pageDescription: 'A fresh profile with this company email and username. The saved logins move to it; nothing personal from former agents does.', headerAction: '<a href="/admin/employees/fired/account?key=' + encodeURIComponent(account.key) + '" class="btn btn-secondary btn-sm">← Back</a>' }) %>
+<%- include('../../partials/page-header', { pageTitle: 'Give ' + account.key + ' to a new agent', pageDescription: 'A new profile with this company email and username. The saved logins move to it; the personal details of former agents do not.', headerAction: '<a href="/admin/employees/fired/account?key=' + encodeURIComponent(account.key) + '" class="btn btn-secondary btn-sm">← Back</a>' }) %>
 
 <div class="card mt-24" style="max-width:760px">
   <form method="post" action="/admin/employees/fired/account/new-agent" class="card-body" data-once>
@@ -14,9 +14,9 @@
       <div class="field"><label for="supervisorId">Supervisor</label><select id="supervisorId" name="supervisorId"><option value="">No supervisor</option><% supervisors.forEach(function (s) { %><option value="<%= s.id %>" <%= values.supervisorId === s.id ? 'selected' : '' %>><%= s.fullName %></option><% }); %></select></div>
     </div>
     <div class="form-alert info mt-16">
-      <strong><%= account.savedLogins %> saved login<%= account.savedLogins === 1 ? '' : 's' %></strong> (system passwords) move to the new agent, who can see them. The former agents' passport, phones, address, training and history stay with them and are never shown to the new agent.
-      An invitation goes to <strong><%= account.key %></strong>; the new agent chooses their own Workspace password.
-      <br><span class="text-muted">Tip: the former agent knew these system passwords - consider changing them and updating the vault.</span>
+      <strong><%= account.savedLogins %> saved login<%= account.savedLogins === 1 ? '' : 's' %></strong> (system passwords) will move to the new agent, who will be able to see them. The former agents' passport details, phone numbers, address, training and history stay with their own records and are never shown to the new agent.
+      An invitation will be sent to <strong><%= account.key %></strong>, and the new agent will choose their own Workspace password.
+      <br><span class="text-muted">Tip: the former agent knew these system passwords, so consider changing them and updating them in the vault.</span>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
       <button type="submit" class="btn btn-gold">Create the new agent</button>
