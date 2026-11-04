@@ -3,11 +3,13 @@
  * Map data: Natural Earth 1:110m countries (public domain) via world-atlas 2.0.2 (ISC),
  * served from /static/data/world-countries-110m.json (TopoJSON, decoded here).
  *
- * One 20-second loop:
- *   0 – 7 s    the plane flies once around the orbit (behind the globe on the far half)
- *   7 – 9.5 s  the globe brings Uzbekistan to the front and the plane lands at TAS
- *   9.5 – 17 s planes take off from TAS for JFK, LHR, IST, DXB, ICN and DEL (trails over the horizon)
- *   17 – 20 s  the trails fade while the globe turns on, and the loop starts again
+ * One 30-second loop:
+ *   0 – 12 s     the plane flies once around the orbit (behind the globe on the far half)
+ *   12 – 17.5 s  the globe settles with Uzbekistan in front; the plane slows down all the way in,
+ *                glides down and touches down just west of Tashkent
+ *   17.5 – 19 s  it rolls along the ground to TAS and stops
+ *   19.6 – 29 s  planes take off from TAS for JFK, LHR, IST, DXB, ICN and DEL (trails over the horizon),
+ *                the trails fade and the loop starts again
  * With "reduce motion" one still frame is drawn. Nothing runs while the globe is off screen.
  */
 (function () {
@@ -20,7 +22,8 @@
   var TILT = 18 * RAD;                                  // we look at the globe slightly from above
   var SIN_T = Math.sin(TILT), COS_T = Math.cos(TILT);
   var ORX = 155, ORY = 48, OROT = -18 * RAD;            // the orbit ellipse (same as in the markup)
-  var LOOP = 20;
+  var LOOP = 30;
+  var ORBIT_END = 12, TOUCHDOWN = 17.5, PARKED = 19, FLEET = 19.6, FADE = 26.5;
 
   // Airports: [lon, lat] of the airport itself
   var TAS = { code: 'TAS', city: 'Tashkent', at: [69.2812, 41.2579] };
@@ -54,7 +57,7 @@
     label.setAttribute('text-anchor', left ? 'end' : 'start'); label.setAttribute('x', left ? '-4' : '4'); label.setAttribute('y', '2.6');
     var from = vec(TAS.at), to = vec(r.at);
     var angle = Math.acos(Math.max(-1, Math.min(1, from[0] * to[0] + from[1] * to[1] + from[2] * to[2])));
-    return { route: r, from: from, to: to, trail: trail, plane: g, port: port, label: label, start: 9.6 + i * 0.45, dur: 2.2 + 3.4 * angle / Math.PI };
+    return { route: r, from: from, to: to, trail: trail, plane: g, port: port, label: label, start: FLEET + i * 0.45, dur: 2.2 + 3.4 * angle / Math.PI };
   });
 
   // ---- geometry ----
@@ -143,17 +146,17 @@
   var hide = function (g) { g.style.visibility = 'hidden'; };
   var heading = function (a, b) { return Math.atan2(b[1] - a[1], b[0] - a[0]) / RAD; };
   var clamp01 = function (u) { return Math.max(0, Math.min(1, u)); };
-  var easeInOut = function (u) { return u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2; };
   function hermite(p0, p1, m0, m1, dur, u) {
     var u2 = u * u, u3 = u2 * u;
     return (2 * u3 - 3 * u2 + 1) * p0 + (u3 - 2 * u2 + u) * m0 * dur + (-2 * u3 + 3 * u2) * p1 + (u3 - u2) * m1 * dur;
   }
   // The globe turns west to east all the time, slowing down to face Uzbekistan for the landing.
   var FACE = TAS.at[0] - 14;
+  var RUNWAY = 4;                                       // degrees of longitude rolled out on the ground before TAS
   function centerLon(t) {
-    if (t < 9.5) return hermite(FACE + 200, FACE, -40, 0, 9.5, t / 9.5);
-    if (t < 17) return hermite(FACE, FACE - 20, 0, -6, 7.5, (t - 9.5) / 7.5);
-    return hermite(FACE - 20, FACE + 200 - 360, -6, -40, 3, (t - 17) / 3);
+    if (t < TOUCHDOWN) return hermite(FACE + 280, FACE, -22, 0, TOUCHDOWN, t / TOUCHDOWN);       // comes to rest for the landing
+    if (t < 27.5) return hermite(FACE, FACE - 20, 0, -6, 27.5 - TOUCHDOWN, (t - TOUCHDOWN) / (27.5 - TOUCHDOWN));
+    return hermite(FACE - 20, FACE + 280 - 360, -6, -22, LOOP - 27.5, (t - 27.5) / (LOOP - 27.5));
   }
 
   function frame(t) {
@@ -170,29 +173,37 @@
     if (tas[2] > 0.15) { place(markEl, tas[0], tas[1], null, 1, Math.min(1, (tas[2] - 0.15) * 4)); } else hide(markEl);
     var nameAt = project(UZ_LABEL_AT[0], UZ_LABEL_AT[1], lam0);
     if (nameAt[2] > 0.2) place(uzNameEl, nameAt[0], nameAt[1], null, 1, Math.min(1, (nameAt[2] - 0.2) * 4)); else hide(uzNameEl);
-    markEl.classList.toggle('is-busy', t > 8.8 && t < 15);
+    markEl.classList.toggle('is-busy', t > 16.5 && t < 25);
 
     // 1) once around the orbit, starting at its left end and passing in front first
-    if (t < 7) {
-      var th = Math.PI - 2 * Math.PI * (t / 7);
+    if (t < ORBIT_END) {
+      var th = Math.PI - 2 * Math.PI * (t / ORBIT_END);
       var p = orbitPoint(th), q = orbitPoint(th - 0.02);
       var front = p[2] > 0;
       place(front ? planeFront : planeBack, p[0], p[1], heading(p, q), 0.62, 1);
       hide(front ? planeBack : planeFront);
-    } else if (t < 9.5) {
-      // 2) down to TAS on a curve, getting smaller as it lands
+    } else if (t < TOUCHDOWN) {
+      // 2) the approach: slower and slower, descending on a shallow glide path to touch down west of TAS
       hide(planeBack);
-      var u = easeInOut((t - 7) / 2.5), p0 = orbitPoint(-Math.PI), p2 = tas;
-      var p1 = [(p0[0] + p2[0]) / 2, Math.min(p0[1], p2[1]) - 55];
-      var bz = function (s) { var a = 1 - s; return [a * a * p0[0] + 2 * a * s * p1[0] + s * s * p2[0], a * a * p0[1] + 2 * a * s * p1[1] + s * s * p2[1]]; };
-      var pos = bz(u), ahead = bz(Math.min(1, u + 0.02));
-      place(planeFront, pos[0], pos[1], heading(pos, ahead), 0.62 - 0.36 * u, u > 0.85 ? (1 - u) / 0.15 : 1);
+      var v = (t - ORBIT_END) / (TOUCHDOWN - ORBIT_END), u = 1 - Math.pow(1 - v, 1.7);
+      var p0 = orbitPoint(-Math.PI), td = project(TAS.at[0] - RUNWAY, TAS.at[1], lam0);
+      var p1 = [td[0] - 75, td[1] - 16];                                   // the last part of the curve is a gentle glide
+      var bz = function (s) { var a = 1 - s; return [a * a * p0[0] + 2 * a * s * p1[0] + s * s * td[0], a * a * p0[1] + 2 * a * s * p1[1] + s * s * td[1]]; };
+      var pos = bz(u), ahead = bz(Math.min(1, u + 0.01));
+      if (u > 0.995) ahead = tas;
+      place(planeFront, pos[0], pos[1], heading(pos, ahead), 0.62 - 0.34 * u, 1);
+    } else if (t < FLEET) {
+      // 3) on the ground: it rolls to TAS, brakes to a stop, and is parked when the fleet takes off
+      hide(planeBack);
+      var r = 1 - Math.pow(1 - clamp01((t - TOUCHDOWN) / (PARKED - TOUCHDOWN)), 2);
+      var g = project(TAS.at[0] - RUNWAY * (1 - r), TAS.at[1], lam0);
+      place(planeFront, g[0], g[1], heading(project(TAS.at[0] - RUNWAY, TAS.at[1], lam0), tas), 0.28, t > PARKED ? clamp01(1 - (t - PARKED) / (FLEET - PARKED)) : 1);
     } else { hide(planeFront); hide(planeBack); }
 
     // 3) the fleet leaves TAS for its airports
     fleet.forEach(function (fl) {
       var u = clamp01((t - fl.start) / fl.dur);
-      var fade = t > 16 ? clamp01(1 - (t - 16) / 2.5) : 1;
+      var fade = t > FADE ? clamp01(1 - (t - FADE) / 2.5) : 1;
       if (t < fl.start || fade <= 0) { fl.trail.setAttribute('d', ''); hide(fl.plane); hide(fl.port); return; }
       var pts = [];
       for (var k = 0; k <= 40; k++) { var ll = unvec(slerp(fl.from, fl.to, (k / 40) * u)); pts.push(project(ll[0], ll[1], lam0)); }
@@ -218,7 +229,7 @@
     if (shown) raf = requestAnimationFrame(tick);
   }
   function start() {
-    if (reduce) { frame(12.5); return; }
+    if (reduce) { frame(22.5); return; }
     frame(0);
     if ('IntersectionObserver' in window) {
       new IntersectionObserver(function (entries) {
@@ -235,7 +246,7 @@
         var uz = countries.filter(function (c) { return c.id === '860'; })[0];
         uzRings = uz ? uz.rings : [];
       }
-      if (reduce) frame(12.5);
+      if (reduce) frame(22.5);
     }).catch(function () { /* the globe still turns, without countries */ });
   }
   start();

@@ -393,6 +393,25 @@
   document.addEventListener('click', function (e) { if (box.open && !box.contains(e.target)) box.open = false; });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && box.open) { box.open = false; box.querySelector('summary').focus(); } });
 })();
+// Message boxes marked data-enter-send (Space AI): Enter sends, Shift + Enter starts a new line.
+(function () {
+  document.addEventListener('keydown', function (e) {
+    var box = e.target;
+    if (e.key !== 'Enter' || e.shiftKey || e.isComposing || !box.matches || !box.matches('textarea[data-enter-send]')) return;
+    e.preventDefault();
+    if (!box.value.trim()) return;
+    var form = box.form;
+    if (!form || form.dataset.sending) return;                     // one question per press, even on a double tap
+    if (form.requestSubmit) form.requestSubmit(); else form.submit();
+  });
+  document.addEventListener('submit', function (e) {
+    var send = e.target.querySelector && e.target.querySelector('.ai-send');
+    if (send) { e.target.dataset.sending = '1'; send.disabled = true; send.classList.add('is-sending'); }
+  });
+  window.addEventListener('pageshow', function () {               // coming back with the Back button: ready to send again
+    Array.prototype.forEach.call(document.querySelectorAll('.ai-send'), function (b) { b.disabled = false; b.classList.remove('is-sending'); if (b.form) delete b.form.dataset.sending; });
+  });
+})();
 // Closes the notification bell dropdown on outside click or Escape. Opening it never marks
 // anything read — that only happens when a row (or "See all") is actually clicked.
 (function () {

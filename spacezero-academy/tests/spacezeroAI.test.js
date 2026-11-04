@@ -209,3 +209,21 @@ test('abroad the globe shows only airport codes; only Uzbekistan is named in ful
   const dash = (await get(admin, '/dashboard')).text;
   assert.match(dash, />Uzbekistan<\/text>/); assert.match(dash, />TAS · Tashkent<\/text>/);
 });
+
+test('Space AI message box: Enter sends, and a send icon inside the box replaces the Ask button', async () => {
+  for (const url of ['/dashboard', '/assistant']) {
+    const page = (await get(admin, url)).text;
+    assert.match(page, /<textarea [^>]*name="question"[^>]*data-enter-send/, url);
+    assert.match(page, /<button type="submit" class="ai-send" aria-label="Send" title="Send \(Enter\)">/, url);
+    assert.doesNotMatch(page, />Ask<\/button>/, url);
+    assert.match(page, /Enter to send · Shift \+ Enter for a new line/, url);
+  }
+  const app = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'js', 'app.js'), 'utf8');
+  assert.match(app, /e\.key !== 'Enter' \|\| e\.shiftKey \|\| e\.isComposing/);
+});
+
+test('the globe plane slows down for a landing at TAS and rolls to a stop before the fleet leaves', async () => {
+  const js = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'js', 'hero-globe.js'), 'utf8');
+  assert.match(js, /var ORBIT_END = 12, TOUCHDOWN = 17\.5, PARKED = 19, FLEET = 19\.6, FADE = 26\.5;/);
+  assert.match(js, /u = 1 - Math\.pow\(1 - v, 1\.7\)/);   // decelerating approach
+});
