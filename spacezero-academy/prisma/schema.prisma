@@ -324,6 +324,12 @@ model Profile {
   passportMiddleName       String?
   passportLastName         String?
   dateOfBirth              DateTime?
+  // Fired agents (lib/firedAgents.js): a company account (email + saved system logins) outlives the people who use it.
+  // accountKey = that company account (its email); firedAt/firedReason/firedById = when, why and by whom this person was let go.
+  accountKey               String?
+  firedAt                  DateTime?
+  firedReason              String?
+  firedById                String?
   setupItems               EmployeeSetupItem[]
   setupItemsVerified       EmployeeSetupItem[]           @relation("SetupItemVerifiedBy")
   credentialsOwned         Credential[]                  @relation("CredentialOwner")
@@ -338,6 +344,7 @@ model Profile {
   @@index([organizationId])
   @@index([role])
   @@index([testOwnerAdminId])
+  @@index([accountKey])
   @@index([status])
 }
 

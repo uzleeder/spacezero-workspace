@@ -1,0 +1,44 @@
+<% const fmt = function (d) { return d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'; }; %>
+<%- include('../../partials/page-header', { pageTitle: account.key, pageDescription: 'Company account · everyone who held it and was let go. Visible to Admins only.', headerAction: '<a href="/admin/employees/fired" class="btn btn-secondary btn-sm">← Fired agents</a>' }) %>
+<%- include('../../partials/management-tabs', { tabs: tabs, sticky: true }) %>
+
+<% if (notice === 'fired') { %><div class="form-alert success mt-16" role="status">The agent was let go. Their company account is kept here for the next agent.</div><% } %>
+
+<div class="card mt-24">
+  <div class="card-body row-between" style="gap:12px;flex-wrap:wrap">
+    <% if (account.holder) { %>
+      <div><p style="font-weight:600;margin:0">In use by <a class="link-gold" href="/admin/employees/<%= account.holder.id %>"><%= account.holder.fullName %></a></p>
+      <p class="text-sm text-muted" style="margin:4px 0 0">Since <%= fmt(account.holder.employmentStartDate) %> · <%= roleLabel(account.holder.role) %></p></div>
+    <% } else if (account.keeper) { %>
+      <div><p style="font-weight:600;margin:0">Free for a new agent</p>
+      <p class="text-sm text-muted" style="margin:4px 0 0">Username @<%= account.username %> · <%= account.savedLogins %> saved login<%= account.savedLogins === 1 ? '' : 's' %> will move to the new agent. Nothing personal moves.</p></div>
+      <a class="btn btn-gold" href="/admin/employees/fired/account/new-agent?key=<%= encodeURIComponent(account.key) %>">Give this account to a new agent</a>
+    <% } %>
+  </div>
+</div>
+
+<div class="section-heading mt-24"><div><span class="eyebrow">FORMER AGENTS</span><h2><%= account.people.length %> agent<%= account.people.length === 1 ? '' : 's' %> held this account</h2></div></div>
+
+<% account.people.forEach(function (p) { %>
+  <section class="card mt-16" data-former-agent="<%= p.id %>">
+    <div class="card-header row-between" style="gap:12px;flex-wrap:wrap">
+      <div><h2 style="margin:0"><%= p.passportName %></h2><p class="text-sm text-muted" style="margin:4px 0 0"><% if (p.passportName !== p.fullName) { %>Known in Workspace as <%= p.fullName %> · <% } %><%= roleLabel(p.role) %></p></div>
+      <span class="badge badge-danger">Fired <%= fmt(p.firedAt) %></span>
+    </div>
+    <div class="card-body">
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 24px">
+        <div><p class="label">Worked</p><p><%= fmt(p.from) %> – <%= fmt(p.firedAt) %></p></div>
+        <div><p class="label">Fired by</p><p><%= p.firedBy %></p></div>
+        <div><p class="label">Phone</p><p><%= p.phones.length ? p.phones.join(', ') : '—' %></p></div>
+        <div><p class="label">Telegram</p><p><%= p.telegram || '—' %></p></div>
+        <div><p class="label">Address</p><p><%= p.address || '—' %></p></div>
+        <div><p class="label">Passport</p><p><%= p.passportNumber || '—' %><% if (p.passportExpiresAt) { %> <span class="text-muted">· expires <%= fmt(p.passportExpiresAt) %></span><% } %></p></div>
+        <div><p class="label">Date of birth</p><p><%= fmt(p.dateOfBirth) %></p></div>
+      </div>
+      <p class="label mt-16">Reason</p>
+      <p style="white-space:pre-wrap;margin:0"><%= p.reason %></p>
+      <p class="mt-16" style="margin-bottom:0"><a class="link-gold text-sm" href="/admin/employees/<%= p.id %>">Open the full record (training, setup, history) →</a></p>
+    </div>
+  </section>
+<% }); %>
+<div style="height:40px"></div>

@@ -1,0 +1,25 @@
+<%- include('../../partials/page-header', { pageTitle: 'Employees & Teams', pageDescription: 'Fired agents, one row per company account. Open an account to see everyone who held it.' }) %>
+<%- include('../../partials/management-tabs', { tabs: tabs, sticky: true }) %>
+
+<% if (notice) { %><div class="form-alert success mt-16" role="status">Done.</div><% } %>
+
+<div class="card mt-24">
+  <% if (!rows.length) { %>
+    <div class="card-body"><%- include('../../partials/empty-state', { title: 'No fired agents', description: 'When an agent is let go (Fire, on their profile), their company account appears here.' }) %></div>
+  <% } else { %>
+    <table class="table-zebra" data-fired-accounts>
+      <thead><tr><th>Company account</th><th>Last agent</th><th>Fired</th><th>Former agents</th><th>Now</th></tr></thead>
+      <tbody>
+        <% rows.forEach(function (r) { var href = '/admin/employees/fired/account?key=' + encodeURIComponent(r.key); %>
+          <tr data-href="<%= href %>">
+            <td><a class="link-gold" href="<%= href %>" style="font-weight:600"><%= r.key %></a><p class="text-sm text-muted"><%= roleLabel(r.role) %></p></td>
+            <td><%= r.lastName %></td>
+            <td><%= r.last.firedAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) %></td>
+            <td><span class="badge"><%= r.count %></span></td>
+            <td><% if (r.holder) { %><span class="badge badge-success">In use · <%= r.holder.fullName %></span><% } else { %><span class="badge badge-warning">Free for a new agent</span><% } %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

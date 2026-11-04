@@ -163,6 +163,7 @@ app.use('/', require('./routes/aiPractice'));
 app.use('/', require('./routes/callIntelligence'));
 app.use('/', require('./routes/standards'));
 app.use('/', require('./routes/spacezeroAI'));
+app.use('/admin', require('./routes/admin/firedAgents')); // before employees: /admin/employees/fired is not an employee id
 app.use('/admin', require('./routes/admin/employees'));
 app.use('/admin', require('./routes/admin/teams'));
 app.use('/admin', require('./routes/admin/training'));
