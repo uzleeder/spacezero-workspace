@@ -2601,3 +2601,23 @@ html[data-theme="dark"] .cred-status.is-missing { background: rgba(245,196,81,.1
 .email-switch-row { flex-wrap: wrap; row-gap: 8px; }
 .email-switch-row > div:first-child { flex: 1 1 110px; }
 .email-switch-row__controls { flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
+
+/* ---- Office Management (the office manager only) ---- */
+.office-entry { display: flex; align-items: center; gap: 14px; padding: 16px 20px; text-decoration: none; }
+.office-entry__icon { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: rgba(220,168,120,.16); color: var(--gold-600); }
+.office-entry__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.office-entry__text strong { font-size: 16px; color: var(--card-title); }
+.office-entry__text span { font-size: 13px; color: var(--card-muted); }
+.office-entry__go { flex: none; font-size: 20px; color: var(--gold-600); }
+.office-add { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px 14px; align-items: end; }
+.office-add .field { margin: 0; }
+.office-add__note { grid-column: span 2; }
+.office-add__submit { display: flex; align-items: end; }
+.office-edit > summary { list-style: none; cursor: pointer; }
+.office-edit > summary::-webkit-details-marker { display: none; }
+.office-edit__panel { margin-top: 8px; padding: 12px; min-width: 260px; border-radius: 12px; background: var(--tile-bg); border: 1px solid var(--tile-border); }
+.office-edit__form { display: flex; flex-direction: column; gap: 8px; }
+.office-edit__form .field { margin: 0; }
+.office-edit__remove { margin-top: 8px; color: var(--red-700); }
+.office-table td { vertical-align: top; }
+@media (max-width: 640px) { .office-add__note { grid-column: auto; } }

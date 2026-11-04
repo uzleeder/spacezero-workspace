@@ -244,6 +244,7 @@ model TenureBand {
 // ---------------------------------------------------------------------------
 
 model Profile {
+  officeItems                OfficeItem[]                @relation("OfficeItemHolder")
   aiChats                    AiChat[]
   coachingNotesAbout         CoachingNote[]              @relation("CoachingNoteSubject")
   coachingNotesWritten       CoachingNote[]              @relation("CoachingNoteAuthor")
@@ -330,6 +331,8 @@ model Profile {
   accountKey                 String?
   firedAt                    DateTime?
   firedReason                String?
+  /// The office manager (Office Management on their Dashboard and Profile). Only this person sees the office items.
+  officeManager              Boolean                       @default(false)
   firedById                  String?
   setupItems                 EmployeeSetupItem[]
   setupItemsVerified         EmployeeSetupItem[]           @relation("SetupItemVerifiedBy")
@@ -1881,4 +1884,24 @@ model AiChatShare {
   createdAt        DateTime @default(now())
 
   @@index([chatId])
+}
+
+/// Office Management: everything in the SpaceZero office (computers, monitors, headphones, cases, TVs ...).
+/// Only the office manager (Profile.officeManager, Fred Marco) sees and manages it. type: COMPUTER | MONITOR |
+/// HEADPHONES | CASE | TV | OTHER. condition: GOOD | NEEDS_REPAIR | BROKEN. holderId null = in the office / storage.
+model OfficeItem {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  type           String   @default("OTHER")
+  holderId       String?
+  holder         Profile? @relation("OfficeItemHolder", fields: [holderId], references: [id], onDelete: SetNull)
+  condition      String   @default("GOOD")
+  note           String?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([holderId])
 }

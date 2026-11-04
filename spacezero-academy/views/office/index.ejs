@@ -1,0 +1,79 @@
+<%# Office Management (routes/office.js): only the office manager sees this page. %>
+<% var holderOptions = function (selected) {
+  var out = '<option value=""' + (!selected ? ' selected' : '') + '>Office / storage</option>';
+  people.forEach(function (p) { out += '<option value="' + p.id + '"' + (selected === p.id ? ' selected' : '') + '>' + p.fullName.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</option>'; });
+  return out; }; %>
+<% var options = function (map, selected) { return Object.keys(map).map(function (k) { return '<option value="' + k + '"' + (selected === k ? ' selected' : '') + '>' + map[k] + '</option>'; }).join(''); }; %>
+<%- include('../partials/page-header', { pageTitle: 'Office Management', pageDescription: 'Everything in the SpaceZero office: who has it and what condition it is in. Only you can see this page.' }) %>
+
+<% if (notice) { %><div class="form-alert success mt-16" role="status"><%= notice %></div><% } %>
+<% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
+
+<div class="grid stat-row mt-24">
+  <div class="card stat-card"><p class="label">All items</p><p class="value"><%= totals.total %></p></div>
+  <div class="card stat-card"><p class="label">With people</p><p class="value"><%= totals.inUse %></p></div>
+  <div class="card stat-card"><p class="label">In the office</p><p class="value"><%= totals.inOffice %></p></div>
+  <a class="card stat-card card-link" href="/office?condition=NEEDS_REPAIR"><p class="label">Need repair / broken</p><p class="value"><%= totals.needsAttention %></p></a>
+</div>
+
+<div class="card mt-24">
+  <div class="card-header"><h2>Add items</h2><p>Several of the same at once? Set "How many" (e.g. Headphones × 25).</p></div>
+  <form method="post" action="/office/items" class="card-body office-add">
+    <div class="field"><label for="add-name">Name</label><input id="add-name" name="name" maxlength="120" required placeholder="e.g. Dell monitor 24&quot;" /></div>
+    <div class="field"><label for="add-type">Type</label><select id="add-type" name="type"><%- options(TYPES, 'COMPUTER') %></select></div>
+    <div class="field office-add__count"><label for="add-count">How many</label><input id="add-count" name="count" type="number" min="1" max="<%= maxAtOnce %>" value="1" inputmode="numeric" /></div>
+    <div class="field"><label for="add-holder">Who has it</label><select id="add-holder" name="holderId"><%- holderOptions('') %></select></div>
+    <div class="field"><label for="add-condition">Condition</label><select id="add-condition" name="condition"><%- options(CONDITIONS, 'GOOD') %></select></div>
+    <div class="field office-add__note"><label for="add-note">Note (optional)</label><input id="add-note" name="note" maxlength="500" /></div>
+    <div class="office-add__submit"><button type="submit" class="btn btn-gold">Add</button></div>
+  </form>
+</div>
+
+<div class="card mt-24" style="margin-bottom:40px">
+  <form method="get" action="/office" class="filter-bar">
+    <input type="search" name="q" value="<%= filters.q %>" placeholder="Search name, note or person" aria-label="Search" />
+    <select name="type" aria-label="Type"><option value="">All types</option><%- options(TYPES, filters.type) %></select>
+    <select name="holder" aria-label="Who has it"><option value="">Everyone and the office</option><option value="office"<%= filters.holder === 'office' ? ' selected' : '' %>>Office / storage</option><% people.forEach(function (p) { %><option value="<%= p.id %>"<%= filters.holder === p.id ? ' selected' : '' %>><%= p.fullName %></option><% }); %></select>
+    <select name="condition" aria-label="Condition"><option value="">Any condition</option><%- options(CONDITIONS, filters.condition) %></select>
+    <button type="submit" class="btn btn-secondary">Filter</button>
+    <% if (filters.q || filters.type || filters.holder || filters.condition) { %><a href="/office" class="link-gold text-sm">Clear</a><% } %>
+  </form>
+  <% if (!items.length) { %>
+    <div class="card-body"><%- include('../partials/empty-state', { title: totals.total ? 'Nothing matches' : 'No items yet', description: totals.total ? 'Change the filters.' : 'Add the first items above.' }) %></div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="table-zebra table-compact office-table">
+        <thead><tr><th>Item</th><th>Type</th><th>Who has it</th><th>Condition</th><th>Note</th><th></th></tr></thead>
+        <tbody>
+          <% items.forEach(function (it) { %>
+            <tr>
+              <td><strong><%= it.name %></strong></td>
+              <td><%= TYPES[it.type] || 'Other' %></td>
+              <td><%= it.holder ? it.holder.fullName : 'Office / storage' %></td>
+              <td><span class="badge <%= it.condition === 'GOOD' ? 'badge-success' : it.condition === 'BROKEN' ? 'badge-danger' : 'badge-warning' %>"><%= CONDITIONS[it.condition] || 'Good' %></span></td>
+              <td class="text-sm text-muted"><%= it.note || '' %></td>
+              <td>
+                <details class="office-edit">
+                  <summary class="btn btn-secondary btn-sm">Edit</summary>
+                  <div class="office-edit__panel">
+                    <form method="post" action="/office/items/<%= it.id %>" class="office-edit__form">
+                      <div class="field"><label for="n-<%= it.id %>">Name</label><input id="n-<%= it.id %>" name="name" maxlength="120" required value="<%= it.name %>" /></div>
+                      <div class="field"><label for="t-<%= it.id %>">Type</label><select id="t-<%= it.id %>" name="type"><%- options(TYPES, it.type) %></select></div>
+                      <div class="field"><label for="h-<%= it.id %>">Who has it</label><select id="h-<%= it.id %>" name="holderId"><%- holderOptions(it.holderId) %></select></div>
+                      <div class="field"><label for="c-<%= it.id %>">Condition</label><select id="c-<%= it.id %>" name="condition"><%- options(CONDITIONS, it.condition) %></select></div>
+                      <div class="field"><label for="o-<%= it.id %>">Note</label><input id="o-<%= it.id %>" name="note" maxlength="500" value="<%= it.note || '' %>" /></div>
+                      <button type="submit" class="btn btn-gold btn-sm">Save</button>
+                    </form>
+                    <form method="post" action="/office/items/<%= it.id %>/delete" onsubmit="return confirm('Remove &quot;<%= it.name.replace(/"/g, '') %>&quot; from the list?')">
+                      <button type="submit" class="btn btn-ghost btn-sm office-edit__remove">Remove</button>
+                    </form>
+                  </div>
+                </details>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
