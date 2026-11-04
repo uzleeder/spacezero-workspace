@@ -14,7 +14,7 @@ function onlyOfficeManager(req, res, next) {
 const back = (res, notice, error) => res.redirect('/office' + (notice ? '?notice=' + encodeURIComponent(notice) : error ? '?error=' + encodeURIComponent(error) : ''));
 
 router.get('/office', requireSession, onlyOfficeManager, async (req, res) => {
-  const filters = { q: String(req.query.q || ''), type: String(req.query.type || ''), holder: String(req.query.holder || ''), condition: String(req.query.condition || '') };
+  const filters = { q: String(req.query.q || ''), type: String(req.query.type || ''), holder: String(req.query.holder || ''), condition: String(req.query.condition || ''), product: String(req.query.product || '').slice(0, 120) };
   const [items, totals, people] = await Promise.all([office.listItems(req.profile, filters), office.summary(req.profile), office.people(req.profile)]);
   res.set('Cache-Control', 'private, no-store');
   res.render('office/index', {

@@ -53,8 +53,8 @@ test('Fred adds items (one, or many at once), gives them to people, edits and re
   const page = (await get(fred, '/office')).text;
   assert.match(page, /Jabra headset 2/); assert.match(page, /Max Agent/); assert.match(page, /Office \/ storage/);
   assert.match((await get(fred, '/office?holder=' + agent.id)).text, /Dell monitor 24/);
-  assert.doesNotMatch((await get(fred, '/office?holder=' + agent.id)).text, /Jabra headset 1/);
-  assert.doesNotMatch((await get(fred, '/office?type=MONITOR')).text, /Jabra headset/);
+  assert.doesNotMatch((await get(fred, '/office?holder=' + agent.id)).text, /<strong>Jabra headset 1<\/strong>/);   // the item list (product tiles always show every product)
+  assert.doesNotMatch((await get(fred, '/office?type=MONITOR')).text, /<strong>Jabra headset/);
 
   // give a headset to Max, mark it for repair
   const h = items[1];
@@ -80,4 +80,18 @@ test('items cannot go to people of another company, and others cannot change Fre
   assert.equal((await post(admin, `/office/items/${item.id}/delete`)).status, 404);
   assert.equal((await post(sup, `/office/items/${item.id}`, { name: 'Taken', holderId: sup.id })).status, 404);
   assert.equal(await prisma.officeItem.count({ where: { id: item.id } }), 1);
+});
+
+test('the page counts every type and every product, and a product tile shows only that product', async () => {
+  await post(fred, '/office/items', { name: 'Mouse', type: 'OTHER', count: '4' });
+  await post(fred, '/office/items', { name: 'Mouse pad', type: 'OTHER', count: '2' });
+  await post(fred, '/office/items', { name: 'Coffee Machine', type: 'OTHER' });
+  const page = (await get(fred, '/office')).text;
+  assert.match(page, /What's in the office/);
+  assert.match(page, /office-product__name">Mouse<\/span><span class="office-product__count">4</);
+  assert.match(page, /office-product__name">Mouse pad<\/span><span class="office-product__count">2</);
+  assert.match(page, /office-product__name">Coffee Machine<\/span><span class="office-product__count">1</);
+  assert.match(page, /href="\/office\?type=MONITOR">Monitor <strong>1<\/strong>/);
+  const only = (await get(fred, '/office?product=Mouse')).text;
+  assert.match(only, /<strong>Mouse 3<\/strong>/); assert.doesNotMatch(only, /<strong>Mouse pad 1<\/strong>/);
 });

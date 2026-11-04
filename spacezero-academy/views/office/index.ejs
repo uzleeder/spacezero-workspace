@@ -16,6 +16,25 @@
   <a class="card stat-card card-link" href="/office?condition=NEEDS_REPAIR"><p class="label">Need repair / broken</p><p class="value"><%= totals.needsAttention %></p></a>
 </div>
 
+<% if (totals.products.length) { %>
+<div class="card mt-24">
+  <div class="card-header row-between" style="gap:12px;flex-wrap:wrap">
+    <div><h2>What's in the office</h2><p>Every product and how many there are. Tap one to see only those items.</p></div>
+    <div class="office-types">
+      <% totals.byType.forEach(function (t) { %><a class="office-type<%= filters.type === t.type ? ' is-active' : '' %>" href="/office?type=<%= t.type %>"><%= t.label %> <strong><%= t.count %></strong></a><% }); %>
+    </div>
+  </div>
+  <div class="card-body office-products">
+    <% totals.products.forEach(function (p) { %>
+      <a class="office-product<%= filters.product === p.name ? ' is-active' : '' %>" href="/office?product=<%= encodeURIComponent(p.name) %>">
+        <span class="office-product__top"><span class="office-product__name"><%= p.name %></span><span class="office-product__count"><%= p.total %></span></span>
+        <span class="office-product__meta"><%= p.withPeople %> with people · <%= p.inOffice %> in the office<% if (p.needsAttention) { %> · <span class="office-product__warn"><%= p.needsAttention %> need repair</span><% } %></span>
+      </a>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
 <div class="card mt-24">
   <div class="card-header"><h2>Add items</h2><p>Several of the same at once? Set "How many" (e.g. Headphones × 25).</p></div>
   <form method="post" action="/office/items" class="card-body office-add">
@@ -36,7 +55,8 @@
     <select name="holder" aria-label="Who has it"><option value="">Everyone and the office</option><option value="office"<%= filters.holder === 'office' ? ' selected' : '' %>>Office / storage</option><% people.forEach(function (p) { %><option value="<%= p.id %>"<%= filters.holder === p.id ? ' selected' : '' %>><%= p.fullName %></option><% }); %></select>
     <select name="condition" aria-label="Condition"><option value="">Any condition</option><%- options(CONDITIONS, filters.condition) %></select>
     <button type="submit" class="btn btn-secondary">Filter</button>
-    <% if (filters.q || filters.type || filters.holder || filters.condition) { %><a href="/office" class="link-gold text-sm">Clear</a><% } %>
+    <% if (filters.product) { %><input type="hidden" name="product" value="<%= filters.product %>" /><span class="badge"><%= filters.product %></span><% } %>
+    <% if (filters.q || filters.type || filters.holder || filters.condition || filters.product) { %><a href="/office" class="link-gold text-sm">Clear</a><% } %>
   </form>
   <% if (!items.length) { %>
     <div class="card-body"><%- include('../partials/empty-state', { title: totals.total ? 'Nothing matches' : 'No items yet', description: totals.total ? 'Change the filters.' : 'Add the first items above.' }) %></div>

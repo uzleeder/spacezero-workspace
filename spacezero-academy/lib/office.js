@@ -12,6 +12,9 @@ const MAX_AT_ONCE = 200;
 /** May this request use Office Management? The office manager themself only (never while someone views as them). */
 const canManageOffice = (req) => Boolean(req.profile && req.profile.officeManager && !req.impersonation);
 
+/** The product an item belongs to: its name without the number added when several were added at once ("Mouse 7" -> "Mouse"). */
+const productOf = (name) => String(name || '').replace(/\s+\d+$/, '');
+
 const clean = (v, max) => String(v || '').replace(/\s+/g, ' ').trim().slice(0, max);
 
 /** Reads and checks the form. Returns { data } or { error }. holderId must be an active person of the organization. */
@@ -30,7 +33,7 @@ async function readItem(actor, body) {
 }
 
 /** The list, with the filters of the page (search, type, who has it, condition). */
-async function listItems(actor, { q = '', type = '', holder = '', condition = '' } = {}) {
+async function listItems(actor, { q = '', type = '', holder = '', condition = '', product = '' } = {}) {
   const where = { organizationId: actor.organizationId };
   if (TYPES[type]) where.type = type;
   if (CONDITIONS[condition]) where.condition = condition;
@@ -38,17 +41,30 @@ async function listItems(actor, { q = '', type = '', holder = '', condition = ''
   else if (holder) where.holderId = String(holder);
   const text = clean(q, 80);
   if (text) where.OR = [{ name: { contains: text } }, { note: { contains: text } }, { holder: { fullName: { contains: text } } }];
-  return prisma.officeItem.findMany({ where, include: { holder: { select: { id: true, fullName: true } } }, orderBy: [{ type: 'asc' }, { name: 'asc' }] });
+  const items = await prisma.officeItem.findMany({ where, include: { holder: { select: { id: true, fullName: true } } }, orderBy: [{ type: 'asc' }, { name: 'asc' }] });
+  return product ? items.filter((i) => productOf(i.name) === product) : items;
 }
 
 /** Totals for the tiles on top. */
 async function summary(actor) {
-  const items = await prisma.officeItem.findMany({ where: { organizationId: actor.organizationId }, select: { holderId: true, condition: true } });
+  const items = await prisma.officeItem.findMany({ where: { organizationId: actor.organizationId }, select: { name: true, type: true, holderId: true, condition: true } });
+  // every type and every product with its count: "Monitors 48", "Case myPro 17 - 3 with people, 14 in the office"
+  const byType = Object.keys(TYPES).map((t) => ({ type: t, label: TYPES[t], count: items.filter((i) => i.type === t).length })).filter((t) => t.count);
+  const products = new Map();
+  for (const i of items) {
+    const name = productOf(i.name);
+    const p = products.get(name) || { name, type: i.type, total: 0, withPeople: 0, inOffice: 0, needsAttention: 0 };
+    p.total += 1; if (i.holderId) p.withPeople += 1; else p.inOffice += 1; if (i.condition !== 'GOOD') p.needsAttention += 1;
+    products.set(name, p);
+  }
+  const order = Object.keys(TYPES);
   return {
     total: items.length,
     inUse: items.filter((i) => i.holderId).length,
     inOffice: items.filter((i) => !i.holderId).length,
     needsAttention: items.filter((i) => i.condition !== 'GOOD').length,
+    byType,
+    products: [...products.values()].sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type) || a.name.localeCompare(b.name)),
   };
 }
 
@@ -81,4 +97,4 @@ async function deleteItem(actor, id) {
 /** People an item can be given to: everyone active in the organization. */
 const people = (actor) => prisma.profile.findMany({ where: { organizationId: actor.organizationId, status: { not: 'ARCHIVED' }, testOwnerAdminId: null }, select: { id: true, fullName: true }, orderBy: { fullName: 'asc' } });
 
-module.exports = { TYPES, CONDITIONS, MAX_AT_ONCE, canManageOffice, listItems, summary, addItems, updateItem, deleteItem, people };
+module.exports = { TYPES, CONDITIONS, MAX_AT_ONCE, productOf, canManageOffice, listItems, summary, addItems, updateItem, deleteItem, people };
