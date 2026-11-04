@@ -1,0 +1,69 @@
+<%# The inside of the Agent dashboard: rendered with the page, and again on its own by GET /dashboard/live.
+    Next = the current step of My Training and its button; Call Practice only while a call is waiting today;
+    Also for you only when there is something. %>
+<%
+  var ICONS = {
+    lock: 'M6 11h12v10H6z M8 11V7a4 4 0 0 1 8 0v4',
+    book: 'M4 4h6a3 3 0 0 1 3 3v14a4 4 0 0 0-4-3H4z M13 7a3 3 0 0 1 3-3h5v14h-4a4 4 0 0 0-4 3',
+    redo: 'M4 12a8 8 0 1 0 2.3-5.7 M4 4v4h4',
+    clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 7v5l3 2'
+  };
+%>
+<header class="dash-head">
+  <div>
+    <p class="dash-eyebrow"><%= today %></p>
+    <h1 class="dash-title"><%= greeting %><% if (adash.headline) { %> <%= adash.headline %><% } %></h1>
+  </div>
+  <span class="dash-live" title="Live: refreshes every minute and when you come back to this tab"><span class="dash-live__dot" aria-hidden="true"></span><span data-ago>Updated just now</span></span>
+</header>
+
+<% if (adash.next) { %>
+  <section class="ag-next" id="next" aria-labelledby="ag-next-title" data-key="next">
+    <div class="ag-next__row">
+      <span class="ag-next__icon" aria-hidden="true"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M8 5v14l11-7z"></path></svg></span>
+      <span class="ag-next__text">
+        <span class="ag-next__label"><%= adash.next.label %></span>
+        <h2 id="ag-next-title" class="ag-next__title"><%= adash.next.title %></h2>
+        <span class="ag-chips"><% adash.next.chips.forEach(function (c) { %><span class="ag-chip ag-chip--<%= c.tone %>"><%= c.text %></span><% }); %></span>
+      </span>
+      <a class="ag-next__go" href="<%= adash.next.href %>"><%= adash.next.action %></a>
+    </div>
+    <% if (adash.progress.total) { %>
+      <div class="ag-progress">
+        <span class="ag-progress__bar" aria-hidden="true"><span style="width: <%= adash.progress.percent %>%"></span></span>
+        <span class="ag-progress__text"><%= adash.progress.done %> of <%= adash.progress.total %> done</span>
+      </div>
+    <% } %>
+  </section>
+<% } else { %>
+  <section class="ag-done" aria-label="All caught up">
+    <span class="ag-done__check" aria-hidden="true">✓</span>
+    <span>
+      <span class="ag-done__title">All caught up</span>
+      <span class="ag-done__text"><%= adash.progress.total > 1 ? 'All ' + adash.progress.total + ' trainings done. ' : adash.progress.total ? 'Your training is done. ' : '' %>New ones show up here by themselves.</span>
+    </span>
+  </section>
+<% } %>
+
+<% if (adash.call) { %>
+  <a class="ag-call" href="<%= adash.call.href %>" data-key="call">
+    <span class="ag-call__icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M4 14v-2a8 8 0 0 1 16 0v2 M4 14h3v6H4z M17 14h3v6h-3z"></path></svg></span>
+    <span class="ag-call__text"><span class="ag-call__title"><%= adash.call.title %></span><span class="ag-call__meta"><%= adash.call.meta %></span></span>
+    <span class="ag-call__go"><%= adash.call.action %></span>
+  </a>
+<% } %>
+
+<% if (adash.also.length) { %>
+  <section class="ag-also" aria-labelledby="ag-also-title">
+    <h2 id="ag-also-title">Also for you</h2>
+    <div class="ag-also__grid">
+      <% adash.also.forEach(function (a) { %>
+        <a class="ag-tile ag-tile--<%= a.tone %>" href="<%= a.href %>" data-key="<%= a.key %>">
+          <span class="ag-tile__icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="<%= ICONS[a.icon] %>"></path></svg></span>
+          <span class="ag-tile__label"><%= a.label %></span>
+          <span class="ag-chip ag-chip--<%= a.tone %>"><%= a.chip %></span>
+        </a>
+      <% }); %>
+    </div>
+  </section>
+<% } %>

@@ -121,7 +121,9 @@ test('the page shows the lanes and refreshes itself from /dashboard/live, which 
   const supLive = await get('kamola', '/dashboard/live');
   assert.equal(supLive.status, 200, 'a supervisor gets their own board there (lib/supervisorDashboard.js)');
   assert.match(supLive.text, /Your team/); assert.doesNotMatch(supLive.text, /Dilnoza Tester has no supervisor|Decision needed/, 'never the admin board');
-  assert.equal((await get('aziz', '/dashboard/live')).status, 403);
+  const agentLive = await get('aziz', '/dashboard/live');
+  assert.equal(agentLive.status, 200, 'an agent gets their own board there (lib/agentDashboard.js)');
+  assert.doesNotMatch(agentLive.text, /Dilnoza|Decision needed|Your team/, 'never the admin or supervisor board');
   assert.equal((await request(app).get('/dashboard/live')).status, 302, 'signed out: to the sign-in page');
 });
 
@@ -133,5 +135,5 @@ test('nothing to do: "All clear", and supervisors and agents keep their own dash
   assert.match(page.text, /All clear today\./); assert.match(page.text, /Nothing is waiting for you/);
   assert.doesNotMatch(page.text, /dash-lanes/);
   assert.match((await get('kamola', '/dashboard')).text, /Your team/, 'the supervisor has their own dashboard (lib/supervisorDashboard.js)');
-  assert.match((await get('aziz', '/dashboard')).text, /Needs your attention/);
+  assert.match((await get('aziz', '/dashboard')).text, /class="ag-next"|All caught up/, 'the agent has their own dashboard (lib/agentDashboard.js)');
 });

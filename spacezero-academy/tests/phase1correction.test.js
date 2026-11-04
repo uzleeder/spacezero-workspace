@@ -491,7 +491,7 @@ test('dashboards show role-appropriate operational cards that link to management
   // the supervisor's own dashboard (lib/supervisorDashboard.js): their team and their list, nothing from the admin side
   assert.match(supPage.text, /Your team/); assert.match(supPage.text, /data-live="\/dashboard\/live"/); assert.doesNotMatch(supPage.text, /\/admin\/employees\?/);
   const agentPage = await get(agentA, '/dashboard');
-  assert.match(agentPage.text, /My setup/); assert.doesNotMatch(agentPage.text, /Pending vacation requests/);
+  assert.match(agentPage.text, /Finish your setup/); // the agent dashboard (lib/agentDashboard.js) assert.doesNotMatch(agentPage.text, /Pending vacation requests/);
 });
 
 test('setup requirements are admin-editable, role-specific, reorderable and archivable without losing history', async () => {
