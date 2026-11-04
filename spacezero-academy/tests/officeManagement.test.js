@@ -139,3 +139,16 @@ test('"My PC" on the Setup page: each person sees their own PC number, monitor, 
   assert.doesNotMatch((await get(admin, `/employees/${agent.id}/setup`)).text, /<h2>My PC<\/h2>/);
   assert.equal((await post(sup, '/my/desk/password')).status, 404);
 });
+
+test('the PC card is on every profile: the owner can show their password, the office manager can, an Admin only sees the desk', async () => {
+  const desk = await prisma.officeDesk.findFirst({ where: { organizationId: org.id, profileId: agent.id } });
+  assert.ok(desk, 'desk from the previous test');
+  const own = (await get(agent, '/profile')).text;
+  assert.match(own, /<h2>My PC<\/h2>/); assert.match(own, /data-pc-show="\/my\/desk\/password"/); assert.doesNotMatch(own, /Agent-PC-12/);
+  const byAdmin = (await get(admin, `/admin/employees/${agent.id}`)).text;
+  assert.match(byAdmin, /<h2>PC<\/h2>/); assert.match(byAdmin, /PC number<\/p><p class="v">12</); assert.doesNotMatch(byAdmin, /data-pc-show/); assert.doesNotMatch(byAdmin, /PC password/);
+  const byFred = (await get(fred, `/admin/employees/${agent.id}`));
+  if (byFred.status === 200) assert.match(byFred.text, new RegExp(`data-pc-show="/office/desks/${desk.id}/password"`));
+  const noDesk = (await get(sup, '/profile')).text;
+  assert.match(noDesk, /<h2>My PC<\/h2>/); assert.match(noDesk, /No desk recorded yet\./);
+});

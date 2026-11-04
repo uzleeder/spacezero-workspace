@@ -1,0 +1,45 @@
+<%# The person's PC at the office (Office Management desks): on every profile, and on their own Setup page.
+    desk = lib/officeDesks.js#deskOf(...) or null. own = the viewer's own page. The password itself is never in the
+    page: "Show" asks the server - their own desk for the owner, any desk for the office manager - and it is audited.
+    Nobody else (Admins included) gets a Show button. %>
+<% var viewing = typeof impersonation !== 'undefined' && impersonation;
+   var showUrl = !desk || !desk.hasPassword || viewing ? null : own ? '/my/desk/password' : (profile && profile.officeManager ? '/office/desks/' + desk.id + '/password' : null); %>
+<div class="card mt-24 pc-card" id="my-pc">
+  <div class="card-header"><h2><%= own ? 'My PC' : 'PC' %></h2><p><%= own ? 'Your computer at the office. Tell the office manager if something is wrong with it.' : 'Their computer at the office.' %></p></div>
+  <div class="card-body">
+    <% if (!desk) { %>
+      <p class="text-sm text-muted" style="margin:0">No desk recorded yet.</p>
+    <% } else { %>
+      <div class="info-grid">
+        <div class="info-tile"><p class="k">PC number</p><p class="v"><%= desk.number %></p></div>
+        <div class="info-tile"><p class="k">Monitor</p><p class="v<%= desk.monitor ? '' : ' is-missing' %>"><%= desk.monitor || 'Not recorded' %></p></div>
+        <div class="info-tile"><p class="k">Headphone</p><p class="v<%= desk.headphone ? '' : ' is-missing' %>"><%= desk.headphone || 'None yet' %></p></div>
+        <% if (own || showUrl) { %>
+        <div class="info-tile"><p class="k">PC password</p>
+          <% if (showUrl) { %><p class="v desk-pw"><span class="desk-pw__value" data-pw-value>•••••</span><button type="button" class="desk-pw__show" data-pc-show="<%= showUrl %>">Show</button></p>
+          <% } else { %><p class="v is-missing">Not recorded</p><% } %>
+        </div>
+        <% } %>
+      </div>
+      <% if (desk.pcCase || desk.keyboard || desk.mouse) { %><p class="text-sm text-muted mt-16" style="margin-bottom:0">Also on the desk: <%= [desk.pcCase && 'case ' + desk.pcCase, desk.keyboard && 'keyboard ' + desk.keyboard, desk.mouse && 'mouse ' + desk.mouse].filter(Boolean).join(' · ') %></p><% } %>
+    <% } %>
+  </div>
+</div>
+<% if (showUrl) { %>
+<script>
+// "Show" asks the server for the PC password (recorded in the audit log) and hides it again after 20 seconds.
+(function () {
+  var btn = document.querySelector('[data-pc-show]'); if (!btn) return;
+  var value = btn.parentNode.querySelector('[data-pw-value]'), timer = null;
+  function hide() { value.textContent = '•••••'; value.classList.remove('is-shown'); btn.textContent = 'Show'; timer = null; }
+  btn.addEventListener('click', function () {
+    if (timer) { clearTimeout(timer); hide(); return; }
+    btn.disabled = true;
+    fetch(btn.getAttribute('data-pc-show'), { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) { btn.disabled = false; if (!data) return; value.textContent = data.password || '(none)'; value.classList.add('is-shown'); btn.textContent = 'Hide'; timer = setTimeout(hide, 20000); })
+      .catch(function () { btn.disabled = false; });
+  });
+})();
+</script>
+<% } %>

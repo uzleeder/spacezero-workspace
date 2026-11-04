@@ -50,6 +50,7 @@ async function loadProfileOverview(profileId) {
     hasSkillGraph,
     tenureBand,
     tenureMonths: monthsSince(profile.employmentStartDate),
+    desk: await require('./officeDesks').deskOf(profile.id),   // "PC" card: number, monitor, headphone (never the password)
     certificates,
     setup,
     upcomingLeave,
