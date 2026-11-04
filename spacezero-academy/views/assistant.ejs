@@ -53,12 +53,7 @@
     <% } else if (!hidden) { %><form method="post" action="/assistant/ask" enctype="multipart/form-data" class="ai-form" data-ai-form>
       <input type="hidden" name="chatId" value="<%= chat && chat.id ? chat.id : '' %>" data-ai-chat-id />
       <label for="question" class="visually-hidden">Ask Space AI…</label>
-      <div class="ai-composer ai-composer--page">
-        <textarea id="question" name="question" rows="1" maxlength="500" required placeholder="Message Space AI…" data-enter-send autofocus><%= question %></textarea>
-        <button type="submit" class="ai-send" aria-label="Send" title="Send (Enter)"><%- SEND %></button>
-      </div>
-      <%- include('partials/ai-voice-controls') %>
-      <%- include('partials/ai-image-input') %>
+      <%- include('partials/ai-composer', { inputId: 'question', autofocus: true, value: question }) %>
       <p class="ai-hint">Enter to send · Shift + Enter for a new line · Space AI can be wrong: check important details.</p>
     </form><% } else { %><p class="ai-form text-muted">Return to your own account to start a private conversation.</p><% } %>
   </section>

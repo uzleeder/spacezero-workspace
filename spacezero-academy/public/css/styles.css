@@ -2509,3 +2509,33 @@ html:not([data-theme="dark"]) .hero-coordinate { color: #7d7896; }
 html:not([data-theme="dark"]) .hero-art .planet-halo { stroke: #6f64b0; stroke-opacity: .25; }
 html:not([data-theme="dark"]) .hero-art .orbit-back { stroke: #c98f5c; stroke-opacity: .45; }
 html:not([data-theme="dark"]) .hero-art .orbit-front-glow { stroke-opacity: .3; }
+
+/* ---- Space AI message line: one box with the tools inside (image, microphone, voice chat) and Send ---- */
+.ai-composer--tools { display: flex; flex-direction: column; padding: 6px 8px 8px; border-radius: 18px; background: var(--surface-2, #fff); border: 1px solid var(--border-strong, #dfe3ea); transition: border-color .15s var(--ease), box-shadow .15s var(--ease); }
+.ai-composer--tools:focus-within { border-color: var(--gold-500, #dca878); box-shadow: 0 0 0 3px rgba(220,168,120,.15); }
+.ai-composer--tools textarea, .ai-composer--tools textarea:focus { min-height: 40px; max-height: 180px; padding: 8px 8px 4px; border: 0; outline: 0; box-shadow: none; background: transparent; resize: none; }
+.ai-composer__bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ai-composer__tools { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.ai-composer--tools .ai-voice:not([hidden]) { display: inline-flex; align-items: center; gap: 2px; margin: 0; }
+.ai-tool { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 10px; background: transparent; color: var(--text-secondary, #6b7280); cursor: pointer; overflow: hidden; transition: background .12s, color .12s; }
+.ai-tool:hover { background: rgba(220,168,120,.14); color: var(--text-primary, #101823); }
+.ai-tool:focus-visible, .ai-tool:focus-within { outline: 2px solid var(--gold-500, #dca878); outline-offset: 1px; }
+.ai-tool[aria-pressed="true"] { background: rgba(220,168,120,.22); color: var(--gold-600, #b9844f); }
+.ai-tool:disabled { opacity: .45; cursor: not-allowed; }
+.ai-tool.ai-attach-button { padding: 0; border: 0; }
+.ai-tool.ai-attach-button input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.ai-tool--text { width: auto; padding: 0 10px; font-size: 12px; font-weight: 600; }
+.ai-composer--tools .ai-voice__wave { color: currentColor; }
+.ai-composer--tools .ai-send { position: static; flex: none; width: 36px; height: 36px; }
+.ai-composer--tools .ai-image-preview:not([hidden]) { display: flex; align-items: center; gap: 10px; width: auto; margin: 4px 4px 2px; padding: 6px 8px; border-radius: 12px; border: 1px solid var(--border-strong, #dfe3ea); background: var(--surface-1, #fafafa); }
+.ai-composer--tools .ai-image-preview img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; }
+.ai-composer--tools .ai-image-preview button { width: 26px; height: 26px; padding: 0; border-radius: 999px; font-size: 16px; line-height: 1; }
+.ai-voice__status:empty, .ai-image-error:empty { display: none; }
+.ai-voice__status, .ai-image-note, .ai-image-error { margin: 6px 4px 0; }
+html[data-theme="dark"] .ai-composer--tools { background: #1b1935; border-color: #2e2b52; }
+html[data-theme="dark"] .ai-composer--tools .ai-image-preview:not([hidden]) { background: #15122e; border-color: #2e2b52; }
+html[data-theme="dark"] .ai-tool { color: #a29fc2; }
+html[data-theme="dark"] .ai-tool:hover { color: #f2f0fa; }
+.ai-composer__bar { justify-content: flex-end; gap: 4px; }   /* image, microphone and voice chat sit right beside Send */
+.hero-art svg.is-tappable { cursor: pointer; -webkit-tap-highlight-color: transparent; }   /* tap the globe: more flights */
+.hero-art .globe-trail--extra { stroke-opacity: .8; }

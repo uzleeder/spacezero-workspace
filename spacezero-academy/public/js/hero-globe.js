@@ -60,6 +60,52 @@
     return { route: r, from: from, to: to, trail: trail, plane: g, port: port, label: label, start: FLEET + i * 0.45, dur: 2.2 + 3.4 * angle / Math.PI };
   });
 
+  // Tapping the globe launches more flights, one per tap, between real airports (the busier, the more you tap).
+  var MORE_AIRPORTS = [
+    TAS, ROUTES[0], ROUTES[1], ROUTES[2], ROUTES[3], ROUTES[4], ROUTES[5],
+    { code: 'FRA', at: [8.5622, 50.0379] }, { code: 'CDG', at: [2.5479, 49.0097] }, { code: 'SVO', at: [37.4146, 55.9726] },
+    { code: 'DOH', at: [51.6081, 25.2731] }, { code: 'CAI', at: [31.4056, 30.1219] }, { code: 'JNB', at: [28.2460, -26.1392] },
+    { code: 'ALA', at: [77.0405, 43.3521] }, { code: 'PEK', at: [116.5975, 40.0799] }, { code: 'BKK', at: [100.7501, 13.6900] },
+    { code: 'SIN', at: [103.9894, 1.3644] }, { code: 'SYD', at: [151.1772, -33.9399] }, { code: 'LAX', at: [-118.4085, 33.9416] },
+    { code: 'GRU', at: [-46.4730, -23.4356] }
+  ];
+  var MAX_EXTRA = 30;
+  var extra = [], clock = 0, lastLam = 0;
+  function launch(lam0) {
+    var facing = MORE_AIRPORTS.filter(function (a) { return project(a.at[0], a.at[1], lam0)[2] > 0.3; });
+    var from = facing.length ? facing[Math.floor(Math.random() * facing.length)] : TAS;
+    var choices = MORE_AIRPORTS.filter(function (a) {
+      if (a === from) return false;
+      var p = vec(from.at), q = vec(a.at);
+      return Math.acos(Math.max(-1, Math.min(1, p[0] * q[0] + p[1] * q[1] + p[2] * q[2]))) > 15 * RAD;   // not next door
+    });
+    var to = choices[Math.floor(Math.random() * choices.length)];
+    var trail = mk('path', 'globe-trail globe-trail--extra', trailsEl);
+    var g = mk('g', 'globe-plane globe-plane--small', fleetEl);
+    mk('use', '', g).setAttribute('href', '#workspace-aircraft');
+    var port = mk('g', 'globe-port', portsEl);
+    mk('circle', 'globe-port-dot', port).setAttribute('r', '1.6');
+    var label = mk('text', 'globe-port-label', port);
+    label.textContent = to.code; label.setAttribute('x', '4'); label.setAttribute('y', '2.6');
+    var a = vec(from.at), b = vec(to.at);
+    var angle = Math.acos(Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])));
+    extra.push({ route: to, from: a, to: b, trail: trail, plane: g, port: port, born: clock, dur: 2.4 + 3.6 * angle / Math.PI });
+    while (extra.length > MAX_EXTRA) drop(extra.shift());
+  }
+  function drop(fl) { fl.trail.remove(); fl.plane.remove(); fl.port.remove(); }
+  function drawFlight(fl, u, fade, lam0) {
+    var pts = [];
+    for (var k = 0; k <= 40; k++) { var ll = unvec(slerp(fl.from, fl.to, (k / 40) * u)); pts.push(project(ll[0], ll[1], lam0)); }
+    fl.trail.setAttribute('d', linePath(pts));
+    fl.trail.style.opacity = fade;
+    var head = pts[pts.length - 1], next = unvec(slerp(fl.from, fl.to, Math.min(1, u + 0.01))), nx = project(next[0], next[1], lam0);
+    if (u < 1 && head[2] > 0.03) place(fl.plane, head[0], head[1], heading(head, nx), 0.3, Math.min(1, head[2] * 5) * fade);
+    else hide(fl.plane);
+    var port = project(fl.route.at[0], fl.route.at[1], lam0);
+    if (port[2] > 0.12) place(fl.port, port[0], port[1], null, 1, Math.min(1, (port[2] - 0.12) * 4) * fade * Math.min(1, u * 3));
+    else hide(fl.port);
+  }
+
   // ---- geometry ----
   function vec(ll) { var l = ll[0] * RAD, p = ll[1] * RAD; return [Math.cos(p) * Math.cos(l), Math.cos(p) * Math.sin(l), Math.sin(p)]; }
   function unvec(v) { return [Math.atan2(v[1], v[0]) / RAD, Math.asin(Math.max(-1, Math.min(1, v[2]))) / RAD]; }
@@ -218,6 +264,15 @@
         place(fl.port, port[0], port[1], null, 1, Math.min(1, (port[2] - 0.12) * 4) * fade * Math.min(1, u * 3));
       } else hide(fl.port);
     });
+
+    // 4) the flights launched by tapping the globe; each fades out after landing and is removed
+    lastLam = lam0;
+    extra = extra.filter(function (fl) {
+      var age = clock - fl.born, u = clamp01(age / fl.dur), fade = age > fl.dur ? clamp01(1 - (age - fl.dur) / 2.5) : 1;
+      if (fade <= 0) { drop(fl); return false; }
+      drawFlight(fl, u, fade, lam0);
+      return true;
+    });
   }
 
   var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -225,11 +280,14 @@
   function tick(now) {
     raf = 0;
     if (t0 === null) t0 = now - last * 1000;
+    clock = now / 1000;
     if (now - lastDraw > 30) { last = ((now - t0) / 1000) % LOOP; frame(last); lastDraw = now; }   // ~30 frames a second is plenty
     if (shown) raf = requestAnimationFrame(tick);
   }
   function start() {
     if (reduce) { frame(22.5); return; }
+    svg.classList.add('is-tappable');
+    svg.addEventListener('click', function () { launch(lastLam); });
     frame(0);
     if ('IntersectionObserver' in window) {
       new IntersectionObserver(function (entries) {

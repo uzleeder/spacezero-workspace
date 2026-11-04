@@ -22,7 +22,7 @@
   var voice = false, busy = false, recognition = null, speaking = false;
   var speechToken = 0, resumeTimer = null, speechTimer = null, activeUtterance = null;
   var readOnlyBefore = false;
-  var READY = 'English · Microphone fills your draft. Voice chat sends and reads replies aloud.';
+  var READY = '';   // idle: no status line (what each button does is in its tooltip)
   var UNSUPPORTED = env.isSecureContext === false ? 'Microphone access requires HTTPS or localhost. You can still type.' : 'Voice input is not supported in this browser. Try a browser with speech recognition, or type your message.';
   var ERRORS = {
     'not-allowed': 'Microphone access was denied. Allow microphone access in your browser settings, then try again.',
@@ -35,7 +35,7 @@
   };
 
   function paint(text) {
-    if (text) status.textContent = text;
+    if (typeof text === 'string') status.textContent = text;
     mic.disabled = !canListen || busy || speaking;
     mic.setAttribute('aria-pressed', String(Boolean(recognition)));
     mic.setAttribute('aria-label', recognition ? 'Stop microphone' : 'Start microphone');

@@ -231,3 +231,11 @@ test('the globe plane slows down for a landing at TAS and rolls to a stop before
   assert.match(js, /var ORBIT_END = 12, TOUCHDOWN = 17\.5, PARKED = 19, FLEET = 19\.6, FADE = 26\.5;/);
   assert.match(js, /u = 1 - Math\.pow\(1 - v, 1\.7\)/);   // decelerating approach
 });
+
+test('tapping the globe launches another flight each time, between real airports, with a cap', async () => {
+  const js = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'js', 'hero-globe.js'), 'utf8');
+  assert.match(js, /svg\.addEventListener\('click', function \(\) \{ launch\(lastLam\); \}\);/);
+  assert.match(js, /var MAX_EXTRA = 30;/);
+  for (const code of ['FRA', 'CDG', 'PEK', 'SIN', 'LAX', 'GRU']) assert.match(js, new RegExp(`code: '${code}'`));
+  new Function(js);
+});
