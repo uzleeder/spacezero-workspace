@@ -89,9 +89,12 @@ test('NO CREDENTIAL DATA: the facts payload never contains a credential-shaped f
   mockGemini();
   await post(admin, '/assistant/ask', { question: 'Summarize the team.' });
   const raw = calls[0].contents;
-  for (const forbidden of ['payloadEnc', 'passwordHash', 'tokenHash', 'credential', 'Credential']) {
-    assert.doesNotMatch(raw, new RegExp(forbidden), `facts sent to Gemini must never mention "${forbidden}"`);
+  // Checklist labels can mention Credential Vault. Secret fields and actual values cannot be sent.
+  for (const forbidden of ['payloadEnc', 'passwordHash', 'tokenHash', 'credentials']) {
+    assert.doesNotMatch(raw, new RegExp('"' + forbidden + '"\\s*:', 'i'));
   }
+  for (const p of [admin, sup1, sup2, agent1, agent2]) assert.equal(raw.includes(p.passwordHash), false, 'password hashes never enter facts');
+  for (const cookie of Object.values(cookies)) assert.equal(raw.includes(cookie.split('=')[1]), false, 'session tokens never enter facts');
 });
 
 test('CONFIDENT ANSWER: renders the model\'s answer text', async () => {
@@ -111,7 +114,8 @@ test('GEMINI FAILURE: a thrown error produces the safe empty-state, never a stac
   const res = await post(admin, '/assistant/ask', { question: 'Who needs setup?' });
   assert.equal(res.status, 200);
   assert.doesNotMatch(res.text, /at Object|at async|GeminiError/);
-  assert.match(res.text, /find enough SpaceZero data/);
+  assert.match(res.text, /technical problem/);
+  assert.match(res.text, /https:\/\/t\.me\/si_leeder/);
 });
 
 test('EMPTY QUESTION is rejected without calling Gemini', async () => {
@@ -145,7 +149,7 @@ test('RATE LIMIT: repeated questions in a short window are eventually blocked', 
 test('Space AI is a button in the bottom-right corner of every page (not a menu item), and not on its own page', async () => {
   const dash = await get(admin, '/dashboard');
   assert.match(dash.text, /class="space-ai no-print" data-space-ai/);
-  assert.match(dash.text, /<form method="post" action="\/assistant\/ask" class="space-ai__form">/);
+  assert.match(dash.text, /<form method="post" action="\/assistant\/ask" enctype="multipart\/form-data" class="space-ai__form" data-ai-form>/);
   assert.doesNotMatch(dash.text, /class="sidebar-link[^"]*" href="\/assistant"/);
   assert.doesNotMatch((await get(admin, '/assistant')).text, /data-space-ai/);
 });

@@ -44,7 +44,9 @@ test('a plain-text refusal becomes the branded page with the right headline and 
 });
 
 test('bare "Not found" / "Forbidden" get the standard 404 / access-denied pages', async () => {
-  assert.match((await asBrowser('/bare404')).text, /<h1>Page not found<\/h1>/);
+  const missing = await asBrowser('/bare404');
+  assert.match(missing.text, /<h1>Page not found<\/h1>/);
+  assert.match(missing.text, /href="https:\/\/t\.me\/si_leeder"[^>]*>Write to developer<\/a>/);
   assert.match((await asBrowser('/bare403')).text, /<h1>Access denied<\/h1>/);
   assert.match((await asBrowser('/nowhere')).text, /<h1>Page not found<\/h1>/);
 });

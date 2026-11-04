@@ -245,6 +245,7 @@ model TenureBand {
 // ---------------------------------------------------------------------------
 
 model Profile {
+  aiChats                    AiChat[]
   coachingNotesAbout         CoachingNote[]              @relation("CoachingNoteSubject")
   coachingNotesWritten       CoachingNote[]              @relation("CoachingNoteAuthor")
   developmentRecommendations DevelopmentRecommendation[]
@@ -1801,4 +1802,52 @@ model AiTask {
 
   @@index([courseId, taskType])
   @@index([status])
+}
+
+/// Space AI conversations: each person's own chats (only they can open them). The AI itself answers each question
+/// from the facts that person is allowed to see; the chat only keeps what was asked and answered.
+model AiChat {
+  id             String          @id @default(cuid())
+  organizationId String
+  profileId      String
+  profile        Profile         @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  title          String
+  isPinned       Boolean         @default(false)
+  isArchived     Boolean         @default(false)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  messages       AiChatMessage[]
+  shares         AiChatShare[]
+
+  @@index([profileId, updatedAt])
+}
+
+/// role: "user" | "assistant". kind (assistant only): "answer" | "unknown" (no data: contact an Admin) |
+/// "technical" (the AI could not run: contact the engineer) | "limit" (too many questions).
+model AiChatMessage {
+  id        String   @id @default(cuid())
+  chatId    String
+  chat      AiChat   @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  role      String
+  kind      String   @default("answer")
+  content   String
+  imagePath String?
+  imageMime String?
+  imageName String?
+  sourcesJson String @default("[]")
+  createdAt DateTime @default(now())
+
+  @@index([chatId, createdAt])
+}
+
+model AiChatShare {
+  id               String   @id @default(cuid())
+  token            String   @unique
+  chatId           String
+  chat             AiChat   @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  recipientIdsJson String
+  snapshotJson     String
+  createdAt        DateTime @default(now())
+
+  @@index([chatId])
 }

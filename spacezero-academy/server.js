@@ -100,6 +100,7 @@ app.use(async (req, res, next) => {
   res.locals.roleLabel = roleLabel;
   res.locals.renderInline = renderInline;
   res.locals.nav = req.profile ? navForRole(req.profile.role) : [];
+  res.locals.supportContacts = require('./lib/supportContacts').supportContacts();   // Space AI: who to contact when it cannot help
   // can(key): may THIS viewer use a Supervisor-grantable capability (lib/supervisorCapabilities.js).
   // Admins always may; a Supervisor only with an explicit grant; everyone else never. Views use it to
   // not offer a link/button the server would answer with "Access denied" — the server-side check on

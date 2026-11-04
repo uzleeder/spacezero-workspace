@@ -134,24 +134,38 @@
       </main>
     </div>
   </div>
-  <% if (!/^\/assistant(\/|$)/.test(currentPath)) { %>
+  <% if (!/^\/assistant(\/|$)/.test(currentPath) && !(impersonation && impersonation.readOnly)) { %>
   <details class="space-ai no-print" data-space-ai>
     <summary class="space-ai__fab" aria-label="Open Space AI" title="Space AI">
       <%- include('partials/icon', { name: 'ai' }) %><span>Space AI</span>
     </summary>
-    <div class="space-ai__panel" role="dialog" aria-label="Space AI">
-      <div class="space-ai__head"><strong>Space AI</strong><span>Read-only answers from what you are allowed to see.</span></div>
-      <form method="post" action="/assistant/ask" class="space-ai__form">
+    <div class="space-ai__panel" role="dialog" aria-label="Space AI" data-ai-app data-ai-panel data-ai-owner="<%= profile.id %>">
+      <div class="space-ai__head">
+        <div><strong>Space AI</strong><span>Read-only answers from what you are allowed to see.</span></div>
+        <button type="button" class="space-ai__new" data-ai-new-chat title="Start a new chat">+ New chat</button>
+      </div>
+      <div class="space-ai__thread ai-thread" data-ai-thread aria-live="polite">
+        <p class="space-ai__hello" data-ai-welcome>Ask about setup, training, skills, standards or leave. The answer appears right here.</p>
+      </div>
+      <form method="post" action="/assistant/ask" enctype="multipart/form-data" class="space-ai__form" data-ai-form>
+        <input type="hidden" name="chatId" value="" data-ai-chat-id />
         <label class="visually-hidden" for="space-ai-question">Ask Space AI</label>
         <div class="ai-composer">
-          <textarea id="space-ai-question" name="question" rows="2" maxlength="500" required placeholder="Message Space AI…" data-enter-send></textarea>
+          <textarea id="space-ai-question" name="question" rows="1" maxlength="500" required placeholder="Message Space AI…" data-enter-send></textarea>
           <button type="submit" class="ai-send" aria-label="Send" title="Send (Enter)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 2.5 10.6 13.4"/><path d="M21.5 2.5 14.6 21.4l-4-8-8-4z"/></svg></button>
         </div>
-        <div class="space-ai__actions"><span class="ai-hint">Enter to send · Shift + Enter for a new line</span><a href="/assistant" class="text-sm link-gold">Open Space AI</a></div>
+        <%- include('partials/ai-voice-controls') %>
+        <%- include('partials/ai-image-input') %>
+        <div class="space-ai__actions"><span class="ai-hint">Enter to send · Shift + Enter for a new line</span><a href="/assistant" class="text-sm link-gold" data-ai-open>Open Space AI</a></div>
       </form>
     </div>
   </details>
   <% } %>
+  <script type="application/json" id="space-ai-contacts"><%- JSON.stringify(typeof supportContacts !== 'undefined' ? supportContacts : null).split('<').join(String.fromCharCode(92) + 'u003c') %></script>
+  <template id="space-ai-avatar"><%- include('partials/icon', { name: 'ai' }) %></template>
   <script src="<%= asset('/static/js/app.js') %>"></script>
+  <script src="<%= asset('/static/js/space-ai-voice.js') %>" defer></script>
+  <script src="<%= asset('/static/js/space-ai.js') %>" defer></script>
+  <script src="<%= asset('/static/js/space-ai-history.js') %>" defer></script>
 </body>
 </html>

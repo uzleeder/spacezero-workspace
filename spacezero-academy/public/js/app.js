@@ -405,6 +405,7 @@
     if (form.requestSubmit) form.requestSubmit(); else form.submit();
   });
   document.addEventListener('submit', function (e) {
+    if (e.defaultPrevented) return;                                // Space AI sent it without leaving the page (space-ai.js)
     var send = e.target.querySelector && e.target.querySelector('.ai-send');
     if (send) { e.target.dataset.sending = '1'; send.disabled = true; send.classList.add('is-sending'); }
   });
