@@ -2595,3 +2595,9 @@ html[data-theme="dark"] .cred-status.is-missing { background: rgba(245,196,81,.1
 .email-switch-row > div:first-child { min-width: 0; }
 @media (max-width: 1100px) { .email-switch-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (min-width: 1024px) { .sidebar.collapsed .sidebar-link.active:after { display: none; } }   /* collapsed: the gold tile alone marks the page you are on */
+.email-freq { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.email-freq__custom:not([hidden]) { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--card-muted); }
+.email-freq__custom input { width: 64px; min-height: 34px; padding: 4px 8px; border-radius: 10px; text-align: center; }
+.email-switch-row { flex-wrap: wrap; row-gap: 8px; }
+.email-switch-row > div:first-child { flex: 1 1 110px; }
+.email-switch-row__controls { flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }

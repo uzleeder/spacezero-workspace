@@ -9,8 +9,10 @@ const { getSetting } = require('./orgSettings');
 // A training that has been assigned gets ONE assignment email, then ONE reminder every N days until it is completed.
 // N is set per training by an Admin (Manage Training -> Training emails): every day (default), 2 or 3 days, or weekly.
 const REMINDER_INTERVAL_MS = 24 * 60 * 60 * 1000;
-const REMINDER_CHOICES = [1, 2, 3, 7];
-const everyDays = (course) => (REMINDER_CHOICES.includes(course && course.reminderEveryDays) ? course.reminderEveryDays : 1);
+const REMINDER_CHOICES = [1, 2, 3, 7];   // the ready-made choices; an Admin can also enter any number of days (Custom)
+const MAX_REMINDER_DAYS = 60;
+const validDays = (n) => Number.isInteger(n) && n >= 1 && n <= MAX_REMINDER_DAYS;
+const everyDays = (course) => (validDays(course && course.reminderEveryDays) ? course.reminderEveryDays : 1);
 const intervalMs = (course) => everyDays(course) * REMINDER_INTERVAL_MS;
 /** "once a day" / "every 2 days" / "once a week": how the emails describe the cadence. */
 const cadenceText = (days) => (days === 1 ? 'once a day' : days === 7 ? 'once a week' : `every ${days} days`);
@@ -193,4 +195,4 @@ function start() {
   kick();
 }
 function stop() { if (timer) clearInterval(timer); timer = null; }
-module.exports = { enqueueAssignment, queueAgain, processNext, drain, kick, start, stop, completed, finishedInAnotherCopy, stopForFinished, resumePaused, emailsOff, PAUSED, REMINDER_INTERVAL_MS, REMINDER_CHOICES, cadenceText, rescheduleCourse };
+module.exports = { enqueueAssignment, queueAgain, processNext, drain, kick, start, stop, completed, finishedInAnotherCopy, stopForFinished, resumePaused, emailsOff, PAUSED, REMINDER_INTERVAL_MS, REMINDER_CHOICES, MAX_REMINDER_DAYS, validDays, cadenceText, rescheduleCourse };

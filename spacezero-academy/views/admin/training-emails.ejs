@@ -42,9 +42,18 @@
             <form method="post" action="/admin/training-emails/frequency" class="email-freq">
               <input type="hidden" name="id" value="<%= c.id %>" />
               <label class="visually-hidden" for="freq-<%= c.id %>">How often to remind about <%= c.title %></label>
-              <select id="freq-<%= c.id %>" name="days" onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.submit()">
+              <% var custom = choices.indexOf(c.reminderEveryDays) === -1; %>
+              <select id="freq-<%= c.id %>" name="days" data-freq-select>
                 <% choices.forEach(function (d) { %><option value="<%= d %>"<%= c.reminderEveryDays === d ? ' selected' : '' %>><%= d === 1 ? 'Every day' : d === 7 ? 'Once a week' : 'Every ' + d + ' days' %></option><% }); %>
+                <% if (custom) { %><option value="<%= c.reminderEveryDays %>" selected>Every <%= c.reminderEveryDays %> days</option><% } %>
+                <option value="custom">Custom…</option>
               </select>
+              <span class="email-freq__custom" data-freq-custom hidden>
+                <label for="custom-<%= c.id %>">Every</label>
+                <input id="custom-<%= c.id %>" name="customDays" type="number" min="1" max="<%= maxDays %>" step="1" inputmode="numeric" value="<%= c.reminderEveryDays %>" />
+                <span>days</span>
+                <button type="submit" class="btn btn-gold btn-sm">Save</button>
+              </span>
               <noscript><button type="submit" class="btn btn-secondary btn-sm">Save</button></noscript>
             </form>
             <%- include('../partials/email-switch', { target: 'course', id: c.id, on: !c.trainingEmailsOff, name: c.title }) %>
@@ -55,3 +64,14 @@
   </section>
 </div>
 <div style="height:40px"></div>
+<script>
+// Picking a ready-made rhythm saves at once; Custom... opens "Every [n] days" to type a number and Save.
+document.querySelectorAll('[data-freq-select]').forEach(function (select) {
+  var form = select.form, box = form.querySelector('[data-freq-custom]'), field = box.querySelector('input');
+  select.addEventListener('change', function () {
+    if (select.value === 'custom') { box.hidden = false; field.focus(); field.select(); return; }
+    box.hidden = true;
+    if (form.requestSubmit) form.requestSubmit(); else form.submit();
+  });
+});
+</script>
