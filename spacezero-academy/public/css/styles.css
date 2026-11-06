@@ -2842,6 +2842,3 @@ html:not([data-theme="dark"]) .hero-art .globe-port-label--home { fill: #8a5f37;
 html:not([data-theme="dark"]) .hero-art .globe-port-dot { fill: #dca878; stroke: #ffffff; }
 html:not([data-theme="dark"]) .hero-art .globe-trail { stroke: #c98f5c; filter: none; }
 html:not([data-theme="dark"]) .hero-art .globe-plane use { fill: #dca878; stroke: #8a5f37; filter: drop-shadow(0 2px 3px rgba(44,38,89,.35)); }
-
-/* ---- Default profile picture (partials/avatar): the SPACE artwork for everyone without an uploaded photo ---- */
-.avatar-default { object-fit: cover; background: #0b1020; padding: 0; }
