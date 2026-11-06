@@ -42,7 +42,7 @@
               <% const alsoPaths = item.activeAlso || [];
               const matchesPath = function (p) { return currentPath === p || currentPath.indexOf(p + '/') === 0; };
               const active = matchesPath(item.href) || alsoPaths.some(matchesPath);
-              const iconName = /employees|\/team$/.test(item.href) ? 'people' : /ai-practice/.test(item.href) ? 'upload' : /skill/.test(item.href) ? 'skills' : /admin\/library|call-review/.test(item.href) ? 'calls' : /library/.test(item.href) ? 'library' : /training/.test(item.href) ? 'training' : /notes/.test(item.href) ? 'notes' : /settings/.test(item.href) ? 'settings' : /profile/.test(item.href) ? 'profile' : /standards/.test(item.href) ? 'book' : /assistant/.test(item.href) ? 'ai' : 'dashboard'; %>
+              const iconName = /employees|\/team$/.test(item.href) ? 'people' : /ai-practice/.test(item.href) ? 'upload' : /skill/.test(item.href) ? 'skills' : /admin\/library|call-review/.test(item.href) ? 'calls' : /library/.test(item.href) ? 'library' : /training/.test(item.href) ? 'training' : /notes/.test(item.href) ? 'notes' : /settings/.test(item.href) ? 'settings' : /profile/.test(item.href) ? 'profile' : /standards/.test(item.href) ? 'book' : /assistant/.test(item.href) ? 'ai' : /^\/office/.test(item.href) ? 'office' : 'dashboard'; %>
               <a class="sidebar-link<%= active ? ' active' : '' %>" href="<%= item.href %>" title="<%= item.label %>" <%- active ? 'aria-current="page"' : '' %>><%- include('partials/icon', { name: iconName }) %><span><%= item.label %></span></a>
             <% }); %>
           </div>

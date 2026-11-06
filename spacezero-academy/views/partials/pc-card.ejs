@@ -23,6 +23,7 @@
         </div>
         <% } %>
       </div>
+      <% if (desk.items && desk.items.length) { %><p class="text-sm text-muted mt-16" style="margin-bottom:0">Equipment at this desk: <%= desk.items.map(function (i) { return (i.assetTag ? i.assetTag + ' ' : '') + i.name; }).join(' · ') %></p><% } %>
       <% if (desk.pcCase || desk.keyboard || desk.mouse) { %><p class="text-sm text-muted mt-16" style="margin-bottom:0">Also on the desk: <%= [desk.pcCase && 'case ' + desk.pcCase, desk.keyboard && 'keyboard ' + desk.keyboard, desk.mouse && 'mouse ' + desk.mouse].filter(Boolean).join(' · ') %></p><% } %>
     <% } %>
     <% if (typeof editable !== 'undefined' && editable) { var dv = function (k) { return desk && desk[k] ? desk[k] : ''; }; %>

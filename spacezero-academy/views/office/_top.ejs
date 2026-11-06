@@ -1,0 +1,5 @@
+<%# Office Management header, tabs and messages (every Office tab). action = optional header button HTML. %>
+<%- include('../partials/page-header', { pageTitle: 'Office Management', pageDescription: 'Equipment, desks and repairs in the SpaceZero office. Only you can see these pages.', headerAction: typeof action !== 'undefined' ? action : '' }) %>
+<%- include('../partials/management-tabs', { tabs: tabs }) %>
+<% if (notice) { %><div class="form-alert success mt-16" role="status"><%= notice %></div><% } %>
+<% if (error && !(typeof inDrawer !== 'undefined' && inDrawer)) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>

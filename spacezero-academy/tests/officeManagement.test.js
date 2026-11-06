@@ -1,6 +1,6 @@
 'use strict';
-// Office Management: one simple list of the office's things. Only the office manager (Fred Marco) sees it: not Admins,
-// not other supervisors, not an Admin viewing as Fred. The button is on his Dashboard and Profile only.
+// Office Management: Overview, Assets, Desks, Repairs, Activity. Only the office manager (Fred Marco) reaches any of it:
+// not Admins, not other supervisors, not an Admin viewing as Fred. Plus My PC on each person's own Setup/profile.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const request = require('supertest');
@@ -31,100 +31,224 @@ before(async () => {
 });
 after(async () => { await prisma.$disconnect(); });
 
-test('only the office manager sees Office Management: the button on his Dashboard and Profile, and the page', async () => {
+const itemByTag = (tag) => prisma.officeItem.findFirst({ where: { organizationId: org.id, assetTag: tag } });
+
+test('only the office manager reaches Office Management: sidebar, Dashboard/Profile button, every page and change', async () => {
   assert.match((await get(fred, '/dashboard')).text, /href="\/office"[\s\S]{0,400}Office Management/);
+  assert.match((await get(fred, '/dashboard')).text, /class="sidebar-link[^"]*" href="\/office" title="Office Management"/);
   assert.match((await get(fred, '/profile')).text, /href="\/office"/);
-  assert.equal((await get(fred, '/office')).status, 200);
+  for (const url of ['/office', '/office/assets', '/office/desks', '/office/repairs', '/office/activity']) assert.equal((await get(fred, url)).status, 200, url);
   for (const who of [admin, sup, agent]) {
     assert.doesNotMatch((await get(who, '/dashboard')).text, /href="\/office"/, who.fullName);
-    assert.equal((await get(who, '/office')).status, 404, who.fullName);
-    assert.equal((await post(who, '/office/items', { name: 'Sneaky', type: 'TV' })).status, 404, who.fullName);
+    for (const url of ['/office', '/office/assets', '/office/desks', '/office/repairs', '/office/activity']) assert.equal((await get(who, url)).status, 404, `${who.fullName} ${url}`);
+    assert.equal((await post(who, '/office/assets', { name: 'Sneaky', type: 'TV' })).status, 404, who.fullName);
+    assert.equal((await post(who, '/office/repairs', { itemId: 'x', issue: 'x' })).status, 404, who.fullName);
   }
   assert.equal(await prisma.officeItem.count({ where: { organizationId: org.id } }), 0);
 });
 
-test('Fred adds items (one, or many at once), gives them to people, edits and removes them', async () => {
-  assert.equal((await post(fred, '/office/items', { name: 'Jabra headset', type: 'HEADPHONES', count: '3' })).status, 302);
-  assert.equal((await post(fred, '/office/items', { name: 'Dell monitor 24', type: 'MONITOR', holderId: agent.id, condition: 'GOOD', note: 'Desk 4' })).status, 302);
-  const items = await prisma.officeItem.findMany({ where: { organizationId: org.id }, orderBy: { name: 'asc' } });
-  assert.deepEqual(items.map((i) => i.name), ['Dell monitor 24', 'Jabra headset 1', 'Jabra headset 2', 'Jabra headset 3']);
-  assert.equal(items[0].holderId, agent.id); assert.equal(items[1].holderId, null);
-
-  const page = (await get(fred, '/office')).text;
-  assert.match(page, /Jabra headset 2/); assert.match(page, /Max Agent/); assert.match(page, /Office \/ storage/);
-  assert.match((await get(fred, '/office?holder=' + agent.id)).text, /Dell monitor 24/);
-  assert.doesNotMatch((await get(fred, '/office?holder=' + agent.id)).text, /<strong>Jabra headset 1<\/strong>/);   // the item list (product tiles always show every product)
-  assert.doesNotMatch((await get(fred, '/office?type=MONITOR')).text, /<strong>Jabra headset/);
-
-  // give a headset to Max, mark it for repair
-  const h = items[1];
-  assert.equal((await post(fred, `/office/items/${h.id}`, { name: h.name, type: 'HEADPHONES', holderId: agent.id, condition: 'NEEDS_REPAIR', note: 'Left ear crackles' })).status, 302);
-  const changed = await prisma.officeItem.findUnique({ where: { id: h.id } });
-  assert.equal(changed.holderId, agent.id); assert.equal(changed.condition, 'NEEDS_REPAIR');
-  assert.match((await get(fred, '/office?condition=NEEDS_REPAIR')).text, /Left ear crackles/);
-
-  // take it back to the office, then remove it
-  assert.equal((await post(fred, `/office/items/${h.id}`, { name: h.name, type: 'HEADPHONES', holderId: '', condition: 'GOOD' })).status, 302);
-  assert.equal((await prisma.officeItem.findUnique({ where: { id: h.id } })).holderId, null);
-  assert.equal((await post(fred, `/office/items/${h.id}/delete`)).status, 302);
-  assert.equal(await prisma.officeItem.count({ where: { id: h.id } }), 0);
-  assert.ok(await prisma.auditLog.findFirst({ where: { organizationId: org.id, action: 'office.items_added', actorId: fred.id } }));
+test('an Admin viewing as the office manager gets none of Office Management', async () => {
+  const viewingAs = `${cookies[fred.id]}; sz_admin_session=${cookies[admin.id].split('=')[1]}`;
+  for (const url of ['/office', '/office/assets', '/office/desks']) assert.equal((await request(app).get(url).set('Cookie', viewingAs)).status, 404, url);
+  assert.ok([403, 404].includes((await request(app).post('/office/assets').set('Cookie', viewingAs).type('form').send({ name: 'x' })).status));   // read-only while viewing as someone
+  assert.doesNotMatch((await request(app).get('/dashboard').set('Cookie', viewingAs)).text, /href="\/office"/);
+});
+test('canManageOffice: office manager only, never while viewing as someone', () => {
+  const { canManageOffice } = require('../lib/office');
+  assert.equal(canManageOffice({ profile: { officeManager: true } }), true);
+  assert.equal(canManageOffice({ profile: { officeManager: true }, impersonation: { adminId: 'a' } }), false);
+  assert.equal(canManageOffice({ profile: { officeManager: false, role: 'ADMIN' } }), false);
 });
 
-test('items cannot go to people of another company, and others cannot change Fred\'s items', async () => {
-  const before = await prisma.officeItem.count({ where: { organizationId: org.id } });
-  const res = await post(fred, '/office/items', { name: 'TV 55', type: 'TV', holderId: outsider.id });
-  assert.equal(res.status, 302); assert.match(res.headers.location, /error=/);
-  assert.equal(await prisma.officeItem.count({ where: { organizationId: org.id } }), before);
-  const item = await prisma.officeItem.findFirst({ where: { organizationId: org.id } });
-  assert.equal((await post(admin, `/office/items/${item.id}/delete`)).status, 404);
-  assert.equal((await post(sup, `/office/items/${item.id}`, { name: 'Taken', holderId: sup.id })).status, 404);
-  assert.equal(await prisma.officeItem.count({ where: { id: item.id } }), 1);
+test('adding: one asset, or several after a preview; every asset gets its own tag, never reused', async () => {
+  const one = await post(fred, '/office/assets', { name: 'Dell monitor', model: 'Dell P2422H', type: 'MONITOR', location: 'Storage', verified: '1', back: '/office/assets' });
+  assert.equal(one.status, 302);
+  const first = await itemByTag('SZ-0001');
+  assert.equal(first.name, 'Dell monitor'); assert.ok(first.verifiedAt); assert.equal(first.lifecycle, 'ACTIVE');
+  // several: a preview first, nothing created yet
+  const preview = await post(fred, '/office/assets', { name: 'Jabra headset', model: 'Jabra Evolve2 30', type: 'HEADPHONES', count: '12', location: 'Storage', back: '/office/assets' });
+  assert.equal(preview.status, 200); assert.match(preview.text, /Check before adding 12 assets/); assert.match(preview.text, /SZ-0002<\/strong> to <strong>SZ-0013/);
+  assert.equal(await prisma.officeItem.count({ where: { organizationId: org.id } }), 1);
+  assert.equal((await post(fred, '/office/assets', { name: 'Jabra headset', model: 'Jabra Evolve2 30', type: 'HEADPHONES', count: '12', location: 'Storage', confirm: '1', back: '/office/assets' })).status, 302);
+  assert.equal(await prisma.officeItem.count({ where: { organizationId: org.id } }), 13);
+  // a bounded batch
+  assert.equal((await post(fred, '/office/assets', { name: 'Too many', count: '500', back: '/office/assets' })).status, 400);
+  // retiring keeps the record, and its tag is never handed out again
+  const last = await itemByTag('SZ-0013');
+  await post(fred, `/office/assets/${last.id}/retire`, { version: String(last.version), reason: 'Lost', back: '/office/assets' });
+  await post(fred, '/office/assets', { name: 'Logitech mouse', type: 'MOUSE', location: 'Storage', back: '/office/assets' });
+  assert.ok(await itemByTag('SZ-0014'));
+  assert.equal((await itemByTag('SZ-0013')).lifecycle, 'RETIRED');
 });
 
-test('the page counts every type and every product, and a product tile shows only that product', async () => {
-  await post(fred, '/office/items', { name: 'Mouse', type: 'OTHER', count: '4' });
-  await post(fred, '/office/items', { name: 'Mouse pad', type: 'OTHER', count: '2' });
-  await post(fred, '/office/items', { name: 'Coffee Machine', type: 'OTHER' });
-  const page = (await get(fred, '/office')).text;
-  assert.match(page, /What's in the office/);
-  assert.match(page, /office-product__name">Mouse<\/span><span class="office-product__count">4</);
-  assert.match(page, /office-product__name">Mouse pad<\/span><span class="office-product__count">2</);
-  assert.match(page, /office-product__name">Coffee Machine<\/span><span class="office-product__count">1</);
-  assert.match(page, /href="\/office\?type=MONITOR">Monitor <strong>1<\/strong>/);
-  const only = (await get(fred, '/office?product=Mouse')).text;
-  assert.match(only, /<strong>Mouse 3<\/strong>/); assert.doesNotMatch(only, /<strong>Mouse pad 1<\/strong>/);
+test('the list: natural order, search, combined filters, pages of 25/50/100, and the filters survive a save', async () => {
+  const page1 = (await get(fred, '/office/assets?category=HEADPHONES&sort=name')).text;
+  const names = [...page1.matchAll(/<td data-label="Item"><strong>([^<]+)</g)].map((m) => m[1]);
+  assert.deepEqual(names.slice(0, 3), ['Jabra headset 1', 'Jabra headset 2', 'Jabra headset 3'], 'natural order: 2 before 10');
+  assert.match(page1, /<strong>11<\/strong> results/);                                    // 12 headsets, one retired
+  assert.match((await get(fred, '/office/assets?q=Evolve2&view=retired')).text, /<strong>1<\/strong> result /);
+  const small = (await get(fred, '/office/assets?per=25')).text;
+  assert.match(small, /<option value="25" selected>/); assert.match(small, /<option value="50">/); assert.match(small, /<option value="100">/);
+  assert.equal((await get(fred, '/office/assets?per=7')).text.match(/<option value="25" selected>/) !== null, true, 'unknown sizes fall back to 25');
+  // a validation error keeps what was typed; a save returns to the same filtered list
+  const item = await itemByTag('SZ-0002');
+  const bad = await post(fred, `/office/assets/${item.id}`, { version: String(item.version), name: '', model: 'Kept model text', back: '/office/assets?category=HEADPHONES&page=1' });
+  assert.equal(bad.status, 400); assert.match(bad.text, /Write the name of the asset/); assert.match(bad.text, /value="Kept model text"/);
+  const ok = await post(fred, `/office/assets/${item.id}`, { version: String(item.version), name: 'Jabra headset 2', model: 'Jabra Evolve2 30', type: 'HEADPHONES', condition: 'GOOD', location: 'Shelf B', back: '/office/assets?category=HEADPHONES&sort=name' });
+  assert.equal(ok.status, 302); assert.match(ok.headers.location, /^\/office\/assets\?category=HEADPHONES&sort=name&notice=.*&asset=/);
 });
 
-test('desks by team: Fred adds a desk with its things and computer password; the password is encrypted and shown only on request', async () => {
-  const team = await prisma.team.create({ data: { organizationId: org.id, name: 'Team Desk' } });
-  await prisma.teamMembership.create({ data: { teamId: team.id, profileId: agent.id } });
-  assert.equal((await post(fred, '/office/desks', { number: '7', profileId: agent.id, monitor: 'Ziffler', pcCase: 'myPro', keyboard: '4Tech', mouse: '4Tech', headphone: 'Logi', password: 'Pc-Secret-77', note: 'Window seat' })).status, 302);
-  const desk = await prisma.officeDesk.findFirst({ where: { organizationId: org.id, number: 7 } });
-  assert.ok(desk.passwordEnc); assert.doesNotMatch(desk.passwordEnc, /Pc-Secret-77/);           // encrypted at rest
+test('metrics match their lists: "needs repair or broken" counts and lists both; unassigned is not available', async () => {
+  const a = await itemByTag('SZ-0003'); const b = await itemByTag('SZ-0004');
+  await post(fred, `/office/assets/${a.id}`, { version: String(a.version), name: a.name, model: a.model, type: a.type, condition: 'NEEDS_REPAIR', location: 'Storage', back: '/office/assets' });
+  await post(fred, `/office/assets/${b.id}`, { version: String(b.version), name: b.name, model: b.model, type: b.type, condition: 'BROKEN', location: 'Storage', back: '/office/assets' });
+  const ov = (await get(fred, '/office')).text;
+  const metric = (k) => Number(new RegExp(`href="/office/assets\\?view=${k}">\\s*<span class="o-metric__label">[^<]*</span>\\s*<span class="o-metric__value">(\\d+)<`).exec(ov)[1]);
+  const listed = async (k) => Number(/<strong>(\d+)<\/strong> result/.exec((await get(fred, `/office/assets?view=${k}&per=100`)).text)[1]);
+  for (const k of ['all', 'assigned', 'unassigned', 'available', 'attention', 'repair', 'review', 'retired']) assert.equal(metric(k), await listed(k), k);
+  assert.equal(metric('attention'), 2, 'Needs repair AND Broken');
+  const attention = (await get(fred, '/office/assets?view=attention')).text;
+  assert.match(attention, /Needs repair<\/span>/); assert.match(attention, /Broken<\/span>/);
+  // not physically checked = unassigned but not "available"
+  assert.ok(metric('unassigned') > metric('available'));
+});
 
-  const page = (await get(fred, '/office')).text;
-  assert.match(page, /Desks by team/); assert.match(page, /Team Desk/); assert.match(page, /<strong>Max Agent<\/strong>/);
-  assert.match(page, /Ziffler/); assert.match(page, /Window seat/); assert.match(page, new RegExp(`data-pw-show="${desk.id}"`));
-  assert.doesNotMatch(page, /Pc-Secret-77/, 'the page never contains the password');
+test('custody: give, transfer, place at a desk, return - one holder at a time, only Good in-service assets, with history', async () => {
+  const item = await itemByTag('SZ-0001');                 // Good, checked, in storage
+  let r = await post(fred, `/office/assets/${item.id}/custody`, { mode: 'person', holderId: agent.id, version: String(item.version), back: '/office/assets' });
+  assert.equal(r.status, 302);
+  let now = await itemByTag('SZ-0001');
+  assert.equal(now.holderId, agent.id);
+  // a stale form (old version) is refused, nothing is overwritten
+  const stale = await post(fred, `/office/assets/${item.id}/custody`, { mode: 'person', holderId: sup.id, version: String(item.version), back: '/office/assets' });
+  assert.equal(stale.status, 409); assert.match(stale.text, /Someone else changed this record/);
+  assert.equal((await itemByTag('SZ-0001')).holderId, agent.id);
+  // transfer to a desk: the person no longer has it (never both)
+  assert.equal((await post(fred, '/office/desks', { number: '5', profileId: sup.id, back: '/office/desks' })).status, 302);
+  const desk = await prisma.officeDesk.findFirst({ where: { organizationId: org.id, number: 5 } });
+  await post(fred, `/office/assets/${item.id}/custody`, { mode: 'desk', deskId: desk.id, version: String(now.version), back: '/office/assets' });
+  now = await itemByTag('SZ-0001');
+  assert.equal(now.deskId, desk.id); assert.equal(now.holderId, null); assert.equal(now.location, 'Desk 5');
+  // another company's person or desk is refused
+  const foreignDesk = await prisma.officeDesk.create({ data: { organizationId: other.id, number: 99 } });
+  for (const body of [{ mode: 'person', holderId: outsider.id }, { mode: 'desk', deskId: foreignDesk.id }]) {
+    const x = await post(fred, `/office/assets/${item.id}/custody`, { ...body, version: String(now.version), back: '/office/assets' });
+    assert.equal(x.status, 400);
+  }
+  // broken equipment cannot be given out
+  const broken = await itemByTag('SZ-0004');
+  const no = await post(fred, `/office/assets/${broken.id}/custody`, { mode: 'person', holderId: agent.id, version: String(broken.version), back: '/office/assets' });
+  assert.equal(no.status, 400); assert.match(no.text, /cannot be given out until it is Good/);
+  // return
+  await post(fred, `/office/assets/${item.id}/custody`, { mode: 'return', location: 'Storage', version: String(now.version), back: '/office/assets' });
+  now = await itemByTag('SZ-0001');
+  assert.equal(now.deskId, null); assert.equal(now.location, 'Storage');
+  const history = await prisma.officeActivity.findMany({ where: { itemId: item.id }, orderBy: { createdAt: 'asc' } });
+  assert.deepEqual(history.map((h) => h.action), ['CREATED', 'ASSIGNED', 'TRANSFERRED', 'RETURNED']);
+  assert.ok(history.every((h) => h.actorId === fred.id));
+});
 
-  const shown = await post(fred, `/office/desks/${desk.id}/password`);
-  assert.equal(shown.status, 200); assert.equal(shown.body.password, 'Pc-Secret-77'); assert.match(shown.headers['cache-control'], /no-store/);
-  assert.ok(await prisma.auditLog.findFirst({ where: { organizationId: org.id, action: 'office.desk_password_viewed', targetId: desk.id, actorId: fred.id } }));
+test('desks: linked equipment and readiness; a new occupant does not inherit the saved password unless kept', async () => {
+  const desk = await prisma.officeDesk.findFirst({ where: { organizationId: org.id, number: 5 } });
+  assert.equal((await post(fred, `/office/desks/${desk.id}`, { number: '5', profileId: sup.id, password: 'Desk5-pw', version: String(desk.version), back: '/office/desks' })).status, 302);
+  const d1 = await prisma.officeDesk.findUnique({ where: { id: desk.id } });
+  assert.ok(d1.passwordEnc); assert.doesNotMatch(d1.passwordEnc, /Desk5-pw/);
+  // link a computer, a monitor and headphones -> ready
+  const mk = async (name, type) => { await post(fred, '/office/assets', { name, type, location: 'Storage', back: '/office/assets' }); return prisma.officeItem.findFirst({ where: { organizationId: org.id, name } }); };
+  for (const [name, type] of [['PC tower', 'CASE'], ['Desk monitor', 'MONITOR'], ['Desk headset', 'HEADPHONES']]) {
+    const it = await mk(name, type);
+    assert.equal((await post(fred, `/office/desks/${desk.id}/link`, { pick: `${it.id}:${it.version}`, back: '/office/desks' })).status, 302);
+  }
+  const page = (await get(fred, `/office/desks?desk=${desk.id}`)).text;
+  assert.match(page, /<span class="o-tag o-tag--ok">Ready<\/span>/); assert.match(page, /PC tower/);
+  assert.doesNotMatch(page, /Desk5-pw/, 'the page never contains the password');
+  assert.equal((await post(fred, `/office/desks/${desk.id}/password`)).body.password, 'Desk5-pw');
+  for (const who of [admin, sup, agent]) assert.equal((await post(who, `/office/desks/${desk.id}/password`)).status, 404);
+  // someone else sits there now: the old password is removed (not kept by accident); equipment stays with the desk
+  const d2 = await prisma.officeDesk.findUnique({ where: { id: desk.id } });
+  assert.equal((await post(fred, `/office/desks/${desk.id}`, { number: '5', profileId: admin.id, version: String(d2.version), back: '/office/desks' })).status, 302);
+  const d3 = await prisma.officeDesk.findUnique({ where: { id: desk.id }, include: { items: true } });
+  assert.equal(d3.passwordEnc, null); assert.equal(d3.items.length, 3);
+  // a desk with linked equipment cannot be removed
+  const del = await post(fred, `/office/desks/${desk.id}/delete`, { back: '/office/desks' });
+  assert.equal(del.status, 400); assert.match(del.text, /still has 3 linked assets/);
+  // filters
+  assert.match((await get(fred, '/office/desks?view=unoccupied')).text, /No desks match/);
+});
 
-  // nobody else can see it, Admins included
-  for (const who of [admin, sup, agent]) assert.equal((await post(who, `/office/desks/${desk.id}/password`)).status, 404, who.fullName);
+test('repairs: open, move, resolve with an explicit result, reopen, cancel - with the asset kept in step', async () => {
+  const item = await itemByTag('SZ-0005');
+  const opened = await post(fred, '/office/repairs', { itemId: item.id, issue: 'Left ear cup crackles', priority: 'HIGH', condition: 'NEEDS_REPAIR', dueAt: '2026-11-08', back: '/office/repairs' });
+  assert.equal(opened.status, 302);
+  const repair = await prisma.officeRepair.findFirst({ where: { itemId: item.id } });
+  let it = await itemByTag('SZ-0005');
+  assert.equal(it.lifecycle, 'IN_REPAIR'); assert.equal(it.condition, 'NEEDS_REPAIR');
+  assert.equal(repair.dueAt.toISOString(), '2026-11-08T18:59:00.000Z', 'due = end of the day in Tashkent');
+  // a second open repair for the same asset is refused; an in-repair asset cannot be given out
+  assert.equal((await post(fred, '/office/repairs', { itemId: item.id, issue: 'Again', back: '/office/repairs' })).status, 400);
+  assert.equal((await post(fred, `/office/assets/${item.id}/custody`, { mode: 'person', holderId: agent.id, version: String(it.version), back: '/office/assets' })).status, 400);
+  // allowed and refused moves
+  assert.equal((await post(fred, `/office/repairs/${repair.id}`, { issue: repair.issue, status: 'WAITING', version: String(repair.version), back: '/office/repairs' })).status, 302);
+  let rep = await prisma.officeRepair.findUnique({ where: { id: repair.id } });
+  assert.equal(rep.status, 'WAITING');
+  assert.equal((await post(fred, `/office/repairs/${repair.id}`, { issue: repair.issue, status: 'RESOLVED', version: String(rep.version), back: '/office/repairs' })).status, 400, 'resolving needs its own step with a result');
+  // resolving needs the result stated
+  assert.equal((await post(fred, `/office/repairs/${repair.id}/resolve`, { resolution: 'Replaced cable', version: String(rep.version), back: '/office/repairs' })).status, 400);
+  assert.equal((await post(fred, `/office/repairs/${repair.id}/resolve`, { resolution: 'Replaced cable', resultingCondition: 'GOOD', resultingLifecycle: 'ACTIVE', version: String(rep.version), back: '/office/repairs' })).status, 302);
+  it = await itemByTag('SZ-0005');
+  assert.equal(it.lifecycle, 'ACTIVE'); assert.equal(it.condition, 'GOOD');
+  // reopen -> in repair again; cancel -> back in service with its condition unchanged
+  rep = await prisma.officeRepair.findUnique({ where: { id: repair.id } });
+  assert.equal((await post(fred, `/office/repairs/${repair.id}/reopen`, { version: String(rep.version), back: '/office/repairs' })).status, 302);
+  assert.equal((await itemByTag('SZ-0005')).lifecycle, 'IN_REPAIR');
+  rep = await prisma.officeRepair.findUnique({ where: { id: repair.id } });
+  assert.equal((await post(fred, `/office/repairs/${repair.id}/cancel`, { reason: 'Works fine after all', version: String(rep.version), back: '/office/repairs' })).status, 302);
+  it = await itemByTag('SZ-0005');
+  assert.equal(it.lifecycle, 'ACTIVE'); assert.equal(it.condition, 'GOOD');
+  const actions = (await prisma.officeActivity.findMany({ where: { repairId: repair.id }, orderBy: { createdAt: 'asc' } })).map((a) => a.action);
+  assert.deepEqual(actions, ['REPAIR_OPENED', 'REPAIR_UPDATED', 'REPAIR_RESOLVED', 'REPAIR_REOPENED', 'REPAIR_CANCELLED']);
+  // overdue / due soon views
+  const late = await itemByTag('SZ-0006');
+  await post(fred, '/office/repairs', { itemId: late.id, issue: 'Mic dead', dueAt: '2020-01-01', back: '/office/repairs' });
+  assert.match((await get(fred, '/office/repairs?view=overdue')).text, /Mic dead/);
+  assert.match((await get(fred, '/office')).text, /Overdue <strong>1<\/strong>/);
+});
 
-  // saving without typing a password keeps it; "Remove" clears it; a desk number is used once
-  assert.equal((await post(fred, `/office/desks/${desk.id}`, { number: '7', profileId: agent.id, monitor: 'Redmi' })).status, 302);
-  assert.equal((await post(fred, `/office/desks/${desk.id}/password`)).body.password, 'Pc-Secret-77');
-  assert.equal((await prisma.officeDesk.findUnique({ where: { id: desk.id } })).monitor, 'Redmi');
-  const dup = await post(fred, '/office/desks', { number: '7', personName: 'Someone' });
-  assert.match(dup.headers.location, /error=.*Desk%207%20already%20exists/);
-  assert.equal((await post(fred, `/office/desks/${desk.id}`, { number: '7', clearPassword: '1' })).status, 302);
-  assert.equal((await post(fred, `/office/desks/${desk.id}/password`)).body.password, null);
-  assert.equal((await post(fred, `/office/desks/${desk.id}/delete`)).status, 302);
-  assert.equal(await prisma.officeDesk.count({ where: { id: desk.id } }), 0);
+test('activity is searchable and never holds a password; retire keeps the record and its history', async () => {
+  const page = (await get(fred, '/office/activity?q=SZ-0001')).text;
+  assert.match(page, /SZ-0001 Dell monitor added/); assert.match(page, /returned from desk 5 to Storage/);
+  const all = await prisma.officeActivity.findMany({ where: { organizationId: org.id } });
+  assert.ok(all.length > 10);
+  assert.ok(all.every((a) => !/Desk5-pw|passwordEnc/.test(`${a.summary} ${a.beforeJson} ${a.afterJson}`)));
+  const retired = await prisma.officeActivity.findFirst({ where: { organizationId: org.id, action: 'RETIRED' } });
+  assert.match(retired.summary, /SZ-0013 retired: Lost/);
+  assert.match((await get(fred, '/office/activity?action=RETIRED')).text, /SZ-0013 retired/);
+});
+
+test('backfill: tags, models and categories only from the handed-over list; everything else is marked for review', () => {
+  const { execFileSync } = require('node:child_process');
+  // legacy-shaped records in a separate organization
+  return (async () => {
+    const legacy = await prisma.organization.create({ data: { name: 'Office legacy' } });
+    await prisma.officeItem.createMany({ data: [
+      { organizationId: legacy.id, name: 'Mouse 10', type: 'OTHER' }, { organizationId: legacy.id, name: 'Mouse 2', type: 'OTHER' },
+      { organizationId: legacy.id, name: 'Coffee Machine', type: 'OTHER' }, { organizationId: legacy.id, name: 'Unknown gadget', type: 'OTHER' },
+    ] });
+    const out = execFileSync(process.execPath, ['scripts/office-backfill.cjs'], { env: process.env, encoding: 'utf8' });
+    assert.match(out, /Dry run: nothing changed/);
+    assert.equal(await prisma.officeItem.count({ where: { organizationId: legacy.id, assetTag: { not: null } } }), 0);
+    const applied = execFileSync(process.execPath, ['scripts/office-backfill.cjs', '--apply'], { env: process.env, encoding: 'utf8' });
+    const rows = await prisma.officeItem.findMany({ where: { organizationId: legacy.id } });
+    const by = Object.fromEntries(rows.map((r) => [r.name, r]));
+    assert.equal(by['Mouse 2'].model, 'Mouse'); assert.equal(by['Mouse 2'].type, 'MOUSE');
+    assert.equal(by['Coffee Machine'].type, 'APPLIANCE');
+    assert.equal(by['Unknown gadget'].model, null); assert.equal(by['Unknown gadget'].needsReview, true);
+    assert.equal(new Set(rows.map((r) => r.assetTag)).size, 4);
+    const file = /--revert (\S+)/.exec(applied)[1];
+    execFileSync(process.execPath, ['scripts/office-backfill.cjs', '--revert', file], { env: process.env, encoding: 'utf8' });
+    assert.equal(await prisma.officeItem.count({ where: { organizationId: legacy.id, assetTag: { not: null } } }), 0, 'revert puts the old values back');
+    require('node:fs').unlinkSync(file);
+  })();
 });
 
 test('"My PC" on the Setup page: each person sees their own PC number, monitor, headphone and password (on request), nobody else\'s', async () => {
@@ -176,7 +300,7 @@ test('Setup: the agent fills in My PC; their "PC" item is ticked once PC number,
   assert.equal((await post(newbie, '/my/desk/password')).body.password, 'Nora-PC-40');
   assert.doesNotMatch((await get(newbie, `/employees/${newbie.id}/setup`)).text, /Nora-PC-40/);
   // Fred sees it in Office Management
-  assert.match((await get(fred, '/office')).text, /<strong>Nora Newbie<\/strong>/);
+  assert.match((await get(fred, '/office/desks')).text, /Nora Newbie/);
 
   // saving again without a password keeps it
   assert.equal((await post(newbie, '/my/desk', { number: '40', monitor: 'Redmi', headphone: 'Logi' })).status, 302);

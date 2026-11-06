@@ -1866,19 +1866,32 @@ model AiChatShare {
 /// Only the office manager (Profile.officeManager, Fred Marco) sees and manages it. type: COMPUTER | MONITOR |
 /// HEADPHONES | CASE | TV | OTHER. condition: GOOD | NEEDS_REPAIR | BROKEN. holderId null = in the office / storage.
 model OfficeItem {
-  id             String   @id @default(cuid())
+  id             String         @id @default(cuid())
   organizationId String
   name           String
-  type           String   @default("OTHER")
+  type           String         @default("OTHER")
   holderId       String?
-  holder         Profile? @relation("OfficeItemHolder", fields: [holderId], references: [id], onDelete: SetNull)
-  condition      String   @default("GOOD")
+  holder         Profile?       @relation("OfficeItemHolder", fields: [holderId], references: [id], onDelete: SetNull)
+  condition      String         @default("GOOD")
   note           String?
+  assetTag       String?
+  model          String?
+  location       String?
+  lifecycle      String         @default("ACTIVE")
+  deskId         String?
+  desk           OfficeDesk?    @relation("OfficeItemDesk", fields: [deskId], references: [id], onDelete: SetNull)
+  verifiedAt     DateTime?
+  needsReview    Boolean        @default(false)
+  retiredAt      DateTime?
+  version        Int            @default(0)
+  repairs        OfficeRepair[]
   createdById    String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
+  @@unique([organizationId, assetTag])
   @@index([organizationId])
+  @@index([deskId])
   @@index([holderId])
 }
 
@@ -1903,6 +1916,58 @@ model OfficeDesk {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  version Int          @default(0)
+  items   OfficeItem[] @relation("OfficeItemDesk")
+
   @@unique([organizationId, number])
   @@index([profileId])
+}
+
+/// Office Management -> Repairs: a private queue the office manager keeps (no employee portal). status: NEW |
+/// IN_PROGRESS | WAITING | RESOLVED | CANCELLED (lib/officeRepairs.js has the allowed moves). priority: LOW | NORMAL |
+/// HIGH | URGENT. Resolving records the asset's resulting condition and lifecycle.
+model OfficeRepair {
+  id                 String     @id @default(cuid())
+  organizationId     String
+  itemId             String
+  item               OfficeItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  deskId             String?
+  issue              String
+  priority           String     @default("NORMAL")
+  status             String     @default("NEW")
+  responsible        String?
+  openedAt           DateTime   @default(now())
+  dueAt              DateTime?
+  notes              String?
+  resolution         String?
+  resolvedAt         DateTime?
+  resultingCondition String?
+  resultingLifecycle String?
+  createdById        String?
+  version            Int        @default(0)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  @@index([organizationId, status])
+  @@index([itemId])
+}
+
+/// Office Management -> Activity: who changed what and when (created, assigned, returned, transferred, condition,
+/// location, retired, repairs). before/after hold the changed values only - never a credential.
+model OfficeActivity {
+  id             String   @id @default(cuid())
+  organizationId String
+  itemId         String?
+  deskId         String?
+  repairId       String?
+  action         String
+  summary        String
+  beforeJson     String?
+  afterJson      String?
+  actorId        String?
+  actorName      String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([itemId])
 }

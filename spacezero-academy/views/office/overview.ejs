@@ -1,0 +1,62 @@
+<%# Office Management -> Overview: numbers with their exact meaning, each linking to the matching list. %>
+<%- include('_top', { action: '<a class="btn btn-gold btn-sm" href="/office/assets?new=1">+ Add asset</a>' }) %>
+<div class="office-ws">
+  <section class="card mt-24" aria-labelledby="ov-assets">
+    <div class="card-header"><h2 id="ov-assets">Assets</h2><p>Each number opens the list it counts. <%= ov.total %> record<%= ov.total === 1 ? '' : 's' %> in total, including retired.</p></div>
+    <div class="card-body o-metrics">
+      <% ['all', 'assigned', 'unassigned', 'available', 'attention', 'repair', 'review', 'retired'].forEach(function (k) { %>
+        <a class="o-metric<%= (k === 'attention' || k === 'repair' || k === 'review') && ov.counts[k] ? ' o-metric--warn' : '' %>" href="/office/assets?view=<%= k %>">
+          <span class="o-metric__label"><%= VIEWS[k].label %></span>
+          <span class="o-metric__value"><%= ov.counts[k] %></span>
+          <span class="o-metric__def"><%= VIEWS[k].definition %></span>
+        </a>
+      <% }); %>
+    </div>
+  </section>
+
+  <div class="o-two mt-24">
+    <section class="card" aria-labelledby="ov-follow">
+      <div class="card-header row-between"><div><h2 id="ov-follow">Repair follow-ups</h2><p>Overdue, due within <%= repairs.SOON_DAYS %> days, or waiting.</p></div><a class="link-gold text-sm" href="/office/repairs">All repairs →</a></div>
+      <div class="card-body">
+        <div class="o-chips">
+          <a class="o-chip<%= repairCounts.overdue ? ' o-chip--danger' : '' %>" href="/office/repairs?view=overdue">Overdue <strong><%= repairCounts.overdue %></strong></a>
+          <a class="o-chip" href="/office/repairs?view=soon">Due soon <strong><%= repairCounts.soon %></strong></a>
+          <a class="o-chip" href="/office/repairs?view=waiting">Waiting <strong><%= repairCounts.waiting %></strong></a>
+          <a class="o-chip" href="/office/repairs?view=open">Open <strong><%= repairCounts.open %></strong></a>
+        </div>
+        <% if (!followUps.length) { %><p class="text-sm text-muted mt-16" style="margin-bottom:0">Nothing to follow up.</p><% } else { %>
+          <ul class="o-list mt-16">
+            <% followUps.forEach(function (r) { var overdue = repairs.isOverdue(r, now); %>
+              <li><a href="/office/repairs?repair=<%= r.id %>"><strong><%= r.item.assetTag || r.item.name %></strong> · <%= r.issue.slice(0, 80) %></a>
+                <span class="o-tag<%= overdue ? ' o-tag--danger' : '' %>"><%= overdue ? 'Overdue · due ' + repairs.formatDay(r.dueAt) : r.status === 'WAITING' ? 'Waiting' : 'Due ' + repairs.formatDay(r.dueAt) %></span></li>
+            <% }); %>
+          </ul>
+        <% } %>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="ov-incomplete">
+      <div class="card-header"><h2 id="ov-incomplete">Incomplete records</h2><p>What still needs the manager's attention to be trustworthy.</p></div>
+      <div class="card-body">
+        <ul class="o-list">
+          <li><a href="/office/assets?view=review">Assets to review (marked, or missing a model or a location)</a><span class="o-tag<%= ov.counts.review ? ' o-tag--warn' : '' %>"><%= ov.counts.review %></span></li>
+          <li><span>In-service assets without a model</span><span class="o-tag"><%= ov.missing.model %></span></li>
+          <li><span>In-service assets without a location or desk</span><span class="o-tag"><%= ov.missing.location %></span></li>
+          <li><span>In-service assets not physically checked yet</span><span class="o-tag"><%= ov.missing.unverified %></span></li>
+          <li><a href="/office/desks?view=incomplete">Occupied desks that are not ready</a><span class="o-tag<%= deskCounts.incomplete ? ' o-tag--warn' : '' %>"><%= deskCounts.incomplete %></span></li>
+          <li><a href="/office/desks?view=unoccupied">Unoccupied desks</a><span class="o-tag"><%= deskCounts.unoccupied %></span></li>
+        </ul>
+      </div>
+    </section>
+  </div>
+
+  <% if (ov.byCategory.length) { %>
+  <section class="card mt-24" aria-labelledby="ov-cat">
+    <div class="card-header"><h2 id="ov-cat">By category</h2><p>Assets in service (not retired).</p></div>
+    <div class="card-body o-chips">
+      <% ov.byCategory.forEach(function (c) { %><a class="o-chip" href="/office/assets?category=<%= c.key %>"><%= c.label %> <strong><%= c.count %></strong></a><% }); %>
+    </div>
+  </section>
+  <% } %>
+</div>
+<div style="height:40px"></div>
