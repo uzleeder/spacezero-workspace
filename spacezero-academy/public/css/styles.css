@@ -2788,3 +2788,25 @@ html[data-theme="dark"] .o-danger-text { color: #fca5a5; }
   .o-form__row { grid-template-columns: 1fr; }
   .o-history li { grid-template-columns: 1fr; gap: 0; }
 }
+
+/* ---- Space AI brand: the colours of the Space AI logo (public/images/space-ai-logo.webp), used only for its mark ---- */
+:root { --sa-navy: #050a1c; --sa-navy-2: #0d1733; --sa-cyan: #7dd8f2; --sa-gold: #f3cd6b; }
+.space-ai-mark { display: block; flex: none; stroke-width: 34; }
+.space-ai__fab {
+  background: radial-gradient(120% 120% at 30% 20%, var(--sa-navy-2), var(--sa-navy) 70%); color: var(--sa-gold);
+  border: 1px solid rgba(125,216,242,.32);
+  box-shadow: 0 12px 28px -12px rgba(5,10,28,.75), 0 0 0 0 rgba(125,216,242,0), 0 2px 6px rgba(5,10,28,.3);
+}
+.space-ai__fab:hover, .space-ai__fab:focus-visible { box-shadow: 0 16px 32px -12px rgba(5,10,28,.8), 0 0 18px -2px rgba(125,216,242,.45), 0 3px 8px rgba(5,10,28,.3); }
+.space-ai[open] .space-ai__fab { box-shadow: 0 0 0 4px rgba(125,216,242,.22), 0 2px 6px rgba(5,10,28,.3); }
+.space-ai__fab .space-ai-mark { width: 28px; height: 28px; color: var(--sa-cyan); }
+.space-ai__fab span { letter-spacing: .08em; text-transform: uppercase; font-size: 12.5px; }
+html[data-theme="dark"] .space-ai__fab { border-color: rgba(125,216,242,.45); }
+/* the little badge next to Space AI's answers and in the page header */
+.ai-msg__avatar, .ai-main__logo { display: grid; place-items: center; background: var(--sa-navy); color: var(--sa-cyan); border: 1px solid rgba(125,216,242,.25); }
+.ai-msg__avatar .space-ai-mark { width: 21px; height: 21px; color: var(--sa-cyan); }
+.ai-main__logo { width: 34px; height: 34px; border-radius: 11px; flex: none; }
+.ai-main__logo svg.space-ai-mark { width: 24px; height: 24px; color: var(--sa-cyan); }
+/* the full logo on the Space AI welcome screen */
+.ai-welcome__brand { display: block; width: min(420px, 88%); height: auto; margin: 0 auto 22px; border-radius: 18px; background: var(--sa-navy);
+  box-shadow: 0 18px 40px -26px rgba(5,10,28,.9); border: 1px solid rgba(125,216,242,.18); }
