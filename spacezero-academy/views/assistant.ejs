@@ -35,7 +35,7 @@
     <div class="ai-thread" data-ai-thread aria-live="polite">
       <% var messages = chat && chat.messages ? chat.messages : []; %>
       <div class="ai-welcome" data-ai-welcome<%= messages.length ? ' hidden' : '' %>>
-        <img class="ai-welcome__brand" src="<%= asset('/static/images/space-ai-logo.webp') %>" width="2000" height="667" alt="Space AI · Celebrate your success" />
+        <img class="ai-welcome__brand" src="<%= asset('/static/images/space-ai-logo.webp') %>" width="2000" height="667" alt="Space AI · Your AI workspace" />
         <h2>How can I help you today?</h2>
         <div class="ai-suggest">
           <% suggestions.forEach(function (s) { %><button type="button" class="ai-chip" data-ai-suggest><%= s %></button><% }); %>
