@@ -2822,3 +2822,23 @@ html[data-theme="dark"] .o-danger-text { color: #fca5a5; }
 @media (max-width: 640px) { .workspace-intro .brand-mark .brand-mark-box { width: 54px; height: 54px; border-radius: 15px; } .workspace-intro .brand-mark-box .space-ai-mark { width: 38px; height: 38px; } }
 .brand-mark--cert .brand-mark-box { width: 46px; height: 46px; }
 .brand-mark--cert .brand-mark-box .space-ai-mark { width: 33px; height: 33px; }
+
+/* ---- Dashboard globe in light mode: a pale sphere with navy country lines, gold Uzbekistan and flights ---- */
+html:not([data-theme="dark"]) #workspace-sphere stop:nth-child(1) { stop-color: #ffffff; }
+html:not([data-theme="dark"]) #workspace-sphere stop:nth-child(2) { stop-color: #efebfa; }
+html:not([data-theme="dark"]) #workspace-sphere stop:nth-child(3) { stop-color: #d6cfee; }
+html:not([data-theme="dark"]) #workspace-shade stop { stop-color: #4b4189; }
+html:not([data-theme="dark"]) #workspace-shade stop:nth-child(2) { stop-opacity: .22; }
+html:not([data-theme="dark"]) .hero-art .planet-rim { stroke: #a79fd6; stroke-opacity: .7; }
+html:not([data-theme="dark"]) .hero-art .globe-grid { stroke: #6f64b0; stroke-opacity: .16; }
+html:not([data-theme="dark"]) .hero-art .globe-land { fill: #2c2659; fill-opacity: .1; }
+html:not([data-theme="dark"]) .hero-art .globe-borders { stroke: #2c2659; stroke-opacity: .42; }
+html:not([data-theme="dark"]) .hero-art .globe-uz { fill: #dca878; fill-opacity: .9; stroke: #a97b4f; filter: drop-shadow(0 0 3px rgba(201,143,92,.55)); }
+html:not([data-theme="dark"]) .hero-art .globe-uz-dot { fill: #a97b4f; }
+html:not([data-theme="dark"]) .hero-art .globe-uz-pulse { fill: #c98f5c; stroke: #c98f5c; }
+html:not([data-theme="dark"]) .hero-art .globe-uz-label,
+html:not([data-theme="dark"]) .hero-art .globe-port-label { fill: #1b1531; stroke: #ffffff; }
+html:not([data-theme="dark"]) .hero-art .globe-port-label--home { fill: #8a5f37; }
+html:not([data-theme="dark"]) .hero-art .globe-port-dot { fill: #dca878; stroke: #ffffff; }
+html:not([data-theme="dark"]) .hero-art .globe-trail { stroke: #c98f5c; filter: none; }
+html:not([data-theme="dark"]) .hero-art .globe-plane use { fill: #dca878; stroke: #8a5f37; filter: drop-shadow(0 2px 3px rgba(44,38,89,.35)); }

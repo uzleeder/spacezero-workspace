@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en" data-theme="<%= theme %>">
 <head>
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=1" />
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=2" />
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><%= typeof title !== 'undefined' ? title + ' · SpaceZero Workspace' : 'SpaceZero Workspace' %></title>
@@ -33,7 +33,6 @@
           <%- include('partials/icon', { name: 'collapse' }) %>
         </button>
       </div>
-      <div class="workspace-label"><span class="workspace-dot"></span> SpaceZero Workspace</div>
       <nav class="sidebar-nav" aria-label="Main navigation">
         <% nav.forEach(function (section) { %>
           <div class="sidebar-group">

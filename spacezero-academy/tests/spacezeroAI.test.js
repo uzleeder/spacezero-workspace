@@ -154,9 +154,10 @@ test('Space AI is a button in the bottom-right corner of every page (not a menu 
   assert.doesNotMatch((await get(admin, '/assistant')).text, /data-space-ai/);
 });
 
-test('the sidebar names the workspace "SpaceZero Workspace", and the Admin badge reads "Engineered by UzLeeder"', async () => {
+test('the sidebar shows the SPACEZERO / WORKSPACE logo without a separate workspace line, and the Admin badge reads "Engineered by UzLeeder"', async () => {
   const dash = await get(admin, '/dashboard');
-  assert.match(dash.text, /<div class="workspace-label"><span class="workspace-dot"><\/span> SpaceZero Workspace<\/div>/);
+  assert.match(dash.text, /class="brand-mark-word">SPACEZERO</);
+  assert.doesNotMatch(dash.text, /class="workspace-label"/);
   assert.doesNotMatch(dash.text, /Above9 Travel/);
   const badge = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'js', 'uzleeder-crafted.js'), 'utf8');
   assert.match(badge, /var LABEL = "ENGINEERED BY";/); assert.doesNotMatch(badge, /"CRAFTED BY"|"Crafted by/);
