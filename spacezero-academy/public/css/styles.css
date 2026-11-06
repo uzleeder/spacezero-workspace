@@ -2808,5 +2808,6 @@ html[data-theme="dark"] .space-ai__fab { border-color: rgba(125,216,242,.45); }
 .ai-main__logo { width: 34px; height: 34px; border-radius: 11px; flex: none; }
 .ai-main__logo svg.space-ai-mark { width: 24px; height: 24px; color: var(--sa-cyan); }
 /* the full logo on the Space AI welcome screen */
-.ai-welcome__brand { display: block; width: min(420px, 88%); height: auto; margin: 0 auto 22px; border-radius: 18px; background: var(--sa-navy);
+.space-ai__brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ai-welcome__brand { display: block; width: min(340px, 80%); height: auto; margin: 0 auto 18px; border-radius: 16px; background: var(--sa-navy);
   box-shadow: 0 18px 40px -26px rgba(5,10,28,.9); border: 1px solid rgba(125,216,242,.18); }
