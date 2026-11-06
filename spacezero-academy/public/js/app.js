@@ -356,10 +356,13 @@
   }
 })();
 
-// A profile photo whose file is gone (or cannot be loaded) falls back to the person's initials, never a broken image.
+// A profile photo whose file is gone (or cannot be loaded) falls back to the default SpaceZero picture, and if even
+// that cannot load, to the person's initials - never a broken image.
 (function () {
   function fallback(img) {
     if (!img || img.getAttribute('data-avatar-fallback')) return;
+    var standIn = img.getAttribute('data-fallback-src');
+    if (standIn) { img.removeAttribute('data-fallback-src'); img.classList.add('avatar-default'); img.src = standIn; return; }
     var name = (img.getAttribute('alt') || '').trim();
     var initials = name.split(/\s+/).slice(0, 2).map(function (w) { return w.charAt(0); }).join('').toUpperCase();
     var box = document.createElement('div');
