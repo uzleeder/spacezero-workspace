@@ -1,70 +1,46 @@
 'use strict';
 
+// The Dashboard, one per role, each counted live (nothing is stored) and refreshed in place by
+// public/js/dashboard-live.js from GET /dashboard/live:
+//   Admin       three lanes: Urgent / Decision needed / Up next, health rings, falling behind (lib/adminDashboard.js)
+//   Supervisor  their team as faces, their list in Late / Today / This week (lib/supervisorDashboard.js)
+//   Agent       the next step of My Training, Call Practice while a call waits, and the rest of what is theirs to do
+//               (lib/agentDashboard.js) - the same page for every agent, new or not
 const express = require('express');
 const router = express.Router();
 
-const { prisma } = require('../lib/prisma');
 const { requireSession } = require('../lib/authMiddleware');
-const { getMyTrainingSummary } = require('../lib/training');
-const { supervisedProfileIds } = require('../lib/authz');
-const { loadSetupForProfile } = require('../lib/employeeSetup');
-const { nextActions } = require('../lib/development');
-const { classifySkills, categorySummary } = require('../lib/skillIntel');
-const { teamIntelligence } = require('../lib/teamIntel');
-const { readinessFor } = require('../lib/readiness');
-const { attentionFor } = require('../lib/attention');
+const { adminDashboard } = require('../lib/adminDashboard');
+const { supervisorDashboard } = require('../lib/supervisorDashboard');
+const { agentDashboard } = require('../lib/agentDashboard');
 
-const REQUIRED_KINDS = ['PATH', 'OVERDUE', 'RETAKE', 'DUE_SOON', 'ASSIGNED', 'IN_PROGRESS']; // PATH = the current step of My Training
-
-/** Everything the learner-facing parts of a dashboard need, for ANY role (supervisors and admins are learners too). */
-async function myDevelopment(profile) {
-  const dev = await nextActions(profile);
-  const [earned, legacy] = await Promise.all([
-    prisma.earnedCertification.findMany({ where: { profileId: profile.id, status: 'ACTIVE' }, include: { definition: { select: { name: true, kind: true } } }, orderBy: { issuedAt: 'desc' }, take: 8 }),
-    prisma.certificate.findMany({ where: { profileId: profile.id }, orderBy: { issuedAt: 'desc' }, take: 5 }),
-  ]);
-  const sections = classifySkills(dev.rows);
-  return {
-    dev,
-    next: dev.next,
-    required: dev.items.filter((i) => REQUIRED_KINDS.includes(i.kind)).slice(0, 6),
-    recommended: dev.items.filter((i) => !REQUIRED_KINDS.includes(i.kind)).slice(0, 5),
-    sections,
-    categories: categorySummary(dev.rows),
-    completed: dev.learning.filter((l) => l.status === 'COMPLETED').slice(0, 5),
-    earned,
-    legacy,
-    overall: (() => { const a = dev.rows.filter((r) => r.assessed); return a.length ? Math.round(a.reduce((n, r) => n + r.score, 0) / a.length) : null; })(),
-  };
+/** The greeting and today's date, in Tashkent time. */
+function hello(profile, now) {
+  const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', hourCycle: 'h23' }).format(now));
+  const part = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+  return { greeting: `Good ${part}, ${profile.fullName.split(' ')[0]}.`, today: new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', weekday: 'long', day: 'numeric', month: 'long' }).format(now) };
 }
 
-router.get('/dashboard', requireSession, async (req, res) => {
-  const profile = req.profile;
+/** The view and the data of this person's dashboard. */
+async function boardFor(profile, now = new Date()) {
+  if (profile.role === 'ADMIN') return { view: 'admin', data: { dash: await adminDashboard(profile, { now }), ...hello(profile, now) } };
+  if (profile.role === 'SUPERVISOR') return { view: 'supervisor', data: { sdash: await supervisorDashboard(profile, { now }), ...hello(profile, now) } };
+  // like My Training: anything already done is marked finished first, so the next step is the same one (not while viewing as someone)
+  if (!require('../lib/requestContext').readOnly()) await require('../lib/trainingCompletion').autoFinishForProfile(profile.id).catch((err) => console.error('auto-finish failed', err.message));
+  return { view: 'agent', data: { adash: await agentDashboard(profile, { now }), ...hello(profile, now) } };
+}
+
+// The inside of this person's dashboard on its own, for public/js/dashboard-live.js to refresh it in place.
+router.get('/dashboard/live', requireSession, async (req, res) => {
   res.set('Cache-Control', 'private, no-store');
+  const { view, data } = await boardFor(req.profile);
+  res.render(`dashboard/${view}-board`, { layout: false, ...data });
+});
 
-  if (profile.role === 'ADMIN') {
-    const orgId = profile.organizationId;
-    const [employeeCount, teamCount, courseCount, pendingInvites, me, attention] = await Promise.all([
-      prisma.profile.count({ where: { organizationId: orgId, status: { not: 'ARCHIVED' } } }),
-      prisma.team.count({ where: { organizationId: orgId, archivedAt: null } }),
-      prisma.trainingCourse.count({ where: { organizationId: orgId, status: 'PUBLISHED' } }),
-      prisma.profile.count({ where: { organizationId: orgId, status: 'INVITED' } }),
-      myDevelopment(profile),
-      attentionFor(profile), // independent of the rest, so it runs alongside instead of after
-    ]);
-    return res.render('dashboard/admin', { title: 'Dashboard', employeeCount, teamCount, courseCount, pendingInvites, attention, me });
-  }
-
-  if (profile.role === 'SUPERVISOR') {
-    const agentIds = await supervisedProfileIds(profile.id);
-    const agents = await prisma.profile.findMany({ where: { id: { in: agentIds }, status: { not: 'ARCHIVED' } } });
-    const [intel, me, attention] = await Promise.all([teamIntelligence(profile.organizationId, agentIds, { limit: 5 }), myDevelopment(profile), attentionFor(profile)]);
-    return res.render('dashboard/supervisor', { title: 'Dashboard', agents, retakeCount: intel.summary.retakes, attention, intel, me });
-  }
-
-  const [summary, setup, me, attention] = await Promise.all([getMyTrainingSummary(profile.id), loadSetupForProfile(profile.organizationId, profile), myDevelopment(profile), attentionFor(profile)]);
-  const readiness = (await readinessFor(profile.organizationId, [profile], { setupMap: new Map([[profile.id, setup]]) })).get(profile.id) || null;
-  res.render('dashboard/agent', { title: 'Dashboard', summary, setup, me, readiness, attention });
+router.get('/dashboard', requireSession, async (req, res) => {
+  res.set('Cache-Control', 'private, no-store');
+  const { view, data } = await boardFor(req.profile);
+  res.render(`dashboard/${view}`, { title: 'Dashboard', ...data });
 });
 
 // The dashboard's "SpaceZero standard" card. By default its globe turns in the sidebar logo; the small button on that

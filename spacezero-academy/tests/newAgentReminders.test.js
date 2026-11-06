@@ -2,7 +2,7 @@
 // New Agent Program, step 3 (lib/newAgentReminders.js): the supervisor's 08:30 "Today with your new agents" message,
 // an alert when an agent falls behind or keeps scoring low, escalation of a supervisor's item to every Admin after 2 of
 // the agent's working days, a new agent without a supervisor, the Admins' morning email - each sent once - and the
-// dashboard's "Needs your attention" items.
+// dashboard's "Needs your attention" items (the Admin's dashboard: lib/adminDashboard.js).
 const { test, before, after, mock } = require('node:test');
 const assert = require('node:assert/strict');
 const request = require('supertest');
@@ -160,9 +160,12 @@ test('the board says the admin has been told; the dashboard lists new-agent item
 
   const dash = await as('kamola').get('/dashboard');
   assert.equal(dash.status, 200);
-  assert.match(dash.text, /href="\/new-agents"[^>]*><span[^>]*>New-agent items overdue<\/span>/);
-  assert.match(dash.text, /New-agent items for today/);
+  // the supervisor's dashboard (lib/supervisorDashboard.js): Aziz needs them (late items), Malika has things for today
+  assert.match(dash.text, new RegExp(`sd-person--need" href="/new-agents/${people.aziz.p.id}"`));
+  assert.match(dash.text, /sd-lane--late[\s\S]*\d+ days? late/);
+  assert.match(dash.text, /sd-lane--today[\s\S]*Malika Tester/);
   const adminDash = await as('admin').get('/dashboard');
-  assert.match(adminDash.text, /href="\/new-agents\?supervisor=none"[^>]*><span[^>]*>New agents without a supervisor/);
-  assert.doesNotMatch(dash.text, /New agents without a supervisor/, 'that one is for Admins');
+  // the Admin's dashboard puts an agent nobody supervises in "Urgent" (lib/adminDashboard.js)
+  assert.match(adminDash.text, /Dilnoza Tester has no supervisor/); assert.match(adminDash.text, /Assign supervisor/);
+  assert.doesNotMatch(dash.text, /has no supervisor|nobody is supervising/, 'that one is for Admins');
 });

@@ -146,7 +146,7 @@ test('READINESS: shown on the employee lists (with a filter), the employee heade
   const header = await get(admin, `/employees/${agent.id}/setup`);
   assert.match(header.text, /Status:/); assert.match(header.text, /Needs Attention/);
   const mine = await get(agent, '/dashboard');
-  assert.equal(mine.status, 200); assert.match(mine.text, /My status/); assert.match(mine.text, /Needs Attention/);
+  assert.equal(mine.status, 200); assert.match(mine.text, /Finish your setup/); // the agent dashboard shows what to do about it (lib/agentDashboard.js)
   assert.ok(blocked(await get(agentB, `/employees/${agent.id}/setup`)));
 });
 
@@ -174,10 +174,12 @@ test('NEEDS YOUR ATTENTION: admin sees the organization, a supervisor only their
   assert.equal(keys(await attentionFor(admin)).ai, 1); assert.equal(keys(await attentionFor(sup)).ai, undefined);
   // dashboards render it with links
   const page = await get(admin, '/dashboard');
-  assert.match(page.text, /Needs your attention/); assert.match(page.text, /Pending profile activation/); assert.match(page.text, /AI Practice ready for review/); assert.match(page.text, /Pending vacation requests/);
-  assert.match((await get(sup, '/dashboard')).text, /Needs your attention/);
-  assert.match((await get(agent, '/dashboard')).text, /Needs your attention/);
-  assert.match((await get(agent, '/dashboard')).text, /Training overdue/);
+  // the Admin's dashboard is the three lanes (lib/adminDashboard.js): the same items, as cards with a link
+  assert.match(page.text, /Up next/); assert.match(page.text, /1 person not activated yet/); assert.match(page.text, /1 AI practice to review/); assert.match(page.text, /2 vacation requests/);
+  assert.match(page.text, /href="\/leave\?status=PENDING"/); assert.match(page.text, /href="\/ai-practice\?tab=review"/); assert.match(page.text, /Retake needed/);
+  assert.match((await get(sup, '/dashboard')).text, /Your team/); // the supervisor's own dashboard (lib/supervisorDashboard.js)
+  const own = (await get(agent, '/dashboard')).text; // the agent dashboard: the overdue training is next, and says so
+  assert.match(own, /\d+ days? overdue|Overdue today/); assert.match(own, /things? (is|are) overdue\./);
   void lateR;
 });
 

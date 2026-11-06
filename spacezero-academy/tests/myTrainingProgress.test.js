@@ -179,7 +179,7 @@ test('the one main button through every state of the path, the finish screen, an
   assert.match(page.html, /<summary>1 completed<\/summary>/);
   assert.deepEqual([(await dashNext()).course.id, (await dashNext()).action.label], [second.course.id, 'Start next training']);
   const dashboard = (await get(who, '/dashboard')).text;
-  assert.match(dashboard.split('id="next"')[1].split('</div>\n</div>')[0], new RegExp('Walk two[\\s\\S]*href="/training-course/' + second.course.id + '">Start next training<'));
+  assert.match(dashboard.split('id="next"')[1].split('</section>')[0], new RegExp('Walk two[\\s\\S]*href="/training-course/' + second.course.id + '">Start next training<'));
 
   // all completed: no button; the finish screen says so and links back to My Training
   await post(who, '/training/' + second.recipient.id + '/start');

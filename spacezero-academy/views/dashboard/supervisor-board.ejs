@@ -1,0 +1,87 @@
+<%# The inside of the Supervisor dashboard: rendered with the page, and again on its own by GET /dashboard/live.
+    Your team = one face per person with a coloured ring; Your list = short tiles in Late / Today / This week. %>
+<%
+  var ICONS = {
+    chat: 'M4 5h16v11H9l-5 4z',
+    demo: 'M3 5h18v12H3z M10 9l5 3-5 3z M8 21h8',
+    sign: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M8 12l3 3 5-6',
+    review: 'M9 3h6v4H9z M7 5H5v16h14V5h-2 M9 12h6 M9 16h4',
+    calendar: 'M4 6h16v14H4z M4 10h16 M8 3v4 M16 3v4',
+    check: 'M5 12l4 4 10-10',
+    redo: 'M4 12a8 8 0 1 0 2.3-5.7 M4 4v4h4',
+    lock: 'M6 11h12v10H6z M8 11V7a4 4 0 0 1 8 0v4',
+    shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z M9 12l2 2 4-4',
+    sun: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M12 2v2 M12 20v2 M2 12h2 M20 12h2 M5 5l1.5 1.5 M17.5 17.5L19 19 M5 19l1.5-1.5 M17.5 6.5L19 5',
+    refresh: 'M20 11a8 8 0 0 0-14.9-3 M4 4v4h4 M4 13a8 8 0 0 0 14.9 3 M20 20v-4h-4',
+    book: 'M4 4h6a3 3 0 0 1 3 3v14a4 4 0 0 0-4-3H4z M13 7a3 3 0 0 1 3-3h5v14h-4a4 4 0 0 0-4 3'
+  };
+  var STATUS = { need: 'Needs you', behind: 'Behind', ok: 'On track', away: 'Away' };
+  var TALLY = { need: 'need you', behind: 'behind', ok: 'on track' };
+%>
+<header class="dash-head">
+  <div>
+    <p class="dash-eyebrow"><%= today %></p>
+    <h1 class="dash-title"><%= greeting %> <%= sdash.headline %></h1>
+  </div>
+  <span class="dash-live" title="Live: refreshes every minute and when you come back to this tab"><span class="dash-live__dot" aria-hidden="true"></span><span data-ago>Updated just now</span></span>
+</header>
+
+<section class="sd-team" aria-labelledby="sd-team-title">
+  <div class="sd-team__head">
+    <h2 id="sd-team-title">Your team</h2>
+    <% sdash.tally.forEach(function (x) { %><span class="sd-legend"><span class="sd-dot sd-dot--<%= x.key %>" aria-hidden="true"></span><%= x.n %> <%= TALLY[x.key] %></span><% }); %>
+    <a class="dash-panel__link" href="/team">Team page →</a>
+  </div>
+  <% if (sdash.team.length) { %>
+    <ul class="sd-faces">
+      <% sdash.team.forEach(function (t) { %>
+        <li>
+          <a class="sd-person sd-person--<%= t.status %>" href="<%= t.href %>" data-key="person:<%= t.person.id %>" title="<%= t.person.fullName %>: <%= STATUS[t.status] %><%= t.tag ? ', ' + t.tag : '' %>">
+            <span class="sd-ring"><span class="na-av na-av--<%= t.face.hue %> sd-av" aria-hidden="true"><%= t.face.initials %></span></span>
+            <span class="sd-person__name"><%= t.first %></span>
+            <span class="sd-person__tag"><%= t.tag %><span class="visually-hidden"> (<%= STATUS[t.status] %>)</span></span>
+          </a>
+        </li>
+      <% }); %>
+    </ul>
+  <% } else { %>
+    <p class="dash-muted">Nobody is assigned to you yet. An administrator assigns your team.</p>
+  <% } %>
+</section>
+
+<% if (sdash.total) { %>
+  <div class="sd-lanes">
+    <% sdash.lanes.forEach(function (l) { %>
+      <section class="sd-lane sd-lane--<%= l.key %>" aria-labelledby="sd-lane-<%= l.key %>">
+        <div class="sd-lane__head">
+          <span class="sd-lane__count<%= l.tiles.length ? '' : ' is-zero' %>"><%= l.tiles.length %></span>
+          <h2 id="sd-lane-<%= l.key %>"><%= l.name %></h2>
+          <% if (l.hint) { %><span class="sd-lane__hint"><%= l.hint %></span><% } %>
+        </div>
+        <% if (!l.tiles.length) { %>
+          <p class="sd-empty"><span aria-hidden="true">✓</span> Nothing here</p>
+        <% } %>
+        <% l.shown.forEach(function (i) { %>
+          <a class="sd-tile" href="<%= i.href %>" data-key="<%= i.key %>" title="<%= i.detail %>">
+            <span class="sd-tile__icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="<%= ICONS[i.icon] || ICONS.check %>"></path></svg></span>
+            <span class="sd-tile__label"><%= i.label %><span class="visually-hidden">. <%= i.detail %></span></span>
+            <span class="sd-tile__faces" aria-hidden="true">
+              <% i.faces.forEach(function (f) { %><span class="na-av na-av--<%= f.hue %> sd-face" title="<%= f.name %>"><%= f.initials %></span><% }); %>
+              <% if (i.more) { %><span class="sd-face sd-face--more">+<%= i.more %></span><% } %>
+            </span>
+            <span class="sd-chip"><%= i.chip %></span>
+          </a>
+        <% }); %>
+        <% if (l.more) { %><a class="sd-more" href="<%= l.key === 'week' ? '/team' : '/new-agents' %>">+<%= l.more %> more</a><% } %>
+      </section>
+    <% }); %>
+  </div>
+<% } else { %>
+  <section class="dash-clear" aria-label="Nothing for you today">
+    <span class="dash-clear__check" aria-hidden="true">✓</span>
+    <span>
+      <span class="dash-clear__title">Nothing for you today</span>
+      <span class="dash-clear__text">New items appear here by themselves.</span>
+    </span>
+  </section>
+<% } %>

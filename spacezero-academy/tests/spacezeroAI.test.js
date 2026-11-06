@@ -163,6 +163,25 @@ test('the sidebar shows the SPACEZERO / WORKSPACE logo without a separate worksp
   assert.match(badge, /var LABEL = "ENGINEERED BY";/); assert.doesNotMatch(badge, /"CRAFTED BY"|"Crafted by/);
 });
 
+test('dashboard hero visibility persists per person without replacing the live role board', async () => {
+  for (const who of [admin, sup1, agent1]) {
+    assert.equal((await post(who, '/dashboard/hero', { hidden: '1' })).status, 302);
+    const hidden = await get(who, '/dashboard');
+    assert.equal(hidden.status, 200);
+    assert.doesNotMatch(hidden.text, /data-hero-close/);
+    assert.match(hidden.text, /id="dash-live"/);
+    assert.equal((await post(who, '/dashboard/hero', { hidden: '0' })).status, 302);
+    const shown = await get(who, '/dashboard');
+    assert.equal(shown.status, 200);
+    assert.match(shown.text, /data-hero-close/);
+    assert.match(shown.text, /id="dash-live"/);
+    const live = await get(who, '/dashboard/live');
+    assert.equal(live.status, 200);
+    assert.doesNotMatch(live.text, /data-hero-close/, 'refreshing the board must not duplicate the hero');
+  }
+  assert.equal((await prisma.profile.findUnique({ where: { id: agent2.id } })).heroShown, false, 'another person keeps their default');
+});
+
 test('the dashboard globe marks Uzbekistan and is drawn by its own script', async () => {
   await prisma.profile.update({ where: { id: admin.id }, data: { heroShown: true } }); // the card is on the dashboard only once brought back
   const dash = await get(admin, '/dashboard');
@@ -175,7 +194,7 @@ test('the dashboard globe marks Uzbekistan and is drawn by its own script', asyn
   new Function(js);   // the script parses
 });
 
-test('every role gets the SpaceZero Standard card on its dashboard, in its own words', async () => {
+test('the restored SpaceZero Standard card speaks to every role in its own words', async () => {
   const expert = await makeUser('FLIGHT_EXPERT', 'expert');
   const cases = [
     [admin, /Extraordinary service\.<br>Starts with you\./, 'href="/admin/training"', 'Manage training'],
@@ -213,8 +232,8 @@ test('the sidebar follows the theme: the badge colour matches it, and light mode
 test('abroad the globe shows only airport codes; only Uzbekistan is named in full', async () => {
   const js = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'js', 'hero-globe.js'), 'utf8');
   assert.match(js, /label\.textContent = r\.code;/);
-  const dash = (await get(admin, '/dashboard')).text;
-  assert.match(dash, />Uzbekistan<\/text>/); assert.match(dash, />TAS · Tashkent<\/text>/);
+  const hero = (await get(admin, '/dashboard')).text;
+  assert.match(hero, />Uzbekistan<\/text>/); assert.match(hero, />TAS · Tashkent<\/text>/);
 });
 
 test('Space AI message box: Enter sends, and a send icon inside the box replaces the Ask button', async () => {
