@@ -32,7 +32,6 @@
 }
 .workspace-intro--premium .brand-mark-box svg { transform: rotate(8deg); width: 42px; height: 42px; color: #e8bb90; }
 .workspace-intro--premium .brand-mark-box svg.space-ai-mark { transform: rotate(8deg); width: 54px; height: 54px; }
-.workspace-intro--premium .brand-mark-sub { gap: 10px; color: #e8bb90; }
 .workspace-intro--premium .brand-mark-dash { width: 22px; }
 .workspace-intro--premium .brand-mark-word {
   font-family: 'Fraunces', Georgia, serif; font-size: clamp(30px, 7.5vw, 46px); font-weight: 600;
@@ -68,3 +67,5 @@
   .workspace-intro--premium .workspace-intro__halo { animation: none; }
   .workspace-intro__eyebrow > span { animation: none; }
 }
+/* the logo's second line: "- WORKSPACE -" in the site gold */
+.workspace-intro--premium .brand-mark-sub { gap: 10px; color: #e8bb90; }

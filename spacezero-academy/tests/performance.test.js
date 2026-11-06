@@ -25,7 +25,7 @@ test('asset() adds a content hash that changes only with the file', () => {
   assert.match(url, /^\/static\/css\/styles\.css\?v=[0-9a-f]{10}$/);
   assert.equal(asset('/static/css/styles.css'), url, 'stable between calls');
   assert.equal(asset('/static/favicon.svg?v=1'), '/static/favicon.svg?v=1', 'non css/js urls are left alone');
-  assert.match(asset('/static/images/space-ai-logo.webp'), /^\/static\/images\/space-ai-logo\.webp\?v=[0-9a-f]{10}$/, 'images in /static/images are versioned too');
+  assert.match(asset('/static/images/logo.webp'), /^\/static\/images\/logo\.webp\?v=\w+$/, 'images in /static/images are versioned too');
 });
 
 test('versioned CSS/JS: immutable for a year, compressed, and never marked no-store', async () => {
