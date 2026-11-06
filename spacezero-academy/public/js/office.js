@@ -28,10 +28,15 @@
   });
 
   // ---- back to the row the manager came from
+  // (after load: the browser's own jump to #row-... runs after this script and would clear the focus again)
   if (/^#row-/.test(location.hash)) {
-    var row = document.getElementById(location.hash.slice(1));
-    var target = row && row.querySelector('a, button');
-    if (target) { target.focus({ preventScroll: true }); row.scrollIntoView({ block: 'center' }); }
+    var backToRow = function () {
+      var row = document.getElementById(location.hash.slice(1));
+      var target = row && row.querySelector('a, button');
+      if (target) { target.focus({ preventScroll: true }); row.scrollIntoView({ block: 'center' }); }
+    };
+    if (document.readyState === 'complete') setTimeout(backToRow, 0);
+    else window.addEventListener('load', function () { setTimeout(backToRow, 0); });
   }
 
   // ---- the drawer

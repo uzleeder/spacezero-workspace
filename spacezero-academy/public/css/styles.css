@@ -2681,6 +2681,10 @@ html:has(.office-ws) { scroll-padding-top: calc(var(--o-top, 78px) + var(--o-too
 .o-count strong { color: var(--card-title); }
 .o-per { margin-left: auto; font-size: 13px; color: var(--card-muted); }
 .o-per select { min-height: 34px; margin-left: 6px; }
+/* the site-wide form rules make every select full width and every label a block: undo that inside the Office toolbars */
+.o-toolbar > select { width: auto; flex: 0 1 200px; min-width: 0; }
+.o-per label { display: inline-flex; align-items: center; margin: 0; font-size: 13px; font-weight: 500; color: var(--card-muted); }
+.o-per select { width: auto; padding: 6px 30px 6px 10px; }
 .o-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .o-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 4px 12px; border-radius: 999px; font-size: 13px; color: var(--card-muted); background: var(--tile-bg); border: 1px solid var(--tile-border); text-decoration: none; }
 .o-chip strong { color: var(--card-title); }
@@ -2769,6 +2773,7 @@ html[data-theme="dark"] .o-danger-text { color: #fca5a5; }
 /* phones: the table becomes one card per row (no sideways scrolling); the drawer fills the screen */
 @media (max-width: 760px) {
   .o-toolbar { position: static; }
+  .o-toolbar > select { flex: 1 1 100%; }
   .o-more__panel { grid-template-columns: 1fr; }
   .o-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .o-table, .o-table tbody, .o-table tr, .o-table td { display: block; width: 100%; }
