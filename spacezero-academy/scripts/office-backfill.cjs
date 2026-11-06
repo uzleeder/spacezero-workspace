@@ -4,7 +4,7 @@
 //   node scripts/office-backfill.cjs --apply            applies it in one transaction and writes a report file
 //   node scripts/office-backfill.cjs --revert <report>  puts back the values recorded in that report
 // What it does, per organization:
-//   * asset tags: every item without one gets the next free tag (SZ-0001 ...), oldest first, then by natural name -
+//   * asset tags: every item without one gets the next free tag (SZ-0001 ...), oldest first, then in the handed-over list's order, then by natural name -
 //     never reusing or colliding with an existing tag
 //   * model and category: only where the name is EXACTLY a product from the handed-over list (scripts/
 //     office-inventory.cjs), or that product followed by a number the import added ("Mouse 7"). Anything else is
@@ -18,6 +18,8 @@ const { naturalCompare, formatTag, tagNumber } = require('../lib/office');
 const INVENTORY = require('./office-inventory.cjs');
 
 const PRODUCTS = new Map(INVENTORY.map(([product, type]) => [product, type]));
+const ORDER = new Map(INVENTORY.map(([product], n) => [product, n]));
+const rank = (name) => { const p = productFor(name); return p ? ORDER.get(p) : INVENTORY.length; };
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 function productFor(name) {
   if (PRODUCTS.has(name)) return name;
@@ -51,7 +53,7 @@ async function plan() {
   const changes = [];
   for (const list of byOrg.values()) {
     let next = list.reduce((m, i) => Math.max(m, tagNumber(i.assetTag)), 0);
-    const untagged = list.filter((i) => !i.assetTag).sort((a, b) => a.createdAt - b.createdAt || naturalCompare(a.name, b.name));
+    const untagged = list.filter((i) => !i.assetTag).sort((a, b) => a.createdAt - b.createdAt || rank(a.name) - rank(b.name) || naturalCompare(a.name, b.name));
     const tagFor = new Map(untagged.map((i) => [i.id, formatTag(++next)]));
     for (const i of list) {
       const data = {};
