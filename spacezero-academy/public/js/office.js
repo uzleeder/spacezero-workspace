@@ -27,6 +27,10 @@
     s.addEventListener('change', function () { s.form.submit(); });
   });
 
+  // ---- "Filters" on the Overview links to #more: open every filter at once
+  var more = document.getElementById('more');
+  if (more && location.hash === '#more') { more.open = true; var firstFilter = more.querySelector('select'); if (firstFilter) setTimeout(function () { firstFilter.focus(); }, 0); }
+
   // ---- back to the row the manager came from
   // (after load: the browser's own jump to #row-... runs after this script and would clear the focus again)
   if (/^#row-/.test(location.hash)) {

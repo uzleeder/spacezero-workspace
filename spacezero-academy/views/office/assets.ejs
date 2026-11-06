@@ -38,7 +38,7 @@
     <input type="search" name="q" value="<%= filters.q %>" placeholder="Search tag, item, model, person, location" aria-label="Search assets" class="o-toolbar__search" />
     <select name="view" aria-label="Show"><% Object.keys(VIEWS).forEach(function (k) { %><option value="<%= k %>"<%= filters.view === k ? ' selected' : '' %>><%= VIEWS[k].label %></option><% }); %></select>
     <select name="category" aria-label="Category"><option value="">All categories</option><% Object.keys(CATEGORIES).forEach(function (k) { %><option value="<%= k %>"<%= filters.category === k ? ' selected' : '' %>><%= CATEGORIES[k] %></option><% }); %></select>
-    <details class="o-more"<%= filters.condition || filters.lifecycle || filters.location || filters.custodian ? ' open' : '' %>>
+    <details class="o-more" id="more"<%= filters.condition || filters.lifecycle || filters.location || filters.custodian ? ' open' : '' %>>
       <summary class="btn btn-secondary btn-sm">More filters</summary>
       <div class="o-more__panel">
         <label>Condition<select name="condition"><option value="">Any</option><% Object.keys(CONDITIONS).forEach(function (k) { %><option value="<%= k %>"<%= filters.condition === k ? ' selected' : '' %>><%= CONDITIONS[k] %></option><% }); %></select></label>

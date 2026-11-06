@@ -2712,6 +2712,9 @@ html:has(.office-ws) { scroll-padding-top: calc(var(--o-top, 78px) + var(--o-too
 .o-tag--danger { background: var(--red-50); border-color: transparent; color: var(--red-700); }
 .o-tag--muted { color: var(--card-muted); }
 .o-pages { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 16px; font-size: 13px; color: var(--card-muted); }
+.o-assets-search { padding-bottom: 0; }
+.o-assets-search + .o-metrics { border-top: 0; padding-top: 16px; }
+.o-assets-search .mgmt-toolbar__search { max-width: 460px; }
 .o-metrics { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
 .o-metric { display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 12px; background: var(--tile-bg); border: 1px solid var(--tile-border); text-decoration: none; }
 .o-metric:hover, .o-metric:focus-visible { border-color: var(--gold-400); }

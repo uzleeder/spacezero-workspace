@@ -3,6 +3,21 @@
 <div class="office-ws">
   <section class="card mt-24" aria-labelledby="ov-assets">
     <div class="card-header"><h2 id="ov-assets">Assets</h2><p>Each number opens the list it counts. <%= ov.total %> record<%= ov.total === 1 ? '' : 's' %> in total, including retired.</p></div>
+    <%# Same search line as Employees: search goes to the Assets list; a pill opens that category; Filters opens every filter there. %>
+    <div class="card-body o-assets-search">
+      <form class="mgmt-toolbar" method="get" action="/office/assets" role="search" aria-label="Find assets">
+        <div class="mgmt-toolbar__search">
+          <input type="search" name="q" placeholder="Search tag, item, model, person or location…" aria-label="Search assets" autocomplete="off" />
+        </div>
+        <nav class="segmented" aria-label="Category">
+          <a href="/office/assets" class="segmented__item is-active" aria-current="page">All assets</a>
+          <% [['CASE', 'Computer cases'], ['MONITOR', 'Monitors'], ['HEADPHONES', 'Headphones'], ['FURNITURE', 'Furniture'], ['APPLIANCE', 'Appliances']].forEach(function (c) { %>
+            <a href="/office/assets?category=<%= c[0] %>" class="segmented__item"><%= c[1] %></a>
+          <% }); %>
+        </nav>
+        <a class="btn btn-sm btn-secondary mgmt-toolbar__filters" href="/office/assets#more">Filters</a>
+      </form>
+    </div>
     <div class="card-body o-metrics">
       <% ['all', 'assigned', 'unassigned', 'available', 'attention', 'repair', 'review', 'retired'].forEach(function (k) { %>
         <a class="o-metric<%= (k === 'attention' || k === 'repair' || k === 'review') && ov.counts[k] ? ' o-metric--warn' : '' %>" href="/office/assets?view=<%= k %>">
