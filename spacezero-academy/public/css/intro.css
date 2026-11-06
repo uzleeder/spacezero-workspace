@@ -31,6 +31,9 @@
   box-shadow: inset 0 1px 0 #ffffff26, 0 0 70px #dca87816, 0 26px 50px #05041280;
 }
 .workspace-intro--premium .brand-mark-box svg { transform: rotate(8deg); width: 42px; height: 42px; color: #e8bb90; }
+.workspace-intro--premium .brand-mark-box svg.space-ai-mark { transform: rotate(8deg); width: 54px; height: 54px; }
+.workspace-intro--premium .brand-mark-sub { gap: 10px; color: #e8bb90; }
+.workspace-intro--premium .brand-mark-dash { width: 22px; }
 .workspace-intro--premium .brand-mark-word {
   font-family: 'Fraunces', Georgia, serif; font-size: clamp(30px, 7.5vw, 46px); font-weight: 600;
   letter-spacing: .04em; line-height: 1.25; color: #f7f5ff;
