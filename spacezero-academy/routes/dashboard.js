@@ -72,7 +72,7 @@ router.get('/dashboard', requireSession, async (req, res) => {
 // someone, the app's read-only guard refuses this like any other change.
 router.post('/dashboard/hero', requireSession, async (req, res) => {
   const hidden = req.body.hidden === '1';
-  await prisma.profile.update({ where: { id: req.profile.id }, data: { heroHidden: hidden } });
+  await require('../lib/prisma').prisma.profile.update({ where: { id: req.profile.id }, data: { heroHidden: hidden } });
   if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, hidden });
   res.redirect('/dashboard');
 });
