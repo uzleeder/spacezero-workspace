@@ -1,10 +1,33 @@
 <link rel="stylesheet" href="<%= asset('/static/css/intro.css') %>" />
-<div class="workspace-intro workspace-intro--premium" id="workspace-intro" hidden role="dialog" aria-modal="true" aria-label="Welcome to Space Zero Workspace">
+<div class="workspace-intro workspace-intro--premium workspace-intro--globe" id="workspace-intro" hidden role="dialog" aria-modal="true" aria-label="Welcome to Space Zero Workspace">
   <div class="intro-frame" aria-hidden="true"><span>SPACEZERO / WORKSPACE</span><span>THE ART OF EXCELLENCE</span></div>
   <svg class="intro-orbits" viewBox="0 0 1000 800" fill="none" aria-hidden="true"><ellipse cx="500" cy="400" rx="440" ry="210" transform="rotate(-32 500 400)"/><ellipse cx="500" cy="400" rx="440" ry="210" transform="rotate(32 500 400)"/><circle cx="500" cy="400" r="310"/><circle cx="182" cy="218" r="3" class="intro-star"/><circle cx="821" cy="578" r="4" class="intro-star"/></svg>
   <div class="workspace-intro__halo" aria-hidden="true"></div>
   <div class="workspace-intro__center">
     <p class="workspace-intro__eyebrow"><span></span> WELCOME ABOARD</p>
+    <%# A big globe with every country (the dashboard's map data) and a plane that flies once around its orbit while the
+        bar fills, ending with Uzbekistan in front at 100% (drawn by public/js/intro.js). It replaces the logo badge here. %>
+    <svg class="intro-globe" viewBox="0 0 400 260" fill="none" aria-hidden="true" focusable="false" data-intro-globe data-world="<%= asset('/static/data/world-countries-110m.json') %>">
+      <defs>
+        <radialGradient id="intro-sphere" cx="34%" cy="28%" r="78%"><stop stop-color="#5a4f93"/><stop offset=".55" stop-color="#2c2659"/><stop offset="1" stop-color="#15122e"/></radialGradient>
+        <radialGradient id="intro-shade" cx="70%" cy="72%" r="65%"><stop offset=".35" stop-color="#0b0a1c" stop-opacity="0"/><stop offset="1" stop-color="#0b0a1c" stop-opacity=".6"/></radialGradient>
+        <clipPath id="intro-globe-clip"><circle cx="200" cy="128" r="96"/></clipPath>
+        <path id="intro-aircraft" d="M21 0C21-1 19-2 16-2L3-3-9-17-15-17-8-3-19-2-24-7-27-7-24 0-27 7-24 7-19 2-8 3-15 17-9 17 3 3 16 2C19 2 21 1 21 0Z"/>
+      </defs>
+      <ellipse class="ig-orbit" cx="200" cy="128" rx="172" ry="44" transform="rotate(-16 200 128)"/>
+      <path class="ig-trail" data-trail-back/>
+      <g class="ig-plane" data-plane-back style="visibility:hidden"><use href="#intro-aircraft"/></g>
+      <circle class="ig-atmos" cx="200" cy="128" r="102"/>
+      <circle cx="200" cy="128" r="96" fill="url(#intro-sphere)"/>
+      <g clip-path="url(#intro-globe-clip)">
+        <path class="ig-grid" data-grid/><path class="ig-land" data-land/><path class="ig-borders" data-borders/><path class="ig-uz" data-uz/>
+        <circle cx="200" cy="128" r="96" fill="url(#intro-shade)"/>
+      </g>
+      <circle class="ig-rim" cx="200" cy="128" r="96"/>
+      <g transform="translate(200 128) rotate(-16)"><path class="ig-orbit ig-orbit--front" d="M-172 0A172 44 0 0 0 172 0"/></g>
+      <path class="ig-trail" data-trail-front/>
+      <g class="ig-plane" data-plane-front style="visibility:hidden"><use href="#intro-aircraft"/></g>
+    </svg>
     <%- include('brand-mark', { brandVariant: 'dark' }) %>
     <p class="intro-tagline">Your next level begins here.</p>
     <div class="workspace-intro__loading">
