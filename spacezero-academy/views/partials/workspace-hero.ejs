@@ -7,8 +7,13 @@ const HERO = {
   FLIGHT_EXPERT: { title: 'Every flight.<br>Built with expertise.', text: 'Master the fares, the rules and the routes.<br>Give every traveller the right answer the first time.', href: '/training', action: 'Continue my training' },
 };
 const hero = HERO[profile.role] || HERO.TRAVEL_AGENT;
+const canClose = !(typeof impersonation !== 'undefined' && impersonation);
 %>
-<section class="workspace-hero">
+<% if (!profile.heroHidden) { %>
+<section class="workspace-hero" data-hero>
+  <% if (canClose) { %><button type="button" class="hero-close" data-hero-close aria-label="Hide this card" title="Hide this card: its globe moves to the top of the sidebar">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3l8 8M11 3l-8 8"/></svg>
+  </button><% } %>
   <div class="hero-copy">
     <div class="eyebrow"><span></span> THE SPACEZERO STANDARD</div>
     <h2><%- hero.title %></h2>
@@ -74,3 +79,4 @@ const hero = HERO[profile.role] || HERO.TRAVEL_AGENT;
   </div>
 </section>
 <script src="<%= asset('/static/js/hero-globe.js') %>" defer></script>
+<% } %>

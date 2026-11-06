@@ -2842,3 +2842,45 @@ html:not([data-theme="dark"]) .hero-art .globe-port-label--home { fill: #8a5f37;
 html:not([data-theme="dark"]) .hero-art .globe-port-dot { fill: #dca878; stroke: #ffffff; }
 html:not([data-theme="dark"]) .hero-art .globe-trail { stroke: #c98f5c; filter: none; }
 html:not([data-theme="dark"]) .hero-art .globe-plane use { fill: #dca878; stroke: #8a5f37; filter: drop-shadow(0 2px 3px rgba(44,38,89,.35)); }
+
+/* ---- The dashboard card's X, and its globe in the sidebar logo once closed (partials/workspace-hero, mini-globe) ---- */
+.workspace-hero .hero-close { position: absolute; top: 14px; right: 14px; z-index: 3; width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center;
+  color: rgba(255,255,255,.72); background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); cursor: pointer; transition: background .15s ease, color .15s ease, transform .15s ease; }
+.workspace-hero .hero-close:hover, .workspace-hero .hero-close:focus-visible { color: #fff; background: rgba(255,255,255,.14); transform: scale(1.05); }
+.workspace-hero .hero-close:focus-visible { outline: 2px solid var(--gold-500); outline-offset: 2px; }
+html:not([data-theme="dark"]) .workspace-hero .hero-close { color: #4b4675; background: rgba(36,31,74,.05); border-color: rgba(36,31,74,.14); }
+html:not([data-theme="dark"]) .workspace-hero .hero-close:hover, html:not([data-theme="dark"]) .workspace-hero .hero-close:focus-visible { color: #241f4a; background: rgba(36,31,74,.1); }
+.sidebar-brand-main { position: relative; display: flex; align-items: center; min-width: 0; }
+.brand-mark-box .mini-globe { display: none; width: 36px; height: 36px; flex: none; }
+.brand-mark--globe .brand-mark-box .space-ai-mark { display: none; }
+.brand-mark--globe .brand-mark-box .mini-globe { display: block; }
+.mini-globe .mg-orbit { fill: none; stroke: #dca878; stroke-width: 1.1; stroke-linecap: round; }
+.mini-globe .mg-orbit--back { stroke-opacity: .35; }
+.mini-globe .mg-grid { fill: none; stroke: #c9c4ea; stroke-opacity: .32; stroke-width: .55; }
+.mini-globe .mg-rim { fill: none; stroke: #b9b2e6; stroke-opacity: .5; stroke-width: .6; }
+.mini-globe .mg-m { transform-box: view-box; transform-origin: 20px 20px; animation: mini-globe-spin 9s linear infinite; }
+.mini-globe .mg-m2 { animation-delay: -3s; }
+.mini-globe .mg-m3 { animation-delay: -6s; }
+.mini-globe .mg-plane { fill: #f6d9a8; offset-path: path('M-17 0A17 5.5 0 0 0 17 0A17 5.5 0 0 0 -17 0'); offset-rotate: 0deg; animation: mini-globe-fly 6s linear infinite; }
+@keyframes mini-globe-spin { 0% { transform: scaleX(1); } 25% { transform: scaleX(0); } 50% { transform: scaleX(-1); } 75% { transform: scaleX(0); } 100% { transform: scaleX(1); } }
+@keyframes mini-globe-fly { 0% { offset-distance: 0%; opacity: 1; } 48% { opacity: 1; } 52% { opacity: 0; } 96% { opacity: 0; } 100% { offset-distance: 100%; opacity: 1; } }
+html:not([data-theme="dark"]) .mini-globe .mg-s1 { stop-color: #ffffff; }
+html:not([data-theme="dark"]) .mini-globe .mg-s2 { stop-color: #efebfa; }
+html:not([data-theme="dark"]) .mini-globe .mg-s3 { stop-color: #d6cfee; }
+html:not([data-theme="dark"]) .mini-globe .mg-grid { stroke: #6f64b0; stroke-opacity: .3; }
+html:not([data-theme="dark"]) .mini-globe .mg-rim { stroke: #a79fd6; stroke-opacity: .8; }
+html:not([data-theme="dark"]) .mini-globe .mg-plane { fill: #a97b4f; }
+html:not([data-theme="dark"]) .mini-globe .mg-orbit { stroke: #c98f5c; }
+.brand-mark.is-docking .brand-mark-box { animation: mini-globe-dock .85s ease-out; }
+@keyframes mini-globe-dock { 0% { transform: scale(1.3); box-shadow: 0 0 0 0 rgba(220,168,120,.55); } 60% { transform: scale(.96); box-shadow: 0 0 0 10px rgba(220,168,120,0); } 100% { transform: scale(1); box-shadow: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .mini-globe .mg-m, .mini-globe .mg-plane, .brand-mark.is-docking .brand-mark-box { animation: none; }
+  .mini-globe .mg-plane { offset-distance: 20%; }
+}
+/* the button that brings the card back: on the globe's corner, shown on hover/focus (always on touch screens) */
+.hero-restore { position: absolute; left: 27px; top: -7px; z-index: 2; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; padding: 0;
+  border: 0; background: var(--gold-500); color: #1b1531; cursor: pointer; box-shadow: 0 2px 6px rgba(16,24,35,.3); opacity: 0; transform: scale(.75); transition: opacity .15s ease, transform .15s ease; }
+.hero-restore[hidden] { display: none; }
+.sidebar-brand-main:hover .hero-restore, .hero-restore:focus-visible { opacity: 1; transform: none; }
+.hero-restore:focus-visible { outline: 2px solid var(--gold-500); outline-offset: 2px; }
+@media (hover: none) { .hero-restore { opacity: 1; transform: none; } }

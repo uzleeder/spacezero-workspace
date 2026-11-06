@@ -1,0 +1,19 @@
+<%# The dashboard card's globe in miniature, for the sidebar logo of someone who closed that card: a turning sphere
+    with a plane circling it (CSS only, it stops for "reduce motion"). Shown when .brand-mark--globe is set. %>
+<svg class="mini-globe" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+  <defs>
+    <radialGradient id="mini-globe-sphere" cx="35%" cy="30%" r="75%"><stop class="mg-s1" stop-color="#5a4f93"/><stop class="mg-s2" offset=".6" stop-color="#2c2659"/><stop class="mg-s3" offset="1" stop-color="#15122e"/></radialGradient>
+    <clipPath id="mini-globe-clip"><circle cx="20" cy="20" r="10.5"/></clipPath>
+  </defs>
+  <g transform="translate(20 20) rotate(-18)"><ellipse class="mg-orbit mg-orbit--back" rx="17" ry="5.5"/></g>
+  <circle cx="20" cy="20" r="10.5" fill="url(#mini-globe-sphere)"/>
+  <g clip-path="url(#mini-globe-clip)" class="mg-grid">
+    <ellipse class="mg-m" cx="20" cy="20" rx="10.5" ry="10.5"/><ellipse class="mg-m mg-m2" cx="20" cy="20" rx="10.5" ry="10.5"/><ellipse class="mg-m mg-m3" cx="20" cy="20" rx="10.5" ry="10.5"/>
+    <path d="M9.5 20h21M10.5 15h19M10.5 25h19"/>
+  </g>
+  <circle class="mg-rim" cx="20" cy="20" r="10.5"/>
+  <g transform="translate(20 20) rotate(-18)">
+    <path class="mg-orbit" d="M-17 0A17 5.5 0 0 0 17 0"/>
+    <circle class="mg-plane" r="1.7"/>
+  </g>
+</svg>

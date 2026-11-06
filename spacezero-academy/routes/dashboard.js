@@ -67,4 +67,14 @@ router.get('/dashboard', requireSession, async (req, res) => {
   res.render('dashboard/agent', { title: 'Dashboard', summary, setup, me, readiness, attention });
 });
 
+// The dashboard's "SpaceZero standard" card: its X hides the card for this person (the globe then turns in the
+// sidebar logo instead), and the small button on that sidebar globe brings it back. While an Admin is viewing as
+// someone, the app's read-only guard refuses this like any other change.
+router.post('/dashboard/hero', requireSession, async (req, res) => {
+  const hidden = req.body.hidden === '1';
+  await prisma.profile.update({ where: { id: req.profile.id }, data: { heroHidden: hidden } });
+  if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, hidden });
+  res.redirect('/dashboard');
+});
+
 module.exports = router;

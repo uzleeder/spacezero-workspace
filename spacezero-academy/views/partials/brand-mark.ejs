@@ -5,10 +5,14 @@
 // page, and the certificate — so the brand mark never drifts between screens.
 const variant = typeof brandVariant !== 'undefined' ? brandVariant : 'light';
 const size = typeof brandSize !== 'undefined' ? brandSize : '';
+// brandGlobe (sidebar only): undefined = no mini globe; true = the person closed the dashboard card, so its globe
+// turns here instead of the mark; false = rendered but hidden, so the page script can switch to it without a reload.
+const globe = typeof brandGlobe !== 'undefined' ? brandGlobe : undefined;
 %>
-<div class="brand-mark brand-mark--<%= variant %><%= size ? ' brand-mark--' + size : '' %>">
+<div class="brand-mark brand-mark--<%= variant %><%= size ? ' brand-mark--' + size : '' %><%= globe ? ' brand-mark--globe' : '' %>">
   <div class="brand-mark-box">
     <%- include('space-ai-mark') %>
+    <% if (globe !== undefined) { %><%- include('mini-globe') %><% } %>
   </div>
   <div class="brand-mark-text">
     <div class="brand-mark-word">SPACEZERO</div>

@@ -16,7 +16,7 @@ test('the sidebar logo is a link to the dashboard on every page and role', async
     for (const url of ['/dashboard', '/standards', '/profile']) {
       const page = await request(app).get(url).set('Cookie', `sz_session=${t.raw}`);
       assert.equal(page.status, 200, `${role} ${url}`);
-      assert.match(page.text, /<div class="sidebar-brand">\s*<a href="\/dashboard" class="sidebar-brand-link"[^>]*>\s*[\s\S]*?SPACEZERO[\s\S]*?<\/a>/, `${role} ${url}`);
+      assert.match(page.text, /<div class="sidebar-brand">\s*<div class="sidebar-brand-main">\s*<a href="\/dashboard" class="sidebar-brand-link"[^>]*>\s*[\s\S]*?SPACEZERO[\s\S]*?<\/a>/, `${role} ${url}`);
     }
   }
   await prisma.$disconnect();
