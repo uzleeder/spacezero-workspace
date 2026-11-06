@@ -67,12 +67,12 @@ router.get('/dashboard', requireSession, async (req, res) => {
   res.render('dashboard/agent', { title: 'Dashboard', summary, setup, me, readiness, attention });
 });
 
-// The dashboard's "SpaceZero standard" card: its X hides the card for this person (the globe then turns in the
-// sidebar logo instead), and the small button on that sidebar globe brings it back. While an Admin is viewing as
-// someone, the app's read-only guard refuses this like any other change.
+// The dashboard's "SpaceZero standard" card. By default its globe turns in the sidebar logo; the small button on that
+// globe brings the card onto the dashboard for this person (hidden=0), and the card's X sends it back (hidden=1).
+// While an Admin is viewing as someone, the app's read-only guard refuses this like any other change.
 router.post('/dashboard/hero', requireSession, async (req, res) => {
   const hidden = req.body.hidden === '1';
-  await require('../lib/prisma').prisma.profile.update({ where: { id: req.profile.id }, data: { heroHidden: hidden } });
+  await require('../lib/prisma').prisma.profile.update({ where: { id: req.profile.id }, data: { heroShown: !hidden } });
   if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, hidden });
   res.redirect('/dashboard');
 });

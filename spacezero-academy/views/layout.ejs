@@ -29,8 +29,8 @@
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-brand">
         <div class="sidebar-brand-main">
-          <a href="/dashboard" class="sidebar-brand-link" aria-label="SpaceZero Workspace — go to the dashboard" title="Go to the dashboard"><%- include('partials/brand-mark', { brandVariant: 'dark', brandGlobe: !!profile.heroHidden }) %></a>
-          <% if (!(typeof impersonation !== 'undefined' && impersonation)) { %><button type="button" class="hero-restore" data-hero-restore<%= profile.heroHidden ? '' : ' hidden' %> aria-label="Show the SpaceZero standard card on the dashboard again" title="Show the SpaceZero standard card again">
+          <a href="/dashboard" class="sidebar-brand-link" aria-label="SpaceZero Workspace — go to the dashboard" title="Go to the dashboard"><%- include('partials/brand-mark', { brandVariant: 'dark', brandGlobe: !profile.heroShown }) %></a>
+          <% if (!(typeof impersonation !== 'undefined' && impersonation)) { %><button type="button" class="hero-restore" data-hero-restore<%= profile.heroShown ? ' hidden' : '' %> aria-label="Show the SpaceZero standard card on the dashboard" title="Show the SpaceZero standard card on the dashboard">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.6-5.9"/><path d="M4 4v4h4"/></svg>
           </button><% } %>
         </div>

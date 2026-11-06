@@ -491,9 +491,9 @@
   });
 })();
 
-// The dashboard's "SpaceZero standard" card. Its X saves the choice for this person, then the globe shrinks and flies
-// into the sidebar logo (on phones, where the sidebar is closed, into the menu button) while the card folds away; from
-// then on the logo is a small turning globe. The little button on that globe brings the card back.
+// The dashboard's "SpaceZero standard" card. By default its globe turns in the sidebar logo; the little button on that
+// globe brings the card onto the dashboard. The card's X saves the choice, then the globe shrinks and flies back into
+// the sidebar logo (on phones, where the sidebar is closed, into the menu button) while the card folds away.
 (function () {
   var brand = document.querySelector('.sidebar .brand-mark');
   var restore = document.querySelector('[data-hero-restore]');

@@ -9,7 +9,7 @@ const HERO = {
 const hero = HERO[profile.role] || HERO.TRAVEL_AGENT;
 const canClose = !(typeof impersonation !== 'undefined' && impersonation);
 %>
-<% if (!profile.heroHidden) { %>
+<% if (profile.heroShown) { %>
 <section class="workspace-hero" data-hero>
   <% if (canClose) { %><button type="button" class="hero-close" data-hero-close aria-label="Hide this card" title="Hide this card: its globe moves to the top of the sidebar">
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3l8 8M11 3l-8 8"/></svg>

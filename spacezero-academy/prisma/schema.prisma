@@ -261,7 +261,7 @@ model Profile {
   email               String        @unique
   passwordHash        String?
   photoUrl            String?
-  heroHidden          Boolean   @default(false) // closed the dashboard's SpaceZero standard card: its globe turns in the sidebar logo instead
+  heroShown           Boolean   @default(false) // brought the dashboard's SpaceZero standard card back; by default its globe turns in the sidebar logo
   phonePrimary        String?
   phoneSecondary      String?
   whatsappNumber      String?

@@ -1,6 +1,6 @@
 'use strict';
-// The dashboard's "SpaceZero standard" card can be closed per person: its globe then turns in the sidebar logo, and
-// the button on that globe brings the card back.
+// The dashboard's "SpaceZero standard" card. By default its globe turns in the sidebar logo and the dashboard has no
+// card; the button on that sidebar globe brings the card onto this person's dashboard, and the card's X sends it back.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const request = require('supertest');
@@ -21,40 +21,41 @@ after(async () => { await prisma.$disconnect(); });
 const dashboard = () => request(app).get('/dashboard').set('Cookie', cookie);
 const save = (hidden) => request(app).post('/dashboard/hero').set('Cookie', cookie).set('X-Requested-With', 'fetch').type('form').send({ hidden });
 
-test('the card shows with an X, and the sidebar logo is the mark (its mini globe ready but hidden)', async () => {
+test('by default the globe turns in the sidebar logo on every page, and the dashboard has no card', async () => {
+  assert.equal(agent.heroShown, false);
   const page = await dashboard();
   assert.equal(page.status, 200);
-  assert.match(page.text, /<section class="workspace-hero" data-hero>/);
-  assert.match(page.text, /data-hero-close/);
-  assert.match(page.text, /class="mini-globe"/);
-  assert.doesNotMatch(page.text, /brand-mark--globe/);
-  assert.match(page.text, /data-hero-restore hidden/);
-});
-
-test('closing it is remembered for this person: no card, the globe turns in the sidebar logo, and it can come back', async () => {
-  const closed = await save('1');
-  assert.equal(closed.status, 200);
-  assert.deepEqual(closed.body, { ok: true, hidden: true });
-  assert.equal((await prisma.profile.findUnique({ where: { id: agent.id } })).heroHidden, true);
-  let page = await dashboard();
   assert.doesNotMatch(page.text, /data-hero>/);
   assert.doesNotMatch(page.text, /hero-globe\.js/);
   assert.match(page.text, /brand-mark--globe/);
-  assert.match(page.text, /data-hero-restore aria-label/);
+  assert.match(page.text, /class="mini-globe"/);
+  assert.match(page.text, /data-hero-restore aria-label="Show the SpaceZero standard card on the dashboard"/);
   const other = await request(app).get('/profile').set('Cookie', cookie);
-  assert.match(other.text, /brand-mark--globe/, 'the sidebar globe shows on every page');
+  assert.match(other.text, /brand-mark--globe/);
+});
 
-  const back = await save('0');
-  assert.deepEqual(back.body, { ok: true, hidden: false });
-  page = await dashboard();
-  assert.match(page.text, /data-hero>/);
+test('the sidebar button brings the card onto this person\'s dashboard, and its X sends it back to the sidebar', async () => {
+  const shown = await save('0');
+  assert.equal(shown.status, 200);
+  assert.deepEqual(shown.body, { ok: true, hidden: false });
+  assert.equal((await prisma.profile.findUnique({ where: { id: agent.id } })).heroShown, true);
+  let page = await dashboard();
+  assert.match(page.text, /<section class="workspace-hero" data-hero>/);
+  assert.match(page.text, /data-hero-close/);
   assert.doesNotMatch(page.text, /brand-mark--globe/);
+  assert.match(page.text, /data-hero-restore hidden/);
+
+  const docked = await save('1');
+  assert.deepEqual(docked.body, { ok: true, hidden: true });
+  page = await dashboard();
+  assert.doesNotMatch(page.text, /data-hero>/);
+  assert.match(page.text, /brand-mark--globe/);
 });
 
 test('without the page script the form post still works, and signed-out requests are refused', async () => {
-  const res = await request(app).post('/dashboard/hero').set('Cookie', cookie).type('form').send({ hidden: '0' });
+  const res = await request(app).post('/dashboard/hero').set('Cookie', cookie).type('form').send({ hidden: '1' });
   assert.equal(res.status, 302);
   assert.equal(res.headers.location, '/dashboard');
-  const anon = await request(app).post('/dashboard/hero').type('form').send({ hidden: '1' });
+  const anon = await request(app).post('/dashboard/hero').type('form').send({ hidden: '0' });
   assert.notEqual(anon.status, 200);
 });

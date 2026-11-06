@@ -164,6 +164,7 @@ test('the sidebar shows the SPACEZERO / WORKSPACE logo without a separate worksp
 });
 
 test('the dashboard globe marks Uzbekistan and is drawn by its own script', async () => {
+  await prisma.profile.update({ where: { id: admin.id }, data: { heroShown: true } }); // the card is on the dashboard only once brought back
   const dash = await get(admin, '/dashboard');
   assert.match(dash.text, /<svg [^>]*data-globe[ >]/);
   assert.match(dash.text, />Uzbekistan<\/text>/);
@@ -182,6 +183,7 @@ test('every role gets the SpaceZero Standard card on its dashboard, in its own w
     [agent1, /Turn every call into a trip your client remembers\./, 'href="/training"', 'Continue my training'],
     [expert, /Every flight\.<br>Built with expertise\./, 'href="/training"', 'Continue my training'],
   ];
+  await prisma.profile.updateMany({ where: { id: { in: cases.map((c) => c[0].id) } }, data: { heroShown: true } }); // brought back onto the dashboard
   for (const [who, line, href, action] of cases) {
     const page = (await get(who, '/dashboard')).text;
     assert.match(page, /THE SPACEZERO STANDARD/, who.role);
