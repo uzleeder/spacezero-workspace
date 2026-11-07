@@ -1,0 +1,139 @@
+<%# Office Management -> Desks: who sits where, the assets linked to each desk, readiness. Credentials only inside the
+    opened desk, in its own "Computer password" section. %>
+<%
+  var qs = function (over) { var p = new URLSearchParams(); var all = Object.assign({ view: view, q: q }, over || {}); if (all.view && all.view !== 'all') p.set('view', all.view); if (all.q) p.set('q', all.q); var s = p.toString(); return '/office/desks' + (s ? '?' + s : ''); };
+  var listHref = qs();
+  var withParam = function (base, k, val) { return base + (base.indexOf('?') >= 0 ? '&' : '?') + k + '=' + encodeURIComponent(val); };
+  var v = function (k, fallback) { return values && values[k] !== undefined ? values[k] : (fallback === undefined || fallback === null ? '' : fallback); };
+  var d = desk;
+%>
+<%- include('_top', { action: '<a class="btn btn-gold btn-sm" href="' + withParam(listHref, 'new', '1') + '">+ Add desk</a>', inDrawer: Boolean(drawer) }) %>
+
+<div class="office-ws" data-office>
+  <form method="get" action="/office/desks" class="o-toolbar" data-o-toolbar role="search" aria-label="Find desks">
+    <input type="search" name="q" value="<%= q %>" placeholder="Search desk number, person, team, asset" aria-label="Search desks" class="o-toolbar__search" />
+    <select name="view" aria-label="Show"><% Object.keys(DESK_VIEWS).forEach(function (k) { %><option value="<%= k %>"<%= view === k ? ' selected' : '' %>><%= DESK_VIEWS[k] %> (<%= counts[k] %>)</option><% }); %></select>
+    <button type="submit" class="btn btn-gold btn-sm">Apply</button>
+    <% if (q || view !== 'all') { %><a class="o-clear" href="/office/desks">Clear filters</a><% } %>
+  </form>
+  <div class="o-resultbar"><p class="o-count" role="status"><strong><%= list.length %></strong> desk<%= list.length === 1 ? '' : 's' %>. Ready = someone sits there and a <%= READY_NEEDS.map(function (n) { return n.label; }).join(', ') %> are linked.</p></div>
+
+  <% if (!list.length) { %>
+    <div class="card mt-16"><div class="card-body"><%- include('../partials/empty-state', { title: q || view !== 'all' ? 'No desks match' : 'No desks yet', description: q || view !== 'all' ? 'Change the filters.' : 'Add the first desk with "+ Add desk". Employees can also fill in their own PC on their Setup page.' }) %></div></div>
+  <% } else { %>
+  <div class="card mt-16 o-tablecard">
+    <table class="o-table">
+      <thead><tr><th scope="col">Desk</th><th scope="col">Team</th><th scope="col">Who sits here</th><th scope="col">Linked equipment</th><th scope="col">Readiness</th><th scope="col"><span class="visually-hidden">Open</span></th></tr></thead>
+      <tbody>
+        <% list.forEach(function (row) { %>
+          <tr id="row-<%= row.id %>"<%= d && d.id === row.id ? ' class="is-open"' : '' %>>
+            <td data-label="Desk"><a class="o-taglink" href="<%= withParam(listHref, 'desk', row.id) %>">Desk <%= row.number %></a></td>
+            <td data-label="Team"><%= row.teamShown || '—' %></td>
+            <td data-label="Who sits here"><%= row.who || 'Nobody' %></td>
+            <td data-label="Linked equipment"><% if (row.items.length) { %><%= row.items.map(function (i) { return (i.assetTag || '') + ' ' + i.name; }).join(', ') %><% } else { %><span class="text-muted">None linked</span><% } %><% if (row.legacy) { %><span class="o-sub">Written notes: <%= [row.monitor, row.pcCase, row.keyboard, row.mouse, row.headphone].filter(Boolean).join(', ') %></span><% } %></td>
+            <td data-label="Readiness"><% if (!row.occupied) { %><span class="o-tag o-tag--muted">Unoccupied</span><% } else if (row.ready) { %><span class="o-tag o-tag--ok">Ready</span><% } else { %><span class="o-tag o-tag--warn">Missing: <%= row.missing.join(', ') %></span><% } %></td>
+            <td class="o-open"><a class="btn btn-secondary btn-sm" href="<%= withParam(listHref, 'desk', row.id) %>" aria-label="Open desk <%= row.number %>">Open</a></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</div>
+<div style="height:40px"></div>
+
+<% if (drawer) { %>
+<div class="o-drawer" data-o-drawer data-close-href="<%= listHref %><%= d ? '#row-' + d.id : '' %>">
+  <a class="o-drawer__backdrop" href="<%= listHref %>" tabindex="-1" aria-hidden="true"></a>
+  <section class="o-drawer__panel" role="dialog" aria-modal="true" aria-labelledby="o-drawer-title">
+    <header class="o-drawer__head">
+      <div><p class="o-drawer__kicker"><%= d ? (d.teamShown || 'Desk') : 'New desk' %></p><h2 id="o-drawer-title"><%= d ? 'Desk ' + d.number : 'Add desk' %></h2></div>
+      <a class="o-drawer__close" href="<%= listHref %><%= d ? '#row-' + d.id : '' %>" data-o-close aria-label="Close">×</a>
+    </header>
+    <div class="o-discard" data-o-discard hidden role="alertdialog" aria-label="Unsaved changes"><span>You have unsaved changes.</span><button type="button" class="btn btn-secondary btn-sm" data-o-keep>Keep editing</button><a class="btn btn-danger btn-sm" data-o-discard-go href="#">Discard</a></div>
+    <% if (error) { %><div class="form-alert error" role="alert"><%= error %></div><% } %>
+
+    <% if (d) { %>
+    <div class="o-badges"><% if (!d.occupied) { %><span class="o-tag o-tag--muted">Unoccupied</span><% } else if (d.ready) { %><span class="o-tag o-tag--ok">Ready</span><% } else { %><span class="o-tag o-tag--warn">Missing: <%= d.missing.join(', ') %></span><% } %></div>
+    <section class="o-section" aria-labelledby="o-desk-eq">
+      <h3 id="o-desk-eq">Linked equipment</h3>
+      <% if (!d.items.length) { %><p class="text-sm text-muted">No assets linked yet.</p><% } else { %>
+        <ul class="o-list">
+          <% d.items.forEach(function (i) { %>
+            <li><a href="/office/assets?asset=<%= i.id %>"><strong><%= i.assetTag || 'No tag' %></strong> <%= i.name %></a>
+              <form method="post" action="/office/assets/<%= i.id %>/custody" class="o-inline o-inline--tight">
+                <input type="hidden" name="back" value="<%= listHref %>" /><input type="hidden" name="reopenDesk" value="<%= d.id %>" /><input type="hidden" name="version" value="<%= i.version %>" /><input type="hidden" name="mode" value="return" /><input type="hidden" name="location" value="Storage" />
+                <button type="submit" class="btn btn-ghost btn-sm" aria-label="Return <%= i.assetTag || i.name %> to Storage">Return to Storage</button>
+              </form></li>
+          <% }); %>
+        </ul>
+      <% } %>
+      <% if (assignable.length) { %>
+        <form method="post" action="/office/desks/<%= d.id %>/link" class="o-inline">
+          <input type="hidden" name="back" value="<%= listHref %>" />
+          <label>Add equipment<select name="pick" required><option value="">Choose an available asset</option><% assignable.forEach(function (i) { %><option value="<%= i.id %>:<%= i.version %>"><%= i.assetTag || '' %> <%= i.name %></option><% }); %></select></label>
+          <button type="submit" class="btn btn-secondary btn-sm">Link</button>
+        </form>
+        <p class="text-sm text-muted">Only assets that are in service, Good and not with anyone are listed.</p>
+      <% } else { %><p class="text-sm text-muted">No asset is free to link (in service, Good and not with anyone).</p><% } %>
+      <% if (d.legacy) { %><p class="text-sm text-muted">Written notes from the older desk list (not linked to assets): <%= [d.monitor && 'monitor ' + d.monitor, d.pcCase && 'case ' + d.pcCase, d.keyboard && 'keyboard ' + d.keyboard, d.mouse && 'mouse ' + d.mouse, d.headphone && 'headphone ' + d.headphone].filter(Boolean).join(' · ') %></p><% } %>
+    </section>
+    <% } %>
+
+    <section class="o-section" aria-labelledby="o-desk-details">
+      <h3 id="o-desk-details"><%= d ? 'Details' : 'New desk' %></h3>
+      <form method="post" action="<%= d ? '/office/desks/' + d.id : '/office/desks' %>" class="o-form" data-o-form autocomplete="off">
+        <input type="hidden" name="back" value="<%= listHref %>" /><% if (d) { %><input type="hidden" name="version" value="<%= d.version %>" /><% } %>
+        <div class="o-form__row">
+          <label>Desk number<input name="number" type="number" min="1" max="9999" required inputmode="numeric" value="<%= v('number', d && d.number) %>" /></label>
+          <label>Team label<input name="team" maxlength="80" value="<%= v('team', d && d.team) %>" placeholder="Shown when the person has no team" /></label>
+        </div>
+        <label>Who sits here<select name="profileId"><option value="">Nobody / not in the list</option><% people.forEach(function (p) { %><option value="<%= p.id %>"<%= v('profileId', d && d.profileId) === p.id ? ' selected' : '' %>><%= p.fullName %></option><% }); %></select></label>
+        <label>Or a written name<input name="personName" maxlength="80" value="<%= v('personName', d && d.personName) %>" placeholder="e.g. New agent" /></label>
+        <% if (d && d.legacy) { %>
+          <fieldset class="o-fieldset"><legend>Written notes (older desk list)</legend>
+            <div class="o-form__row"><label>Monitor<input name="monitor" maxlength="80" value="<%= v('monitor', d.monitor) %>" /></label><label>Case<input name="pcCase" maxlength="80" value="<%= v('pcCase', d.pcCase) %>" /></label></div>
+            <div class="o-form__row"><label>Keyboard<input name="keyboard" maxlength="80" value="<%= v('keyboard', d.keyboard) %>" /></label><label>Mouse<input name="mouse" maxlength="80" value="<%= v('mouse', d.mouse) %>" /></label></div>
+            <label>Headphone<input name="headphone" maxlength="80" value="<%= v('headphone', d.headphone) %>" /></label>
+          </fieldset>
+        <% } else if (d) { %>
+          <% ['monitor', 'pcCase', 'keyboard', 'mouse', 'headphone'].forEach(function (f) { %><input type="hidden" name="<%= f %>" value="<%= d[f] || '' %>" /><% }); %>
+        <% } %>
+        <label>Note<input name="note" maxlength="500" value="<%= v('note', d && d.note) %>" /></label>
+        <% if (d && d.hasPassword) { %>
+          <label class="o-check"><input type="checkbox" name="keepPassword" value="1" /> If the person changes, keep the saved PC password for the new person (they will be able to see it on their My PC)</label>
+        <% } %>
+        <div class="o-form__actions"><button type="submit" class="btn btn-gold"><%= d ? 'Save desk' : 'Add desk' %></button><a class="btn btn-secondary" href="<%= listHref %>" data-o-close>Close</a></div>
+      </form>
+    </section>
+
+    <% if (d) { %>
+    <section class="o-section o-section--secure" aria-labelledby="o-desk-pw">
+      <h3 id="o-desk-pw">Computer password</h3>
+      <% if (d.hasPassword) { %>
+        <p class="desk-pw"><span class="desk-pw__value" data-pw-value>•••••</span><button type="button" class="desk-pw__show" data-pw-show="<%= d.id %>">Show</button></p>
+        <p class="text-sm text-muted">Shown for 20 seconds; every Show is in the audit log.</p>
+      <% } else { %><p class="text-sm text-muted">No password saved.</p><% } %>
+      <form method="post" action="/office/desks/<%= d.id %>" class="o-form" autocomplete="off">
+        <input type="hidden" name="back" value="<%= listHref %>" /><input type="hidden" name="version" value="<%= d.version %>" />
+        <% ['number', 'team', 'profileId', 'personName', 'note', 'monitor', 'pcCase', 'keyboard', 'mouse', 'headphone'].forEach(function (f) { %><input type="hidden" name="<%= f %>" value="<%= d[f] == null ? '' : d[f] %>" /><% }); %>
+        <label>New password<input name="password" type="password" maxlength="200" autocomplete="new-password" /></label>
+        <div class="o-form__actions"><button type="submit" class="btn btn-secondary btn-sm">Save password</button><% if (d.hasPassword) { %><button type="submit" name="clearPassword" value="1" class="btn btn-ghost btn-sm o-danger-text">Remove password</button><% } %></div>
+      </form>
+    </section>
+
+    <section class="o-section" aria-labelledby="o-desk-remove">
+      <h3 id="o-desk-remove">Remove desk</h3>
+      <details class="o-confirm"><summary class="btn btn-ghost btn-sm o-danger-text">Remove desk <%= d.number %>…</summary>
+        <form method="post" action="/office/desks/<%= d.id %>/delete" class="o-form">
+          <input type="hidden" name="back" value="<%= listHref %>" />
+          <p class="text-sm">Only a desk with no linked assets can be removed. Its saved password is removed with it. Its history stays in Activity.</p>
+          <div class="o-form__actions"><button type="submit" class="btn btn-danger btn-sm">Remove desk <%= d.number %></button></div>
+        </form>
+      </details>
+    </section>
+    <% } %>
+  </section>
+</div>
+<% } %>
+<script src="<%= asset('/static/js/office.js') %>" defer></script>

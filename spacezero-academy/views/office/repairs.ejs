@@ -1,0 +1,141 @@
+<%# Office Management -> Repairs: the private repair queue (lib/officeRepairs.js has the states and their effects). %>
+<%
+  var qs = function (over) { var p = new URLSearchParams(); var all = Object.assign({ view: view, q: q }, over || {}); if (all.view && all.view !== 'open') p.set('view', all.view); if (all.q) p.set('q', all.q); var s = p.toString(); return '/office/repairs' + (s ? '?' + s : ''); };
+  var listHref = qs();
+  var withParam = function (base, k, val) { return base + (base.indexOf('?') >= 0 ? '&' : '?') + k + '=' + encodeURIComponent(val); };
+  var v = function (k, fallback) { return values && values[k] !== undefined ? values[k] : (fallback === undefined || fallback === null ? '' : fallback); };
+  var r = repair;
+  var due = function (row) { if (!row.dueAt) return '<span class="text-muted">No due date</span>'; var o = repairs.isOverdue(row, now), s = repairs.isDueSoon(row, now); return '<span class="o-tag' + (o ? ' o-tag--danger' : s ? ' o-tag--warn' : '') + '">' + (o ? 'Overdue · ' : s ? 'Due soon · ' : '') + repairs.formatDay(row.dueAt) + '</span>'; };
+  var statusTag = function (st) { return '<span class="o-tag' + (st === 'RESOLVED' ? ' o-tag--ok' : st === 'CANCELLED' ? ' o-tag--muted' : st === 'WAITING' ? ' o-tag--warn' : '') + '">' + repairs.STATUSES[st] + '</span>'; };
+%>
+<%- include('_top', { action: '<a class="btn btn-gold btn-sm" href="' + withParam(listHref, 'new', '1') + '">+ Report a repair</a>', inDrawer: Boolean(drawer) }) %>
+
+<div class="office-ws" data-office>
+  <form method="get" action="/office/repairs" class="o-toolbar" data-o-toolbar role="search" aria-label="Find repairs">
+    <input type="search" name="q" value="<%= q %>" placeholder="Search problem, asset tag, who is handling it" aria-label="Search repairs" class="o-toolbar__search" />
+    <select name="view" aria-label="Show"><% Object.keys(repairs.VIEWS).forEach(function (k) { %><option value="<%= k %>"<%= view === k ? ' selected' : '' %>><%= repairs.VIEWS[k].label %> (<%= counts[k] %>)</option><% }); %></select>
+    <button type="submit" class="btn btn-gold btn-sm">Apply</button>
+    <% if (q || view !== 'open') { %><a class="o-clear" href="/office/repairs">Clear filters</a><% } %>
+  </form>
+  <div class="o-resultbar"><p class="o-count" role="status"><strong><%= list.length %></strong> repair<%= list.length === 1 ? '' : 's' %>. Due dates are whole days in Tashkent time; "due soon" = within <%= repairs.SOON_DAYS %> days.</p></div>
+
+  <% if (!list.length) { %>
+    <div class="card mt-16"><div class="card-body"><%- include('../partials/empty-state', { title: 'No repairs here', description: view === 'open' && !q ? 'Report a repair from an asset, or with "+ Report a repair".' : 'Change the filters.' }) %></div></div>
+  <% } else { %>
+  <div class="card mt-16 o-tablecard">
+    <table class="o-table">
+      <thead><tr><th scope="col">Asset</th><th scope="col">Problem</th><th scope="col">Priority</th><th scope="col">Status</th><th scope="col">Due</th><th scope="col">Handled by</th><th scope="col"><span class="visually-hidden">Open</span></th></tr></thead>
+      <tbody>
+        <% list.forEach(function (row) { %>
+          <tr id="row-<%= row.id %>"<%= r && r.id === row.id ? ' class="is-open"' : '' %>>
+            <td data-label="Asset"><a class="o-taglink" href="<%= withParam(listHref, 'repair', row.id) %>"><%= row.item.assetTag || 'No tag' %></a><span class="o-sub"><%= row.item.name %></span></td>
+            <td data-label="Problem"><%= row.issue.length > 90 ? row.issue.slice(0, 90) + '…' : row.issue %></td>
+            <td data-label="Priority"><span class="o-tag<%= row.priority === 'URGENT' ? ' o-tag--danger' : row.priority === 'HIGH' ? ' o-tag--warn' : '' %>"><%= repairs.PRIORITIES[row.priority] %></span></td>
+            <td data-label="Status"><%- statusTag(row.status) %></td>
+            <td data-label="Due"><%- repairs.isOpen(row) ? due(row) : '<span class="text-muted">' + repairs.formatDay(row.resolvedAt) + '</span>' %></td>
+            <td data-label="Handled by"><%= row.responsible || '—' %></td>
+            <td class="o-open"><a class="btn btn-secondary btn-sm" href="<%= withParam(listHref, 'repair', row.id) %>" aria-label="Open repair for <%= row.item.assetTag || row.item.name %>">Open</a></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</div>
+<div style="height:40px"></div>
+
+<% if (drawer) { %>
+<div class="o-drawer" data-o-drawer data-close-href="<%= listHref %><%= r ? '#row-' + r.id : '' %>">
+  <a class="o-drawer__backdrop" href="<%= listHref %>" tabindex="-1" aria-hidden="true"></a>
+  <section class="o-drawer__panel" role="dialog" aria-modal="true" aria-labelledby="o-drawer-title">
+    <header class="o-drawer__head">
+      <div><p class="o-drawer__kicker"><%= r ? (r.item.assetTag || 'No tag') + ' · ' + r.item.name : 'New repair' %></p><h2 id="o-drawer-title"><%= r ? 'Repair' : 'Report a repair' %></h2></div>
+      <a class="o-drawer__close" href="<%= listHref %><%= r ? '#row-' + r.id : '' %>" data-o-close aria-label="Close">×</a>
+    </header>
+    <div class="o-discard" data-o-discard hidden role="alertdialog" aria-label="Unsaved changes"><span>You have unsaved changes.</span><button type="button" class="btn btn-secondary btn-sm" data-o-keep>Keep editing</button><a class="btn btn-danger btn-sm" data-o-discard-go href="#">Discard</a></div>
+    <% if (error) { %><div class="form-alert error" role="alert"><%= error %></div><% } %>
+
+    <% if (!r) { %>
+      <form method="post" action="/office/repairs" class="o-form" data-o-form>
+        <input type="hidden" name="back" value="<%= listHref %>" />
+        <label>Asset<select name="itemId" required><option value="">Choose the asset</option><% assets.forEach(function (a) { %><option value="<%= a.id %>"<%= preselect === a.id ? ' selected' : '' %>><%= a.assetTag || 'No tag' %> · <%= a.name %></option><% }); %></select></label>
+        <label>Problem<textarea name="issue" rows="3" maxlength="1000" required><%= v('issue') %></textarea></label>
+        <div class="o-form__row">
+          <label>Condition now<select name="condition"><option value="NEEDS_REPAIR"<%= v('condition', 'NEEDS_REPAIR') === 'NEEDS_REPAIR' ? ' selected' : '' %>>Needs repair</option><option value="BROKEN"<%= v('condition') === 'BROKEN' ? ' selected' : '' %>>Broken</option></select></label>
+          <label>Priority<select name="priority"><% Object.keys(repairs.PRIORITIES).forEach(function (k) { %><option value="<%= k %>"<%= v('priority', 'NORMAL') === k ? ' selected' : '' %>><%= repairs.PRIORITIES[k] %></option><% }); %></select></label>
+        </div>
+        <div class="o-form__row">
+          <label>Handled by<input name="responsible" maxlength="120" value="<%= v('responsible') %>" placeholder="e.g. Fred, or the repair shop" /></label>
+          <label>Due (Tashkent)<input name="dueAt" type="date" value="<%= v('dueAt') %>" /></label>
+        </div>
+        <label>Notes<textarea name="notes" rows="2" maxlength="2000"><%= v('notes') %></textarea></label>
+        <p class="text-sm text-muted">Opening a repair puts the asset In repair, with the condition you choose.</p>
+        <div class="o-form__actions"><button type="submit" class="btn btn-gold">Open repair</button><a class="btn btn-secondary" href="<%= listHref %>" data-o-close>Cancel</a></div>
+      </form>
+    <% } else { %>
+      <div class="o-badges"><%- statusTag(r.status) %> <span class="o-tag"><%= repairs.PRIORITIES[r.priority] %></span> <% if (repairs.isOpen(r)) { %><%- due(r) %><% } %> <span class="o-tag o-tag--muted">Opened <%= repairs.formatDay(r.openedAt) %></span></div>
+      <p><a class="link-gold text-sm" href="/office/assets?asset=<%= r.item.id %>">Open the asset <%= r.item.assetTag || r.item.name %> →</a> <span class="text-sm text-muted">(now <%= LIFECYCLES[r.item.lifecycle].toLowerCase() %>, <%= CONDITIONS[r.item.condition].toLowerCase() %>)</span></p>
+
+      <% if (repairs.isOpen(r)) { %>
+      <section class="o-section" aria-labelledby="o-rep-details">
+        <h3 id="o-rep-details">Details</h3>
+        <form method="post" action="/office/repairs/<%= r.id %>" class="o-form" data-o-form>
+          <input type="hidden" name="back" value="<%= listHref %>" /><input type="hidden" name="version" value="<%= r.version %>" />
+          <label>Problem<textarea name="issue" rows="3" maxlength="1000" required><%= v('issue', r.issue) %></textarea></label>
+          <div class="o-form__row">
+            <label>Status<select name="status"><option value="<%= r.status %>" selected><%= repairs.STATUSES[r.status] %></option><% (repairs.MOVES[r.status] || []).forEach(function (st) { %><option value="<%= st %>"<%= v('status') === st ? ' selected' : '' %>><%= repairs.STATUSES[st] %></option><% }); %></select></label>
+            <label>Priority<select name="priority"><% Object.keys(repairs.PRIORITIES).forEach(function (k) { %><option value="<%= k %>"<%= v('priority', r.priority) === k ? ' selected' : '' %>><%= repairs.PRIORITIES[k] %></option><% }); %></select></label>
+          </div>
+          <div class="o-form__row">
+            <label>Handled by<input name="responsible" maxlength="120" value="<%= v('responsible', r.responsible) %>" /></label>
+            <label>Due (Tashkent)<input name="dueAt" type="date" value="<%= v('dueAt', repairs.dueInput(r.dueAt)) %>" /></label>
+          </div>
+          <label>Notes<textarea name="notes" rows="3" maxlength="2000"><%= v('notes', r.notes) %></textarea></label>
+          <div class="o-form__actions"><button type="submit" class="btn btn-gold">Save</button><a class="btn btn-secondary" href="<%= listHref %>#row-<%= r.id %>" data-o-close>Close</a></div>
+        </form>
+      </section>
+
+      <section class="o-section" aria-labelledby="o-rep-resolve">
+        <h3 id="o-rep-resolve">Resolve</h3>
+        <form method="post" action="/office/repairs/<%= r.id %>/resolve" class="o-form">
+          <input type="hidden" name="back" value="<%= listHref %>" /><input type="hidden" name="version" value="<%= r.version %>" />
+          <label>What was done<textarea name="resolution" rows="2" maxlength="1000" required><%= v('resolution') %></textarea></label>
+          <div class="o-form__row">
+            <label>Asset condition now<select name="resultingCondition" required><option value="">Choose</option><% Object.keys(CONDITIONS).forEach(function (k) { %><option value="<%= k %>"<%= v('resultingCondition') === k ? ' selected' : '' %>><%= CONDITIONS[k] %></option><% }); %></select></label>
+            <label>Asset afterwards<select name="resultingLifecycle" required><option value="">Choose</option><option value="ACTIVE"<%= v('resultingLifecycle') === 'ACTIVE' ? ' selected' : '' %>>Back in service</option><option value="RETIRED"<%= v('resultingLifecycle') === 'RETIRED' ? ' selected' : '' %>>Retire it</option></select></label>
+          </div>
+          <div class="o-form__actions"><button type="submit" class="btn btn-gold btn-sm">Resolve repair</button></div>
+        </form>
+      </section>
+
+      <section class="o-section" aria-labelledby="o-rep-cancel">
+        <h3 id="o-rep-cancel">Cancel</h3>
+        <details class="o-confirm"><summary class="btn btn-ghost btn-sm o-danger-text">Cancel this repair…</summary>
+          <form method="post" action="/office/repairs/<%= r.id %>/cancel" class="o-form">
+            <input type="hidden" name="back" value="<%= listHref %>" /><input type="hidden" name="version" value="<%= r.version %>" />
+            <p class="text-sm">The asset goes back in service with its current condition (<%= CONDITIONS[r.item.condition].toLowerCase() %>).</p>
+            <label>Why<input name="reason" maxlength="500" required /></label>
+            <div class="o-form__actions"><button type="submit" class="btn btn-danger btn-sm">Cancel repair</button></div>
+          </form>
+        </details>
+      </section>
+      <% } else { %>
+      <section class="o-section">
+        <h3><%= repairs.STATUSES[r.status] %> <%= repairs.formatDay(r.resolvedAt) %></h3>
+        <p><%= r.issue %></p>
+        <% if (r.resolution) { %><p class="text-sm"><strong><%= r.status === 'RESOLVED' ? 'Done:' : 'Why cancelled:' %></strong> <%= r.resolution %></p><% } %>
+        <% if (r.status === 'RESOLVED') { %><p class="text-sm text-muted">Result: <%= CONDITIONS[r.resultingCondition] || '' %>, <%= r.resultingLifecycle === 'RETIRED' ? 'retired' : 'back in service' %>.</p><% } %>
+        <details class="o-confirm"><summary class="btn btn-secondary btn-sm">Reopen…</summary>
+          <form method="post" action="/office/repairs/<%= r.id %>/reopen" class="o-form">
+            <input type="hidden" name="back" value="<%= listHref %>" /><input type="hidden" name="version" value="<%= r.version %>" />
+            <p class="text-sm">The repair is in progress again and the asset goes back to In repair.</p>
+            <div class="o-form__actions"><button type="submit" class="btn btn-gold btn-sm">Reopen repair</button></div>
+          </form>
+        </details>
+      </section>
+      <% } %>
+    <% } %>
+  </section>
+</div>
+<% } %>
+<script src="<%= asset('/static/js/office.js') %>" defer></script>

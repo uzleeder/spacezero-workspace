@@ -360,6 +360,14 @@ test('supervisors recommend by default; only an admin (or an enabled policy) dec
   assert.equal(decided.status, 'APPROVED'); assert.equal(decided.reviewedById, supA.id);
   assert.equal((await post(admin, `/leave/${req_.id}/review`, { action: 'reject' })).status, 409); // already decided
   assert.ok(await prisma.auditLog.findFirst({ where: { organizationId: org.id, action: 'leave.approved', targetId: req_.id } }));
+  // everyone sees who decided it (and who recommended it), with their role
+  const who = /Approved<\/span> by <strong>P1C supA \(Supervisor\)<\/strong>/;
+  assert.match((await get(admin, '/leave')).text, who);
+  assert.match((await get(admin, `/leave/${req_.id}`)).text, who);
+  assert.match((await get(agentA, `/employees/${agentA.id}/leave`)).text, who);
+  assert.match((await get(admin, `/leave/${req_.id}`)).text, /P1C supA \(Supervisor\) recommended approval/);
+  const note = await prisma.notification.findFirst({ where: { profileId: agentA.id, type: 'leave.approved' }, orderBy: { createdAt: 'desc' } });
+  assert.match(note.body, /was approved by P1C supA \(Supervisor\)\.$/);
 });
 
 test('team overlap is informational: it is shown but never blocks a request', async () => {

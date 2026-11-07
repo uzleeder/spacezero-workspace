@@ -1,0 +1,238 @@
+<%# Office Management -> Assets: the daily working list. Filters, sort, page and rows per page live in the address bar;
+    an opened asset (or "Add asset") is a drawer over the list. %>
+<%
+  var defaults = { view: 'all', sort: 'tag', dir: 'asc', per: 25, page: 1 };
+  var qs = function (over) {
+    var p = new URLSearchParams();
+    var all = Object.assign({}, filters, over || {});
+    ['q', 'view', 'category', 'condition', 'lifecycle', 'location', 'custodian', 'sort', 'dir', 'per', 'page'].forEach(function (k) {
+      var v = all[k]; if (v === undefined || v === null || v === '' || String(v) === String(defaults[k])) return; p.set(k, v);
+    });
+    var s = p.toString(); return '/office/assets' + (s ? '?' + s : '');
+  };
+  var listHref = qs();
+  var withParam = function (base, k, v) { return base + (base.indexOf('?') >= 0 ? '&' : '?') + k + '=' + encodeURIComponent(v); };
+  var active = []; // the filters in effect, as removable chips
+  if (filters.q) active.push(['Search: ' + filters.q, qs({ q: '', page: 1 })]);
+  if (filters.view !== 'all') active.push([VIEWS[filters.view].label, qs({ view: 'all', page: 1 })]);
+  if (filters.category) active.push([CATEGORIES[filters.category], qs({ category: '', page: 1 })]);
+  if (filters.condition) active.push([CONDITIONS[filters.condition], qs({ condition: '', page: 1 })]);
+  if (filters.lifecycle) active.push([LIFECYCLES[filters.lifecycle], qs({ lifecycle: '', page: 1 })]);
+  if (filters.location) active.push(['Location: ' + filters.location, qs({ location: '', page: 1 })]);
+  if (filters.custodian) {
+    var cLabel = filters.custodian === 'none' ? 'Not with anyone' : filters.custodian.indexOf('desk:') === 0 ? ('Desk ' + ((deskList.find(function (d) { return 'desk:' + d.id === filters.custodian; }) || {}).number || '?')) : ((people.find(function (p) { return p.id === filters.custodian; }) || {}).fullName || 'A person');
+    active.push([cLabel, qs({ custodian: '', page: 1 })]);
+  }
+  var sortLink = function (key, label) {
+    var on = filters.sort === key; var nextDir = on && filters.dir === 'asc' ? 'desc' : 'asc';
+    return '<a href="' + qs({ sort: key, dir: nextDir, page: 1 }) + '" class="o-sort' + (on ? ' is-on' : '') + '"' + (on ? ' aria-sort="' + (filters.dir === 'asc' ? 'ascending' : 'descending') + '"' : '') + '>' + label + (on ? (filters.dir === 'asc' ? ' ▲' : ' ▼') : '') + '</a>';
+  };
+  var v = function (k, fallback) { return values && values[k] !== undefined ? values[k] : (fallback === undefined || fallback === null ? '' : fallback); };
+  var conditionTag = function (c) { return '<span class="o-tag ' + (c === 'GOOD' ? 'o-tag--ok' : c === 'BROKEN' ? 'o-tag--danger' : 'o-tag--warn') + '">' + CONDITIONS[c] + '</span>'; };
+  var lifecycleTag = function (l) { return '<span class="o-tag' + (l === 'RETIRED' ? ' o-tag--muted' : l === 'IN_REPAIR' ? ' o-tag--warn' : '') + '">' + LIFECYCLES[l] + '</span>'; };
+%>
+<%- include('_top', { action: '<a class="btn btn-gold btn-sm" href="' + withParam(listHref, 'new', '1') + '">+ Add asset</a>', inDrawer: Boolean(mode) }) %>
+
+<div class="office-ws" data-office>
+  <form method="get" action="/office/assets" class="o-toolbar" data-o-toolbar role="search" aria-label="Find assets">
+    <input type="search" name="q" value="<%= filters.q %>" placeholder="Search tag, item, model, person, location" aria-label="Search assets" class="o-toolbar__search" />
+    <select name="view" aria-label="Show"><% Object.keys(VIEWS).forEach(function (k) { %><option value="<%= k %>"<%= filters.view === k ? ' selected' : '' %>><%= VIEWS[k].label %></option><% }); %></select>
+    <select name="category" aria-label="Category"><option value="">All categories</option><% Object.keys(CATEGORIES).forEach(function (k) { %><option value="<%= k %>"<%= filters.category === k ? ' selected' : '' %>><%= CATEGORIES[k] %></option><% }); %></select>
+    <details class="o-more" id="more"<%= filters.condition || filters.lifecycle || filters.location || filters.custodian ? ' open' : '' %>>
+      <summary class="btn btn-secondary btn-sm">More filters</summary>
+      <div class="o-more__panel">
+        <label>Condition<select name="condition"><option value="">Any</option><% Object.keys(CONDITIONS).forEach(function (k) { %><option value="<%= k %>"<%= filters.condition === k ? ' selected' : '' %>><%= CONDITIONS[k] %></option><% }); %></select></label>
+        <label>Lifecycle<select name="lifecycle"><option value="">Any</option><% Object.keys(LIFECYCLES).forEach(function (k) { %><option value="<%= k %>"<%= filters.lifecycle === k ? ' selected' : '' %>><%= LIFECYCLES[k] %></option><% }); %></select></label>
+        <label>Location<select name="location"><option value="">Any</option><% locations.forEach(function (l) { %><option value="<%= l %>"<%= filters.location.toLowerCase() === l.toLowerCase() ? ' selected' : '' %>><%= l %></option><% }); %></select></label>
+        <label>Person / desk<select name="custodian"><option value="">Anyone</option><option value="none"<%= filters.custodian === 'none' ? ' selected' : '' %>>Not with anyone</option>
+          <optgroup label="People"><% people.forEach(function (p) { %><option value="<%= p.id %>"<%= filters.custodian === p.id ? ' selected' : '' %>><%= p.fullName %></option><% }); %></optgroup>
+          <optgroup label="Desks"><% deskList.forEach(function (d) { %><option value="desk:<%= d.id %>"<%= filters.custodian === 'desk:' + d.id ? ' selected' : '' %>>Desk <%= d.number %></option><% }); %></optgroup>
+        </select></label>
+      </div>
+    </details>
+    <input type="hidden" name="sort" value="<%= filters.sort %>" /><input type="hidden" name="dir" value="<%= filters.dir %>" /><input type="hidden" name="per" value="<%= filters.per %>" />
+    <button type="submit" class="btn btn-gold btn-sm">Apply</button>
+    <% if (active.length) { %><a class="o-clear" href="/office/assets">Clear filters</a><% } %>
+  </form>
+
+  <div class="o-resultbar">
+    <p class="o-count" role="status"><strong><%= list.total %></strong> result<%= list.total === 1 ? '' : 's' %><% if (list.total) { %> · page <%= list.page %> of <%= list.pages %><% } %></p>
+    <% if (active.length) { %><div class="o-chips o-chips--active"><% active.forEach(function (a) { %><a class="o-chip o-chip--remove" href="<%= a[1] %>" aria-label="Remove filter: <%= a[0] %>"><%= a[0] %> <span aria-hidden="true">×</span></a><% }); %></div><% } %>
+    <form method="get" action="/office/assets" class="o-per">
+      <% ['q', 'view', 'category', 'condition', 'lifecycle', 'location', 'custodian', 'sort', 'dir'].forEach(function (k) { if (filters[k]) { %><input type="hidden" name="<%= k %>" value="<%= filters[k] %>" /><% } }); %>
+      <label>Rows <select name="per" data-o-autosubmit><% PAGE_SIZES.forEach(function (n) { %><option value="<%= n %>"<%= filters.per === n ? ' selected' : '' %>><%= n %></option><% }); %></select></label>
+      <noscript><button class="btn btn-secondary btn-sm">Show</button></noscript>
+    </form>
+  </div>
+
+  <% if (!list.total) { %>
+    <div class="card mt-16"><div class="card-body"><%- include('../partials/empty-state', { title: active.length ? 'No assets match these filters' : 'No assets yet', description: active.length ? 'Remove a filter or clear them all.' : 'Add the first asset with "+ Add asset".' }) %></div></div>
+  <% } else { %>
+  <div class="card mt-16 o-tablecard">
+    <table class="o-table">
+      <thead><tr>
+        <th scope="col"><%- sortLink('tag', 'Asset tag') %></th><th scope="col"><%- sortLink('name', 'Item / model') %></th><th scope="col"><%- sortLink('category', 'Category') %></th>
+        <th scope="col"><%- sortLink('custodian', 'Person / desk') %></th><th scope="col"><%- sortLink('location', 'Location') %></th><th scope="col">Lifecycle</th><th scope="col"><%- sortLink('condition', 'Condition') %></th><th scope="col"><span class="visually-hidden">Open</span></th>
+      </tr></thead>
+      <tbody>
+        <% list.rows.forEach(function (i) { %>
+          <tr id="row-<%= i.id %>"<%= rec && rec.id === i.id ? ' class="is-open"' : '' %>>
+            <td data-label="Asset tag"><a class="o-taglink" href="<%= withParam(listHref, 'asset', i.id) %>"><%= i.assetTag || 'No tag' %></a></td>
+            <td data-label="Item"><strong><%= i.name %></strong><% if (i.model && i.model !== i.name) { %><span class="o-sub"><%= i.model %></span><% } %><% if (i.review) { %><span class="o-flag">Needs review</span><% } %></td>
+            <td data-label="Category"><%= CATEGORIES[i.type] || 'Other' %></td>
+            <td data-label="Person / desk"><%= i.custodian || '—' %></td>
+            <td data-label="Location"><%= i.shownLocation || '—' %></td>
+            <td data-label="Lifecycle"><%- lifecycleTag(i.lifecycle) %><% if (i.available) { %> <span class="o-tag o-tag--ok">Available</span><% } %></td>
+            <td data-label="Condition"><%- conditionTag(i.condition) %></td>
+            <td class="o-open"><a class="btn btn-secondary btn-sm" href="<%= withParam(listHref, 'asset', i.id) %>" aria-label="Open <%= i.assetTag || i.name %>">Open</a></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <% if (list.pages > 1) { %>
+    <nav class="o-pages" aria-label="Pages">
+      <% if (list.page > 1) { %><a class="btn btn-secondary btn-sm" href="<%= qs({ page: list.page - 1 }) %>" rel="prev">← Previous</a><% } %>
+      <span>Page <%= list.page %> of <%= list.pages %></span>
+      <% if (list.page < list.pages) { %><a class="btn btn-secondary btn-sm" href="<%= qs({ page: list.page + 1 }) %>" rel="next">Next →</a><% } %>
+    </nav>
+  <% } %>
+  <% } %>
+</div>
+<div style="height:40px"></div>
+
+<% if (mode) { %>
+<div class="o-drawer" data-o-drawer data-close-href="<%= listHref %><%= rec ? '#row-' + rec.id : '' %>">
+  <a class="o-drawer__backdrop" href="<%= listHref %><%= rec ? '#row-' + rec.id : '' %>" tabindex="-1" aria-hidden="true"></a>
+  <section class="o-drawer__panel" role="dialog" aria-modal="true" aria-labelledby="o-drawer-title">
+    <header class="o-drawer__head">
+      <div><p class="o-drawer__kicker"><%= mode === 'new' ? 'New asset' : (rec.assetTag || 'No tag') %></p><h2 id="o-drawer-title"><%= mode === 'new' ? 'Add asset' : rec.name %></h2></div>
+      <a class="o-drawer__close" href="<%= listHref %><%= rec ? '#row-' + rec.id : '' %>" data-o-close aria-label="Close">×</a>
+    </header>
+    <div class="o-discard" data-o-discard hidden role="alertdialog" aria-label="Unsaved changes"><span>You have unsaved changes.</span><button type="button" class="btn btn-secondary btn-sm" data-o-keep>Keep editing</button><a class="btn btn-danger btn-sm" data-o-discard-go href="#">Discard</a></div>
+    <% if (error) { %><div class="form-alert error" role="alert"><%= error %></div><% } %>
+
+    <% if (mode === 'new') { %>
+      <% if (preview) { %>
+        <div class="o-preview" role="status">
+          <p><strong>Check before adding <%= preview.count %> assets</strong></p>
+          <p class="text-sm">Tags <strong><%= preview.tags[0] %></strong> to <strong><%= preview.tags[preview.tags.length - 1] %></strong> · names "<%= preview.names[0] %>" to "<%= preview.names[preview.names.length - 1] %>" · <%= CATEGORIES[preview.data.type] %><%= preview.data.model ? ' · model ' + preview.data.model : '' %><%= preview.data.location ? ' · location ' + preview.data.location : '' %> · <%= CONDITIONS[preview.data.condition] %><%= preview.verified ? ' · checked today' : ' · not checked yet' %></p>
+        </div>
+      <% } %>
+      <form method="post" action="/office/assets" class="o-form" data-o-form>
+        <input type="hidden" name="back" value="<%= listHref %>" />
+        <% if (preview) { %><input type="hidden" name="confirm" value="1" /><% } %>
+        <label>Name<input name="name" maxlength="120" required value="<%= v('name') %>" placeholder="e.g. Monitor Ziffler 24&quot;" /></label>
+        <label>Model / product<input name="model" maxlength="120" value="<%= v('model') %>" placeholder="e.g. Ziffler 24&quot;" /></label>
+        <div class="o-form__row">
+          <label>Category<select name="type"><% Object.keys(CATEGORIES).forEach(function (k) { %><option value="<%= k %>"<%= v('type', 'OTHER') === k ? ' selected' : '' %>><%= CATEGORIES[k] %></option><% }); %></select></label>
+          <label>How many<input name="count" type="number" min="1" max="<%= MAX_AT_ONCE %>" value="<%= v('count', '1') %>" inputmode="numeric" /></label>
+        </div>
+        <div class="o-form__row">
+          <label>Location<input name="location" maxlength="80" value="<%= v('location') %>" list="o-locations" placeholder="e.g. Storage" /></label>
+          <label>Condition<select name="condition"><% Object.keys(CONDITIONS).forEach(function (k) { %><option value="<%= k %>"<%= v('condition', 'GOOD') === k ? ' selected' : '' %>><%= CONDITIONS[k] %></option><% }); %></select></label>
+        </div>
+        <label>Note<input name="note" maxlength="500" value="<%= v('note') %>" /></label>
+        <label class="o-check"><input type="checkbox" name="verified" value="1"<%= v('verified') === '1' ? ' checked' : '' %> /> I have physically checked <%= Number(v('count', '1')) > 1 ? 'them' : 'it' %> today</label>
+        <p class="text-sm text-muted">Each asset gets its own tag automatically. Several of the same are shown for checking before they are added (at most <%= MAX_AT_ONCE %>).</p>
+        <div class="o-form__actions"><button type="submit" class="btn btn-gold"><%= preview ? 'Add ' + preview.count + ' assets' : 'Add' %></button><a class="btn btn-secondary" href="<%= listHref %>" data-o-close>Cancel</a></div>
+      </form>
+      <datalist id="o-locations"><% locations.forEach(function (l) { %><option value="<%= l %>"><% }); %></datalist>
+    <% } else { %>
+      <div class="o-badges">
+        <%- lifecycleTag(rec.lifecycle) %> <%- conditionTag(rec.condition) %>
+        <% if (rec.available) { %><span class="o-tag o-tag--ok">Confirmed available</span><% } %>
+        <% if (rec.review) { %><span class="o-flag">Needs review</span><% } %>
+        <span class="o-tag o-tag--muted"><%= rec.verifiedAt ? 'Checked ' + repairs.formatDay(rec.verifiedAt) : 'Not checked yet' %></span>
+      </div>
+
+      <section class="o-section" aria-labelledby="o-custody">
+        <h3 id="o-custody">Person / desk</h3>
+        <p class="o-now"><%= rec.custodian ? (rec.holderId ? 'With ' : 'At ') + rec.custodian : 'Not with anyone' %><%= !rec.deskId && rec.location ? ' · ' + rec.location : '' %></p>
+        <% if (rec.lifecycle === 'RETIRED') { %>
+          <p class="text-sm text-muted">Retired assets cannot be given out. Restore it first.</p>
+        <% } else if (!rec.assignable) { %>
+          <p class="text-sm text-muted">Only assets in service and in Good condition can be given out. This one is <%= LIFECYCLES[rec.lifecycle].toLowerCase() %>, <%= CONDITIONS[rec.condition].toLowerCase() %>.</p>
+        <% } else { %>
+          <form method="post" action="/office/assets/<%= rec.id %>/custody" class="o-inline">
+            <input type="hidden" name="back" value="<%= listHref %>" /><input type="hidden" name="version" value="<%= rec.version %>" /><input type="hidden" name="mode" value="person" />
+            <label>Give to<select name="holderId" required><option value="">Choose a person</option><% people.forEach(function (p) { %><option value="<%= p.id %>"<%= rec.holderId === p.id ? ' disabled' : '' %>><%= p.fullName %></option><% }); %></select></label>
+            <button type="submit" class="btn btn-secondary btn-sm"><%= rec.custodian ? 'Transfer' : 'Give' %></button>
+          </form>
+          <form method="post" action="/office/assets/<%= rec.id %>/custody" class="o-inline">
+            <input type="hidden" name="back" value="<%= listHref %>" /><input type="hidden" name="version" value="<%= rec.version %>" /><input type="hidden" name="mode" value="desk" />
+            <label>Place at<select name="deskId" required><option value="">Choose a desk</option><% deskList.forEach(function (d) { %><option value="<%= d.id %>"<%= rec.deskId === d.id ? ' disabled' : '' %>>Desk <%= d.number %><%= d.profile ? ' · ' + d.profile.fullName : d.personName ? ' · ' + d.personName : '' %></option><% }); %></select></label>
+            <button type="submit" class="btn btn-secondary btn-sm"><%= rec.custodian ? 'Move' : 'Place' %></button>
+          </form>
+        <% } %>
+        <% if (rec.holderId || rec.deskId) { %>
+          <form method="post" action="/office/assets/<%= rec.id %>/custody" class="o-inline">
+            <input type="hidden" name="back" value="<%= listHref %>" /><input type="hidden" name="version" value="<%= rec.version %>" /><input type="hidden" name="mode" value="return" />
+            <label>Return to<input name="location" maxlength="80" required list="o-locations" value="<%= v('mode') === 'return' ? v('location') : 'Storage' %>" /></label>
+            <button type="submit" class="btn btn-secondary btn-sm">Return</button>
+          </form>
+        <% } %>
+      </section>
+
+      <section class="o-section" aria-labelledby="o-details">
+        <h3 id="o-details">Details</h3>
+        <form method="post" action="/office/assets/<%= rec.id %>" class="o-form" data-o-form>
+          <input type="hidden" name="back" value="<%= listHref %>" /><input type="hidden" name="version" value="<%= rec.version %>" />
+          <label>Name<input name="name" maxlength="120" required value="<%= v('name', rec.name) %>"<%= rec.lifecycle === 'RETIRED' ? ' disabled' : '' %> /></label>
+          <label>Model / product<input name="model" maxlength="120" value="<%= v('model', rec.model) %>" /></label>
+          <div class="o-form__row">
+            <label>Category<select name="type"><% Object.keys(CATEGORIES).forEach(function (k) { %><option value="<%= k %>"<%= v('type', rec.type) === k ? ' selected' : '' %>><%= CATEGORIES[k] %></option><% }); %></select></label>
+            <label>Condition<select name="condition"><% Object.keys(CONDITIONS).forEach(function (k) { %><option value="<%= k %>"<%= v('condition', rec.condition) === k ? ' selected' : '' %>><%= CONDITIONS[k] %></option><% }); %></select></label>
+          </div>
+          <label>Location<input name="location" maxlength="80" list="o-locations" value="<%= rec.deskId ? 'Desk ' + rec.desk.number : v('location', rec.location) %>"<%= rec.deskId ? ' readonly aria-describedby="o-loc-hint"' : '' %> /></label>
+          <% if (rec.deskId) { %><p id="o-loc-hint" class="text-sm text-muted">At a desk: its location is the desk. Return it to change the location.</p><% } %>
+          <label>Note<input name="note" maxlength="500" value="<%= v('note', rec.note) %>" /></label>
+          <label class="o-check"><input type="hidden" name="verified" value="<%= rec.verifiedAt ? '1' : '' %>" /><input type="checkbox" name="verified" value="1"<%= rec.verifiedAt ? ' checked disabled' : '' %> /> <%= rec.verifiedAt ? 'Physically checked on ' + repairs.formatDay(rec.verifiedAt) : 'I have physically checked it today' %></label>
+          <% if (rec.needsReview) { %><label class="o-check"><input type="checkbox" name="reviewed" value="1" /> I have reviewed this record (it came from an older list)</label><% } %>
+          <div class="o-form__actions"><button type="submit" class="btn btn-gold"<%= rec.lifecycle === 'RETIRED' ? ' disabled' : '' %>>Save details</button><a class="btn btn-secondary" href="<%= listHref %>#row-<%= rec.id %>" data-o-close>Close</a></div>
+        </form>
+        <datalist id="o-locations"><% locations.forEach(function (l) { %><option value="<%= l %>"><% }); %></datalist>
+      </section>
+
+      <section class="o-section" aria-labelledby="o-repairs">
+        <h3 id="o-repairs">Repairs</h3>
+        <% var openRepair = assetRepairs.find(function (r) { return repairs.isOpen(r); }); %>
+        <% if (openRepair) { %><p><a class="link-gold" href="/office/repairs?repair=<%= openRepair.id %>">Open repair: <%= openRepair.issue.slice(0, 80) %> (<%= repairs.STATUSES[openRepair.status] %>) →</a></p>
+        <% } else if (rec.lifecycle !== 'RETIRED') { %><p><a class="btn btn-secondary btn-sm" href="/office/repairs?new=1&asset=<%= rec.id %>">Report a repair</a></p><% } %>
+        <% var closed = assetRepairs.filter(function (r) { return !repairs.isOpen(r); }); if (closed.length) { %>
+          <ul class="o-list"><% closed.forEach(function (r) { %><li><a href="/office/repairs?repair=<%= r.id %>"><%= repairs.STATUSES[r.status] %> <%= repairs.formatDay(r.resolvedAt) %> · <%= r.issue.slice(0, 60) %></a></li><% }); %></ul>
+        <% } %>
+      </section>
+
+      <section class="o-section" aria-labelledby="o-retire">
+        <h3 id="o-retire"><%= rec.lifecycle === 'RETIRED' ? 'Retired' : 'Retire' %></h3>
+        <% if (rec.lifecycle === 'RETIRED') { %>
+          <form method="post" action="/office/assets/<%= rec.id %>/restore" class="o-inline">
+            <input type="hidden" name="back" value="<%= listHref %>" /><input type="hidden" name="version" value="<%= rec.version %>" />
+            <p class="text-sm text-muted">Retired <%= repairs.formatDay(rec.retiredAt) %>. Restoring puts it back in service; check it again before giving it out.</p>
+            <button type="submit" class="btn btn-secondary btn-sm">Restore to service</button>
+          </form>
+        <% } else { %>
+          <details class="o-confirm"><summary class="btn btn-ghost btn-sm o-danger-text">Retire this asset…</summary>
+            <form method="post" action="/office/assets/<%= rec.id %>/retire" class="o-form">
+              <input type="hidden" name="back" value="<%= listHref %>" /><input type="hidden" name="version" value="<%= rec.version %>" />
+              <p class="text-sm">Retiring takes it out of service and returns it from whoever has it. It stays in the records with its history; it is not deleted.</p>
+              <label>Why<input name="reason" maxlength="300" required placeholder="e.g. Screen cracked, not worth repairing" /></label>
+              <div class="o-form__actions"><button type="submit" class="btn btn-danger btn-sm">Retire <%= rec.assetTag || rec.name %></button></div>
+            </form>
+          </details>
+        <% } %>
+      </section>
+
+      <section class="o-section" aria-labelledby="o-history">
+        <h3 id="o-history">History</h3>
+        <% if (!history.length) { %><p class="text-sm text-muted">No changes recorded yet.</p><% } else { %>
+          <ul class="o-history"><% history.forEach(function (h) { %><li><span class="o-history__when"><%= h.createdAt.toLocaleString('en-GB', { timeZone: 'Asia/Tashkent', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) %></span><span><%= h.summary %></span><span class="o-history__who"><%= h.actorName || '' %></span></li><% }); %></ul>
+          <p><a class="link-gold text-sm" href="/office/activity?q=<%= encodeURIComponent(rec.assetTag || rec.name) %>">All activity for this asset →</a></p>
+        <% } %>
+      </section>
+    <% } %>
+  </section>
+</div>
+<% } %>
+<script src="<%= asset('/static/js/office.js') %>" defer></script>

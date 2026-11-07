@@ -31,6 +31,8 @@
   box-shadow: inset 0 1px 0 #ffffff26, 0 0 70px #dca87816, 0 26px 50px #05041280;
 }
 .workspace-intro--premium .brand-mark-box svg { transform: rotate(8deg); width: 42px; height: 42px; color: #e8bb90; }
+.workspace-intro--premium .brand-mark-box svg.space-ai-mark { transform: rotate(8deg); width: 54px; height: 54px; }
+.workspace-intro--premium .brand-mark-dash { width: 22px; }
 .workspace-intro--premium .brand-mark-word {
   font-family: 'Fraunces', Georgia, serif; font-size: clamp(30px, 7.5vw, 46px); font-weight: 600;
   letter-spacing: .04em; line-height: 1.25; color: #f7f5ff;
@@ -65,3 +67,24 @@
   .workspace-intro--premium .workspace-intro__halo { animation: none; }
   .workspace-intro__eyebrow > span { animation: none; }
 }
+/* the logo's second line: "- WORKSPACE -" in the site gold */
+.workspace-intro--premium .brand-mark-sub { gap: 10px; color: #e8bb90; }
+
+/* the big globe (partials/intro, drawn by intro.js): it takes the logo badge's place on this screen */
+.workspace-intro--globe .brand-mark-box { display: none; }
+.workspace-intro--globe .workspace-intro__eyebrow { margin-bottom: 10px; }
+.intro-globe { display: block; width: min(480px, 92vw); height: auto; margin: -6px auto 0; overflow: visible; }
+.intro-globe .ig-orbit { fill: none; stroke: #dca878; stroke-opacity: .22; stroke-width: 1; }
+.intro-globe .ig-orbit--front { stroke-opacity: .3; }
+.intro-globe .ig-trail { fill: none; stroke: #f0c890; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 4px rgba(240,200,144,.75)); }
+.intro-globe .ig-atmos { fill: none; stroke: #8f89d6; stroke-opacity: .14; stroke-width: 10; filter: blur(5px); }
+.intro-globe .ig-grid { fill: none; stroke: #c9c4ea; stroke-opacity: .2; stroke-width: .6; }
+.intro-globe .ig-land { fill: #8ea2f0; fill-opacity: 0; fill-rule: evenodd; transition: fill-opacity .45s ease; }
+.intro-globe.has-land .ig-land { fill-opacity: .16; }
+.intro-globe .ig-borders { fill: none; stroke: #c3cdfa; stroke-opacity: .5; stroke-width: .5; stroke-linejoin: round; }
+.intro-globe .ig-uz { fill: #e2ad7a; fill-opacity: .85; stroke: #fbe3bd; stroke-width: .8; stroke-linejoin: round; filter: drop-shadow(0 0 4px rgba(240,200,144,.6)); }
+.intro-globe .ig-rim { fill: none; stroke: #b9b2e6; stroke-opacity: .45; stroke-width: 1; }
+.intro-globe .ig-plane use { fill: #e8bb90; stroke: #f0dcc0; stroke-width: .6; stroke-linejoin: round; filter: drop-shadow(0 3px 5px #05041280); }
+@media (max-height: 760px) { .intro-globe { width: min(400px, 92vw); } }
+@media (max-height: 620px) { .intro-globe { width: min(300px, 80vw); } }
+

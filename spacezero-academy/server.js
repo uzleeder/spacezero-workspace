@@ -100,6 +100,11 @@ app.use(async (req, res, next) => {
   res.locals.roleLabel = roleLabel;
   res.locals.renderInline = renderInline;
   res.locals.nav = req.profile ? navForRole(req.profile.role) : [];
+  if (req.profile && req.profile.officeManager && !req.impersonation) {   // Office Management: the office manager only
+    const section = res.locals.nav.find((s) => s.title === 'Management') || res.locals.nav[res.locals.nav.length - 1];
+    if (section) section.items = [...section.items, { href: '/office', label: 'Office Management', activeAlso: [] }];
+  }
+  res.locals.supportContacts = require('./lib/supportContacts').supportContacts();   // Space AI: who to contact when it cannot help
   // can(key): may THIS viewer use a Supervisor-grantable capability (lib/supervisorCapabilities.js).
   // Admins always may; a Supervisor only with an explicit grant; everyone else never. Views use it to
   // not offer a link/button the server would answer with "Access denied" — the server-side check on
@@ -163,9 +168,11 @@ app.use('/', require('./routes/aiPractice'));
 app.use('/', require('./routes/callIntelligence'));
 app.use('/', require('./routes/standards'));
 app.use('/', require('./routes/spacezeroAI'));
+app.use('/', require('./routes/office')); // Office Management: the office manager (Fred Marco) only
 app.use('/admin', require('./routes/admin/firedAgents')); // before employees: /admin/employees/fired is not an employee id
 app.use('/admin', require('./routes/admin/employees'));
 app.use('/admin', require('./routes/admin/teams'));
+app.use('/admin', require('./routes/admin/trainingEmails')); // Manage Training -> Training emails (on/off switches)
 app.use('/admin', require('./routes/admin/training'));
 app.use('/admin', require('./routes/admin/callPractice'));
 app.use('/admin', require('./routes/admin/newAgentProgram'));

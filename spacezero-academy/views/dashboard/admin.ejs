@@ -1,5 +1,7 @@
 <%# The Admin dashboard, three lanes (lib/adminDashboard.js). The board refreshes itself every minute and when the
     tab is shown again (public/js/dashboard-live.js reloads /dashboard/live into #dash-live). %>
+<%- include('../partials/workspace-hero') %>
+<%- include('../partials/office-entry') %>
 <div class="dash" id="dash-live" data-live="/dashboard/live" aria-live="polite">
   <%- include('admin-board', { dash: dash, greeting: greeting, today: today }) %>
 </div>

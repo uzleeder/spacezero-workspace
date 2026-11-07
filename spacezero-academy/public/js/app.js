@@ -405,6 +405,7 @@
     if (form.requestSubmit) form.requestSubmit(); else form.submit();
   });
   document.addEventListener('submit', function (e) {
+    if (e.defaultPrevented) return;                                // Space AI sent it without leaving the page (space-ai.js)
     var send = e.target.querySelector && e.target.querySelector('.ai-send');
     if (send) { e.target.dataset.sending = '1'; send.disabled = true; send.classList.add('is-sending'); }
   });
@@ -487,5 +488,88 @@
       if (window.getSelection && String(window.getSelection())) return; // selecting text, not opening
       window.location.href = row.getAttribute('data-href');
     });
+  });
+})();
+
+// The dashboard's "SpaceZero standard" card. By default its globe turns in the sidebar logo; the little button on that
+// globe brings the card onto the dashboard. The card's X saves the choice, then the globe shrinks and flies back into
+// the sidebar logo (on phones, where the sidebar is closed, into the menu button) while the card folds away.
+(function () {
+  var brand = document.querySelector('.sidebar .brand-mark');
+  var restore = document.querySelector('[data-hero-restore]');
+  var close = document.querySelector('[data-hero-close]');
+  if (!close && !restore) return;
+  function save(hidden) {
+    return fetch('/dashboard/hero', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'fetch' },
+      body: 'hidden=' + (hidden ? '1' : '0'),
+    }).then(function (res) { if (!res.ok) throw new Error('not saved'); });
+  }
+  function docked(on) {
+    if (brand) brand.classList.toggle('brand-mark--globe', on);
+    if (restore) restore.hidden = !on;
+  }
+  function visible(el) {
+    if (!el) return false;
+    var r = el.getBoundingClientRect();
+    return r.width > 0 && r.right > 0 && r.left < window.innerWidth;
+  }
+  function fold(card, done) {
+    card.style.height = card.offsetHeight + 'px';
+    card.style.overflow = 'hidden';
+    void card.offsetHeight;
+    card.style.transition = 'height .55s cubic-bezier(.6,0,.2,1) .2s, margin .55s cubic-bezier(.6,0,.2,1) .2s, opacity .35s ease';
+    card.style.height = '0px';
+    card.style.marginBottom = '0px';
+    card.style.opacity = '0';
+    setTimeout(function () { card.remove(); if (done) done(); }, 800);
+  }
+  if (close) close.addEventListener('click', function () {
+    var card = close.closest('[data-hero]');
+    if (!card) return;
+    close.disabled = true;
+    save(true).then(function () {
+      var art = card.querySelector('.hero-art svg');
+      var box = brand && brand.querySelector('.brand-mark-box');
+      var target = visible(box) ? box : document.querySelector('[data-menu-toggle]');
+      var still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var land = function () {
+        docked(true);
+        if (brand) { brand.classList.add('is-docking'); setTimeout(function () { brand.classList.remove('is-docking'); }, 900); }
+      };
+      if (still || !art || !visible(art) || !visible(target)) { fold(card, land); return; }
+      // The sphere is the circle (204, 133) r 101 of a 400 x 270 picture drawn to fit its box: aim it at the logo.
+      var from = art.getBoundingClientRect();
+      var to = target.getBoundingClientRect();
+      var s = Math.min(from.width / 400, from.height / 270);
+      var cx = (from.width - 400 * s) / 2 + 204 * s;
+      var cy = (from.height - 270 * s) / 2 + 133 * s;
+      var k = (Math.min(to.width, to.height) * 0.62) / (202 * s);
+      var ghost = art.cloneNode(true);
+      ghost.removeAttribute('data-globe');
+      ghost.setAttribute('aria-hidden', 'true');
+      ghost.style.cssText = 'position:fixed;left:' + from.left + 'px;top:' + from.top + 'px;width:' + from.width + 'px;height:' + from.height +
+        'px;margin:0;z-index:300;pointer-events:none;transform-origin:0 0;transition:transform .8s cubic-bezier(.65,0,.25,1),opacity .25s ease .62s;';
+      document.body.appendChild(ghost);
+      art.style.visibility = 'hidden';
+      fold(card);
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          var tx = to.left + to.width / 2 - from.left - cx * k;
+          var ty = to.top + to.height / 2 - from.top - cy * k;
+          ghost.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + k + ')';
+          ghost.style.opacity = '0';
+        });
+      });
+      setTimeout(function () { ghost.remove(); land(); }, 880);
+    }).catch(function () { close.disabled = false; });
+  });
+  if (restore) restore.addEventListener('click', function () {
+    restore.disabled = true;
+    save(false).then(function () {
+      docked(false);
+      if (location.pathname === '/dashboard') location.reload(); else location.href = '/dashboard';
+    }).catch(function () { restore.disabled = false; });
   });
 })();

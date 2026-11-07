@@ -1,0 +1,7 @@
+<section class="ai-shared">
+  <a href="/assistant">← My Space AI</a>
+  <h1><%= chat.title %></h1>
+  <p>Shared by <%= chat.sharedBy %> · <%= new Date(chat.createdAt).toLocaleDateString('en-GB') %></p>
+  <p class="text-muted">Read-only snapshot. Later messages are not included. Only selected coworkers can open this link.</p>
+  <div class="ai-thread"><% chat.messages.forEach(function (m) { %><%- include('partials/ai-message', { m: m, contacts: contacts }) %><% }); %></div>
+</section>

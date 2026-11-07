@@ -1,6 +1,8 @@
 <%# The Agent dashboard: what do I do next (lib/agentDashboard.js). The same page for every agent; each part shows
     only while it has something to do. It refreshes itself every minute and when the tab is shown again
     (public/js/dashboard-live.js reloads /dashboard/live into #dash-live). %>
+<%- include('../partials/workspace-hero') %>
+<%- include('../partials/office-entry') %>
 <div class="dash ag-dash" id="dash-live" data-live="/dashboard/live" aria-live="polite">
   <%- include('agent-board', { adash: adash, greeting: greeting, today: today }) %>
 </div>

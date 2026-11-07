@@ -73,8 +73,12 @@ async function renderSetup(req, res, ctx, extra = {}) {
       else if (passAccess.view) passportMasked = maskPassportNumber(plain);
     } catch { /* undecryptable: treated as not shown */ }
   }
+  const myDesk = ctx.isSelf && !req.impersonation ? await require('../lib/officeDesks').deskOf(ctx.employee.id) : undefined;
+  const pcNotice = req.query.pc === 'saved' ? 'Your PC is saved.' : '';
+  const pcError = typeof req.query.pcError === 'string' ? req.query.pcError.slice(0, 200) : '';
   res.render('employee/setup', {
     title: `${ctx.employee.fullName} — Setup`,
+    myDesk, pcNotice, pcError,
     ...(await frame(req, ctx)),
     setup,
     STATUSES,

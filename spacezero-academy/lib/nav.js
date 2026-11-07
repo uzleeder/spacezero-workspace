@@ -30,7 +30,7 @@ const NAV_SECTIONS = [
         hrefByRole: { SUPERVISOR: '/team' },
         activeAlsoByRole: { SUPERVISOR: ['/team-skills', '/employees', '/leave', '/call-reviews', '/new-agents'] },
       },
-      { href: '/admin/training', label: 'Manage Training', roles: ['ADMIN', 'SUPERVISOR'], activeAlso: ['/assignments', '/admin/call-practice', '/admin/new-agent-program'] },
+      { href: '/admin/training', label: 'Manage Training', roles: ['ADMIN', 'SUPERVISOR'], activeAlso: ['/assignments', '/admin/call-practice', '/admin/new-agent-program', '/admin/training-emails'] },
     ],
   },
   {

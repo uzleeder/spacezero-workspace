@@ -25,6 +25,7 @@ async function renderEmployeeLeave(req, res, ctx, extra = {}) {
     credentialAccess(req.profile, ctx.employee, { impersonating: Boolean(req.impersonation) }),
     canViewSetupTab(req.profile, ctx), // a Supervisor without setup.view must not be offered a Setup tab that 403s
   ]);
+  await leave.withDeciders(requests);
   res.render('employee/leave', {
     title: `${ctx.employee.fullName} — Vacation / Leave`,
     tabs: employeeTabs(req.profile, ctx, { credentials: access.view || access.manage, canViewSetup }),
@@ -127,6 +128,7 @@ router.get('/leave', manage, async (req, res) => {
     prisma.leaveRequest.count({ where: { ...scope, status: 'PENDING' } }),
   ]);
 
+  await leave.withDeciders(requests);
   res.render('leave/index', {
     title: 'Vacation Overview',
     requests,
@@ -154,6 +156,7 @@ router.get('/leave/:id', manage, async (req, res) => {
   const { request, allowed } = await loadReviewable(actor, req.params.id);
   if (!request || !allowed) return notFound(res); // outside the actor's team scope: indistinguishable from missing
   const [overlaps, finalApproval] = await Promise.all([leave.overlappingApprovedLeave(request), getSetting(actor.organizationId, 'leave.supervisorFinalApproval')]);
+  await leave.withDeciders(request);
   res.render('leave/detail', { title: 'Leave request', request, overlaps, leave, canDecide: actor.role === 'ADMIN' || finalApproval, error: null });
 });
 
@@ -173,7 +176,7 @@ router.post('/leave/:id/review', manage, async (req, res) => {
     const status = action === 'approve' ? 'APPROVED' : 'REJECTED';
     await prisma.leaveRequest.update({ where: { id: request.id }, data: { status, reviewedById: actor.id, reviewedAt: new Date(), managementNote: note } });
     await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: `leave.${status.toLowerCase()}`, targetTable: 'LeaveRequest', targetId: request.id, metadata: { days: request.days } });
-    await createNotification({ profileId: request.profileId, type: `leave.${status.toLowerCase()}`, title: `Leave ${status.toLowerCase()}`, body: `Your leave request (${request.days} day(s)) was ${status.toLowerCase()}.`, link: `/employees/${request.profileId}/leave` });
+    await createNotification({ profileId: request.profileId, type: `leave.${status.toLowerCase()}`, title: `Leave ${status.toLowerCase()}`, body: `Your leave request (${request.days} day${request.days === 1 ? '' : 's'}, ${leave.isoDay(request.startDate)} to ${leave.isoDay(request.endDate)}) was ${status.toLowerCase()} by ${actor.fullName} (${roleLabel(actor.role)}).`, link: `/employees/${request.profileId}/leave` });
   } else if (['recommend_approve', 'recommend_reject'].includes(action) && actor.role === 'SUPERVISOR') {
     await prisma.leaveRequest.update({ where: { id: request.id }, data: { recommendation: action === 'recommend_approve' ? 'RECOMMEND_APPROVE' : 'RECOMMEND_REJECT', supervisorNote: note, supervisorReviewedById: actor.id, supervisorReviewedAt: new Date() } });
     await logAudit({ organizationId: actor.organizationId, actorId: actor.id, action: 'leave.recommended', targetTable: 'LeaveRequest', targetId: request.id, metadata: { recommendation: action } });

@@ -89,9 +89,12 @@ test('NO CREDENTIAL DATA: the facts payload never contains a credential-shaped f
   mockGemini();
   await post(admin, '/assistant/ask', { question: 'Summarize the team.' });
   const raw = calls[0].contents;
-  for (const forbidden of ['payloadEnc', 'passwordHash', 'tokenHash', 'credential', 'Credential']) {
-    assert.doesNotMatch(raw, new RegExp(forbidden), `facts sent to Gemini must never mention "${forbidden}"`);
+  // Checklist labels can mention Credential Vault. Secret fields and actual values cannot be sent.
+  for (const forbidden of ['payloadEnc', 'passwordHash', 'tokenHash', 'credentials']) {
+    assert.doesNotMatch(raw, new RegExp('"' + forbidden + '"\\s*:', 'i'));
   }
+  for (const p of [admin, sup1, sup2, agent1, agent2]) assert.equal(raw.includes(p.passwordHash), false, 'password hashes never enter facts');
+  for (const cookie of Object.values(cookies)) assert.equal(raw.includes(cookie.split('=')[1]), false, 'session tokens never enter facts');
 });
 
 test('CONFIDENT ANSWER: renders the model\'s answer text', async () => {
@@ -111,7 +114,8 @@ test('GEMINI FAILURE: a thrown error produces the safe empty-state, never a stac
   const res = await post(admin, '/assistant/ask', { question: 'Who needs setup?' });
   assert.equal(res.status, 200);
   assert.doesNotMatch(res.text, /at Object|at async|GeminiError/);
-  assert.match(res.text, /find enough SpaceZero data/);
+  assert.match(res.text, /technical problem/);
+  assert.match(res.text, /https:\/\/t\.me\/si_leeder/);
 });
 
 test('EMPTY QUESTION is rejected without calling Gemini', async () => {
@@ -145,35 +149,52 @@ test('RATE LIMIT: repeated questions in a short window are eventually blocked', 
 test('Space AI is a button in the bottom-right corner of every page (not a menu item), and not on its own page', async () => {
   const dash = await get(admin, '/dashboard');
   assert.match(dash.text, /class="space-ai no-print" data-space-ai/);
-  assert.match(dash.text, /<form method="post" action="\/assistant\/ask" class="space-ai__form">/);
+  assert.match(dash.text, /<form method="post" action="\/assistant\/ask" enctype="multipart\/form-data" class="space-ai__form" data-ai-form>/);
   assert.doesNotMatch(dash.text, /class="sidebar-link[^"]*" href="\/assistant"/);
   assert.doesNotMatch((await get(admin, '/assistant')).text, /data-space-ai/);
 });
 
-test('the sidebar names the workspace "SpaceZero Workspace", and the Admin badge reads "Engineered by UzLeeder"', async () => {
+test('the sidebar shows the SPACEZERO / WORKSPACE logo without a separate workspace line, and the Admin badge reads "Engineered by UzLeeder"', async () => {
   const dash = await get(admin, '/dashboard');
-  assert.match(dash.text, /<div class="workspace-label"><span class="workspace-dot"><\/span> SpaceZero Workspace<\/div>/);
+  assert.match(dash.text, /class="brand-mark-word">SPACEZERO</);
+  assert.doesNotMatch(dash.text, /class="workspace-label"/);
   assert.doesNotMatch(dash.text, /Above9 Travel/);
   const badge = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'js', 'uzleeder-crafted.js'), 'utf8');
   assert.match(badge, /var LABEL = "ENGINEERED BY";/); assert.doesNotMatch(badge, /"CRAFTED BY"|"Crafted by/);
 });
 
-// The SpaceZero Standard card (views/partials/workspace-hero.ejs) is kept, but the one-glance dashboards
-// (approved 2026-11-04) do not show it; these tests render the card on its own.
-const heroOf = (profile) => require('ejs').renderFile(require('node:path').join(__dirname, '..', 'views', 'partials', 'workspace-hero.ejs'), { profile, asset: require('../lib/assets').asset });
+test('dashboard hero visibility persists per person without replacing the live role board', async () => {
+  for (const who of [admin, sup1, agent1]) {
+    assert.equal((await post(who, '/dashboard/hero', { hidden: '1' })).status, 302);
+    const hidden = await get(who, '/dashboard');
+    assert.equal(hidden.status, 200);
+    assert.doesNotMatch(hidden.text, /data-hero-close/);
+    assert.match(hidden.text, /id="dash-live"/);
+    assert.equal((await post(who, '/dashboard/hero', { hidden: '0' })).status, 302);
+    const shown = await get(who, '/dashboard');
+    assert.equal(shown.status, 200);
+    assert.match(shown.text, /data-hero-close/);
+    assert.match(shown.text, /id="dash-live"/);
+    const live = await get(who, '/dashboard/live');
+    assert.equal(live.status, 200);
+    assert.doesNotMatch(live.text, /data-hero-close/, 'refreshing the board must not duplicate the hero');
+  }
+  assert.equal((await prisma.profile.findUnique({ where: { id: agent2.id } })).heroShown, false, 'another person keeps their default');
+});
 
-test('the globe marks Uzbekistan and is drawn by its own script', async () => {
-  const hero = await heroOf(admin);
-  assert.match(hero, /<svg [^>]*data-globe[ >]/);
-  assert.match(hero, />Uzbekistan<\/text>/);
-  assert.match(hero, /\/static\/js\/hero-globe\.js/);
+test('the dashboard globe marks Uzbekistan and is drawn by its own script', async () => {
+  await prisma.profile.update({ where: { id: admin.id }, data: { heroShown: true } }); // the card is on the dashboard only once brought back
+  const dash = await get(admin, '/dashboard');
+  assert.match(dash.text, /<svg [^>]*data-globe[ >]/);
+  assert.match(dash.text, />Uzbekistan<\/text>/);
+  assert.match(dash.text, /\/static\/js\/hero-globe\.js/);
   const js = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'js', 'hero-globe.js'), 'utf8');
   assert.match(js, /var TAS = \{ code: 'TAS', city: 'Tashkent', at: \[69\.2812, 41\.2579\] \};/);
   for (const code of ['JFK', 'LHR', 'IST', 'DXB', 'ICN', 'DEL']) assert.match(js, new RegExp(`code: '${code}'`));
   new Function(js);   // the script parses
 });
 
-test('the SpaceZero Standard card speaks to every role in its own words; the dashboards do not show it', async () => {
+test('the restored SpaceZero Standard card speaks to every role in its own words', async () => {
   const expert = await makeUser('FLIGHT_EXPERT', 'expert');
   const cases = [
     [admin, /Extraordinary service\.<br>Starts with you\./, 'href="/admin/training"', 'Manage training'],
@@ -181,9 +202,9 @@ test('the SpaceZero Standard card speaks to every role in its own words; the das
     [agent1, /Turn every call into a trip your client remembers\./, 'href="/training"', 'Continue my training'],
     [expert, /Every flight\.<br>Built with expertise\./, 'href="/training"', 'Continue my training'],
   ];
+  await prisma.profile.updateMany({ where: { id: { in: cases.map((c) => c[0].id) } }, data: { heroShown: true } }); // brought back onto the dashboard
   for (const [who, line, href, action] of cases) {
-    assert.doesNotMatch((await get(who, '/dashboard')).text, /THE SPACEZERO STANDARD|data-globe/, who.role);
-    const page = await heroOf(who);
+    const page = (await get(who, '/dashboard')).text;
     assert.match(page, /THE SPACEZERO STANDARD/, who.role);
     assert.doesNotMatch(page, /ABOVE9 STANDARD/i, who.role);
     assert.match(page, line, who.role);
@@ -211,7 +232,7 @@ test('the sidebar follows the theme: the badge colour matches it, and light mode
 test('abroad the globe shows only airport codes; only Uzbekistan is named in full', async () => {
   const js = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'js', 'hero-globe.js'), 'utf8');
   assert.match(js, /label\.textContent = r\.code;/);
-  const hero = await heroOf(admin);
+  const hero = (await get(admin, '/dashboard')).text;
   assert.match(hero, />Uzbekistan<\/text>/); assert.match(hero, />TAS · Tashkent<\/text>/);
 });
 
@@ -231,4 +252,12 @@ test('the globe plane slows down for a landing at TAS and rolls to a stop before
   const js = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'js', 'hero-globe.js'), 'utf8');
   assert.match(js, /var ORBIT_END = 12, TOUCHDOWN = 17\.5, PARKED = 19, FLEET = 19\.6, FADE = 26\.5;/);
   assert.match(js, /u = 1 - Math\.pow\(1 - v, 1\.7\)/);   // decelerating approach
+});
+
+test('tapping the globe launches another flight each time, between real airports, with a cap', async () => {
+  const js = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'js', 'hero-globe.js'), 'utf8');
+  assert.match(js, /svg\.addEventListener\('click', function \(\) \{ launch\(lastLam\); \}\);/);
+  assert.match(js, /var MAX_EXTRA = 30;/);
+  for (const code of ['FRA', 'CDG', 'PEK', 'SIN', 'LAX', 'GRU']) assert.match(js, new RegExp(`code: '${code}'`));
+  new Function(js);
 });

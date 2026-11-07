@@ -43,16 +43,30 @@ test('only a binary that cannot START is skipped; one that ran and failed is a r
 
 /** Runs probeMedia in a fresh process (its own environment and remembered binary). */
 function probeIn(env, file) {
-  const script = `require(${JSON.stringify(path.join(__dirname, '../lib/mediaProbe'))}).probeMedia(${JSON.stringify(file)}).then((d) => console.log('OK ' + d), (e) => console.log('ERR ' + e.message.split('\\n')[0]))`;
+  // Use Node fixtures on every OS instead of Unix shell executables. Make installed/bundled
+  // probes unavailable so this actually exercises PATH fallback on machines with ffprobe installed too.
+  const script = `
+    const cp = require('node:child_process');
+    const { promisify } = require('node:util');
+    const path = require('node:path');
+    const execute = promisify(cp.execFile);
+    cp.execFile = Object.assign(() => {}, { [promisify.custom]: (bin, args, options) => {
+      const fixture = bin === 'ffprobe' ? 'ffprobe.cjs' : bin === process.env.BROKEN_PROBE_FIXTURE ? 'broken.cjs' : null;
+      return fixture
+        ? execute(process.execPath, [path.join(process.env.STORAGE_ROOT, fixture), ...args], options)
+        : execute(path.join(process.env.STORAGE_ROOT, 'missing-executable'), args, options);
+    } });
+    require(${JSON.stringify(path.join(__dirname, '../lib/mediaProbe'))}).probeMedia(${JSON.stringify(file)}).then((d) => console.log('OK ' + d), (e) => console.log('ERR ' + e.message.split('\\n')[0]));
+  `;
   return spawnSync(process.execPath, ['-e', script], { env: { ...process.env, ...env }, encoding: 'utf8' }).stdout.trim();
 }
 
 test('ffprobe falls back to one that can start, and a broken recording still fails', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ffprobe-fallback-'));
-  fs.writeFileSync(path.join(dir, 'ffprobe'), '#!/bin/sh\necho \'{"format":{"duration":"12.5"}}\'\n', { mode: 0o755 });
-  fs.writeFileSync(path.join(dir, 'broken'), '#!/bin/sh\necho "Invalid data found" >&2\nexit 1\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(dir, 'ffprobe.cjs'), 'console.log(JSON.stringify({ format: { duration: "12.5" } }));');
+  fs.writeFileSync(path.join(dir, 'broken.cjs'), 'console.error("Invalid data found"); process.exit(1);');
   fs.writeFileSync(path.join(dir, 'clip.m4a'), m4a());
-  const base = { STORAGE_ROOT: dir, PATH: `${dir}:${process.env.PATH}` };
+  const base = { STORAGE_ROOT: dir, BROKEN_PROBE_FIXTURE: path.join(dir, 'broken') };
   // FFPROBE_PATH cannot start -> the next candidate that starts is used (here the one on the PATH)
   assert.equal(probeIn({ ...base, FFPROBE_PATH: path.join(dir, 'missing') }, 'clip.m4a'), 'OK 12.5');
   // an ffprobe that ran and could not read the file is an error - no other binary is tried
