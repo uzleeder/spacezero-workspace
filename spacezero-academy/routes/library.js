@@ -6,7 +6,7 @@ const fs = require('fs');
 
 const { prisma } = require('../lib/prisma');
 const { requireSession } = require('../lib/authMiddleware');
-const { getVisibleLibraryItems, parseTags, TYPE_LABELS } = require('../lib/library');
+const { getVisibleLibraryItems, parseTags, youtubeId, TYPE_LABELS } = require('../lib/library');
 const { resolveStoragePath } = require('../lib/storage');
 const viewer = require('../lib/materialViewer');
 
@@ -40,6 +40,7 @@ async function renderLibrary(req, res, view) {
     favoriteIds: new Set(favorites.map((f) => f.libraryItemId)),
     parseTags,
     TYPE_LABELS,
+    youtubeId,
     q,
     category,
   });
@@ -81,7 +82,7 @@ router.get('/library/:id', requireSession, async (req, res) => {
   // How this item is shown inside the page (video / audio / image / PDF / readable text). Everyone except Admins gets a view-only page.
   const kind = viewer.viewerKind({ type: item.itemType, storagePath: item.storagePath, mimeType: item.mimeType });
   const text = kind === 'text' ? await viewer.readableText(item.storagePath) : null;
-  res.render('library/detail', { title: item.title, item, isFavorite: Boolean(favorite), parseTags, kind, text, paragraphs: viewer.paragraphs, protect: me.role !== 'ADMIN' });
+  res.render('library/detail', { title: item.title, item, isFavorite: Boolean(favorite), parseTags, kind, text, youtube: item.itemType === 'LINK' ? youtubeId(item.externalUrl) : null, paragraphs: viewer.paragraphs, protect: me.role !== 'ADMIN' });
 });
 
 router.post('/library/:id/favorite', requireSession, async (req, res) => {

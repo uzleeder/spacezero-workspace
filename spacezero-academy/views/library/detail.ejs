@@ -9,7 +9,11 @@
   <div class="card-body<%= protect ? ' no-copy' : '' %>" <%- protect ? 'data-protect' : '' %>>
     <% if (item.description && item.itemType !== 'NOTE') { %><p class="text-sm" style="margin-bottom:16px"><%= item.description %></p><% } %>
 
-    <% if (item.itemType === 'LINK' && item.externalUrl) { %>
+    <% if (item.itemType === 'LINK' && youtube) { %>
+      <%# A YouTube link plays right here, in YouTube's privacy-enhanced player (no cookies until it is played). %>
+      <div class="lib-video"><iframe src="https://www.youtube-nocookie.com/embed/<%= youtube %>?rel=0" title="<%= item.title %>" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen></iframe></div>
+      <p class="text-sm mt-16"><a href="<%= item.externalUrl %>" target="_blank" rel="noopener noreferrer" class="link-gold">Open on YouTube &rarr;</a></p>
+    <% } else if (item.itemType === 'LINK' && item.externalUrl) { %>
       <a href="<%= item.externalUrl %>" target="_blank" rel="noopener noreferrer" class="link-gold" style="font-weight:500">Open link &rarr;</a>
     <% } else if (item.itemType === 'NOTE') { %>
       <p style="white-space:pre-wrap"><%= item.description %></p>

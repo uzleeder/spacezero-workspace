@@ -73,10 +73,11 @@ const whenText = (d) => { const days = Math.floor((Date.now() - new Date(d)) / 8
     </div></div>
   <% } else { %>
     <div class="lib-grid mt-24" data-lib-grid>
-      <% items.forEach(function (item) { const tags = parseTags(item.tagsJson); const fav = favoriteIds.has(item.id); %>
+      <% items.forEach(function (item) { const tags = parseTags(item.tagsJson); const fav = favoriteIds.has(item.id); const yt = item.itemType === 'LINK' ? youtubeId(item.externalUrl) : null; %>
         <article class="lib-card" data-lib-card data-search="<%= [item.title, item.description || '', tags.join(' '), item.category ? item.category.name : ''].join(' ').toLowerCase() %>"<%- view === 'saved' ? ' data-favorite-row' : '' %>>
           <a class="lib-card__link" href="/library/<%= item.id %>">
-            <span class="lib-type lib-type--<%= item.itemType.toLowerCase() %>"><%- icon(item.itemType) %><span><%= TYPE_LABELS[item.itemType] || item.itemType %></span></span>
+            <% if (yt) { %><span class="lib-thumb"><img src="https://i.ytimg.com/vi/<%= yt %>/hqdefault.jpg" alt="" loading="lazy" referrerpolicy="no-referrer" /><span class="lib-thumb__play" aria-hidden="true">▶</span></span><% } %>
+            <span class="lib-type lib-type--<%= yt ? 'video' : item.itemType.toLowerCase() %>"><%- icon(yt ? 'VIDEO' : item.itemType) %><span><%= yt ? 'YouTube video' : (TYPE_LABELS[item.itemType] || item.itemType) %></span></span>
             <h2 class="lib-card__title"><%= item.title %></h2>
             <% if (item.description) { %><p class="lib-card__desc"><%= item.description %></p><% } %>
             <span class="lib-card__meta"><%= item.category ? item.category.name : 'No category' %><% tags.slice(0, 3).forEach(function (t) { %> <span class="tag"><%= t %></span><% }); %></span>

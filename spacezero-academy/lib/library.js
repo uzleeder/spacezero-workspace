@@ -74,6 +74,24 @@ function inferItemType(file) {
   return BY_EXT[path.extname(String(file.originalname || '')).slice(1).toLowerCase()] || null;
 }
 
+/**
+ * The video ID of a YouTube link (youtube.com/watch?v=…, youtu.be/…, /shorts/…, /embed/…, /live/…), or null.
+ * Such links play inside the Library (youtube-nocookie.com player) instead of only opening YouTube.
+ */
+function youtubeId(url) {
+  let u;
+  try { u = new URL(String(url || '')); } catch { return null; }
+  if (!/^https?:$/.test(u.protocol)) return null;
+  const host = u.hostname.replace(/^(www\.|m\.|music\.)/, '');
+  let id = null;
+  if (host === 'youtu.be') id = u.pathname.split('/')[1];
+  else if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+    if (u.pathname === '/watch') id = u.searchParams.get('v');
+    else { const m = u.pathname.match(/^\/(?:shorts|embed|live|v)\/([^/?#]+)/); id = m && m[1]; }
+  }
+  return id && /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null;
+}
+
 /** The roles chosen in the "Who can see it?" step: [] means everyone. */
 function chosenRoles(body) {
   const list = Array.isArray(body.visibleRoles) ? body.visibleRoles : body.visibleRoles ? [body.visibleRoles] : [];
@@ -81,4 +99,4 @@ function chosenRoles(body) {
   return list.filter((r) => ROLES.includes(r));
 }
 
-module.exports = { getVisibleLibraryItems, isVisibleTo, parseTags, parseRoles, audienceLabel, inferItemType, chosenRoles, TYPE_LABELS, ROLE_LABELS, ROLES };
+module.exports = { getVisibleLibraryItems, isVisibleTo, parseTags, parseRoles, audienceLabel, inferItemType, chosenRoles, youtubeId, TYPE_LABELS, ROLE_LABELS, ROLES };

@@ -128,3 +128,26 @@ test('an Admin cannot archive another organization\'s material', async () => {
   assert.equal(own.status, 200);
   assert.ok((await prisma.libraryItem.findUnique({ where: { id: guide.id } })).archivedAt);
 });
+
+test('a YouTube link plays inside the Library and shows its thumbnail; other links stay plain links', async () => {
+  const { youtubeId } = require('../lib/library');
+  assert.equal(youtubeId('https://youtu.be/Sp54mxnWjUM?si=abc'), 'Sp54mxnWjUM');
+  assert.equal(youtubeId('https://www.youtube.com/watch?v=Sp54mxnWjUM&t=3'), 'Sp54mxnWjUM');
+  assert.equal(youtubeId('https://youtube.com.evil.example/watch?v=Sp54mxnWjUM'), null);
+  assert.equal(youtubeId('javascript:alert(1)'), null);
+
+  await as(adminCookie).post('/admin/library/items', { source: 'link', title: 'Holiday film', externalUrl: 'https://youtu.be/Sp54mxnWjUM?si=abc', audience: 'everyone' });
+  const film = await prisma.libraryItem.findFirst({ where: { organizationId: org.id, title: 'Holiday film' } });
+  const page = await as(agentCookie).get(`/library/${film.id}`);
+  assert.match(page.text, /<iframe src="https:\/\/www\.youtube-nocookie\.com\/embed\/Sp54mxnWjUM\?rel=0"/);
+  assert.match(page.headers['content-security-policy'], /frame-src https:\/\/www\.youtube-nocookie\.com;/);
+  const list = await as(agentCookie).get('/library');
+  assert.match(list.text, /<img src="https:\/\/i\.ytimg\.com\/vi\/Sp54mxnWjUM\/hqdefault\.jpg"/);
+  assert.match(list.text, />YouTube video</);
+
+  await as(adminCookie).post('/admin/library/items', { source: 'link', title: 'Seat guru page', externalUrl: 'https://www.seatguru.com/x', audience: 'everyone' });
+  const plain = await prisma.libraryItem.findFirst({ where: { organizationId: org.id, title: 'Seat guru page' } });
+  const plainPage = await as(agentCookie).get(`/library/${plain.id}`);
+  assert.doesNotMatch(plainPage.text, /<iframe/);
+  assert.match(plainPage.text, /Open link/);
+});
