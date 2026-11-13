@@ -32,7 +32,7 @@
 <% } else if (tab === 'advanced' && advanced) { %>
   <div class="mt-24">
     <h2 style="font-size:22px;font-weight:600;color:var(--navy-950)">Advanced Settings</h2>
-    <p class="text-sm text-muted mt-4">Configure how SpaceZero works across your organization.</p>
+    <p class="text-sm text-muted mt-4">Configure how SpaceZero works across your organization. New here? Go through the three groups from top to bottom; each line shows what is already set up.</p>
   </div>
-  <div class="mt-24"><%- include('../../partials/admin-configuration-sections', { sections: sections }) %></div>
+  <div class="mt-24"><%- include('../../partials/admin-configuration-sections', { sections: sections, statuses: statuses }) %></div>
 <% } %>

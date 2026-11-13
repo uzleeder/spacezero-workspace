@@ -1,6 +1,6 @@
 // Manage library (views/admin/library.ejs): the "Add material" steps show only the fields for what you chose (a file,
 // a link or a note), the role boxes only when "Only some roles" is chosen, a chosen file fills an empty title, the list
-// can be narrowed by typing, and removing a category asks first.
+// can be narrowed by typing. (Forms with data-confirm-submit ask first: public/js/app.js.)
 (function () {
   'use strict';
   var form = document.querySelector('[data-lib-add]');
@@ -55,7 +55,4 @@
     });
   });
 
-  document.querySelectorAll('form[data-confirm-submit]').forEach(function (f) {
-    f.addEventListener('submit', function (e) { if (!window.confirm(f.getAttribute('data-confirm-submit'))) e.preventDefault(); });
-  });
 })();

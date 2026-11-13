@@ -1,59 +1,79 @@
-<%- include('../partials/advanced-page-header', { sectionLabel: 'Setup Requirements', pageTitle: 'Employee setup requirements', pageDescription: 'The checklist every employee is measured against. Add tools, choose who they apply to and how they are verified. Nothing here needs a developer — and archiving never deletes setup history.', headerAction: '<div style="display:flex;gap:10px;flex-wrap:wrap"><a href="/admin/employees" class="btn btn-secondary">View Employees &amp; Teams</a><a href="/admin/setup-requirements/new" class="btn btn-gold">+ Add tool / requirement</a></div>' }) %>
+<%#
+  Settings → Advanced → Setup Requirements: the checklist every employee completes, in the same order employees see it.
+  One compact row per item (what, who needs it, required or not, who ticks it off), Edit, and a "⋯" menu for moving
+  and archiving. Category chips narrow the list (public/js/setup-admin.js). routes/admin/setupSettings.js.
+%>
+<%
+const CHECKED_BY = { EMPLOYEE_CONFIRMATION: 'The employee ticks it', MANAGEMENT_VERIFICATION: 'Employee ticks it, a manager confirms', MANAGEMENT_ONLY: 'Only a manager ticks it' };
+const cats = []; requirements.forEach(function (r) { const c = r.category || 'Other'; if (cats.indexOf(c) === -1) cats.push(c); });
+const headerAction = '<div class="row-gap"><a href="/admin/employees" class="btn btn-secondary">See employees\' setup</a><a href="/admin/setup-requirements/new" class="btn btn-gold">+ Add item</a></div>';
+%>
+<%- include('../partials/advanced-page-header', { sectionLabel: 'Setup Requirements', pageTitle: 'Setup checklist', pageDescription: 'What every employee needs to work: tools, accounts and information. Each required item counts toward their setup %. Archiving keeps all history.', headerAction: headerAction }) %>
+
+<%- include('../partials/how-it-works', { howKey: 'setup-requirements', steps: [
+  ['Add what people need', 'A tool, an account or a piece of information, for example a Sabre login.'],
+  ['Choose who needs it', 'Everyone, only some roles, or chosen people and teams.'],
+  ['Choose who ticks it off', 'The employee, the employee and then a manager, or only a manager. Items marked "Automatic" fill in by themselves.'],
+] }) %>
 
 <% if (saved) { %>
-  <div class="form-alert success mt-16">Changes saved.<% if (applied !== null) { %> It applies to <strong><%= applied %></strong> active employee<%= applied === 1 ? '' : 's' %><% if (pending) { %>; <strong><%= pending %></strong> now show<%= pending === 1 ? 's' : '' %> <em>Setup Required</em> until it is completed<% } %>.<% } %></div>
+  <div class="form-alert success mt-16" role="status">Saved.<% if (applied !== null) { %> It applies to <strong><%= applied %></strong> active employee<%= applied === 1 ? '' : 's' %><% if (pending) { %>; <strong><%= pending %></strong> still need<%= pending === 1 ? 's' : '' %> to complete it<% } %>.<% } %></div>
 <% } %>
-<% if (error) { %><div class="form-alert error mt-16"><%= error %></div><% } %>
+<% if (error) { %><div class="form-alert error mt-16" role="alert"><%= error %></div><% } %>
 
-<div class="row-between mt-24" style="align-items:center">
-  <div style="display:flex;gap:8px">
-    <a href="/admin/setup-requirements" class="btn btn-sm <%= showArchived ? 'btn-secondary' : 'btn-gold' %>">Active</a>
-    <a href="/admin/setup-requirements?view=archived" class="btn btn-sm <%= showArchived ? 'btn-gold' : 'btn-secondary' %>">Archived</a>
-  </div>
+<div class="sr-bar mt-24">
+  <nav class="segmented" aria-label="Show">
+    <a class="segmented__item<%= showArchived ? '' : ' is-active' %>" href="/admin/setup-requirements"<%- showArchived ? '' : ' aria-current="page"' %>>In use</a>
+    <a class="segmented__item<%= showArchived ? ' is-active' : '' %>" href="/admin/setup-requirements?view=archived"<%- showArchived ? ' aria-current="page"' : '' %>>Archived</a>
+  </nav>
+  <% if (cats.length > 1) { %>
+    <div class="sr-cats" role="group" aria-label="Show category">
+      <button type="button" class="lib-cat is-active" data-sr-cat="">All <span><%= requirements.length %></span></button>
+      <% cats.forEach(function (c) { %><button type="button" class="lib-cat" data-sr-cat="<%= c %>"><%= c %> <span><%= requirements.filter(function (r) { return (r.category || 'Other') === c; }).length %></span></button><% }); %>
+    </div>
+  <% } %>
 </div>
 
 <div class="card mt-16">
   <% if (requirements.length === 0) { %>
-    <div class="card-body"><%- include('../partials/empty-state', { title: showArchived ? 'No archived requirements' : 'No requirements yet', description: showArchived ? 'Requirements you archive stay here and can be restored.' : 'Add the first tool or requirement.' }) %></div>
+    <div class="card-body"><%- include('../partials/empty-state', { title: showArchived ? 'Nothing archived' : 'The checklist is empty', description: showArchived ? 'Items you archive stay here and can be restored.' : 'Add the first item employees need.' }) %></div>
   <% } else { %>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Requirement</th><th>Category</th><th>Applies to</th><th>Required</th><th>Verification</th><th>Actions</th></tr></thead>
-        <tbody>
-          <% requirements.forEach(function (r, i) {
-            var roles = rolesList(r);
-            var mine = targets.filter(function (t) { return t.requirementId === r.id; });
-            var people = mine.filter(function (t) { return t.profileId; }).length;
-            var teams = mine.filter(function (t) { return t.teamId; }).length;
-            var applies = r.audience === 'ALL_EMPLOYEES' ? 'All employees' : r.audience === 'ROLES' ? roles.map(roleLabel).join(', ') : (mine.length ? '' : 'Nobody yet');
-            var extra = []; if (people) extra.push(people + ' employee' + (people === 1 ? '' : 's')); if (teams) extra.push(teams + ' team' + (teams === 1 ? '' : 's')); %>
-            <tr>
-              <td>
-                <p style="font-weight:500;color:var(--navy-950)"><%= r.label %></p>
-                <% if (r.kind !== 'MANUAL') { %><p class="text-sm text-muted">Calculated automatically</p><% } %>
-                <% if (r.companyControlled) { %><p class="text-sm text-muted">Company-controlled</p><% } %>
-              </td>
-              <td><%= r.category || '—' %></td>
-              <td><%= applies %><% if (extra.length) { %><%= applies ? ' + ' : '' %><span class="text-muted"><%= extra.join(', ') %></span><% } %></td>
-              <td><span class="badge <%= r.required ? '' : 'badge-warning' %>"><%= r.required ? 'Required' : 'Optional' %></span></td>
-              <td><%= r.kind === 'MANUAL' ? VERIFICATION_LABEL[r.verification] : 'Automatic' %></td>
-              <td>
-                <div style="display:flex;gap:6px;flex-wrap:wrap">
-                  <% if (!showArchived) { %>
-                    <form method="post" action="/admin/setup-requirements/<%= r.id %>/move"><input type="hidden" name="direction" value="up" /><button class="btn btn-secondary btn-sm" aria-label="Move <%= r.label %> up" <%= i === 0 ? 'disabled' : '' %>>↑</button></form>
-                    <form method="post" action="/admin/setup-requirements/<%= r.id %>/move"><input type="hidden" name="direction" value="down" /><button class="btn btn-secondary btn-sm" aria-label="Move <%= r.label %> down" <%= i === requirements.length - 1 ? 'disabled' : '' %>>↓</button></form>
-                    <a href="/admin/setup-requirements/<%= r.id %>/edit" class="btn btn-secondary btn-sm">Edit</a>
-                    <form method="post" action="/admin/setup-requirements/<%= r.id %>/archive"><button class="btn btn-secondary btn-sm">Archive</button></form>
-                  <% } else { %>
-                    <a href="/admin/setup-requirements/<%= r.id %>/edit" class="btn btn-secondary btn-sm">Edit</a>
-                    <form method="post" action="/admin/setup-requirements/<%= r.id %>/restore"><button class="btn btn-gold btn-sm">Restore</button></form>
-                  <% } %>
+    <ol class="sr-list" data-sr-list>
+      <% requirements.forEach(function (r, i) {
+        const roles = rolesList(r);
+        const mine = targets.filter(function (t) { return t.requirementId === r.id; });
+        const people = mine.filter(function (t) { return t.profileId; }).length;
+        const teams = mine.filter(function (t) { return t.teamId; }).length;
+        const who = r.audience === 'ALL_EMPLOYEES' ? 'Everyone' : r.audience === 'ROLES' ? roles.map(roleLabel).join(', ') : '';
+        const extra = []; if (people) extra.push(people + ' employee' + (people === 1 ? '' : 's')); if (teams) extra.push(teams + ' team' + (teams === 1 ? '' : 's'));
+        const whoText = [who, extra.join(', ')].filter(Boolean).join(' + ') || 'Nobody yet';
+        const auto = r.kind !== 'MANUAL'; %>
+        <li class="sr-row" data-sr-row data-cat="<%= r.category || 'Other' %>">
+          <span class="sr-num" aria-hidden="true"><%= i + 1 %></span>
+          <div class="sr-main">
+            <strong><%= r.label %></strong>
+            <span class="sr-meta"><%= r.category || 'Other' %> · <%= whoText %><% if (r.companyControlled) { %> · Company-owned account<% } %></span>
+          </div>
+          <span class="pill<%= r.required ? '' : ' pill--muted' %>"><%= r.required ? 'Required' : 'Optional' %></span>
+          <span class="sr-check<%= auto ? ' sr-check--auto' : '' %>"><%= auto ? 'Automatic' : CHECKED_BY[r.verification] %></span>
+          <div class="sr-actions">
+            <a href="/admin/setup-requirements/<%= r.id %>/edit" class="btn btn-secondary btn-sm">Edit</a>
+            <% if (showArchived) { %>
+              <form method="post" action="/admin/setup-requirements/<%= r.id %>/restore"><button class="btn btn-gold btn-sm">Restore</button></form>
+            <% } else { %>
+              <details class="sr-menu">
+                <summary class="btn btn-ghost btn-sm" aria-label="More for <%= r.label %>">⋯</summary>
+                <div class="sr-menu__list">
+                  <form method="post" action="/admin/setup-requirements/<%= r.id %>/move"><input type="hidden" name="direction" value="up" /><button <%= i === 0 ? 'disabled' : '' %>>Move up</button></form>
+                  <form method="post" action="/admin/setup-requirements/<%= r.id %>/move"><input type="hidden" name="direction" value="down" /><button <%= i === requirements.length - 1 ? 'disabled' : '' %>>Move down</button></form>
+                  <form method="post" action="/admin/setup-requirements/<%= r.id %>/archive" data-confirm-submit="Archive &quot;<%= r.label %>&quot;? It stops counting for everyone; its history is kept and you can restore it."><button class="sr-menu__danger">Archive</button></form>
                 </div>
-              </td>
-            </tr>
-          <% }); %>
-        </tbody>
-      </table>
-    </div>
+              </details>
+            <% } %>
+          </div>
+        </li>
+      <% }); %>
+    </ol>
   <% } %>
 </div>
+<script src="<%= asset('/static/js/setup-admin.js') %>" defer></script>

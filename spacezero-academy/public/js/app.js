@@ -586,3 +586,10 @@
     });
   });
 })();
+
+// <form data-confirm-submit="Are you sure…?"> asks before it is sent (archive, remove…).
+(function () {
+  document.querySelectorAll('form[data-confirm-submit]').forEach(function (f) {
+    f.addEventListener('submit', function (e) { if (!window.confirm(f.getAttribute('data-confirm-submit'))) e.preventDefault(); });
+  });
+})();

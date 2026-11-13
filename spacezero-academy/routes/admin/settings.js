@@ -17,7 +17,7 @@ const { TenureBandSchema, SkillSchema } = require('../../lib/validation');
 const { logAudit } = require('../../lib/audit');
 
 const { getSetting, setSetting, DEFAULTS } = require('../../lib/orgSettings');
-const { SECTIONS } = require('../../lib/adminConfigurationSections');
+const { SECTIONS, statusFor } = require('../../lib/adminConfigurationSections');
 
 const POLICY_META = [
   { key: 'credentials.ownerCanView', label: 'Employees may reveal their own credentials', help: 'When off, only Admins (and the supervisor of a Travel Agent) can reveal a stored credential. Every reveal is audited either way and needs the viewer to re-enter their password.' },
@@ -47,6 +47,7 @@ router.get('/settings', requireAdmin, async (req, res) => {
 
     policies,
     sections: SECTIONS,
+    statuses: tab === 'advanced' && advanced ? await statusFor(admin.organizationId) : {},
     saved: req.query.saved === '1',
   });
 });
