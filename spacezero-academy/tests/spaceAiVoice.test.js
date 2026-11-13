@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const createVoice = require('../public/js/space-ai-voice');
 
 // Browser speech services are substituted here so tests never record a microphone or send audio.
-function harness({ recognition = true, synthesis = true, secure = true } = {}) {
+function harness({ recognition = true, synthesis = true, secure = true, voices = null } = {}) {
   function node() {
     return { hidden: true, disabled: false, value: '', readOnly: false, textContent: '', attributes: {}, events: {},
       setAttribute(k, v) { this.attributes[k] = v; },
@@ -35,7 +35,7 @@ function harness({ recognition = true, synthesis = true, secure = true } = {}) {
     SpeechRecognition: recognition ? Recognition : undefined,
     SpeechSynthesisUtterance: synthesis ? class { constructor(text) { this.text = text; } } : undefined,
     speechSynthesis: synthesis ? {
-      getVoices: () => [{ lang: 'ru-RU', localService: true }, { lang: 'en-US', localService: true }],
+      getVoices: () => voices || [{ lang: 'ru-RU', localService: true }, { lang: 'en-US', localService: true }],
       speak(u) { spoken.push(u); }, cancel() { cancelled++; }
     } : undefined,
     setTimeout(fn, delay) { timers.set(++id, { fn, delay }); return id; }, clearTimeout(key) { timers.delete(key); },
@@ -132,3 +132,37 @@ test('voice chat does not send an existing draft or restart over a newly typed d
   assert.equal(h.instances.length, 1); assert.equal(h.box.value, 'Next typed draft');
   assert.equal(h.at('voice-toggle').attributes['aria-pressed'], 'false');
 });
+
+test('replies are read with the most natural English voice, in whole sentences, without chat formatting', () => {
+  const voices = [
+    { name: 'Microsoft David - English (United States)', lang: 'en-US', localService: true },
+    { name: 'Microsoft Zira - English (United States)', lang: 'en-US', localService: true },
+    { name: 'Microsoft Ava Online (Natural) - English (United States)', lang: 'en-US', localService: false },
+    { name: 'Google русский', lang: 'ru-RU', localService: false },
+  ];
+  const h = harness({ voices });
+  h.at('voice-toggle').click();
+  const r = h.instances[0]; r.result('What is next?'); r.end();
+  h.controller.setBusy(false);
+  h.controller.reply({ kind: 'answer', content: '**Next steps:**\n- Finish your Sabre training, e.g. lesson 2.\n- Read https://example.com/guide for details.\nThat is all & good luck → you can do it.' });
+  assert.match(h.spoken[0].voice.name, /Ava Online \(Natural\)/, 'a natural voice, not David or Zira');
+  const said = h.spoken.map((u) => u.text).join(' ');
+  assert.doesNotMatch(said, /\*\*|https?:|→|^-/);
+  assert.match(said, /for example lesson 2/);
+  assert.match(said, /the link in the chat/);
+  assert.match(said, /That is all and good luck/);
+  for (const u of h.spoken) assert.ok(u.text.length <= 240, 'short enough to cancel quickly');
+});
+
+test('a long reply is split at sentence ends, never in the middle of a word', () => {
+  const h = harness();
+  h.at('voice-toggle').click();
+  h.instances[0].result('Tell me more'); h.instances[0].end();
+  h.controller.setBusy(false);
+  const sentence = 'Business class guests may bring one companion into the lounge before the flight.';
+  h.controller.reply({ kind: 'answer', content: Array(8).fill(sentence).join(' ') });
+  const first = h.spoken[0].text;
+  assert.ok(first.endsWith('flight.'), first);
+  assert.ok(first.length <= 200);
+});
+

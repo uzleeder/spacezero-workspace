@@ -105,11 +105,72 @@
     };
     try { current.start(); } catch (_) { stop('Microphone could not start. Check access and try again.'); }
   }
+  // The most natural English voice this browser offers: Edge's "Natural" (neural) voices, Apple's Premium/Enhanced
+  // voices and Chrome's Google voices come first; old robotic and novelty voices last. Browsers often fill their voice
+  // list a moment after the page loads, so the choice is made again when the list changes.
+  var ROBOTIC = /\b(david|zira|mark|hazel|george|susan|espeak|fred|albert|bad news|bahh|bells|boing|bubbles|cellos|jester|organ|trinoids|whisper|zarvox|junior|ralph|kathy|princess|superstar|wobble|good news)\b/i;
+  var PLEASANT = /\b(ava|emma|jenny|aria|andrew|brian|michelle|samantha|allison|serena|daniel|libby|sonia|ryan|natasha|olivia)\b/i;
+  function voiceScore(v) {
+    var lang = String(v.lang || '').replace('_', '-');
+    if (!/^en(-|$)/i.test(lang)) return -1;
+    var name = String(v.name || ''), score = 0;
+    if (/natural|neural/i.test(name)) score += 60;
+    if (/online/i.test(name)) score += 10;
+    if (/premium|enhanced/i.test(name)) score += 45;
+    if (/^google\b/i.test(name)) score += 35;
+    if (PLEASANT.test(name)) score += 15;
+    if (ROBOTIC.test(name)) score -= 40;
+    score += /^en-US$/i.test(lang) ? 10 : /^en-GB$/i.test(lang) ? 6 : 3;
+    return score;
+  }
+  var chosenVoice = null;
+  function bestVoice() {
+    if (chosenVoice) return chosenVoice;
+    var list = (synth && synth.getVoices && synth.getVoices()) || [];
+    var best = null, bestScore = -Infinity;
+    list.forEach(function (v) { var sc = voiceScore(v); if (sc >= 0 && sc > bestScore) { best = v; bestScore = sc; } });
+    if (best) chosenVoice = best;
+    return best;
+  }
+  if (synth && synth.addEventListener) synth.addEventListener('voiceschanged', function () { chosenVoice = null; });
+
+  // What is read aloud: the reply without chat formatting, links said as words, and a pause at the end of every line.
+  function speakable(text) {
+    return String(text || '')
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/https?:\/\/\S+/g, 'the link in the chat')
+      .replace(/^\s{0,3}(#{1,6}|>|[-*•]|\d+[.)])\s+/gm, '')
+      .replace(/[*_`~#>|]+/g, '')
+      .replace(/\be\.g\.,?/gi, 'for example').replace(/\bi\.e\.,?/gi, 'that is').replace(/\betc\./gi, 'and so on')
+      .replace(/\s*&\s*/g, ' and ').replace(/[→⇒➜]/g, ', ')
+      .replace(/[☀-➿]|[\uD83C-\uD83E][\uDC00-\uDFFF]/g, '')
+      .replace(/([^.!?:;,\s])[ \t]*\n+/g, '$1. ').replace(/\s+/g, ' ').trim();
+  }
+  // Whole sentences, grouped up to about 200 characters: the voice keeps a natural rhythm, and cancelling stays quick.
+  function sentences(text) {
+    var parts = text.match(/[^.!?…]+(?:[.!?…]+["'”’)\]]*|$)\s*/g) || [];
+    var out = [], cur = '';
+    parts.forEach(function (p) {
+      p = p.trim();
+      if (!p) return;
+      while (p.length > 240) {
+        var cut = p.lastIndexOf(', ', 220);
+        if (cut < 80) cut = p.lastIndexOf(' ', 220);
+        if (cut < 1) cut = 220;
+        out.push(p.slice(0, cut + 1).trim());
+        p = p.slice(cut + 1).trim();
+      }
+      if (cur && (cur + ' ' + p).length > 200) { out.push(cur); cur = p; } else cur = cur ? cur + ' ' + p : p;
+    });
+    if (cur) out.push(cur);
+    return out;
+  }
+
   function speak(text, continueChat) {
     if (!canSpeak) { stop('Spoken replies are unavailable in this browser. Read the reply in the chat.'); return; }
     cancelRecognition(); cancelSpeech();
-    // Short chunks avoid long-utterance cutoffs and keep cancellation responsive.
-    var chunks = String(text || '').match(/.{1,220}(?:\s|$)|\S{1,220}/g) || [];
+    var chunks = sentences(speakable(text));
     var token = speechToken;
     function next() {
       if (token !== speechToken || doc.hidden) return;
@@ -123,8 +184,7 @@
       var utterance = new env.SpeechSynthesisUtterance(chunks.shift());
       activeUtterance = utterance; speaking = true;
       utterance.lang = 'en-US'; utterance.rate = 1; utterance.pitch = 1;
-      var english = synth.getVoices().filter(function (v) { return /^en(?:-|_)/i.test(v.lang); });
-      var preferred = english.find(function (v) { return v.lang === 'en-US' && v.localService; }) || english.find(function (v) { return v.lang === 'en-US'; }) || english[0];
+      var preferred = bestVoice();
       if (preferred) { utterance.voice = preferred; utterance.lang = preferred.lang; }
       utterance.onend = next;
       utterance.onerror = function () { if (token === speechToken) stop('Audio playback stopped. You can read the reply or try Read aloud.'); };
