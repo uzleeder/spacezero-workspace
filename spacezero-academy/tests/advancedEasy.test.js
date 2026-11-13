@@ -38,18 +38,31 @@ test('the Advanced home shows a plain sentence and a live status for each page',
   assert.match(page.text, /Pass mark \d+%/);
 });
 
-test('the setup checklist says who needs each item and who ticks it off, in plain words', async () => {
+test('the setup checklist is grouped by category, one plain line per item, one Edit button; removing is on the edit page', async () => {
   const created = await post('/admin/setup-requirements', { label: 'Amadeus login', category: 'System Access', audience: 'ROLES', roles: 'TRAVEL_AGENT', required: 'required', verification: 'MANAGEMENT_VERIFICATION' });
   assert.equal(created.status, 302);
+  const amadeus = await prisma.setupRequirement.findFirst({ where: { organizationId: org.id, label: 'Amadeus login' } });
   const page = await get('/admin/setup-requirements');
-  assert.match(page.text, /data-howto="setup-requirements"/);
-  assert.match(page.text, /<strong>Amadeus login<\/strong>\s*<span class="sr-meta">System Access · Travel Agent/);
-  assert.match(page.text, /Employee ticks it, a manager confirms/);
-  assert.match(page.text, /<details class="sr-menu">/);
-  assert.match(page.text, /data-confirm-submit="Archive &quot;Amadeus login&quot;\?/);
+  assert.match(page.text, /class="sc-group__title"[^>]*>System Access <span>\d+<\/span>/);
+  assert.match(page.text, /<strong>Amadeus login<\/strong>\s*<span>Travel Agent · employee ticks it, a manager confirms<\/span>/);
+  assert.match(page.text, /aria-label="Edit Amadeus login">Edit<\/a>/);
+  assert.doesNotMatch(page.text, /sr-menu|\/archive"/, 'no menus and no archive buttons on the list');
+  assert.match(page.text, /href="\/admin\/setup-requirements\?order=1"[^>]*>Change order/);
+
+  // "Change order" moves an item inside its own category
+  const sys = () => prisma.setupRequirement.findMany({ where: { organizationId: org.id, archivedAt: null, category: 'System Access' }, orderBy: { displayOrder: 'asc' } });
+  const before = (await sys()).map((r) => r.id);
+  const ordering = await get('/admin/setup-requirements?order=1');
+  assert.match(ordering.text, /name="within" value="category"/);
+  await post(`/admin/setup-requirements/${amadeus.id}/move`, { direction: 'up', within: 'category' });
+  const after = (await sys()).map((r) => r.id);
+  assert.equal(after.indexOf(amadeus.id), before.indexOf(amadeus.id) - 1);
+
+  const edit = await get(`/admin/setup-requirements/${amadeus.id}/edit`);
+  assert.match(edit.text, /Remove from the checklist/);
+  assert.match(edit.text, /action="\/admin\/setup-requirements\/[^"]+\/archive" data-confirm-submit=/);
   const form = await get('/admin/setup-requirements/new');
   assert.match(form.text, /1<\/span> What is it\?/);
-  assert.match(form.text, /2<\/span> Who needs it\?/);
   assert.match(form.text, /data-pick-filter/);
 });
 

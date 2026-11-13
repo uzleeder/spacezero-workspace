@@ -125,11 +125,25 @@ const moreOpen = values.ownerRole || values.dueDays || values.dueDate || values.
     </div>
   </section>
 
-  <div class="row-between mt-24" style="margin-bottom:40px">
+  <div class="row-between mt-24" style="margin-bottom:24px">
     <a href="/admin/setup-requirements" class="text-sm link-gold">Cancel</a>
     <button type="submit" class="btn btn-gold"><%= mode === 'new' ? 'Add to the checklist' : 'Save changes' %></button>
   </div>
 </form>
+
+<% if (mode === 'edit') { %>
+  <section class="card sc-remove">
+    <div class="card-body">
+      <% if (requirement.archivedAt) { %>
+        <div><strong>This item is archived</strong><p class="text-sm text-muted">It does not count for anyone right now.</p></div>
+        <form method="post" action="/admin/setup-requirements/<%= requirement.id %>/restore"><button class="btn btn-gold">Put it back on the checklist</button></form>
+      <% } else { %>
+        <div><strong>Remove from the checklist</strong><p class="text-sm text-muted">It stops counting for everyone. Nothing is deleted, and you can put it back from Archived items.</p></div>
+        <form method="post" action="/admin/setup-requirements/<%= requirement.id %>/archive" data-confirm-submit="Remove &quot;<%= requirement.label %>&quot; from the checklist? Nothing is deleted; you can put it back later."><button class="btn btn-secondary">Remove</button></form>
+      <% } %>
+    </div>
+  </section>
+<% } %>
 
 <script>
 (function () {
