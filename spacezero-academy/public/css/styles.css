@@ -3347,3 +3347,16 @@ html[data-theme="dark"] .sr-menu > summary { color: #f2f0fa; border-color: #2e2b
 .sc-remove { margin: 0 0 40px; border-color: rgba(180,35,24,.2); }
 .sc-remove .card-body { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .sc-remove p { margin: 2px 0 0; }
+
+/* ---- My Desk (partials/pc-card): each piece of equipment by name and number ---- */
+.desk-number { max-width: 220px; }
+.desk-pieces { display: grid; gap: 8px; margin-top: 12px; }
+.desk-pieces__head, .desk-piece { display: grid; grid-template-columns: 130px minmax(0, 1fr) 120px; gap: 10px; align-items: center; }
+.desk-pieces__head span { font-size: 12px; font-weight: 600; color: var(--card-muted, #6b7280); }
+.desk-piece__label { font-weight: 600; font-size: 14px; color: var(--card-title, #101823); }
+.desk-no { font-weight: 600; color: var(--gold-600); margin-left: 4px; }
+@media (max-width: 640px) {
+  .desk-pieces__head { display: none; }
+  .desk-piece { grid-template-columns: minmax(0, 1fr) 96px; }
+  .desk-piece__label { grid-column: 1 / -1; margin-top: 6px; }
+}

@@ -228,14 +228,14 @@ router.get('/office/activity', guard, async (req, res) => {
   res.render('office/activity', { ...common(req, 'activity'), q, action, out, ACTIONS: activity.ACTIONS });
 });
 
-// ---------------------------------------------------------------- My PC (each person's own Setup page; unchanged rules)
+// ---------------------------------------------------------------- My Desk (each person's own Setup page)
 router.post('/my/desk', requireSession, async (req, res) => {
   if (req.impersonation) return notFound(res);
   const out = await desks.saveOwnDesk(req.profile, req.body);
   const to = `/employees/${req.profile.id}/setup`;
-  if (out.error) return res.redirect(`${to}?pcError=${encodeURIComponent(out.error)}#my-pc`);
+  if (out.error) return res.redirect(`${to}?pcError=${encodeURIComponent(out.error)}#my-desk`);
   await logAudit({ organizationId: req.profile.organizationId, actorId: req.profile.id, action: 'office.own_desk_saved', targetTable: 'OfficeDesk', targetId: out.desk.id, metadata: { number: out.desk.number, passwordChanged: Boolean(req.body.password) } });
-  res.redirect(`${to}?pc=saved#my-pc`);
+  res.redirect(`${to}?pc=saved#my-desk`);
 });
 // Their own computer's password, on request. Never for anyone else's desk.
 router.post('/my/desk/password', requireSession, async (req, res) => {

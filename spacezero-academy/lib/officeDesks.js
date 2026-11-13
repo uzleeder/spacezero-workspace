@@ -130,7 +130,7 @@ async function deleteDesk(actor, id) {
   });
 }
 
-/** The desk a person sits at, for their own pages ("My PC"): number, things and linked assets - never the password. */
+/** The desk a person sits at, for their own pages ("My Desk"): number, equipment and linked assets - never the password. */
 async function deskOf(profileId) {
   const d = await prisma.officeDesk.findFirst({ where: { profileId }, select: { id: true, number: true, monitor: true, pcCase: true, keyboard: true, mouse: true, headphone: true, passwordEnc: true, items: { where: { lifecycle: { not: 'RETIRED' } }, select: { assetTag: true, name: true, type: true }, orderBy: { assetTag: 'asc' } } } });
   if (!d) return null;
@@ -146,22 +146,47 @@ async function ownPassword(profileId) {
 }
 
 /** Is the person's PC filled in for Setup? Complete = PC number, monitor, headphone and password; partial = a desk with some of it. */
-const pcState = (desk) => !desk ? 'NONE' : desk.number && desk.monitor && desk.headphone && desk.passwordEnc ? 'COMPLETE' : 'PARTIAL';
+// "My Desk": each piece of equipment is written as its name and its number ("Ziffler 24\" #12"), kept in the desk's own
+// text fields. PC, monitor and headphones are required; keyboard and mouse are optional.
+const PIECES = [
+  { field: 'pcCase', label: 'PC', required: true, example: 'myPro' },
+  { field: 'monitor', label: 'Monitor', required: true, example: 'Ziffler 24"' },
+  { field: 'headphone', label: 'Headphones', required: true, example: 'Logitech' },
+  { field: 'keyboard', label: 'Keyboard', required: false, example: 'Logitech K120' },
+  { field: 'mouse', label: 'Mouse', required: false, example: 'Logitech M90' },
+];
+const joinPiece = (name, no) => [name, no ? `#${String(no).replace(/^#/, '')}` : ''].filter(Boolean).join(' ');
+/** "Ziffler 24\" #12" -> { name: 'Ziffler 24"', no: '12' }; text without a number keeps it all as the name. */
+function splitPiece(text) {
+  const m = String(text || '').match(/^(.*?)\s*#(\S+)$/);
+  return m ? { name: m[1].trim(), no: m[2] } : { name: String(text || '').trim(), no: '' };
+}
+const pcState = (desk) => !desk ? 'NONE' : desk.number && desk.pcCase && desk.monitor && desk.headphone && desk.passwordEnc ? 'COMPLETE' : 'PARTIAL';
 
 /**
- * The person fills in their own PC on their Setup page ("My PC"). Their desk is updated, or created; a desk the office
- * manager recorded without a person is claimed - without its previously saved password (they enter their own); a
- * number that belongs to someone else is refused.
+ * The person fills in their own desk on their Setup page ("My Desk"): the desk number, then each piece of equipment by
+ * name and number. Their desk is updated, or created; a desk the office manager recorded without a person is claimed -
+ * without its previously saved password (they enter their own); a desk number that belongs to someone else is refused.
+ * Older forms that send one text per piece (monitor=...) still work.
  */
 async function saveOwnDesk(actor, body) {
   const number = Number(body.number);
-  if (!Number.isInteger(number) || number < 1 || number > 9999) return { error: 'Write your PC number (the number on your computer or desk).' };
+  if (!Number.isInteger(number) || number < 1 || number > 9999) return { error: 'Write your desk number (the number on your desk).' };
   const fields = {};
-  for (const f of FIELDS) fields[f] = clean(body[f], 80) || null;
+  for (const f of FIELDS) {
+    const piece = PIECES.find((p) => p.field === f);
+    if (piece && (body[`${f}Name`] !== undefined || body[`${f}No`] !== undefined)) {
+      const name = clean(body[`${f}Name`], 60);
+      const no = clean(body[`${f}No`], 20).replace(/^#/, '');
+      if (piece.required && (!name || !no)) return { error: `Write the ${piece.label.toLowerCase()} name and its number.` };
+      if (!piece.required && (name || no) && !(name && no)) return { error: `Write both the ${piece.label.toLowerCase()} name and its number, or leave both empty.` };
+      fields[f] = joinPiece(name, no) || null;
+    } else fields[f] = clean(body[f], 80) || null;
+  }
   const password = String(body.password || '').slice(0, 200);
   const mine = await prisma.officeDesk.findFirst({ where: { organizationId: actor.organizationId, profileId: actor.id } });
   const atNumber = await prisma.officeDesk.findFirst({ where: { organizationId: actor.organizationId, number }, include: { profile: { select: { fullName: true } } } });
-  if (atNumber && atNumber.profileId && atNumber.profileId !== actor.id) return { error: `PC ${number} is recorded for ${atNumber.profile.fullName}. Check the number, or ask the office manager.` };
+  if (atNumber && atNumber.profileId && atNumber.profileId !== actor.id) return { error: `Desk ${number} is recorded for ${atNumber.profile.fullName}. Check the number, or ask the office manager.` };
   let desk;
   if (atNumber && (!mine || mine.id !== atNumber.id)) {
     if (mine) await prisma.officeDesk.update({ where: { id: mine.id }, data: { profileId: null, version: { increment: 1 } } });
@@ -176,17 +201,17 @@ async function saveOwnDesk(actor, body) {
   if (state === 'COMPLETE') await tickPcItem(actor);
   return { desk, state };
 }
-/** My PC is complete: the person's Setup item "PC" is ticked for them (their own confirmation), like ticking it themselves. */
+/** My Desk is complete: the person's Setup item for it (key "pc") is ticked for them (their own confirmation), like ticking it themselves. */
 async function tickPcItem(actor) {
   const requirement = await prisma.setupRequirement.findFirst({ where: { organizationId: actor.organizationId, key: 'pc', archivedAt: null }, select: { id: true } });
   if (!requirement) return;
   const item = await prisma.employeeSetupItem.findUnique({ where: { profileId_requirementId: { profileId: actor.id, requirementId: requirement.id } } });
   if (item && (item.status === 'NOT_REQUIRED' || (item.status === 'COMPLETED' && (item.verifiedById || item.employeeConfirmedAt)))) return;
-  const data = { status: 'COMPLETED', employeeConfirmedAt: new Date(), updatedById: actor.id, note: 'Filled in My PC.' };
+  const data = { status: 'COMPLETED', employeeConfirmedAt: new Date(), updatedById: actor.id, note: 'Filled in My Desk.' };
   if (item) await prisma.employeeSetupItem.update({ where: { id: item.id }, data });
   else await prisma.employeeSetupItem.create({ data: { profileId: actor.id, requirementId: requirement.id, ...data } });
 }
 // when claiming a desk the office manager already filled in, an empty field keeps what is recorded
 const pickFilled = (fields, existing) => Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, v || existing[k] || null]));
 
-module.exports = { VIEWS, READY_NEEDS, listDesks, deskCounts, getDesk, saveDesk, saveOwnDesk, pcState, revealPassword, deleteDesk, deskOf, ownPassword, aadOf, FIELDS };
+module.exports = { VIEWS, READY_NEEDS, listDesks, deskCounts, getDesk, saveDesk, saveOwnDesk, pcState, revealPassword, deleteDesk, deskOf, ownPassword, aadOf, FIELDS, PIECES, splitPiece, joinPiece };

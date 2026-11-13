@@ -146,7 +146,7 @@
               <% } else { %>
               <input type="checkbox" name="checked" value="<%= r.id %>" <%= haveChecked ? 'checked' : '' %> <%= viewOnly ? 'disabled' : '' %> data-bulk-checkbox data-was="<%= haveChecked ? '1' : '0' %>" />
               <% } %>
-              <span style="min-width:0"><%= r.label %><% if (!r.required) { %> <span class="badge" style="margin-left:4px">Optional</span><% } %><% if (r.key === 'pc' && !viewOnly) { %> <a class="link-gold text-sm" href="#my-pc" style="margin-left:6px"><%= haveChecked ? 'My PC' : 'Fill in My PC' %> &rarr;</a><% } %></span>
+              <span style="min-width:0"><%= r.label %><% if (!r.required) { %> <span class="badge" style="margin-left:4px">Optional</span><% } %><% if (r.key === 'pc' && !viewOnly) { %> <a class="link-gold text-sm" href="#my-desk" style="margin-left:6px"><%= haveChecked ? 'My Desk' : 'Fill in My Desk' %> &rarr;</a><% } %></span>
             </span>
             <% if (flagged) { %><span class="badge badge-danger">Reported to admin</span><% } %>
           </label>
@@ -188,8 +188,8 @@
       <div class="grid grid-3">
         <% otherSelfRows.forEach(function (row) { %>
           <% const r = row.requirement; const done = row.status === 'COMPLETED';
-             const actionHref = r.key === 'pc' ? '#my-pc' : r.kind === 'CREDENTIAL_VAULT' ? '/employees/' + employee.id + '/credentials' : (r.kind === 'LOCAL_PHONE' || r.kind === 'ADDRESS') ? '#contact-card' : r.kind === 'PASSPORT' ? '#passport-card' : '';
-             const actionLabel = r.key === 'pc' ? 'Fill in My PC' : r.kind === 'CREDENTIAL_VAULT' ? (isSelf ? 'Add my logins & passwords' : 'Open vault') : (r.kind === 'LOCAL_PHONE' || r.kind === 'ADDRESS') ? 'Add contact details' : r.kind === 'PASSPORT' ? 'Add passport details' : ''; %>
+             const actionHref = r.key === 'pc' ? '#my-desk' : r.kind === 'CREDENTIAL_VAULT' ? '/employees/' + employee.id + '/credentials' : (r.kind === 'LOCAL_PHONE' || r.kind === 'ADDRESS') ? '#contact-card' : r.kind === 'PASSPORT' ? '#passport-card' : '';
+             const actionLabel = r.key === 'pc' ? 'Fill in My Desk' : r.kind === 'CREDENTIAL_VAULT' ? (isSelf ? 'Add my logins & passwords' : 'Open vault') : (r.kind === 'LOCAL_PHONE' || r.kind === 'ADDRESS') ? 'Add contact details' : r.kind === 'PASSPORT' ? 'Add passport details' : ''; %>
           <div class="card" style="padding:16px">
             <p style="font-weight:600;color:var(--navy-950)">
               <span aria-hidden="true"><%= done ? '✓' : row.status === 'NOT_REQUIRED' ? '–' : '✗' %></span>

@@ -1,6 +1,6 @@
 'use strict';
 // Office Management: Overview, Assets, Desks, Repairs, Activity. Only the office manager (Fred Marco) reaches any of it:
-// not Admins, not other supervisors, not an Admin viewing as Fred. Plus My PC on each person's own Setup/profile.
+// not Admins, not other supervisors, not an Admin viewing as Fred. Plus My Desk on each person's own Setup/profile.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const request = require('supertest');
@@ -251,16 +251,16 @@ test('backfill: tags, models and categories only from the handed-over list; ever
   })();
 });
 
-test('"My PC" on the Setup page: each person sees their own PC number, monitor, headphone and password (on request), nobody else\'s', async () => {
+test('"My Desk" on the Setup page: each person sees their own PC number, monitor, headphone and password (on request), nobody else\'s', async () => {
   assert.equal((await post(fred, '/office/desks', { number: '12', profileId: agent.id, monitor: 'Redmi', headphone: 'Logi', pcCase: 'myPro', password: 'Agent-PC-12' })).status, 302);
   const own = (await get(agent, `/employees/${agent.id}/setup`)).text;
-  assert.match(own, /<h2>My PC<\/h2>/); assert.match(own, /PC number<\/p><p class="v">12</); assert.match(own, /Redmi/); assert.match(own, /Logi/);
+  assert.match(own, /<h2>My Desk<\/h2>/); assert.match(own, /Desk number<\/p><p class="v">12</); assert.match(own, /Redmi/); assert.match(own, /Logi/);
   assert.doesNotMatch(own, /Agent-PC-12/, 'the page never contains the password');
   const shown = await post(agent, '/my/desk/password');
   assert.equal(shown.status, 200); assert.equal(shown.body.password, 'Agent-PC-12');
   assert.ok(await prisma.auditLog.findFirst({ where: { action: 'office.own_desk_password_viewed', actorId: agent.id } }));
-  // an Admin looking at the agent's Setup does not get "My PC"; someone without a desk gets nothing
-  assert.doesNotMatch((await get(admin, `/employees/${agent.id}/setup`)).text, /<h2>My PC<\/h2>/);
+  // an Admin looking at the agent's Setup does not get "My Desk"; someone without a desk gets nothing
+  assert.doesNotMatch((await get(admin, `/employees/${agent.id}/setup`)).text, /<h2>My Desk<\/h2>/);
   assert.equal((await post(sup, '/my/desk/password')).status, 404);
 });
 
@@ -268,24 +268,24 @@ test('the PC card is on every profile: the owner can show their password, the of
   const desk = await prisma.officeDesk.findFirst({ where: { organizationId: org.id, profileId: agent.id } });
   assert.ok(desk, 'desk from the previous test');
   const own = (await get(agent, '/profile')).text;
-  assert.match(own, /<h2>My PC<\/h2>/); assert.match(own, /data-pc-show="\/my\/desk\/password"/); assert.doesNotMatch(own, /Agent-PC-12/);
+  assert.match(own, /<h2>My Desk<\/h2>/); assert.match(own, /data-pc-show="\/my\/desk\/password"/); assert.doesNotMatch(own, /Agent-PC-12/);
   const byAdmin = (await get(admin, `/admin/employees/${agent.id}`)).text;
-  assert.match(byAdmin, /<h2>PC<\/h2>/); assert.match(byAdmin, /PC number<\/p><p class="v">12</); assert.doesNotMatch(byAdmin, /data-pc-show/); assert.doesNotMatch(byAdmin, /PC password/);
+  assert.match(byAdmin, /<h2>Desk<\/h2>/); assert.match(byAdmin, /Desk number<\/p><p class="v">12</); assert.doesNotMatch(byAdmin, /data-pc-show/); assert.doesNotMatch(byAdmin, /PC password/);
   const byFred = (await get(fred, `/admin/employees/${agent.id}`));
   if (byFred.status === 200) assert.match(byFred.text, new RegExp(`data-pc-show="/office/desks/${desk.id}/password"`));
   const noDesk = (await get(sup, '/profile')).text;
-  assert.match(noDesk, /<h2>My PC<\/h2>/); assert.match(noDesk, /No desk recorded yet\./);
+  assert.match(noDesk, /<h2>My Desk<\/h2>/); assert.match(noDesk, /No desk recorded yet\./);
 });
 
-test('Setup: the agent fills in My PC; their "PC" item is ticked once PC number, monitor, headphone and password are in', async () => {
+test('Setup: the agent fills in My Desk; their "PC" item is ticked once PC number, monitor, headphone and password are in', async () => {
   const { loadSetupForProfile, ensureDefaultRequirements } = require('../lib/employeeSetup');
   await ensureDefaultRequirements(org.id);
   const newbie = await person(org.id, 'TRAVEL_AGENT', 'Nora Newbie');
   const pcRow = async () => (await loadSetupForProfile(org.id, await prisma.profile.findUnique({ where: { id: newbie.id } }))).rows.find((r) => r.requirement.key === 'pc');
 
   const page = (await get(newbie, `/employees/${newbie.id}/setup`)).text;
-  assert.match(page, /<h2>My PC<\/h2>/); assert.match(page, /Not filled in yet\. Fill in your PC below\./);
-  assert.match(page, /<form method="post" action="\/my\/desk"/); assert.match(page, /href="#my-pc"[^>]*>Fill in My PC/);
+  assert.match(page, /<h2>My Desk<\/h2>/); assert.match(page, /Not filled in yet\. Fill in your desk below\./);
+  assert.match(page, /<form method="post" action="\/my\/desk"/); assert.match(page, /href="#my-desk"[^>]*>Fill in My Desk/);
   assert.equal((await pcRow()).status, 'NOT_SET_UP');
 
   // part of it: not ticked yet
@@ -293,8 +293,8 @@ test('Setup: the agent fills in My PC; their "PC" item is ticked once PC number,
   assert.notEqual((await pcRow()).status, 'COMPLETED');
   // all of it: ticked (their own confirmation), and the password is encrypted and only on request
   const done = await post(newbie, '/my/desk', { number: '40', monitor: 'Ziffler', headphone: 'Logi', pcCase: 'myPro', password: 'Nora-PC-40' });
-  assert.match(done.headers.location, /pc=saved#my-pc/);
-  assert.equal((await pcRow()).status, 'COMPLETED'); assert.match((await pcRow()).item.note, /Filled in My PC/);
+  assert.match(done.headers.location, /pc=saved#my-desk/);
+  assert.equal((await pcRow()).status, 'COMPLETED'); assert.match((await pcRow()).item.note, /Filled in My Desk/);
   const desk = await prisma.officeDesk.findFirst({ where: { organizationId: org.id, profileId: newbie.id } });
   assert.equal(desk.number, 40); assert.equal(desk.pcCase, 'myPro'); assert.doesNotMatch(desk.passwordEnc, /Nora-PC-40/);
   assert.equal((await post(newbie, '/my/desk/password')).body.password, 'Nora-PC-40');
@@ -307,10 +307,31 @@ test('Setup: the agent fills in My PC; their "PC" item is ticked once PC number,
   assert.equal((await post(newbie, '/my/desk/password')).body.password, 'Nora-PC-40');
   // someone else's PC number is refused; a PC the office manager recorded without a person is claimed
   const taken = await post(newbie, '/my/desk', { number: '12', monitor: 'X', headphone: 'Y' });
-  assert.match(decodeURIComponent(taken.headers.location), /PC 12 is recorded for Max Agent/);
+  assert.match(decodeURIComponent(taken.headers.location), /Desk 12 is recorded for Max Agent/);
   await post(fred, '/office/desks', { number: '41', monitor: 'Redmi 27', headphone: 'Logi', personName: 'Free desk' });
   assert.equal((await post(newbie, '/my/desk', { number: '41', monitor: '', headphone: '' })).status, 302);
   const claimed = await prisma.officeDesk.findFirst({ where: { organizationId: org.id, number: 41 } });
   assert.equal(claimed.profileId, newbie.id); assert.equal(claimed.monitor, 'Redmi 27', 'what the office manager recorded is kept');
   assert.equal((await prisma.officeDesk.findFirst({ where: { organizationId: org.id, number: 40 } })).profileId, null, 'the old desk is freed');
 });
+
+test('My Desk: each piece is written as its name and number; PC, monitor and headphones need both', async () => {
+  const { ensureDefaultRequirements } = require('../lib/employeeSetup');
+  await ensureDefaultRequirements(org.id);
+  const newbie = await person(org.id, 'TRAVEL_AGENT', 'Dina Desk');
+  const page = (await get(newbie, `/employees/${newbie.id}/setup`)).text;
+  assert.match(page, /name="pcCaseName"/); assert.match(page, /name="monitorNo"/); assert.match(page, /name="headphoneName"/);
+  assert.match(page, /Save my desk/);
+  const missing = await post(newbie, '/my/desk', { number: '77', pcCaseName: 'myPro', pcCaseNo: '', monitorName: 'Ziffler', monitorNo: '5', headphoneName: 'Logi', headphoneNo: '9', password: 'Dina-77' });
+  assert.match(decodeURIComponent(missing.headers.location), /Write the pc name and its number\./i);
+  const ok = await post(newbie, '/my/desk', { number: '77', pcCaseName: 'myPro', pcCaseNo: '7', monitorName: 'Ziffler 24"', monitorNo: '#12', headphoneName: 'Logi', headphoneNo: '9', keyboardName: '', keyboardNo: '', password: 'Dina-77' });
+  assert.match(ok.headers.location, /pc=saved#my-desk/);
+  const desk = await prisma.officeDesk.findFirst({ where: { organizationId: org.id, profileId: newbie.id } });
+  assert.equal(desk.pcCase, 'myPro #7'); assert.equal(desk.monitor, 'Ziffler 24" #12'); assert.equal(desk.headphone, 'Logi #9'); assert.equal(desk.keyboard, null);
+  const shown = (await get(newbie, `/employees/${newbie.id}/setup`)).text;
+  assert.match(shown, /Ziffler 24&#34; <span class="desk-no">#12<\/span>/);
+  assert.match(shown, /name="monitorName" maxlength="60" value="Ziffler 24&#34;"/);
+  const half = await post(newbie, '/my/desk', { number: '77', pcCaseName: 'myPro', pcCaseNo: '7', monitorName: 'Ziffler', monitorNo: '12', headphoneName: 'Logi', headphoneNo: '9', mouseName: 'Logitech M90', mouseNo: '' });
+  assert.match(decodeURIComponent(half.headers.location), /Write both the mouse name and its number, or leave both empty\./);
+});
+
