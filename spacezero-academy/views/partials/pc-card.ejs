@@ -1,11 +1,12 @@
 <%# "My Desk": the person's desk at the office (Office Management desks), on every profile and on their own Setup page.
-    The desk number, then each piece of equipment by name and number (PC, monitor and headphones required; keyboard and
-    mouse optional), and the PC password. desk = lib/officeDesks.js#deskOf(...) or null; own = the viewer's own page.
+    The desk number, the PC and monitor by name and number, the headphones (and optionally keyboard and mouse) by name,
+    and the PC password. desk = lib/officeDesks.js#deskOf(...) or null; own = the viewer's own page.
     The password itself is never in the page: "Show" asks the server - their own desk for the owner, any desk for the
     office manager - and it is audited. Nobody else (Admins included) gets a Show button. %>
 <% var viewing = typeof impersonation !== 'undefined' && impersonation;
    var showUrl = !desk || !desk.hasPassword || viewing ? null : own ? '/my/desk/password' : (profile && profile.officeManager ? '/office/desks/' + desk.id + '/password' : null);
-   var PIECES = [['pcCase', 'PC', true, 'myPro'], ['monitor', 'Monitor', true, 'Ziffler 24"'], ['headphone', 'Headphones', true, 'Logitech'], ['keyboard', 'Keyboard', false, 'Logitech K120'], ['mouse', 'Mouse', false, 'Logitech M90']];
+   // [field, label, required, example, has a number]
+   var PIECES = [['pcCase', 'PC', true, 'myPro', true], ['monitor', 'Monitor', true, 'Ziffler 24"', true], ['headphone', 'Headphones', true, 'Logitech', false], ['keyboard', 'Keyboard', false, 'Logitech K120', false], ['mouse', 'Mouse', false, 'Logitech M90', false]];
    var split = function (text) { var m = String(text || '').match(/^(.*?)\s*#(\S+)$/); return m ? { name: m[1].trim(), no: m[2] } : { name: String(text || '').trim(), no: '' }; };
    var canEdit = typeof editable !== 'undefined' && editable; %>
 <div class="card mt-24 pc-card" id="my-desk">
@@ -33,7 +34,7 @@
     <% if (canEdit) { %>
       <form method="post" action="/my/desk" class="pc-form" autocomplete="off">
         <p class="pc-form__title"><%= desk ? 'Update my desk' : 'Fill in my desk' %></p>
-        <p class="text-sm text-muted" style="margin:0 0 12px">Write the name and the number of each piece, as written on its sticker. For example: Monitor <em>Ziffler 24"</em>, number <em>12</em>.</p>
+        <p class="text-sm text-muted" style="margin:0 0 12px">For the PC and the monitor, write the name and the number from its sticker. For example: Monitor <em>Ziffler 24"</em>, number <em>12</em>.</p>
         <div class="field desk-number"><label for="desk-number">Desk number</label><input id="desk-number" name="number" type="number" min="1" max="9999" required inputmode="numeric" value="<%= desk ? desk.number : '' %>" placeholder="e.g. 12" /></div>
         <div class="desk-pieces">
           <div class="desk-pieces__head" aria-hidden="true"><span></span><span>Name</span><span>Number</span></div>
@@ -41,7 +42,7 @@
             <div class="desk-piece">
               <span class="desk-piece__label"><%= p[1] %><% if (!p[2]) { %> <span class="optional">optional</span><% } %></span>
               <input name="<%= p[0] %>Name" maxlength="60" value="<%= s.name %>" placeholder="<%= p[3] %>" aria-label="<%= p[1] %> name" <%= p[2] ? 'required' : '' %> />
-              <input name="<%= p[0] %>No" maxlength="20" value="<%= s.no %>" placeholder="No." aria-label="<%= p[1] %> number" <%= p[2] ? 'required' : '' %> />
+              <% if (p[4]) { %><input name="<%= p[0] %>No" maxlength="20" value="<%= s.no %>" placeholder="No." aria-label="<%= p[1] %> number" <%= p[2] ? 'required' : '' %> /><% } else { %><span aria-hidden="true"></span><% } %>
             </div>
           <% }); %>
         </div>

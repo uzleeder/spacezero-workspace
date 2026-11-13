@@ -315,23 +315,24 @@ test('Setup: the agent fills in My Desk; their "PC" item is ticked once PC numbe
   assert.equal((await prisma.officeDesk.findFirst({ where: { organizationId: org.id, number: 40 } })).profileId, null, 'the old desk is freed');
 });
 
-test('My Desk: each piece is written as its name and number; PC, monitor and headphones need both', async () => {
+test('My Desk: the PC and monitor have a name and a number; headphones, keyboard and mouse only a name', async () => {
   const { ensureDefaultRequirements } = require('../lib/employeeSetup');
   await ensureDefaultRequirements(org.id);
   const newbie = await person(org.id, 'TRAVEL_AGENT', 'Dina Desk');
   const page = (await get(newbie, `/employees/${newbie.id}/setup`)).text;
-  assert.match(page, /name="pcCaseName"/); assert.match(page, /name="monitorNo"/); assert.match(page, /name="headphoneName"/);
-  assert.match(page, /Save my desk/);
-  const missing = await post(newbie, '/my/desk', { number: '77', pcCaseName: 'myPro', pcCaseNo: '', monitorName: 'Ziffler', monitorNo: '5', headphoneName: 'Logi', headphoneNo: '9', password: 'Dina-77' });
+  assert.match(page, /name="pcCaseNo"/); assert.match(page, /name="monitorNo"/);
+  assert.doesNotMatch(page, /name="headphoneNo"|name="keyboardNo"|name="mouseNo"/);
+  assert.match(page, /name="headphoneName"/); assert.match(page, /Save my desk/);
+  const missing = await post(newbie, '/my/desk', { number: '77', pcCaseName: 'myPro', pcCaseNo: '', monitorName: 'Ziffler', monitorNo: '5', headphoneName: 'Logi', password: 'Dina-77' });
   assert.match(decodeURIComponent(missing.headers.location), /Write the pc name and its number\./i);
-  const ok = await post(newbie, '/my/desk', { number: '77', pcCaseName: 'myPro', pcCaseNo: '7', monitorName: 'Ziffler 24"', monitorNo: '#12', headphoneName: 'Logi', headphoneNo: '9', keyboardName: '', keyboardNo: '', password: 'Dina-77' });
+  const noHeadphones = await post(newbie, '/my/desk', { number: '77', pcCaseName: 'myPro', pcCaseNo: '7', monitorName: 'Ziffler', monitorNo: '5', headphoneName: '', password: 'Dina-77' });
+  assert.match(decodeURIComponent(noHeadphones.headers.location), /Write the headphones name\./);
+  const ok = await post(newbie, '/my/desk', { number: '77', pcCaseName: 'myPro', pcCaseNo: '7', monitorName: 'Ziffler 24"', monitorNo: '#12', headphoneName: 'Logi', headphoneNo: '99', keyboardName: '', mouseName: 'Logitech M90', password: 'Dina-77' });
   assert.match(ok.headers.location, /pc=saved#my-desk/);
   const desk = await prisma.officeDesk.findFirst({ where: { organizationId: org.id, profileId: newbie.id } });
-  assert.equal(desk.pcCase, 'myPro #7'); assert.equal(desk.monitor, 'Ziffler 24" #12'); assert.equal(desk.headphone, 'Logi #9'); assert.equal(desk.keyboard, null);
+  assert.equal(desk.pcCase, 'myPro #7'); assert.equal(desk.monitor, 'Ziffler 24" #12');
+  assert.equal(desk.headphone, 'Logi', 'no number for headphones, even if one is sent'); assert.equal(desk.keyboard, null); assert.equal(desk.mouse, 'Logitech M90');
   const shown = (await get(newbie, `/employees/${newbie.id}/setup`)).text;
   assert.match(shown, /Ziffler 24&#34; <span class="desk-no">#12<\/span>/);
   assert.match(shown, /name="monitorName" maxlength="60" value="Ziffler 24&#34;"/);
-  const half = await post(newbie, '/my/desk', { number: '77', pcCaseName: 'myPro', pcCaseNo: '7', monitorName: 'Ziffler', monitorNo: '12', headphoneName: 'Logi', headphoneNo: '9', mouseName: 'Logitech M90', mouseNo: '' });
-  assert.match(decodeURIComponent(half.headers.location), /Write both the mouse name and its number, or leave both empty\./);
 });
-

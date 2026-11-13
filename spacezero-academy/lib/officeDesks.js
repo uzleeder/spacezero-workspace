@@ -146,14 +146,15 @@ async function ownPassword(profileId) {
 }
 
 /** Is the person's PC filled in for Setup? Complete = PC number, monitor, headphone and password; partial = a desk with some of it. */
-// "My Desk": each piece of equipment is written as its name and its number ("Ziffler 24\" #12"), kept in the desk's own
-// text fields. PC, monitor and headphones are required; keyboard and mouse are optional.
+// "My Desk": the PC and the monitor are written as their name and number ("Ziffler 24\" #12"); headphones, keyboard and
+// mouse by name only. Kept in the desk's own text fields. PC, monitor and headphones are required; keyboard and mouse
+// are optional.
 const PIECES = [
-  { field: 'pcCase', label: 'PC', required: true, example: 'myPro' },
-  { field: 'monitor', label: 'Monitor', required: true, example: 'Ziffler 24"' },
-  { field: 'headphone', label: 'Headphones', required: true, example: 'Logitech' },
-  { field: 'keyboard', label: 'Keyboard', required: false, example: 'Logitech K120' },
-  { field: 'mouse', label: 'Mouse', required: false, example: 'Logitech M90' },
+  { field: 'pcCase', label: 'PC', required: true, numbered: true, example: 'myPro' },
+  { field: 'monitor', label: 'Monitor', required: true, numbered: true, example: 'Ziffler 24"' },
+  { field: 'headphone', label: 'Headphones', required: true, numbered: false, example: 'Logitech' },
+  { field: 'keyboard', label: 'Keyboard', required: false, numbered: false, example: 'Logitech K120' },
+  { field: 'mouse', label: 'Mouse', required: false, numbered: false, example: 'Logitech M90' },
 ];
 const joinPiece = (name, no) => [name, no ? `#${String(no).replace(/^#/, '')}` : ''].filter(Boolean).join(' ');
 /** "Ziffler 24\" #12" -> { name: 'Ziffler 24"', no: '12' }; text without a number keeps it all as the name. */
@@ -164,8 +165,8 @@ function splitPiece(text) {
 const pcState = (desk) => !desk ? 'NONE' : desk.number && desk.pcCase && desk.monitor && desk.headphone && desk.passwordEnc ? 'COMPLETE' : 'PARTIAL';
 
 /**
- * The person fills in their own desk on their Setup page ("My Desk"): the desk number, then each piece of equipment by
- * name and number. Their desk is updated, or created; a desk the office manager recorded without a person is claimed -
+ * The person fills in their own desk on their Setup page ("My Desk"): the desk number, the PC and monitor by name and
+ * number, and the headphones (plus keyboard and mouse if they like) by name. Their desk is updated, or created; a desk the office manager recorded without a person is claimed -
  * without its previously saved password (they enter their own); a desk number that belongs to someone else is refused.
  * Older forms that send one text per piece (monitor=...) still work.
  */
@@ -177,9 +178,9 @@ async function saveOwnDesk(actor, body) {
     const piece = PIECES.find((p) => p.field === f);
     if (piece && (body[`${f}Name`] !== undefined || body[`${f}No`] !== undefined)) {
       const name = clean(body[`${f}Name`], 60);
-      const no = clean(body[`${f}No`], 20).replace(/^#/, '');
-      if (piece.required && (!name || !no)) return { error: `Write the ${piece.label.toLowerCase()} name and its number.` };
-      if (!piece.required && (name || no) && !(name && no)) return { error: `Write both the ${piece.label.toLowerCase()} name and its number, or leave both empty.` };
+      const no = piece.numbered ? clean(body[`${f}No`], 20).replace(/^#/, '') : '';
+      if (piece.numbered && piece.required && (!name || !no)) return { error: `Write the ${piece.label.toLowerCase()} name and its number.` };
+      if (!piece.numbered && piece.required && !name) return { error: `Write the ${piece.label.toLowerCase()} name.` };
       fields[f] = joinPiece(name, no) || null;
     } else fields[f] = clean(body[f], 80) || null;
   }
