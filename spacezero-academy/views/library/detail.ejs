@@ -1,7 +1,7 @@
-<%- include('../partials/page-header', { pageTitle: item.title, pageDescription: item.category ? item.category.name : 'Uncategorized', headerAction: '<button type="button" class="btn btn-secondary' + (isFavorite ? ' is-active' : '') + '" data-favorite-toggle="' + item.id + '" data-favorite-label aria-pressed="' + (isFavorite ? 'true' : 'false') + '">' + (isFavorite ? '★ In My Library' : '☆ Add to My Library') + '</button>' }) %>
+<%- include('../partials/page-header', { pageTitle: item.title, pageDescription: item.category ? item.category.name : 'No category', headerAction: '<button type="button" class="btn btn-secondary' + (isFavorite ? ' is-active' : '') + '" data-favorite-toggle="' + item.id + '" data-favorite-label aria-pressed="' + (isFavorite ? 'true' : 'false') + '">' + (isFavorite ? '★ In My Library' : '☆ Add to My Library') + '</button>' }) %>
 
 <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
-  <span class="badge badge-navy"><%= item.itemType %></span>
+  <span class="badge badge-navy"><%= youtube ? 'YouTube video' : (TYPE_LABELS[item.itemType] || item.itemType) %></span>
   <% parseTags(item.tagsJson).forEach(function (tag) { %><span class="badge"><%= tag %></span><% }); %>
 </div>
 
