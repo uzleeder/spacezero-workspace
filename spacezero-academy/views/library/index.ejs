@@ -1,37 +1,92 @@
-<%- include('../partials/page-header', { pageTitle: 'Library', pageDescription: 'Reference material — not mandatory training.', headerAction: '<a href="/library/mine" class="link-gold text-sm">My Library &rarr;</a>' }) %>
+<%#
+  The Library, for everyone: look something up. Three views on one page (routes/library.js): everything, with search
+  and category chips; what you saved with the star; and what you opened recently. Search narrows the cards while you
+  type (public/js/library.js); Enter searches the whole Library on the server.
+%>
+<%
+const ICONS = {
+  VIDEO: 'M4 6h11v12H4z M15 10l5-3v10l-5-3',
+  AUDIO: 'M9 18V6l10-2v12 M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z M19 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
+  PDF: 'M6 3h9l4 4v14H6z M15 3v4h4 M9 13h6 M9 17h4',
+  PPT: 'M4 5h16v11H4z M12 16v4 M8 20h8 M8 12l3-3 2 2 3-3',
+  DOC: 'M6 3h9l4 4v14H6z M15 3v4h4 M9 11h6 M9 14h6 M9 17h4',
+  IMAGE: 'M4 5h16v14H4z M4 16l5-5 4 4 3-3 4 4 M15 9.5a1.5 1.5 0 1 1 0-.01',
+  NOTE: 'M5 4h14v16H5z M8 8h8 M8 12h8 M8 16h5',
+  LINK: 'M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1 M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1',
+};
+const icon = (type) => '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + (ICONS[type] || ICONS.DOC) + '"/></svg>';
+const viewHref = (v) => v === 'all' ? '/library' : v === 'saved' ? '/library/mine' : '/library?view=recent';
+const catHref = (id) => '/library?' + [id ? 'category=' + encodeURIComponent(id) : '', q ? 'q=' + encodeURIComponent(q) : ''].filter(Boolean).join('&');
+const whenText = (d) => { const days = Math.floor((Date.now() - new Date(d)) / 86400000); return days <= 0 ? 'today' : days === 1 ? 'yesterday' : days < 30 ? days + ' days ago' : new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); };
+%>
+<%- include('../partials/page-header', { pageTitle: 'Library', pageDescription: 'Guides, cabins, fare rules and company procedures to look things up while you work. Nothing here is mandatory training.' }) %>
 
 <% if (profile.role === 'ADMIN') { %><%- include('../partials/management-tabs', { tabs: tabsets.library }) %><% } %>
 
-<form class="mt-24" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:24px">
-  <input type="search" name="q" value="<%= q %>" placeholder="Search the library..." style="width:256px" />
-  <select name="category" style="width:auto">
-    <option value="">All categories</option>
-    <% categories.forEach(function (c) { %>
-      <option value="<%= c.id %>" <%= category === c.id ? 'selected' : '' %>><%= c.name %></option>
-    <% }); %>
-  </select>
-  <button type="submit" class="btn btn-secondary">Search</button>
-</form>
+<div class="lib-bar mt-24">
+  <% if (view === 'all') { %>
+    <form class="lib-search" method="get" action="/library" role="search" aria-label="Search the Library">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Z M20 20l-4-4"/></svg>
+      <input type="search" name="q" value="<%= q %>" placeholder="Search titles, descriptions and tags" aria-label="Search the Library" autocomplete="off" data-lib-search />
+      <% if (category) { %><input type="hidden" name="category" value="<%= category %>" /><% } %>
+    </form>
+  <% } %>
+  <nav class="segmented lib-views" aria-label="Show">
+    <a class="segmented__item<%= view === 'all' ? ' is-active' : '' %>" href="<%= viewHref('all') %>"<%- view === 'all' ? ' aria-current="page"' : '' %>>All materials <span class="lib-count"><%= total %></span></a>
+    <a class="segmented__item<%= view === 'saved' ? ' is-active' : '' %>" href="<%= viewHref('saved') %>"<%- view === 'saved' ? ' aria-current="page"' : '' %>>★ Saved <span class="lib-count" data-favorite-count><%= savedCount %></span></a>
+    <a class="segmented__item<%= view === 'recent' ? ' is-active' : '' %>" href="<%= viewHref('recent') %>"<%- view === 'recent' ? ' aria-current="page"' : '' %>>Recently viewed</a>
+  </nav>
+</div>
 
-<% if (items.length === 0) { %>
-  <div class="card"><div class="card-body"><%- include('../partials/empty-state', { title: 'No materials found', description: 'Try a different search or category.' }) %></div></div>
-<% } else { %>
-  <div class="grid grid-3">
-    <% items.forEach(function (item) { %>
-      <div class="card" style="padding:20px">
-        <div class="row-between" style="margin-bottom:12px">
-          <span class="badge badge-navy"><%= item.itemType %></span>
-          <button type="button" class="btn btn-ghost btn-sm<%= favoriteIds.has(item.id) ? ' is-active' : '' %>" data-favorite-toggle="<%= item.id %>" aria-pressed="<%= favoriteIds.has(item.id) ? 'true' : 'false' %>" aria-label="Save to My Library" title="<%= favoriteIds.has(item.id) ? 'Remove from My Library' : 'Save to My Library' %>"><%= favoriteIds.has(item.id) ? '★' : '☆' %></button>
-        </div>
-        <a href="/library/<%= item.id %>">
-          <p style="font-weight:500;color:var(--navy-950)"><%= item.title %></p>
-          <% if (item.description) { %><p class="text-sm text-muted mt-16" style="margin-top:4px"><%= item.description %></p><% } %>
-        </a>
-        <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:4px">
-          <% parseTags(item.tagsJson).forEach(function (tag) { %><span class="tag"><%= tag %></span><% }); %>
-        </div>
-        <p class="text-sm text-muted" style="margin-top:12px"><%= item.category ? item.category.name : 'Uncategorized' %></p>
-      </div>
+<% if (view === 'all' && categories.length) { %>
+  <nav class="lib-cats" aria-label="Categories">
+    <a class="lib-cat<%= !category ? ' is-active' : '' %>" href="<%= catHref('') %>"<%- !category ? ' aria-current="true"' : '' %>>All</a>
+    <% categories.forEach(function (c) { %>
+      <a class="lib-cat<%= category === c.id ? ' is-active' : '' %>" href="<%= catHref(c.id) %>"<%- category === c.id ? ' aria-current="true"' : '' %>><%= c.name %> <span><%= c.count %></span></a>
     <% }); %>
-  </div>
+  </nav>
 <% } %>
+
+<% if (view === 'recent') { %>
+  <% if (!recent.length) { %>
+    <div class="card mt-24"><div class="card-body"><%- include('../partials/empty-state', { title: 'Nothing opened yet', description: 'Materials you open appear here, so you can find them again quickly.' }) %></div></div>
+  <% } else { %>
+    <ul class="lib-recent mt-24">
+      <% recent.forEach(function (r) { const it = r.libraryItem; %>
+        <li><a href="/library/<%= it.id %>"><span class="lib-type lib-type--<%= it.itemType.toLowerCase() %>"><%- icon(it.itemType) %></span>
+          <span class="lib-recent__text"><strong><%= it.title %></strong><span><%= TYPE_LABELS[it.itemType] || it.itemType %><%= it.category ? ' · ' + it.category.name : '' %></span></span>
+          <span class="lib-recent__when">Opened <%= whenText(r.viewedAt) %></span></a></li>
+      <% }); %>
+    </ul>
+  <% } %>
+<% } else { %>
+  <% if (!items.length) { %>
+    <div class="card mt-24" data-lib-empty-server><div class="card-body">
+      <% if (view === 'saved') { %>
+        <%- include('../partials/empty-state', { title: 'Nothing saved yet', description: 'Tap the star on any material to keep it here.' }) %>
+      <% } else if (q || category) { %>
+        <%- include('../partials/empty-state', { title: 'Nothing matches', description: 'Try another word, or show all categories.' }) %>
+        <p class="text-center mt-16"><a class="link-gold text-sm" href="/library">Show everything</a></p>
+      <% } else { %>
+        <%- include('../partials/empty-state', { title: 'The Library is empty', description: profile.role === 'ADMIN' ? 'Add the first material from Manage library.' : 'Materials appear here once an Administrator adds them.' }) %>
+      <% } %>
+    </div></div>
+  <% } else { %>
+    <div class="lib-grid mt-24" data-lib-grid>
+      <% items.forEach(function (item) { const tags = parseTags(item.tagsJson); const fav = favoriteIds.has(item.id); %>
+        <article class="lib-card" data-lib-card data-search="<%= [item.title, item.description || '', tags.join(' '), item.category ? item.category.name : ''].join(' ').toLowerCase() %>"<%- view === 'saved' ? ' data-favorite-row' : '' %>>
+          <a class="lib-card__link" href="/library/<%= item.id %>">
+            <span class="lib-type lib-type--<%= item.itemType.toLowerCase() %>"><%- icon(item.itemType) %><span><%= TYPE_LABELS[item.itemType] || item.itemType %></span></span>
+            <h2 class="lib-card__title"><%= item.title %></h2>
+            <% if (item.description) { %><p class="lib-card__desc"><%= item.description %></p><% } %>
+            <span class="lib-card__meta"><%= item.category ? item.category.name : 'No category' %><% tags.slice(0, 3).forEach(function (t) { %> <span class="tag"><%= t %></span><% }); %></span>
+          </a>
+          <button type="button" class="lib-star<%= fav ? ' is-active' : '' %>" data-favorite-toggle="<%= item.id %>" aria-pressed="<%= fav ? 'true' : 'false' %>" aria-label="Save to My Library" title="<%= fav ? 'Remove from My Library' : 'Save to My Library' %>"><%= fav ? '★' : '☆' %></button>
+        </article>
+      <% }); %>
+    </div>
+    <div class="card mt-24" data-lib-empty-client hidden><div class="card-body"><%- include('../partials/empty-state', { title: 'Nothing matches', description: 'Press Enter to search the whole Library.' }) %></div></div>
+    <% if (view === 'saved') { %><div data-favorite-empty hidden class="card mt-24"><div class="card-body"><%- include('../partials/empty-state', { title: 'Nothing saved yet', description: 'Tap the star on any material to keep it here.' }) %></div></div><% } %>
+  <% } %>
+<% } %>
+<script src="<%= asset('/static/js/library.js') %>" defer></script>

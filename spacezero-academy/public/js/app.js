@@ -146,7 +146,9 @@
           } else {
             var successMessage = btn.getAttribute('data-success-message');
             if (successMessage) { try { sessionStorage.setItem(FLASH_KEY, successMessage); } catch (e) { /* optional */ } }
-            window.location.reload();
+            var next = btn.getAttribute('data-success-redirect');
+            if (next && next.charAt(0) === '/' && next.charAt(1) !== '/') window.location.href = next;
+            else window.location.reload();
           }
         })
         .catch(function () {
@@ -571,5 +573,16 @@
       docked(false);
       if (location.pathname === '/dashboard') location.reload(); else location.href = '/dashboard';
     }).catch(function () { restore.disabled = false; });
+  });
+})();
+
+// "How this works" boxes (partials/how-it-works): once closed they stay closed in this browser, page by page.
+(function () {
+  document.querySelectorAll('details[data-howto]').forEach(function (box) {
+    var key = 'sz-howto-' + box.getAttribute('data-howto');
+    try { if (localStorage.getItem(key) === 'closed') box.open = false; } catch (_) { /* storage is optional */ }
+    box.addEventListener('toggle', function () {
+      try { localStorage.setItem(key, box.open ? 'open' : 'closed'); } catch (_) { /* storage is optional */ }
+    });
   });
 })();

@@ -1,64 +1,67 @@
+<%#
+  Edit one Library material (Admins): title, category, description, search words, link, and who can see it.
+  routes/admin/library.js. The file itself is not replaced here: archive this one and add the new file instead.
+%>
 <%
-const actions = '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-  (!item.archivedAt ? '<button type="button" class="btn btn-danger" data-action="/admin/library/items/' + item.id + '/archive" data-confirm="Archive this item?">Archive</button>' : '') +
+const roles = parseRoles(item.visibleRolesJson);
+const someRoles = roles.length > 0;
+const tags = (function () { try { return JSON.parse(item.tagsJson || '[]').join(', '); } catch { return ''; } })();
+const actions = '<div class="row-gap"><a class="btn btn-secondary" href="/library/' + item.id + '">Open as a reader</a>' +
+  (!item.archivedAt ? '<button type="button" class="btn btn-ghost" data-action="/admin/library/items/' + item.id + '/archive" data-confirm="Archive this material? It disappears from the Library; nothing is deleted." data-success-redirect="/admin/library">Archive</button>' : '') +
   '</div>';
 %>
-<%- include('../partials/page-header', { pageTitle: item.title, pageDescription: item.description || '', headerAction: actions }) %>
+<%- include('../partials/page-header', { pageTitle: item.title, pageDescription: (TYPE_LABELS[item.itemType] || item.itemType) + ' · ' + (item.category ? item.category.name : 'No category') + ' · ' + item.viewCount + ' view' + (item.viewCount === 1 ? '' : 's') + (item.archivedAt ? ' · Archived' : ''), headerAction: actions }) %>
 
-<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:24px">
-  <span class="badge badge-gold"><%= item.itemType %></span>
-  <span class="badge badge-navy"><%= item.category ? item.category.name : 'Uncategorized' %></span>
-  <% if (item.archivedAt) { %><span class="badge badge-warning">Archived</span><% } %>
-  <span class="text-sm text-muted"><%= item.viewCount %> views</span>
-</div>
+<p class="mt-8"><a href="/admin/library" class="link-gold text-sm">← All materials</a></p>
+<% if (saved) { %><div class="form-alert success mt-16" role="status">Changes saved.</div><% } %>
 
-<div class="card mt-24">
+<div class="card mt-16">
   <div class="card-header"><h2>Edit material</h2></div>
   <div class="card-body">
-    <% if (error) { %><div class="form-alert error mt-16"><%= error %></div><% } %>
-    <form method="post" action="/admin/library/items/<%= item.id %>/edit">
-      <div class="grid grid-2">
-        <div class="field">
-          <label for="title">Title</label>
-          <input id="title" name="title" value="<%= item.title %>" required />
+    <% if (error) { %><div class="form-alert error" role="alert"><%= error %></div><% } %>
+    <form method="post" action="/admin/library/items/<%= item.id %>/edit" class="lib-steps" data-lib-add>
+      <fieldset class="lib-step">
+        <legend><span class="lib-step__n">1</span> Describe it</legend>
+        <div class="grid grid-2">
+          <div class="field">
+            <label for="lib-title">Title</label>
+            <input id="lib-title" name="title" value="<%= item.title %>" required minlength="2" />
+          </div>
+          <div class="field">
+            <label for="lib-category">Category</label>
+            <select id="lib-category" name="categoryId">
+              <option value="">No category</option>
+              <% categories.forEach(function (c) { %><option value="<%= c.id %>" <%= item.categoryId === c.id ? 'selected' : '' %>><%= c.name %></option><% }); %>
+            </select>
+          </div>
         </div>
         <div class="field">
-          <label for="categoryId">Category</label>
-          <select id="categoryId" name="categoryId">
-            <option value="">Uncategorized</option>
-            <% categories.forEach(function (c) { %><option value="<%= c.id %>" <%= item.categoryId === c.id ? 'selected' : '' %>><%= c.name %></option><% }); %>
-          </select>
+          <label for="lib-desc"><%= item.itemType === 'NOTE' ? 'Note' : 'Short description' %></label>
+          <textarea id="lib-desc" name="description" rows="<%= item.itemType === 'NOTE' ? 6 : 2 %>"><%= item.description || '' %></textarea>
         </div>
+        <% if (item.itemType === 'LINK') { %>
+          <div class="field">
+            <label for="lib-url">Link</label>
+            <input id="lib-url" name="externalUrl" type="url" value="<%= item.externalUrl || '' %>" placeholder="https://" required />
+          </div>
+        <% } %>
         <div class="field">
-          <label for="tags">Tags</label>
-          <% const tags = (function () { try { return JSON.parse(item.tagsJson || '[]').join(', '); } catch { return ''; } })(); %>
-          <input id="tags" name="tags" value="<%= tags %>" placeholder="business class, A380" />
+          <label for="lib-tags">Search words <span class="optional">optional</span></label>
+          <input id="lib-tags" name="tags" value="<%= tags %>" placeholder="business class, A380" />
+          <p class="hint">Separate with commas. They help people find it.</p>
         </div>
-      </div>
+      </fieldset>
 
-      <div class="field mt-24">
-        <label for="description">Description</label>
-        <textarea id="description" name="description" rows="2"><%= item.description || '' %></textarea>
-      </div>
-
-      <% if (item.itemType === 'LINK') { %>
-        <div class="field mt-24">
-          <label for="externalUrl">URL</label>
-          <input id="externalUrl" name="externalUrl" type="url" value="<%= item.externalUrl || '' %>" placeholder="https://" />
+      <fieldset class="lib-step">
+        <legend><span class="lib-step__n">2</span> Who can see it?</legend>
+        <div class="lib-choice lib-choice--row" role="radiogroup">
+          <label class="lib-choice__item"><input type="radio" name="audience" value="everyone"<%= someRoles ? '' : ' checked' %> data-lib-audience /><span><strong>Everyone</strong></span></label>
+          <label class="lib-choice__item"><input type="radio" name="audience" value="some"<%= someRoles ? ' checked' : '' %> data-lib-audience /><span><strong>Only some roles</strong></span></label>
         </div>
-      <% } %>
-
-      <div class="mt-24">
-        <p class="label">Visible to</p>
-        <% const visibleRoles = (function () { try { return item.visibleRolesJson ? JSON.parse(item.visibleRolesJson) : []; } catch { return []; } })(); %>
-        <div style="display:flex;flex-wrap:wrap;gap:12px">
-          <label class="checkbox-row"><input type="checkbox" name="visibleRoles" value="ADMIN" <%= visibleRoles.includes('ADMIN') ? 'checked' : '' %> /> Administrator</label>
-          <label class="checkbox-row"><input type="checkbox" name="visibleRoles" value="SUPERVISOR" <%= visibleRoles.includes('SUPERVISOR') ? 'checked' : '' %> /> Supervisor</label>
-          <label class="checkbox-row"><input type="checkbox" name="visibleRoles" value="TRAVEL_AGENT" <%= visibleRoles.includes('TRAVEL_AGENT') ? 'checked' : '' %> /> Travel Agent</label>
-          <label class="checkbox-row"><input type="checkbox" name="visibleRoles" value="FLIGHT_EXPERT" <%= visibleRoles.includes('FLIGHT_EXPERT') ? 'checked' : '' %> /> Flight Expert</label>
+        <div class="lib-roles" data-lib-roles>
+          <% Object.keys(ROLE_LABELS).forEach(function (r) { %><label class="checkbox-row"><input type="checkbox" name="visibleRoles" value="<%= r %>"<%= roles.includes(r) ? ' checked' : '' %> /> <%= ROLE_LABELS[r] %></label><% }); %>
         </div>
-        <p class="hint">Leave all unchecked to make this visible to everyone.</p>
-      </div>
+      </fieldset>
 
       <div class="row-between mt-24">
         <a href="/admin/library" class="text-sm link-gold">Cancel</a>
@@ -67,3 +70,4 @@ const actions = '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
     </form>
   </div>
 </div>
+<script src="<%= asset('/static/js/library-admin.js') %>" defer></script>

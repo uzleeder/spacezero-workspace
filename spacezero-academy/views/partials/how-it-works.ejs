@@ -1,0 +1,13 @@
+<%#
+  A short "How this works" box at the top of a page: numbered steps in plain words, so nobody has to read the whole
+  page first. It can be closed and stays closed in this browser (public/js/app.js, [data-howto]).
+  howKey: a short name per page; steps: [[title, one sentence], ...].
+%>
+<details class="howto mt-24" open data-howto="<%= howKey %>">
+  <summary><span class="howto__icon" aria-hidden="true">?</span> How this works</summary>
+  <ol class="howto__steps">
+    <% steps.forEach(function (s, i) { %>
+      <li><span class="howto__n" aria-hidden="true"><%= i + 1 %></span><div><strong><%= s[0] %></strong><p><%= s[1] %></p></div></li>
+    <% }); %>
+  </ol>
+</details>
