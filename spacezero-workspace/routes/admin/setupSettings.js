@@ -200,6 +200,8 @@ router.get('/setup-requirements', advanced, async (req, res) => {
     rolesList,
     VERIFICATION_LABEL,
     saved: req.query.saved === '1',
+    ordering: req.query.order === '1',
+    archivedCount: showArchived ? 0 : await prisma.setupRequirement.count({ where: { organizationId: admin.organizationId, archivedAt: { not: null } } }),
     applied: int(req.query.applied),
     pending: int(req.query.pending),
     error: typeof req.query.error === 'string' ? req.query.error.slice(0, 200) : null,
@@ -297,15 +299,22 @@ router.post('/setup-requirements/:id/move', advanced, async (req, res) => {
   const up = req.body.direction === 'up';
   const active = await prisma.setupRequirement.findMany({ where: { organizationId: admin.organizationId, archivedAt: null }, orderBy: { displayOrder: 'asc' } });
   const index = active.findIndex((r) => r.id === existing.id);
-  const other = index + (up ? -1 : 1);
-  if (index >= 0 && active[other]) {
+  // within=category (the grouped checklist page): swap with the nearest item of the SAME category, so "up" and "down"
+  // move it inside its group; otherwise with the next item in the whole list.
+  let other = index + (up ? -1 : 1);
+  if (req.body.within === 'category') {
+    const same = (r) => (r.category || 'Other') === (existing.category || 'Other');
+    other = -1;
+    for (let i = index + (up ? -1 : 1); i >= 0 && i < active.length; i += up ? -1 : 1) if (same(active[i])) { other = i; break; }
+  }
+  if (index >= 0 && other >= 0 && active[other]) {
     // Renumber the whole list so ties or gaps left by earlier archiving can never make a move a no-op.
     const order = active.map((r) => r.id);
     [order[index], order[other]] = [order[other], order[index]];
     await prisma.$transaction(order.map((id, i) => prisma.setupRequirement.update({ where: { id }, data: { displayOrder: i } })));
     await logAudit({ organizationId: admin.organizationId, actorId: admin.id, action: 'setup.requirement_reordered', targetTable: 'SetupRequirement', targetId: existing.id, metadata: { key: existing.key, direction: up ? 'up' : 'down' } });
   }
-  res.redirect('/admin/setup-requirements');
+  res.redirect(req.body.within === 'category' ? `/admin/setup-requirements?order=1#item-${existing.id}` : '/admin/setup-requirements');
 });
 
 async function setArchived(req, res, archive) {

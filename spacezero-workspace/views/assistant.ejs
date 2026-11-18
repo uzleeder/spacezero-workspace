@@ -1,38 +1,64 @@
-<%- include('partials/page-header', { pageTitle: 'Space AI', pageDescription: 'Ask about information already inside SpaceZero — setup, training, skills, standards, leave. Read-only, and scoped to what you\'re authorized to see.' }) %>
+<%# Space AI: a chat app. Left: New chat and the history (only your own chats). Right: the conversation and the
+    message box. public/js/space-ai.js sends without leaving the page; without JavaScript the form still works. %>
+<% var SEND = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 2.5 10.6 13.4"/><path d="M21.5 2.5 14.6 21.4l-4-8-8-4z"/></svg>'; %>
+<% var fmtDay = function (d) { var x = new Date(d), now = new Date(); var days = Math.floor((new Date(now.toDateString()) - new Date(x.toDateString())) / 86400000); return days === 0 ? 'Today' : days === 1 ? 'Yesterday' : days < 7 ? days + ' days ago' : x.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); }; %>
+<div class="ai-app" data-ai-app data-ai-owner="<%= profile.id %>" data-chat="<%= chat && chat.id ? chat.id : '' %>">
+  <aside class="ai-side" id="ai-chat-history" data-ai-side aria-label="Space AI chats">
+    <a class="ai-new" href="/assistant" data-ai-new><span aria-hidden="true">+</span> New chat</a>
+    <nav class="ai-history-tabs" aria-label="Chat folders"><a href="/assistant" <%- !archived ? 'aria-current="page"' : '' %>>Chats</a><a href="/assistant?archived=1" <%- archived ? 'aria-current="page"' : '' %>>Archived</a></nav>
+    <% if (hidden) { %>
+      <p class="ai-side__empty">This person's chats are private. Return to your account to use Space AI.</p>
+    <% } else if (!chats.length) { %>
+      <p class="ai-side__empty" data-ai-empty-history><%= archived ? 'No archived chats.' : 'No chats yet. Your questions will appear here.' %></p>
+    <% } %>
+    <nav class="ai-history" data-ai-history>
+      <% chats.forEach(function (c) { %>
+        <div class="ai-history__row<%= chat && chat.id === c.id ? ' is-active' : '' %>" data-chat-id="<%= c.id %>" data-pinned="<%= c.isPinned %>" data-archived="<%= c.isArchived %>">
+          <a href="/assistant?chat=<%= c.id %>" class="ai-history__link"><span class="ai-history__title"><%= c.title %></span><span class="ai-history__when"><%= fmtDay(c.updatedAt) %></span></a>
+          <% if (c.isPinned) { %><span class="ai-pin-label" title="Pinned">Pinned</span><% } %>
+          <button type="button" class="ai-chat-options" data-ai-options aria-label="Chat options for <%= c.title %>" aria-haspopup="menu">⋯</button>
+        </div>
+      <% }); %>
+    </nav>
+    <% if (!hidden && (historyPage > 1 || hasMoreChats)) { %><nav class="ai-history__pages" aria-label="Chat history pages"><% if (historyPage > 1) { %><a href="/assistant?archived=<%= archived ? 1 : 0 %>&historyPage=<%= historyPage - 1 %>">Newer chats</a><% } %><% if (hasMoreChats) { %><a href="/assistant?archived=<%= archived ? 1 : 0 %>&historyPage=<%= historyPage + 1 %>">Older chats</a><% } %></nav><% } %>
+  </aside>
 
-<div class="card mt-24">
-  <div class="card-body">
-    <form method="post" action="/assistant/ask">
-      <div class="field">
-        <label for="question">Ask Space AI…</label>
-        <input id="question" name="question" value="<%= question %>" maxlength="500" placeholder="e.g. Who isn't fully set up?" autofocus />
+  <section class="ai-main">
+    <header class="ai-main__head">
+      <button type="button" class="ai-side-toggle" data-ai-side-toggle aria-label="Show chats" aria-controls="ai-chat-history" aria-expanded="false" title="Chats"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button>
+      <div>
+        <h1 class="ai-main__title"><span class="ai-main__logo" aria-hidden="true"><%- include('partials/icon', { name: 'ai' }) %></span> Space AI</h1>
+        <p class="ai-main__sub">Answers from what is already inside SpaceZero: setup, training, skills, standards, leave. Read-only, and only what you are allowed to see.</p>
       </div>
-      <button type="submit" class="btn btn-gold mt-16">Ask</button>
-    </form>
-    <p class="text-sm text-muted mt-16">Try: "Who isn't fully set up?" · "Which employees have unresolved setup issues?" · "Who has overdue training?" · "Who needs a retake?" · "Which employees haven't acknowledged required standards?" · "What requires my attention today?"</p>
-  </div>
-</div>
+    </header>
 
-<% if (error) { %><div class="form-alert error mt-16"><%= error %></div><% } %>
-
-<% if (result && result.confident && result.answer) { %>
-<div class="card mt-24">
-  <div class="card-header"><h2>Answer</h2></div>
-  <div class="card-body">
-    <p style="white-space:pre-wrap;line-height:1.7"><%= result.answer %></p>
-  </div>
-</div>
-<% } else if (result && !error) { %>
-<div class="card mt-24"><div class="card-body">
-  <%- include('partials/empty-state', { title: "I couldn't find enough SpaceZero data to answer that.", description: 'Try asking about setup, training, retakes, skills, standards or leave — or use a quick link below.' }) %>
-</div></div>
-<% } %>
-
-<div class="card mt-24" style="margin-bottom:40px">
-  <div class="card-header"><h2>Quick links</h2></div>
-  <div class="card-body">
-    <div style="display:flex;flex-wrap:wrap;gap:8px">
-      <% quickLinks.forEach(function (l) { %><a class="badge badge-gold" href="<%= l.href %>"><%= l.label %></a><% }); %>
+    <div class="ai-thread" data-ai-thread aria-live="polite">
+      <% var messages = chat && chat.messages ? chat.messages : []; %>
+      <div class="ai-welcome" data-ai-welcome<%= messages.length ? ' hidden' : '' %>>
+        <div class="ai-welcome__brand" role="img" aria-label="Space AI · Your AI workspace">
+          <span class="ai-welcome__logo" aria-hidden="true"><%- include('partials/space-ai-mark') %></span>
+          <span class="ai-welcome__word" aria-hidden="true">SPACE <b>AI</b></span>
+          <span class="ai-welcome__tag" aria-hidden="true"><span></span>YOUR AI WORKSPACE<span></span></span>
+        </div>
+        <h2>How can I help you today?</h2>
+        <div class="ai-suggest">
+          <% suggestions.forEach(function (s) { %><button type="button" class="ai-chip" data-ai-suggest><%= s %></button><% }); %>
+        </div>
+        <% if (quickLinks && quickLinks.length) { %>
+          <p class="ai-welcome__links-title">Quick links</p>
+          <div class="ai-suggest"><% quickLinks.forEach(function (l) { %><a class="ai-chip ai-chip--link" href="<%= l.href %>"><%= l.label %></a><% }); %></div>
+        <% } %>
+      </div>
+      <% messages.forEach(function (m) { %><%- include('partials/ai-message', { m: m, contacts: contacts }) %><% }); %>
     </div>
-  </div>
+
+    <% if (error) { %><div class="form-alert error ai-error" role="alert"><%= error %></div><% } %>
+    <% if (!hidden && chat && chat.isArchived) { %><p class="ai-form text-muted">This chat is archived. Open its chat options and choose Restore to continue.</p>
+    <% } else if (!hidden) { %><form method="post" action="/assistant/ask" enctype="multipart/form-data" class="ai-form" data-ai-form>
+      <input type="hidden" name="chatId" value="<%= chat && chat.id ? chat.id : '' %>" data-ai-chat-id />
+      <label for="question" class="visually-hidden">Ask Space AI…</label>
+      <%- include('partials/ai-composer', { inputId: 'question', autofocus: true, value: question }) %>
+      <p class="ai-hint">Enter to send · Shift + Enter for a new line · Space AI can be wrong: check important details.</p>
+    </form><% } else { %><p class="ai-form text-muted">Return to your own account to start a private conversation.</p><% } %>
+  </section>
 </div>

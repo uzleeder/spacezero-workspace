@@ -98,6 +98,7 @@ const SCHEMA = {
   'retention.schedule': schedule, // follow-up days after a training is completed
   'retention.declinePoints': integer(3, 50, 10), // a drop of this many points after training counts as a decline
   'dev.dueSoonDays': integer(1, 30, 3), // "due soon" notification window
+  'email.trainingEmails': { default: true, parse: bool.parse }, // master switch for training assignment/reminder emails (Manage Training -> Training emails)
   'onboarding.dueDays': integer(1, 180, 14), // onboarding training is due this many days after the employee's start date
 };
 const DEFAULTS = Object.fromEntries(Object.entries(SCHEMA).map(([k, v]) => [k, v.default]));

@@ -196,6 +196,8 @@ async function finishOnce(recipient) {
   if (state.submitted) return false;
   recipient = fresh || recipient;
   await submitTraining(recipient);
+  // Finished: no more "complete your training" emails for it, from this moment (lib/trainingEmails.js re-checks too).
+  await require('./trainingEmails').stopForFinished(recipient).catch(() => undefined);
   // One certificate per person and course (a repeated completion after a retake keeps the original).
   const hadCertificate = Boolean(await prisma.certificate.findFirst({ where: { profileId: recipient.profileId, courseId: recipient.assignment.courseId }, select: { id: true } }));
   if (!hadCertificate) await prisma.certificate.create({ data: { profileId: recipient.profileId, courseId: recipient.assignment.courseId, title: recipient.assignment.course.title, description: 'Training course completed.' } }).catch(() => undefined);

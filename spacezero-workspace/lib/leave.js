@@ -94,4 +94,20 @@ function buildCalendar(month, requests) {
   return { first, weeks };
 }
 
-module.exports = { LEAVE_TYPES, TYPE_LABEL, STATUS_LABEL, MAX_SPAN_DAYS, parseDay, isoDay, daysInclusive, validateLeaveInput, visibleLeaveWhere, canReviewLeave, overlappingApprovedLeave, buildCalendar };
+/**
+ * Adds who decided each request (reviewedBy: Admin, or a Supervisor with final approval) and who recommended it
+ * (recommendedBy: the supervisor), each with their role, so every page can say "Approved by Ali Ahmed (Administrator)".
+ */
+async function withDeciders(requests) {
+  const list = Array.isArray(requests) ? requests : [requests];
+  const ids = [...new Set(list.flatMap((r) => [r.reviewedById, r.supervisorReviewedById]).filter(Boolean))];
+  const people = ids.length ? await prisma.profile.findMany({ where: { id: { in: ids } }, select: { id: true, fullName: true, role: true } }) : [];
+  const byId = new Map(people.map((p) => [p.id, p]));
+  for (const r of list) {
+    r.reviewedBy = r.reviewedById ? byId.get(r.reviewedById) || null : null;
+    r.recommendedBy = r.supervisorReviewedById ? byId.get(r.supervisorReviewedById) || null : null;
+  }
+  return requests;
+}
+
+module.exports = { LEAVE_TYPES, TYPE_LABEL, STATUS_LABEL, MAX_SPAN_DAYS, parseDay, isoDay, daysInclusive, validateLeaveInput, visibleLeaveWhere, canReviewLeave, overlappingApprovedLeave, buildCalendar, withDeciders };

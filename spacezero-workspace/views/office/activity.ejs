@@ -1,0 +1,44 @@
+<%# Office Management -> Activity: who changed what and when. Never shows a password. %>
+<%
+  var qs = function (over) { var p = new URLSearchParams(); var all = Object.assign({ q: q, action: action, page: out.page }, over || {}); if (all.q) p.set('q', all.q); if (all.action) p.set('action', all.action); if (all.page > 1) p.set('page', all.page); var s = p.toString(); return '/office/activity' + (s ? '?' + s : ''); };
+  var show = function (o) { if (!o) return ''; return Object.keys(o).map(function (k) { return k + ': ' + (o[k] === null || o[k] === '' ? '—' : String(o[k]).slice(0, 60)); }).join(' · '); };
+%>
+<%- include('_top') %>
+<div class="office-ws" data-office>
+  <form method="get" action="/office/activity" class="o-toolbar" data-o-toolbar role="search" aria-label="Find activity">
+    <input type="search" name="q" value="<%= q %>" placeholder="Search asset tag, item, desk, person" aria-label="Search activity" class="o-toolbar__search" />
+    <select name="action" aria-label="Kind of change"><option value="">All changes</option><% Object.keys(ACTIONS).forEach(function (k) { %><option value="<%= k %>"<%= action === k ? ' selected' : '' %>><%= ACTIONS[k] %></option><% }); %></select>
+    <button type="submit" class="btn btn-gold btn-sm">Apply</button>
+    <% if (q || action) { %><a class="o-clear" href="/office/activity">Clear filters</a><% } %>
+  </form>
+  <div class="o-resultbar"><p class="o-count" role="status"><strong><%= out.total %></strong> change<%= out.total === 1 ? '' : 's' %><% if (out.total) { %> · page <%= out.page %> of <%= out.pages %><% } %></p></div>
+  <% if (!out.rows.length) { %>
+    <div class="card mt-16"><div class="card-body"><%- include('../partials/empty-state', { title: q || action ? 'Nothing matches' : 'No activity yet', description: q || action ? 'Change the filters.' : 'Changes to assets, desks and repairs appear here.' }) %></div></div>
+  <% } else { %>
+  <div class="card mt-16 o-tablecard">
+    <table class="o-table">
+      <thead><tr><th scope="col">When (Tashkent)</th><th scope="col">Change</th><th scope="col">What happened</th><th scope="col">Before → after</th><th scope="col">By</th></tr></thead>
+      <tbody>
+        <% out.rows.forEach(function (a) { %>
+          <tr>
+            <td data-label="When"><%= a.createdAt.toLocaleString('en-GB', { timeZone: 'Asia/Tashkent', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) %></td>
+            <td data-label="Change"><span class="o-tag"><%= ACTIONS[a.action] || a.action %></span></td>
+            <td data-label="What happened"><% if (a.itemId) { %><a href="/office/assets?asset=<%= a.itemId %>"><%= a.summary %></a><% } else if (a.repairId) { %><a href="/office/repairs?repair=<%= a.repairId %>"><%= a.summary %></a><% } else { %><%= a.summary %><% } %></td>
+            <td data-label="Before → after" class="text-sm text-muted"><% if (a.before || a.after) { %><%= show(a.before) || '—' %> → <%= show(a.after) || '—' %><% } %></td>
+            <td data-label="By"><%= a.actorName || '—' %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <% if (out.pages > 1) { %>
+    <nav class="o-pages" aria-label="Pages">
+      <% if (out.page > 1) { %><a class="btn btn-secondary btn-sm" href="<%= qs({ page: out.page - 1 }) %>" rel="prev">← Newer</a><% } %>
+      <span>Page <%= out.page %> of <%= out.pages %></span>
+      <% if (out.page < out.pages) { %><a class="btn btn-secondary btn-sm" href="<%= qs({ page: out.page + 1 }) %>" rel="next">Older →</a><% } %>
+    </nav>
+  <% } %>
+  <% } %>
+</div>
+<div style="height:40px"></div>
+<script src="<%= asset('/static/js/office.js') %>" defer></script>

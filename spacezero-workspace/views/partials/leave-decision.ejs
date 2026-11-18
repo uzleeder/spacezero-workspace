@@ -1,0 +1,16 @@
+<%# Who decided a leave request, and who recommended it: "Approved by Ali Ahmed (Administrator) · 4 Nov 2026".
+    r = a LeaveRequest after lib/leave.js#withDeciders (reviewedBy / recommendedBy with fullName and role). %>
+<% var when = function (d) { return d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''; };
+   var who = function (p) { return p ? p.fullName + ' (' + roleLabel(p.role) + ')' : ''; }; %>
+<p class="leave-decision leave-decision--<%= String(r.status).toLowerCase() %>">
+  <% if (r.status === 'APPROVED' || r.status === 'REJECTED') { %>
+    <span class="leave-decision__verb"><%= r.status === 'APPROVED' ? 'Approved' : 'Rejected' %></span><% if (r.reviewedBy) { %> by <strong><%= who(r.reviewedBy) %></strong><% } %><% if (r.reviewedAt) { %> · <%= when(r.reviewedAt) %><% } %>
+  <% } else if (r.status === 'PENDING') { %>
+    <span class="leave-decision__verb">Waiting for a decision</span>
+  <% } else { %>
+    <span class="leave-decision__verb">Cancelled</span>
+  <% } %>
+  <% if (r.recommendation && r.recommendation !== 'NONE') { %>
+    <span class="leave-decision__reco"><%= r.recommendedBy ? who(r.recommendedBy) : 'Supervisor' %> recommended <%= r.recommendation === 'RECOMMEND_APPROVE' ? 'approval' : 'rejection' %></span>
+  <% } %>
+</p>

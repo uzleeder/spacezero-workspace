@@ -360,6 +360,14 @@ test('supervisors recommend by default; only an admin (or an enabled policy) dec
   assert.equal(decided.status, 'APPROVED'); assert.equal(decided.reviewedById, supA.id);
   assert.equal((await post(admin, `/leave/${req_.id}/review`, { action: 'reject' })).status, 409); // already decided
   assert.ok(await prisma.auditLog.findFirst({ where: { organizationId: org.id, action: 'leave.approved', targetId: req_.id } }));
+  // everyone sees who decided it (and who recommended it), with their role
+  const who = /Approved<\/span> by <strong>P1C supA \(Supervisor\)<\/strong>/;
+  assert.match((await get(admin, '/leave')).text, who);
+  assert.match((await get(admin, `/leave/${req_.id}`)).text, who);
+  assert.match((await get(agentA, `/employees/${agentA.id}/leave`)).text, who);
+  assert.match((await get(admin, `/leave/${req_.id}`)).text, /P1C supA \(Supervisor\) recommended approval/);
+  const note = await prisma.notification.findFirst({ where: { profileId: agentA.id, type: 'leave.approved' }, orderBy: { createdAt: 'desc' } });
+  assert.match(note.body, /was approved by P1C supA \(Supervisor\)\.$/);
 });
 
 test('team overlap is informational: it is shown but never blocks a request', async () => {
@@ -484,12 +492,14 @@ test('the employee record tabs render for authorized viewers and hide Credential
 test('dashboards show role-appropriate operational cards that link to management views', async () => {
   const adminPage = await get(admin, '/dashboard');
   // "Needs your attention" lists only what needs doing, each with a link to where it is done
-  assert.match(adminPage.text, /Needs your attention/); assert.match(adminPage.text, /Employees needing setup/);
-  assert.match(adminPage.text, /href="\/admin\/employees\?readiness=SETUP_REQUIRED"/);
+  // the Admin's is the three-lanes dashboard (lib/adminDashboard.js): lanes or "All clear", health and who is behind, refreshed live
+  assert.match(adminPage.text, /Urgent|All clear/); assert.match(adminPage.text, /Academy health/); assert.match(adminPage.text, /data-live="\/dashboard\/live"/);
+  assert.doesNotMatch(adminPage.text, /Total employees|Quick actions/);
   const supPage = await get(supA, '/dashboard');
-  assert.match(supPage.text, /Needs your attention/); assert.match(supPage.text, /href="\/team\?readiness=SETUP_REQUIRED"/); assert.doesNotMatch(supPage.text, /\/admin\/employees\?/);
+  // the supervisor's own dashboard (lib/supervisorDashboard.js): their team and their list, nothing from the admin side
+  assert.match(supPage.text, /Your team/); assert.match(supPage.text, /data-live="\/dashboard\/live"/); assert.doesNotMatch(supPage.text, /\/admin\/employees\?/);
   const agentPage = await get(agentA, '/dashboard');
-  assert.match(agentPage.text, /My setup/); assert.doesNotMatch(agentPage.text, /Pending vacation requests/);
+  assert.match(agentPage.text, /Finish your setup/); // the agent dashboard (lib/agentDashboard.js) assert.doesNotMatch(agentPage.text, /Pending vacation requests/);
 });
 
 test('setup requirements are admin-editable, role-specific, reorderable and archivable without losing history', async () => {

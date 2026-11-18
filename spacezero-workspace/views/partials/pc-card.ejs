@@ -1,0 +1,72 @@
+<%# "My Desk": the person's desk at the office (Office Management desks), on every profile and on their own Setup page.
+    The desk number, the PC and monitor by name and number, the headphones (and optionally keyboard and mouse) by name,
+    and the PC password. desk = lib/officeDesks.js#deskOf(...) or null; own = the viewer's own page.
+    The password itself is never in the page: "Show" asks the server - their own desk for the owner, any desk for the
+    office manager - and it is audited. Nobody else (Admins included) gets a Show button. %>
+<% var viewing = typeof impersonation !== 'undefined' && impersonation;
+   var showUrl = !desk || !desk.hasPassword || viewing ? null : own ? '/my/desk/password' : (profile && profile.officeManager ? '/office/desks/' + desk.id + '/password' : null);
+   // [field, label, required, example, has a number]
+   var PIECES = [['pcCase', 'PC', true, 'myPro', true], ['monitor', 'Monitor', true, 'Ziffler 24"', true], ['headphone', 'Headphones', true, 'Logitech', false], ['keyboard', 'Keyboard', false, 'Logitech K120', false], ['mouse', 'Mouse', false, 'Logitech M90', false]];
+   var split = function (text) { var m = String(text || '').match(/^(.*?)\s*#(\S+)$/); return m ? { name: m[1].trim(), no: m[2] } : { name: String(text || '').trim(), no: '' }; };
+   var canEdit = typeof editable !== 'undefined' && editable; %>
+<div class="card mt-24 pc-card" id="my-desk">
+  <div class="card-header"><h2><%= own ? 'My Desk' : 'Desk' %></h2><p><%= own ? 'Your desk at the office and the equipment on it. Tell the office manager if something is wrong.' : 'Their desk at the office and the equipment on it.' %></p></div>
+  <div class="card-body">
+    <% if (typeof notice !== 'undefined' && notice) { %><div class="form-alert success" role="status" style="margin-bottom:12px"><%= notice %></div><% } %>
+    <% if (typeof error !== 'undefined' && error) { %><div class="form-alert error" role="alert" style="margin-bottom:12px"><%= error %></div><% } %>
+    <% if (!desk) { %>
+      <p class="text-sm text-muted" style="margin:0"><%= canEdit ? 'Not filled in yet. Fill in your desk below.' : 'No desk recorded yet.' %></p>
+    <% } else { %>
+      <div class="info-grid">
+        <div class="info-tile"><p class="k">Desk number</p><p class="v"><%= desk.number %></p></div>
+        <% PIECES.forEach(function (p) { const v = desk[p[0]]; if (!p[2] && !v) return; const s = split(v); %>
+          <div class="info-tile"><p class="k"><%= p[1] %></p><p class="v<%= v ? '' : ' is-missing' %>"><% if (v) { %><%= s.name || '—' %><% if (s.no) { %> <span class="desk-no">#<%= s.no %></span><% } %><% } else { %>Not recorded<% } %></p></div>
+        <% }); %>
+        <% if (own || showUrl) { %>
+        <div class="info-tile"><p class="k">PC password</p>
+          <% if (showUrl) { %><p class="v desk-pw"><span class="desk-pw__value" data-pw-value>•••••</span><button type="button" class="desk-pw__show" data-pc-show="<%= showUrl %>">Show</button></p>
+          <% } else { %><p class="v is-missing">Not recorded</p><% } %>
+        </div>
+        <% } %>
+      </div>
+      <% if (desk.items && desk.items.length) { %><p class="text-sm text-muted mt-16" style="margin-bottom:0">Equipment the office manager linked to this desk: <%= desk.items.map(function (i) { return (i.assetTag ? i.assetTag + ' ' : '') + i.name; }).join(' · ') %></p><% } %>
+    <% } %>
+    <% if (canEdit) { %>
+      <form method="post" action="/my/desk" class="pc-form" autocomplete="off">
+        <p class="pc-form__title"><%= desk ? 'Update my desk' : 'Fill in my desk' %></p>
+        <p class="text-sm text-muted" style="margin:0 0 12px">For the PC and the monitor, write the name and the number from its sticker. For example: Monitor <em>Ziffler 24"</em>, number <em>12</em>.</p>
+        <div class="field desk-number"><label for="desk-number">Desk number</label><input id="desk-number" name="number" type="number" min="1" max="9999" required inputmode="numeric" value="<%= desk ? desk.number : '' %>" placeholder="e.g. 12" /></div>
+        <div class="desk-pieces">
+          <div class="desk-pieces__head" aria-hidden="true"><span></span><span>Name</span><span>Number</span></div>
+          <% PIECES.forEach(function (p) { const s = split(desk ? desk[p[0]] : ''); %>
+            <div class="desk-piece">
+              <span class="desk-piece__label"><%= p[1] %><% if (!p[2]) { %> <span class="optional">optional</span><% } %></span>
+              <input name="<%= p[0] %>Name" maxlength="60" value="<%= s.name %>" placeholder="<%= p[3] %>" aria-label="<%= p[1] %> name" <%= p[2] ? 'required' : '' %> />
+              <% if (p[4]) { %><input name="<%= p[0] %>No" maxlength="20" value="<%= s.no %>" placeholder="No." aria-label="<%= p[1] %> number" <%= p[2] ? 'required' : '' %> /><% } else { %><span aria-hidden="true"></span><% } %>
+            </div>
+          <% }); %>
+        </div>
+        <div class="field mt-16"><label for="pc-password">PC password</label><input id="pc-password" name="password" type="password" maxlength="200" autocomplete="new-password" <%= desk && desk.hasPassword ? '' : 'required' %> placeholder="<%= desk && desk.hasPassword ? 'Leave blank to keep the saved one' : 'The password you sign in to your PC with' %>" /></div>
+        <div class="pc-form__actions"><button type="submit" class="btn btn-gold btn-sm">Save my desk</button><span class="text-sm text-muted">The password is stored encrypted. Only you and the office manager can show it.</span></div>
+      </form>
+    <% } %>
+  </div>
+</div>
+<% if (showUrl) { %>
+<script>
+// "Show" asks the server for the PC password (recorded in the audit log) and hides it again after 20 seconds.
+(function () {
+  var btn = document.querySelector('[data-pc-show]'); if (!btn) return;
+  var value = btn.parentNode.querySelector('[data-pw-value]'), timer = null;
+  function hide() { value.textContent = '•••••'; value.classList.remove('is-shown'); btn.textContent = 'Show'; timer = null; }
+  btn.addEventListener('click', function () {
+    if (timer) { clearTimeout(timer); hide(); return; }
+    btn.disabled = true;
+    fetch(btn.getAttribute('data-pc-show'), { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) { btn.disabled = false; if (!data) return; value.textContent = data.password || '(none)'; value.classList.add('is-shown'); btn.textContent = 'Hide'; timer = setTimeout(hide, 20000); })
+      .catch(function () { btn.disabled = false; });
+  });
+})();
+</script>
+<% } %>

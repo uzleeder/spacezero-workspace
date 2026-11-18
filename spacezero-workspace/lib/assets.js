@@ -1,5 +1,5 @@
 'use strict';
-// Cache-busting URLs for the app's own CSS/JS. Every asset URL carries a short hash of the file
+// Cache-busting URLs for the app's own CSS/JS and images. Every asset URL carries a short hash of the file
 // contents, so the browser may keep it for a year and never asks the server again — until a deploy
 // actually changes the file, which changes the hash and therefore the URL.
 const fs = require('fs');
@@ -28,7 +28,7 @@ function hashOf(url) {
  * the app); in development it follows the file, so edits show up without a restart.
  */
 function asset(url) {
-  if (!/^\/static\/(js|css)\//.test(url)) return url;
+  if (!/^\/static\/(js|css|images)\//.test(url)) return url;
   return `${url}?v=${hashOf(url)}`;
 }
 

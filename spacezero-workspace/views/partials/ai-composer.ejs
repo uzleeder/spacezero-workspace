@@ -1,0 +1,32 @@
+<%# The message line, as in any AI chat: the image, microphone and voice chat buttons sit inside the box on the left,
+    Send on the right. Used by the Space AI page and the corner panel. Hooks (data-ai-*) are read by
+    public/js/space-ai.js (image) and public/js/space-ai-voice.js (voice).
+    Params: inputId, autofocus (optional), value (optional). %>
+<% var SEND_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 2.5 10.6 13.4"/><path d="M21.5 2.5 14.6 21.4l-4-8-8-4z"/></svg>'; %>
+<div class="ai-composer ai-composer--tools">
+  <div class="ai-image-preview" data-ai-preview hidden><img alt="Image ready to send" /><span data-ai-filename></span><button type="button" data-ai-remove-image aria-label="Remove image" title="Remove image">×</button></div>
+  <textarea id="<%= inputId %>" name="question" rows="1" maxlength="500" required placeholder="Message Space AI…" data-enter-send<%= typeof autofocus !== 'undefined' && autofocus ? ' autofocus' : '' %>><%= typeof value !== 'undefined' && value ? value : '' %></textarea>
+  <div class="ai-composer__bar">
+    <div class="ai-composer__tools">
+      <label class="ai-tool ai-attach-button" title="Attach an image (PNG, JPEG or WebP, up to 5 MB)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.4 11.1-8.8 8.8a5.5 5.5 0 0 1-7.8-7.8l8.8-8.8a3.7 3.7 0 0 1 5.2 5.2l-8.8 8.8a1.8 1.8 0 0 1-2.6-2.6l8.1-8.1"/></svg>
+        <input type="file" name="image" accept="image/png,image/jpeg,image/webp" data-ai-image aria-label="Attach image (PNG, JPEG or WebP, up to 5 MB)" />
+      </label>
+      <span class="ai-voice" data-ai-voice hidden>
+        <button type="button" class="ai-tool ai-voice__button" data-ai-mic aria-label="Start microphone" aria-pressed="false" title="Microphone: dictate in English (uses your browser's speech service, which may process audio online)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg>
+          <span class="visually-hidden" data-ai-mic-label>Microphone</span>
+        </button>
+        <button type="button" class="ai-tool ai-voice__button" data-ai-voice-toggle aria-pressed="false" title="Voice chat: speak, hear the answer, speak again (uses your browser's speech service, which may process audio online)">
+          <svg class="ai-voice__wave" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 10v4M7 6v12M12 3v18M17 7v10M21 10v4"/></svg>
+          <span class="visually-hidden" data-ai-voice-label>Voice chat</span>
+        </button>
+        <button type="button" class="ai-tool ai-tool--text" data-ai-stop-speaking hidden>Stop speaking</button>
+      </span>
+    </div>
+    <button type="submit" class="ai-send" aria-label="Send" title="Send (Enter)"><%- SEND_ICON %></button>
+  </div>
+</div>
+<p class="ai-voice__status" data-ai-voice-status role="status" aria-live="polite"></p>
+<p class="ai-hint ai-image-note" data-ai-image-note hidden>This image will be sent to Space AI when you send your message.</p>
+<p class="ai-error ai-image-error" data-ai-image-error role="alert"></p>

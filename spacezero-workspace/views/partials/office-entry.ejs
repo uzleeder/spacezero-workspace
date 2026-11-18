@@ -1,0 +1,8 @@
+<%# The Office Management button, on the office manager's Dashboard and Profile only (nobody else ever sees it). %>
+<% if (profile && profile.officeManager && !(typeof impersonation !== 'undefined' && impersonation)) { %>
+<a class="card card-link office-entry mt-24" href="/office">
+  <span class="office-entry__icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span>
+  <span class="office-entry__text"><strong>Office Management</strong><span>Computers, monitors, headphones, TVs and everything else in the office.</span></span>
+  <span class="office-entry__go" aria-hidden="true">→</span>
+</a>
+<% } %>

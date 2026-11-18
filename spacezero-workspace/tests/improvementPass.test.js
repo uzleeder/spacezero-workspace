@@ -146,7 +146,7 @@ test('READINESS: shown on the employee lists (with a filter), the employee heade
   const header = await get(admin, `/employees/${agent.id}/setup`);
   assert.match(header.text, /Status:/); assert.match(header.text, /Needs Attention/);
   const mine = await get(agent, '/dashboard');
-  assert.equal(mine.status, 200); assert.match(mine.text, /My status/); assert.match(mine.text, /Needs Attention/);
+  assert.equal(mine.status, 200); assert.match(mine.text, /Finish your setup/); // the agent dashboard shows what to do about it (lib/agentDashboard.js)
   assert.ok(blocked(await get(agentB, `/employees/${agent.id}/setup`)));
 });
 
@@ -174,10 +174,12 @@ test('NEEDS YOUR ATTENTION: admin sees the organization, a supervisor only their
   assert.equal(keys(await attentionFor(admin)).ai, 1); assert.equal(keys(await attentionFor(sup)).ai, undefined);
   // dashboards render it with links
   const page = await get(admin, '/dashboard');
-  assert.match(page.text, /Needs your attention/); assert.match(page.text, /Pending profile activation/); assert.match(page.text, /AI Practice ready for review/); assert.match(page.text, /Pending vacation requests/);
-  assert.match((await get(sup, '/dashboard')).text, /Needs your attention/);
-  assert.match((await get(agent, '/dashboard')).text, /Needs your attention/);
-  assert.match((await get(agent, '/dashboard')).text, /Training overdue/);
+  // the Admin's dashboard is the three lanes (lib/adminDashboard.js): the same items, as cards with a link
+  assert.match(page.text, /Up next/); assert.match(page.text, /1 person not activated yet/); assert.match(page.text, /1 AI practice to review/); assert.match(page.text, /2 vacation requests/);
+  assert.match(page.text, /href="\/leave\?status=PENDING"/); assert.match(page.text, /href="\/ai-practice\?tab=review"/); assert.match(page.text, /Retake needed/);
+  assert.match((await get(sup, '/dashboard')).text, /Your team/); // the supervisor's own dashboard (lib/supervisorDashboard.js)
+  const own = (await get(agent, '/dashboard')).text; // the agent dashboard: the overdue training is next, and says so
+  assert.match(own, /\d+ days? overdue|Overdue today/); assert.match(own, /things? (is|are) overdue\./);
   void lateR;
 });
 
@@ -347,7 +349,7 @@ test('AI PRACTICE: one unified list — no separate "earlier raw uploads"; faile
 
 // ================================================================== 8. production / packaging
 test('PACKAGING: the release list never contains .env files, databases, uploads, logs, sessions or keys, and the ZIP scan finds no secrets', async () => {
-  for (const bad of ['.env', '.env.local', '.env.production', 'prisma/dev.db', 'prisma/dev.db-journal', 'storage/training/a.pdf', 'public/uploads/x.png', 'debug.log', 'ngrok-out.log', 'backup.zip', 'server.pem', 'keys/id.key', 'tmp/session.json', 'sessions/abc', 'generated/postgresql/client.js', 'node_modules/x/index.js', '.claude/settings.json', 'coverage/lcov.info', 'SpaceZero-Workspace-Demo.html']) assert.equal(pack.shouldExclude(bad), true, `${bad} must be excluded`);
+  for (const bad of ['.env', '.env.local', '.env.production', 'prisma/dev.db', 'prisma/dev.db-journal', 'storage/training/a.pdf', 'public/uploads/x.png', 'debug.log', 'ngrok-out.log', 'backup.zip', 'server.pem', 'keys/id.key', 'tmp/session.json', 'sessions/abc', 'generated/postgresql/client.js', 'node_modules/x/index.js', '.claude/settings.json', 'coverage/lcov.info', 'SpaceZero-Academy-Demo.html']) assert.equal(pack.shouldExclude(bad), true, `${bad} must be excluded`);
   for (const good of ['server.js', 'lib/readiness.js', 'prisma/schema.prisma', 'prisma/migrations/20260922100000_readiness_versioned_modules/migration.sql', '.env.production.example', 'views/layout.ejs', 'public/css/styles.css']) assert.equal(pack.shouldExclude(good), false, `${good} must be included`);
   // a scratch project with secrets and local data: none of it gets in, and a secret inside an included file blocks the build
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pkg-'));

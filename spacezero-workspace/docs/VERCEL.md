@@ -1,4 +1,4 @@
-# SpaceZero Workspace — Vercel deployment preparation
+# SpaceZero Academy — Vercel deployment preparation
 
 ## Prepared topology
 
@@ -11,7 +11,7 @@ runtime. The gateway has no database password, Gemini key or uploaded files.
 
 ## 1. Backend
 
-Build from `spacezero-workspace` using `docker build -t spacezero-workspace .`.
+Build from `spacezero-academy` using `docker build -t spacezero-academy .`.
 Run one backend instance with HTTPS supplied by the hosting platform and a
 persistent volume mounted at `/data`. The container runs as uid 1000; ensure the
 volume is writable by this account. Do not publicly serve the volume.
@@ -45,8 +45,8 @@ relative paths. Resend invitations after domain and SMTP configuration.
 ## 2. Vercel project
 
 Import the Git repository. Set Root Directory to
-`spacezero-workspace/deploy/vercel` when the repository includes the parent folder,
-or `deploy/vercel` when the repository root is already spacezero-workspace.
+`spacezero-academy/deploy/vercel` when the repository includes the parent folder,
+or `deploy/vercel` when the repository root is already spacezero-academy.
 
 - Framework preset: Other.
 - Build command: `npm run build` (included in vercel.json).

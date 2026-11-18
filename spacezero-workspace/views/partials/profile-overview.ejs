@@ -74,6 +74,7 @@ const p = data.profile;
     </div>
   </div>
 </div>
+<%- include('pc-card', { desk: data.desk, own: Boolean(typeof isOwnProfile !== 'undefined' && isOwnProfile) || (profile && profile.id === data.profile.id) }) %>
 
 <% if (data.standardsAck && data.standardsAck.required > 0) { %>
 <div class="card mt-24">

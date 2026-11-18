@@ -120,7 +120,8 @@ test('ADMIN SEES THE SUBMISSION and it counts toward Needs Your Attention', asyn
   assert.match(list.text, new RegExp(course.title));
 
   const dash = await get(admin, '/dashboard');
-  assert.match(dash.text, /Training awaiting approval/);
+  // the Admin's dashboard (lib/adminDashboard.js): a card in "Up next" linking to the approval tab
+  assert.match(dash.text, /\d+ trainings? to approve/); assert.match(dash.text, /href="\/ai-practice\?tab=approval"/);
 });
 
 test('ADMIN REQUESTS CHANGES: requires a note, reaches the Supervisor, and the draft can be revised and resubmitted', async () => {

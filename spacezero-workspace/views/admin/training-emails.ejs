@@ -1,0 +1,77 @@
+<%# Manage Training -> Training emails (routes/admin/trainingEmails.js). %>
+<%- include('../partials/page-header', { pageTitle: 'Training emails', pageDescription: 'Turn the "New training" email and the daily reminder off or on for everyone, a team, or one training. In-app notifications are not affected.' }) %>
+<%- include('../partials/management-tabs', { tabs: tabsets.training }) %>
+
+<% if (notice) { %><div class="form-alert success mt-16" role="status"><%= notice %></div><% } %>
+
+<div class="card mt-24">
+  <div class="card-body row-between" style="gap:16px;flex-wrap:wrap">
+    <div>
+      <h2 style="margin:0">Everyone</h2>
+      <p class="text-sm text-muted" style="margin:4px 0 0">The main switch. While it is off, no training emails go to anyone, whatever the switches below say.</p>
+    </div>
+    <%- include('../partials/email-switch', { target: 'all', id: '', on: allOn, name: 'everyone' }) %>
+  </div>
+  <div class="card-body text-sm text-muted">
+    Off pauses the emails; nothing is lost. Turning a switch back on resumes them at once. People who finished a training never get emails about it.
+    <% if (paused) { %><strong style="color:var(--card-title)"> <%= paused %> email<%= paused === 1 ? ' is' : 's are' %> paused right now.</strong><% } %>
+  </div>
+</div>
+
+<div class="email-switch-grid mt-24">
+  <section class="card">
+    <div class="card-header"><h2>Teams</h2><p>Off: no training emails for the members of that team.</p></div>
+    <div class="card-body email-switch-list">
+      <% if (!teams.length) { %><p class="text-muted text-sm">No teams yet.</p><% } %>
+      <% teams.forEach(function (t) { %>
+        <div class="email-switch-row<%= allOn ? '' : ' is-overridden' %>" data-team="<%= t.id %>">
+          <div><p class="email-switch-row__name"><%= t.name %></p><p class="email-switch-row__meta"><%= t._count.memberships %> member<%= t._count.memberships === 1 ? '' : 's' %></p></div>
+          <%- include('../partials/email-switch', { target: 'team', id: t.id, on: !t.trainingEmailsOff, name: t.name }) %>
+        </div>
+      <% }); %>
+    </div>
+  </section>
+  <section class="card">
+    <div class="card-header"><h2>Trainings</h2><p>How often each training reminds, and Off: no emails about it.</p></div>
+    <div class="card-body email-switch-list">
+      <% if (!courses.length) { %><p class="text-muted text-sm">No published trainings yet.</p><% } %>
+      <% courses.forEach(function (c) { %>
+        <div class="email-switch-row<%= allOn ? '' : ' is-overridden' %>" data-course="<%= c.id %>">
+          <div><p class="email-switch-row__name"><%= c.title %></p><p class="email-switch-row__meta">Reminder <%= cadenceText(c.reminderEveryDays) %></p></div>
+          <div class="email-switch-row__controls">
+            <form method="post" action="/admin/training-emails/frequency" class="email-freq">
+              <input type="hidden" name="id" value="<%= c.id %>" />
+              <label class="visually-hidden" for="freq-<%= c.id %>">How often to remind about <%= c.title %></label>
+              <% var custom = choices.indexOf(c.reminderEveryDays) === -1; %>
+              <select id="freq-<%= c.id %>" name="days" data-freq-select>
+                <% choices.forEach(function (d) { %><option value="<%= d %>"<%= c.reminderEveryDays === d ? ' selected' : '' %>><%= d === 1 ? 'Every day' : d === 7 ? 'Once a week' : 'Every ' + d + ' days' %></option><% }); %>
+                <% if (custom) { %><option value="<%= c.reminderEveryDays %>" selected>Every <%= c.reminderEveryDays %> days</option><% } %>
+                <option value="custom">Custom…</option>
+              </select>
+              <span class="email-freq__custom" data-freq-custom hidden>
+                <label for="custom-<%= c.id %>">Every</label>
+                <input id="custom-<%= c.id %>" name="customDays" type="number" min="1" max="<%= maxDays %>" step="1" inputmode="numeric" value="<%= c.reminderEveryDays %>" />
+                <span>days</span>
+                <button type="submit" class="btn btn-gold btn-sm">Save</button>
+              </span>
+              <noscript><button type="submit" class="btn btn-secondary btn-sm">Save</button></noscript>
+            </form>
+            <%- include('../partials/email-switch', { target: 'course', id: c.id, on: !c.trainingEmailsOff, name: c.title }) %>
+          </div>
+        </div>
+      <% }); %>
+    </div>
+  </section>
+</div>
+<div style="height:40px"></div>
+<script>
+// Picking a ready-made rhythm saves at once; Custom... opens "Every [n] days" to type a number and Save.
+document.querySelectorAll('[data-freq-select]').forEach(function (select) {
+  var form = select.form, box = form.querySelector('[data-freq-custom]'), field = box.querySelector('input');
+  select.addEventListener('change', function () {
+    if (select.value === 'custom') { box.hidden = false; field.focus(); field.select(); return; }
+    box.hidden = true;
+    if (form.requestSubmit) form.requestSubmit(); else form.submit();
+  });
+});
+</script>

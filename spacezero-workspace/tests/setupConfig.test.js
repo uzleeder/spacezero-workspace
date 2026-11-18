@@ -71,7 +71,7 @@ test('admin can create a setup tool from the UI, with a category, roles, verific
   assert.equal(amadeus.category, 'System Access'); assert.equal(amadeus.audience, 'ROLES'); assert.deepEqual(JSON.parse(amadeus.rolesJson), ['TRAVEL_AGENT']);
   assert.equal(amadeus.verification, 'MANAGEMENT_VERIFICATION'); assert.equal(amadeus.required, true); assert.equal(amadeus.kind, 'MANUAL');
   const list = await get(admin, '/admin/setup-requirements');
-  assert.match(list.text, /Amadeus/); assert.match(list.text, /System Access/); assert.match(list.text, /Travel Agent/); assert.match(list.text, /Management verification/);
+  assert.match(list.text, /Amadeus/); assert.match(list.text, /System Access/); assert.match(list.text, /Travel Agent/); assert.match(list.text, /employee ticks it, a manager confirms/);
   assert.match((await get(agentA, `/employees/${agentA.id}/setup`)).text, /Amadeus/);
 });
 

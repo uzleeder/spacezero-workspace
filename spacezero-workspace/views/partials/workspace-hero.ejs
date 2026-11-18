@@ -1,22 +1,37 @@
-<section class="workspace-hero">
+<%
+// One hero for every role: the same SpaceZero standard, said the way each role lives it.
+const HERO = {
+  ADMIN: { title: 'Extraordinary service.<br>Starts with you.', text: 'Build the knowledge. Put it into practice.<br>Make every client experience exceptional.', href: '/admin/training', action: 'Manage training' },
+  SUPERVISOR: { title: 'Great teams.<br>Start with great coaching.', text: 'See where each agent stands. Coach the skills that matter.<br>Lift every call to the standard.', href: '/team', action: 'Open my team' },
+  TRAVEL_AGENT: { title: 'Extraordinary service.<br>Starts with you.', text: 'Learn the destinations, the fares and the product.<br>Turn every call into a trip your client remembers.', href: '/training', action: 'Continue my training' },
+  FLIGHT_EXPERT: { title: 'Every flight.<br>Built with expertise.', text: 'Master the fares, the rules and the routes.<br>Give every traveller the right answer the first time.', href: '/training', action: 'Continue my training' },
+};
+const hero = HERO[profile.role] || HERO.TRAVEL_AGENT;
+const canClose = !(typeof impersonation !== 'undefined' && impersonation);
+%>
+<% if (profile.heroShown) { %>
+<section class="workspace-hero" data-hero>
+  <% if (canClose) { %><button type="button" class="hero-close" data-hero-close aria-label="Hide this card" title="Hide this card: its globe moves to the top of the sidebar">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3l8 8M11 3l-8 8"/></svg>
+  </button><% } %>
   <div class="hero-copy">
-    <div class="eyebrow"><span></span> THE ABOVE9 STANDARD</div>
-    <h2>Extraordinary service.<br>Starts with you.</h2>
-    <p>Build the knowledge. Put it into practice.<br>Make every client experience exceptional.</p>
-    <a href="<%= profile.role === 'ADMIN' ? '/admin/training' : '/training' %>" class="btn hero-btn"><%= profile.role === 'ADMIN' ? 'Manage training' : 'Explore my training' %> <span aria-hidden="true">↗</span></a>
+    <div class="eyebrow"><span></span> THE SPACEZERO STANDARD</div>
+    <h2><%- hero.title %></h2>
+    <p><%- hero.text %></p>
+    <a href="<%= hero.href %>" class="btn hero-btn"><%= hero.action %> <span aria-hidden="true">↗</span></a>
   </div>
   <div class="hero-art" aria-hidden="true">
-    <svg viewBox="0 0 400 270" fill="none" focusable="false">
+    <%# A real turning globe (public/js/hero-globe.js): one loop around the orbit, a landing in Tashkent,
+        then a fleet leaving Uzbekistan for the world. The far half of the orbit and anything on the far
+        side of the globe are hidden behind it. %>
+    <svg viewBox="0 0 400 270" fill="none" focusable="false" data-globe data-world="<%= asset('/static/data/world-countries-110m.json') %>">
       <defs>
-        <%# Depth: the orbit is drawn in two halves. The far half (and the plane while it is there) is masked out
-            where the globe covers it; the near half and the plane on it are drawn on top of the globe. %>
         <mask id="workspace-behind-globe" maskUnits="userSpaceOnUse" x="-60" y="-60" width="520" height="390">
           <rect x="-60" y="-60" width="520" height="390" fill="white"/>
-          <circle cx="204" cy="133" r="103" fill="black"/>
+          <circle cx="204" cy="133" r="102" fill="black"/>
         </mask>
         <clipPath id="workspace-globe-clip"><circle cx="204" cy="133" r="101"/></clipPath>
         <path id="workspace-aircraft" d="M21 0C21-1 19-2 16-2L3-3-9-17-15-17-8-3-19-2-24-7-27-7-24 0-27 7-24 7-19 2-8 3-15 17-9 17 3 3 16 2C19 2 21 1 21 0Z"/>
-        <path id="workspace-land" d="M15 25 40 20 85 18 105 28 125 38 115 45 100 60 83 65 75 70 63 58 55 42 40 30Z M100 80 120 82 145 97 140 112 122 128 110 143 105 130 110 108 100 95Z M170 54 171 47 178 42 185 38 190 32 205 20 220 24 220 45 208 50 195 52Z M163 75 175 55 190 53 212 59 223 78 231 79 220 105 215 115 200 125 192 108 189 86 172 85Z M220 45 240 35 260 18 290 15 320 18 350 24 340 32 320 40 310 50 300 60 288 72 280 80 260 82 252 70 238 65 228 60Z M294 112 310 102 325 102 333 117 325 128 310 122 295 124Z M120 10 140 8 155 14 145 24 128 22Z"/>
         <radialGradient id="workspace-sphere" cx="34%" cy="28%" r="78%">
           <stop stop-color="#5a4f93"/>
           <stop offset=".55" stop-color="#2c2659"/>
@@ -26,10 +41,6 @@
           <stop offset=".35" stop-color="#0b0a1c" stop-opacity="0"/>
           <stop offset="1" stop-color="#0b0a1c" stop-opacity=".6"/>
         </radialGradient>
-        <linearGradient id="workspace-grid" x1="120" y1="42" x2="284" y2="225" gradientUnits="userSpaceOnUse">
-          <stop stop-color="#c9c4ea" stop-opacity=".55"/>
-          <stop offset="1" stop-color="#7b72b4" stop-opacity=".18"/>
-        </linearGradient>
         <linearGradient id="workspace-orbit-front" x1="49" y1="0" x2="359" y2="0" gradientUnits="userSpaceOnUse">
           <stop stop-color="#dca878" stop-opacity=".35"/>
           <stop offset=".5" stop-color="#f6d9a8"/>
@@ -38,32 +49,34 @@
         <filter id="workspace-glow" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="2.4"/></filter>
       </defs>
       <circle class="planet-halo" cx="204" cy="133" r="122"/>
-      <g transform="rotate(-18 204 133)">
-        <%# far half of the orbit: behind the globe %>
-        <path class="orbit-back" mask="url(#workspace-behind-globe)" d="M49 133A155 48 0 0 1 359 133"/>
-        <g mask="url(#workspace-behind-globe)"><g class="orbit-plane orbit-plane-back"><use class="plane-mark" href="#workspace-aircraft"/></g></g>
-      </g>
+      <g transform="rotate(-18 204 133)"><path class="orbit-back" mask="url(#workspace-behind-globe)" d="M49 133A155 48 0 0 1 359 133"/></g>
+      <g mask="url(#workspace-behind-globe)"><g class="globe-plane" data-plane-back style="visibility:hidden"><use href="#workspace-aircraft"/></g></g>
       <circle class="planet-surface" cx="204" cy="133" r="101" fill="url(#workspace-sphere)"/>
       <g clip-path="url(#workspace-globe-clip)">
-        <g class="planet-land"><g transform="translate(103 32) scale(1.122)"><use href="#workspace-land"/><use href="#workspace-land" x="-360"/></g></g>
-        <g class="planet-grid" stroke="url(#workspace-grid)">
-          <ellipse class="planet-meridian" cx="204" cy="133" rx="101" ry="101"/>
-          <ellipse class="planet-meridian planet-meridian-two" cx="204" cy="133" rx="101" ry="101"/>
-          <ellipse class="planet-meridian planet-meridian-three" cx="204" cy="133" rx="101" ry="101"/>
-          <path d="M103 133h202"/>
-          <ellipse cx="204" cy="133" rx="101" ry="30"/>
-          <path d="M115 85Q204 112 293 85 M115 181Q204 154 293 181"/>
-        </g>
+        <path class="globe-grid" data-graticule/>
+        <path class="globe-land" data-land/>
+        <path class="globe-borders" data-borders/>
+        <path class="globe-uz" data-uz/>
+        <g data-trails></g>
         <circle cx="204" cy="133" r="101" fill="url(#workspace-shade)"/>
       </g>
       <circle class="planet-rim" cx="204" cy="133" r="101"/>
       <g transform="rotate(-18 204 133)">
-        <%# near half of the orbit and the plane on it: in front of the globe %>
         <path class="orbit-front-glow" d="M359 133A155 48 0 0 1 49 133" filter="url(#workspace-glow)"/>
         <path class="orbit-front" d="M359 133A155 48 0 0 1 49 133"/>
-        <g class="orbit-plane orbit-plane-front"><use class="plane-mark" href="#workspace-aircraft"/></g>
       </g>
+      <g data-ports></g>
+      <g class="globe-uz-name" data-uz-name style="visibility:hidden"><text class="globe-uz-label" text-anchor="middle">Uzbekistan</text></g>
+      <g class="globe-uz-mark" data-uz-mark style="visibility:hidden">
+        <circle class="globe-uz-pulse" r="7"/>
+        <circle class="globe-uz-dot" r="2.2"/>
+        <text class="globe-port-label globe-port-label--home" x="6" y="9">TAS · Tashkent</text>
+      </g>
+      <g data-fleet></g>
+      <g class="globe-plane" data-plane-front style="visibility:hidden"><use href="#workspace-aircraft"/></g>
     </svg>
     <div class="hero-coordinate">KNOWLEDGE → CONFIDENCE → EXCELLENCE</div>
   </div>
 </section>
+<script src="<%= asset('/static/js/hero-globe.js') %>" defer></script>
+<% } %>

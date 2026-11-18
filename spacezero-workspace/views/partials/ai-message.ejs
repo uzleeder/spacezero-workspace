@@ -1,0 +1,30 @@
+<%# One Space AI chat message. m = { role, kind, content }. contacts = lib/supportContacts.js#supportContacts().
+    When Space AI cannot help it says who to contact on Telegram: Admins for questions about work and data,
+    the engineer for a technical problem. public/js/space-ai.js draws the same markup for new messages. %>
+<% var mine = m.role === 'user'; %>
+<div class="ai-msg ai-msg--<%= mine ? 'user' : 'ai' %><%= !mine && m.kind !== 'answer' ? ' ai-msg--' + m.kind : '' %>">
+  <% if (!mine) { %><span class="ai-msg__avatar" aria-hidden="true"><%- include('icon', { name: 'ai' }) %></span><% } %>
+  <div class="ai-msg__bubble">
+    <% if (m.image) { %><a href="<%= m.image.url %>" target="_blank" rel="noopener"><img class="ai-msg__image" src="<%= m.image.url %>" alt="<%= m.image.name || 'Attached image' %>" loading="lazy" /></a><% } %>
+    <p class="ai-msg__text"><%= m.content %></p>
+    <% if (m.sources && m.sources.length) { %><nav class="ai-sources" aria-label="Related sources"><span>Related sources</span><% m.sources.forEach(function (s) { %><a href="<%= s.href %>"><%= s.title %></a><% }); %></nav><% } %>
+    <% if (!mine) { %><button type="button" class="ai-read-aloud" data-ai-speak hidden>Read aloud</button><% } %>
+    <% if (!mine && (m.kind === 'unknown' || m.kind === 'technical')) { %>
+      <div class="ai-help">
+        <% var adminLinks = contacts.admins.map(function (a) { return '<a class="ai-tg" href="' + a.url + '" target="_blank" rel="noopener">' + a.name + ' <span>' + a.handle + '</span></a>'; }).join(''); %>
+        <% var engineerLink = '<a class="ai-tg ai-tg--engineer" href="' + contacts.engineer.url + '" target="_blank" rel="noopener">' + contacts.engineer.title + ' ' + contacts.engineer.name + ' <span>' + contacts.engineer.handle + '</span></a>'; %>
+        <% if (m.kind === 'technical') { %>
+          <p class="ai-help__lead">Please contact the engineer on Telegram:</p>
+          <div class="ai-help__links"><%- engineerLink %></div>
+          <p class="ai-help__lead">For questions about your work, contact an Admin:</p>
+          <div class="ai-help__links"><%- adminLinks %></div>
+        <% } else { %>
+          <p class="ai-help__lead">Please contact an Admin on Telegram:</p>
+          <div class="ai-help__links"><%- adminLinks %></div>
+          <p class="ai-help__lead">Is it a technical issue? Contact the engineer:</p>
+          <div class="ai-help__links"><%- engineerLink %></div>
+        <% } %>
+      </div>
+    <% } %>
+  </div>
+</div>

@@ -1,23 +1,78 @@
-<%- include('../../partials/page-header', { pageTitle: 'Permissions — ' + supervisor.fullName, pageDescription: 'Only capabilities granted here apply, and only within ' + supervisor.fullName + '\'s own team.', headerAction: '<a href="/admin/supervisor-permissions" class="btn btn-secondary">Back</a>' }) %>
+<%#
+  One Supervisor's permissions. Ready-made sets tick the usual combinations; the two sensitive permissions (passwords,
+  passport numbers) are never part of a set and are shown apart. Field name "capabilities" is unchanged
+  (routes/admin/supervisorPermissions.js). Everything applies only within this Supervisor's own team.
+%>
+<%
+const SENSITIVE = ['credentials.view_team', 'passport.viewNumber'];
+const PRESETS = [
+  ['See only', 'Can look at their team’s setup checklist.', ['setup.view']],
+  ['Team lead', 'Looks after their team’s setup and assigns approved training.', ['setup.view', 'setup.manage', 'setup.verify', 'training.assign', 'training.viewHistory']],
+  ['Team lead + builds training', 'Team lead, and can also prepare training for Admin approval.', ['setup.view', 'setup.manage', 'setup.verify', 'training.assign', 'training.viewHistory', 'training.create', 'training.revise']],
+  ['Nothing', 'Removes every permission except the sensitive ones below.', []],
+];
+const GROUP_NAMES = { 'Employee Management': 'Team setup', 'Training': 'Training' };
+const normal = CATEGORIES.filter(function (cat) { return !CAPABILITIES.filter(function (c) { return c.category === cat; }).every(function (c) { return SENSITIVE.includes(c.key); }); });
+%>
+<%- include('../../partials/page-header', { pageTitle: supervisor.fullName, pageDescription: 'What ' + supervisor.fullName + ' may do. Everything here applies only to their own team.', headerAction: '<a href="/admin/supervisor-permissions" class="btn btn-secondary">All Supervisors</a>' }) %>
 
-<form method="post" action="/admin/supervisor-permissions/<%= supervisor.id %>" class="mt-24" onsubmit="return confirm('Apply these management permissions for this supervisor?')">
-  <% CATEGORIES.forEach(function (category) { %>
-    <div class="card mt-16">
-      <div class="card-header"><h2><%= category %></h2></div>
-      <div class="card-body">
-        <% CAPABILITIES.filter(function (c) { return c.category === category; }).forEach(function (c) { %>
-          <label class="checkbox-row" style="display:block;margin:10px 0">
-            <input type="checkbox" name="capabilities" value="<%= c.key %>" <%= granted.has(c.key) ? 'checked' : '' %> />
-            <strong><%= c.label %></strong>
-            <p class="text-sm text-muted" style="margin:2px 0 0 24px"><%= c.description %></p>
+<form method="post" action="/admin/supervisor-permissions/<%= supervisor.id %>" class="mt-24 sp-form" data-sp-form>
+  <section class="card">
+    <div class="card-header"><div><h2>Start from a ready-made set</h2><p>Click one, then adjust single permissions below if needed.</p></div></div>
+    <div class="card-body sp-presets">
+      <% PRESETS.forEach(function (p) { %>
+        <button type="button" class="sp-preset" data-sp-preset="<%= p[2].join(',') %>"><strong><%= p[0] %></strong><span><%= p[1] %></span></button>
+      <% }); %>
+    </div>
+  </section>
+
+  <% normal.forEach(function (category) { %>
+    <section class="card mt-16">
+      <div class="card-header"><h2><%= GROUP_NAMES[category] || category %></h2></div>
+      <div class="card-body sp-list">
+        <% CAPABILITIES.filter(function (c) { return c.category === category && !SENSITIVE.includes(c.key); }).forEach(function (c) { %>
+          <label class="sp-perm">
+            <input type="checkbox" name="capabilities" value="<%= c.key %>" <%= granted.has(c.key) ? 'checked' : '' %> data-sp-normal />
+            <span><strong><%= c.label %></strong><small><%= c.description %></small></span>
           </label>
         <% }); %>
       </div>
-    </div>
+    </section>
   <% }); %>
+
+  <section class="card mt-16 sp-sensitive">
+    <div class="card-header"><div><h2>🔒 Sensitive</h2><p>Only turn these on when this Supervisor really needs them. Each look is recorded.</p></div></div>
+    <div class="card-body sp-list">
+      <% CAPABILITIES.filter(function (c) { return SENSITIVE.includes(c.key); }).forEach(function (c) { %>
+        <label class="sp-perm">
+          <input type="checkbox" name="capabilities" value="<%= c.key %>" <%= granted.has(c.key) ? 'checked' : '' %> />
+          <span><strong><%= c.label %></strong><small><%= c.description %></small></span>
+        </label>
+      <% }); %>
+    </div>
+  </section>
 
   <div class="row-between mt-24" style="margin-bottom:40px">
     <a href="/admin/supervisor-permissions" class="text-sm link-gold">Cancel</a>
-    <button type="submit" class="btn btn-gold">Save Permissions</button>
+    <button type="submit" class="btn btn-gold">Save permissions</button>
   </div>
 </form>
+<script>
+(function () {
+  var form = document.querySelector('[data-sp-form]');
+  if (!form) return;
+  var normal = form.querySelectorAll('[data-sp-normal]');
+  form.querySelectorAll('[data-sp-preset]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var keys = btn.getAttribute('data-sp-preset').split(',').filter(Boolean);
+      normal.forEach(function (box) { box.checked = keys.indexOf(box.value) !== -1; });
+      form.querySelectorAll('[data-sp-preset]').forEach(function (b) { b.classList.toggle('is-active', b === btn); });
+    });
+  });
+  var start = new FormData(form).getAll('capabilities').sort().join(',');
+  form.addEventListener('submit', function (e) {
+    var now = new FormData(form).getAll('capabilities').sort().join(',');
+    if (now !== start && !window.confirm('Save these permissions for <%= supervisor.fullName.replace(/[\\'"<>]/g, "") %>?')) e.preventDefault();
+  });
+})();
+</script>

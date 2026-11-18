@@ -1,26 +1,24 @@
 <%
-// Renders the SECTIONS grid (lib/adminConfigurationSections.js) — reused verbatim wherever the
+// Renders the SECTIONS list (lib/adminConfigurationSections.js) — reused verbatim wherever the
 // Advanced configuration surface is shown, currently just the Settings → Advanced tab.
+// One row per page: its name, one plain sentence, and a live status line (statuses, from statusFor()) when there is one.
+const st = typeof statuses !== 'undefined' && statuses ? statuses : {};
 %>
-<div class="grid grid-3 advanced-sections">
-  <% sections.forEach(function (section) { %>
-    <div class="card">
-      <div class="card-header"><h2><%= section.title %></h2><p><%= section.description %></p></div>
-      <div class="card-body">
-        <ul class="divide-list">
-          <% section.links.forEach(function (link) { %>
-            <li>
-              <a class="row-between" href="<%= link.href %>" style="align-items:flex-start">
-                <div>
-                  <p style="font-weight:500;color:var(--navy-950)"><%= link.label %></p>
-                  <p class="text-sm text-muted mt-4"><%= link.description %></p>
-                </div>
-                <span aria-hidden="true">→</span>
-              </a>
-            </li>
-          <% }); %>
-        </ul>
-      </div>
-    </div>
+<div class="adv-sections">
+  <% sections.forEach(function (section, si) { %>
+    <section class="card adv-group" aria-labelledby="adv-<%= section.key %>">
+      <div class="card-header"><div><h2 id="adv-<%= section.key %>"><span class="adv-group__n" aria-hidden="true"><%= si + 1 %></span><%= section.title %></h2><p><%= section.description %></p></div></div>
+      <ul class="adv-rows">
+        <% section.links.forEach(function (link) { const s = st[link.key]; %>
+          <li>
+            <a class="adv-row" href="<%= link.href %>">
+              <span class="adv-row__text"><strong><%= link.label %></strong><span><%= link.description %></span></span>
+              <% if (s) { %><span class="adv-status adv-status--<%= s.tone %>"><%= s.text %></span><% } %>
+              <span class="adv-row__go" aria-hidden="true">→</span>
+            </a>
+          </li>
+        <% }); %>
+      </ul>
+    </section>
   <% }); %>
 </div>

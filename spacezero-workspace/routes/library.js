@@ -6,45 +6,52 @@ const fs = require('fs');
 
 const { prisma } = require('../lib/prisma');
 const { requireSession } = require('../lib/authMiddleware');
-const { getVisibleLibraryItems, parseTags } = require('../lib/library');
+const { getVisibleLibraryItems, parseTags, youtubeId, TYPE_LABELS } = require('../lib/library');
 const { resolveStoragePath } = require('../lib/storage');
 const viewer = require('../lib/materialViewer');
 
-router.get('/library', requireSession, async (req, res) => {
+// One Library page with three views: everything (with search and category chips), what this person saved, and what
+// they opened recently. /library/mine is the "Saved" view (older links keep working).
+const VIEWS = ['all', 'saved', 'recent'];
+async function renderLibrary(req, res, view) {
   const me = req.profile;
-  const [items, categories, favorites] = await Promise.all([
-    getVisibleLibraryItems(me.organizationId, me.role, { categoryId: req.query.category, q: req.query.q }),
+  const { visibleTo } = require('../lib/objectAccess');
+  const category = typeof req.query.category === 'string' ? req.query.category : '';
+  const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+  const [allVisible, items, categories, favorites, recent] = await Promise.all([
+    getVisibleLibraryItems(me.organizationId, me.role, {}),
+    view === 'all' ? getVisibleLibraryItems(me.organizationId, me.role, { categoryId: category || undefined, q }) : [],
     prisma.libraryCategory.findMany({ where: { organizationId: me.organizationId }, orderBy: { displayOrder: 'asc' } }),
-    prisma.libraryFavorite.findMany({ where: { profileId: me.id } }),
+    prisma.libraryFavorite.findMany({ where: { profileId: me.id }, include: { libraryItem: { include: { category: true } } }, orderBy: { createdAt: 'desc' } }),
+    view === 'recent' ? prisma.libraryRecentlyViewed.findMany({ where: { profileId: me.id }, include: { libraryItem: { include: { category: true } } }, orderBy: { viewedAt: 'desc' }, take: 20 }) : [],
   ]);
-  const favoriteIds = new Set(favorites.map((f) => f.libraryItemId));
+  const usable = (row) => row.libraryItem && !row.libraryItem.archivedAt && visibleTo(row.libraryItem, me);
+  const saved = favorites.filter(usable);
+  const counts = new Map();
+  allVisible.forEach((i) => { if (i.categoryId) counts.set(i.categoryId, (counts.get(i.categoryId) || 0) + 1); });
   res.render('library/index', {
-    title: 'Library',
-    items,
-    categories,
-    favoriteIds,
+    title: view === 'saved' ? 'My Library' : 'Library',
+    view,
+    items: view === 'all' ? items : view === 'saved' ? saved.map((f) => f.libraryItem) : [],
+    recent: recent.filter(usable),
+    total: allVisible.length,
+    savedCount: saved.length,
+    categories: categories.filter((c) => counts.get(c.id)).map((c) => ({ id: c.id, name: c.name, count: counts.get(c.id) })),
+    favoriteIds: new Set(favorites.map((f) => f.libraryItemId)),
     parseTags,
-    q: req.query.q || '',
-    category: req.query.category || '',
+    TYPE_LABELS,
+    youtubeId,
+    q,
+    category,
   });
+}
+
+router.get('/library', requireSession, async (req, res) => {
+  const view = VIEWS.includes(req.query.view) ? req.query.view : 'all';
+  await renderLibrary(req, res, view);
 });
 
-router.get('/library/mine', requireSession, async (req, res) => {
-  const [favorites, recent] = await Promise.all([
-    prisma.libraryFavorite.findMany({
-      where: { profileId: req.profile.id },
-      include: { libraryItem: true },
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.libraryRecentlyViewed.findMany({
-      where: { profileId: req.profile.id },
-      include: { libraryItem: true },
-      orderBy: { viewedAt: 'desc' },
-      take: 10,
-    }),
-  ]);
-  res.render('library/mine', { title: 'My Library', favorites: favorites.filter(row => require('../lib/objectAccess').visibleTo(row.libraryItem, req.profile)), recent: recent.filter(row => require('../lib/objectAccess').visibleTo(row.libraryItem, req.profile)) });
-});
+router.get('/library/mine', requireSession, (req, res) => renderLibrary(req, res, 'saved'));
 
 function isVisible(visibleRolesJson, role) {
   if (role === 'ADMIN' || !visibleRolesJson) return true;
@@ -75,7 +82,7 @@ router.get('/library/:id', requireSession, async (req, res) => {
   // How this item is shown inside the page (video / audio / image / PDF / readable text). Everyone except Admins gets a view-only page.
   const kind = viewer.viewerKind({ type: item.itemType, storagePath: item.storagePath, mimeType: item.mimeType });
   const text = kind === 'text' ? await viewer.readableText(item.storagePath) : null;
-  res.render('library/detail', { title: item.title, item, isFavorite: Boolean(favorite), parseTags, kind, text, paragraphs: viewer.paragraphs, protect: me.role !== 'ADMIN' });
+  res.render('library/detail', { title: item.title, item, isFavorite: Boolean(favorite), parseTags, kind, text, youtube: item.itemType === 'LINK' ? youtubeId(item.externalUrl) : null, TYPE_LABELS, paragraphs: viewer.paragraphs, protect: me.role !== 'ADMIN' });
 });
 
 router.post('/library/:id/favorite', requireSession, async (req, res) => {

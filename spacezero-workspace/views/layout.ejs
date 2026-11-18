@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en" data-theme="<%= theme %>">
 <head>
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=1" />
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=2" />
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><%= typeof title !== 'undefined' ? title + ' · SpaceZero Workspace' : 'SpaceZero Workspace' %></title>
@@ -28,12 +28,16 @@
     <div class="backdrop" data-backdrop></div>
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-brand">
-        <a href="/dashboard" class="sidebar-brand-link" aria-label="SpaceZero Workspace — go to the dashboard" title="Go to the dashboard"><%- include('partials/brand-mark', { brandVariant: 'dark' }) %></a>
+        <div class="sidebar-brand-main">
+          <a href="/dashboard" class="sidebar-brand-link" aria-label="SpaceZero Workspace — go to the dashboard" title="Go to the dashboard"><%- include('partials/brand-mark', { brandVariant: 'dark', brandGlobe: !profile.heroShown }) %></a>
+          <% if (!(typeof impersonation !== 'undefined' && impersonation)) { %><button type="button" class="hero-restore" data-hero-restore<%= profile.heroShown ? ' hidden' : '' %> aria-label="Show the SpaceZero standard card on the dashboard" title="Show the SpaceZero standard card on the dashboard">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.6-5.9"/><path d="M4 4v4h4"/></svg>
+          </button><% } %>
+        </div>
         <button type="button" class="sidebar-collapse-btn" data-sidebar-collapse aria-label="Collapse sidebar" title="Collapse sidebar">
           <%- include('partials/icon', { name: 'collapse' }) %>
         </button>
       </div>
-      <div class="workspace-label"><span class="workspace-dot"></span> SpaceZero Workspace</div>
       <nav class="sidebar-nav" aria-label="Main navigation">
         <% nav.forEach(function (section) { %>
           <div class="sidebar-group">
@@ -42,7 +46,7 @@
               <% const alsoPaths = item.activeAlso || [];
               const matchesPath = function (p) { return currentPath === p || currentPath.indexOf(p + '/') === 0; };
               const active = matchesPath(item.href) || alsoPaths.some(matchesPath);
-              const iconName = /employees|\/team$/.test(item.href) ? 'people' : /ai-practice/.test(item.href) ? 'upload' : /skill/.test(item.href) ? 'skills' : /admin\/library|call-review/.test(item.href) ? 'calls' : /library/.test(item.href) ? 'library' : /training/.test(item.href) ? 'training' : /notes/.test(item.href) ? 'notes' : /settings/.test(item.href) ? 'settings' : /profile/.test(item.href) ? 'profile' : /standards/.test(item.href) ? 'book' : /assistant/.test(item.href) ? 'ai' : 'dashboard'; %>
+              const iconName = /employees|\/team$/.test(item.href) ? 'people' : /ai-practice/.test(item.href) ? 'upload' : /skill/.test(item.href) ? 'skills' : /admin\/library|call-review/.test(item.href) ? 'calls' : /library/.test(item.href) ? 'library' : /training/.test(item.href) ? 'training' : /notes/.test(item.href) ? 'notes' : /settings/.test(item.href) ? 'settings' : /profile/.test(item.href) ? 'profile' : /standards/.test(item.href) ? 'book' : /assistant/.test(item.href) ? 'ai' : /^\/office/.test(item.href) ? 'office' : 'dashboard'; %>
               <a class="sidebar-link<%= active ? ' active' : '' %>" href="<%= item.href %>" title="<%= item.label %>" <%- active ? 'aria-current="page"' : '' %>><%- include('partials/icon', { name: iconName }) %><span><%= item.label %></span></a>
             <% }); %>
           </div>
@@ -63,7 +67,7 @@
       </nav>
       <div class="sidebar-footer">
         <div class="sidebar-note">EXCELLENCE, EVERY DAY.<br><span>Built for a higher standard.</span></div>
-        <% if (profile.role === 'ADMIN') { %><uzleeder-crafted theme="dark" size="sm"></uzleeder-crafted><% } %>
+        <% if (profile.role === 'ADMIN') { %><uzleeder-crafted theme="<%= theme === 'dark' ? 'dark' : 'light' %>" size="sm"></uzleeder-crafted><% } %>
       </div>
     </aside>
 
@@ -134,21 +138,33 @@
       </main>
     </div>
   </div>
-  <% if (!/^\/assistant(\/|$)/.test(currentPath)) { %>
+  <% if (!/^\/assistant(\/|$)/.test(currentPath) && !(impersonation && impersonation.readOnly)) { %>
   <details class="space-ai no-print" data-space-ai>
     <summary class="space-ai__fab" aria-label="Open Space AI" title="Space AI">
       <%- include('partials/icon', { name: 'ai' }) %><span>Space AI</span>
     </summary>
-    <div class="space-ai__panel" role="dialog" aria-label="Space AI">
-      <div class="space-ai__head"><strong>Space AI</strong><span>Read-only answers from what you are allowed to see.</span></div>
-      <form method="post" action="/assistant/ask" class="space-ai__form">
+    <div class="space-ai__panel" role="dialog" aria-label="Space AI" data-ai-app data-ai-panel data-ai-owner="<%= profile.id %>">
+      <div class="space-ai__head">
+        <div class="space-ai__brand"><span class="ai-main__logo" aria-hidden="true"><%- include('partials/space-ai-mark') %></span><div><strong>Space AI</strong><span>Read-only answers from what you are allowed to see.</span></div></div>
+        <button type="button" class="space-ai__new" data-ai-new-chat title="Start a new chat">+ New chat</button>
+      </div>
+      <div class="space-ai__thread ai-thread" data-ai-thread aria-live="polite">
+        <p class="space-ai__hello" data-ai-welcome>Ask about setup, training, skills, standards or leave. The answer appears right here.</p>
+      </div>
+      <form method="post" action="/assistant/ask" enctype="multipart/form-data" class="space-ai__form" data-ai-form>
+        <input type="hidden" name="chatId" value="" data-ai-chat-id />
         <label class="visually-hidden" for="space-ai-question">Ask Space AI</label>
-        <textarea id="space-ai-question" name="question" rows="3" maxlength="500" required placeholder="e.g. What requires my attention today?"></textarea>
-        <div class="space-ai__actions"><a href="/assistant" class="text-sm link-gold">Open Space AI</a><button type="submit" class="space-ai__ask btn btn-gold btn-sm">Ask</button></div>
+        <%- include('partials/ai-composer', { inputId: 'space-ai-question' }) %>
+        <div class="space-ai__actions"><span class="ai-hint">Enter to send · Shift + Enter for a new line</span><a href="/assistant" class="text-sm link-gold" data-ai-open>Open Space AI</a></div>
       </form>
     </div>
   </details>
   <% } %>
+  <script type="application/json" id="space-ai-contacts"><%- JSON.stringify(typeof supportContacts !== 'undefined' ? supportContacts : null).split('<').join(String.fromCharCode(92) + 'u003c') %></script>
+  <template id="space-ai-avatar"><%- include('partials/icon', { name: 'ai' }) %></template>
   <script src="<%= asset('/static/js/app.js') %>"></script>
+  <script src="<%= asset('/static/js/space-ai-voice.js') %>" defer></script>
+  <script src="<%= asset('/static/js/space-ai.js') %>" defer></script>
+  <script src="<%= asset('/static/js/space-ai-history.js') %>" defer></script>
 </body>
 </html>
